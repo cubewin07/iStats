@@ -8,6 +8,29 @@
 - Xcode (latest stable) with Command Line Tools installed: `xcode-select --install`.
 - A signing identity is not required for local development (run unsigned / your own Mac).
 
+## Current state (Phase 1 scaffold)
+
+A Swift Package provides the pure `Core` layer and tests today:
+- `Package.swift` — defines the `iStatsCore` library + `iStatsCoreTests`.
+- `Sources/iStatsCore/` — models, `Availability`/`Sample`, `Sampler` protocol, `RingBuffer`, `RateMath`, `Units`.
+- `Tests/iStatsCoreTests/` — 19 passing unit tests.
+
+The menu bar **app target** (with `Info.plist` + `LSUIElement`) is created in Xcode during Phase 1 and will depend on `iStatsCore`.
+
+### ⚠️ Build scratch path (important on this machine)
+
+This project folder appears to sit in a synced/locked location where SwiftPM's
+`.build/build.db` (SQLite) hits "disk I/O error". Build and test with a scratch
+path outside the project instead:
+
+```
+swift build --scratch-path /tmp/istats-build
+swift test  --scratch-path /tmp/istats-build
+```
+
+If you ever see `accessing build database ... disk I/O error`, this is the fix.
+(`.build/` is gitignored either way.)
+
 ## Project layout
 
 ```
@@ -34,11 +57,10 @@ xcodebuild -scheme iStats -configuration Debug build
 
 ## Running tests
 
+- Package tests (today): `swift test --scratch-path /tmp/istats-build`
 - In Xcode: ⌘U.
-- CLI:
-```
-xcodebuild test -scheme iStats -destination 'platform=macOS'
-```
+- CLI (once an app scheme exists): `xcodebuild test -scheme iStats -destination 'platform=macOS'`
+
 The `Core` tests run without hardware. Sampler integration tests require running on a real Mac.
 
 ## Permissions during development
