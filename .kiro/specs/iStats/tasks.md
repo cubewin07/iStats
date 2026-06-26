@@ -1,129 +1,163 @@
-# iStats — Implementation Plan
+# Implementation Plan
 
-Tasks are grouped by the phases defined in the design. Each phase ends with a runnable app and a written `report.md`. Documentation deliverables (ADRs, docs, prerequisites/learning guide) are explicit tasks, not afterthoughts.
+## Overview
 
----
+The implementation plan is organized by phase. Each phase is now a self-contained spec
+under [`phases/`](./phases/) with its own `requirements.md`, `design.md`, and a `tasks/`
+folder holding one file per task (each task file states **what to do** and its **goal**).
 
-## Phase 0 — Documentation scaffolding & learning baseline
+This top-level document is the index and dependency map. The per-phase folders hold the
+detail. The whole-project [`requirements.md`](./requirements.md) and
+[`design.md`](./design.md) remain the canonical source of truth.
 
-- [ ] 0. Set up project + documentation skeleton
-  - [ ] 0.1 Create the `iStats/` folder structure (App/Core/Sampling/UI/Resources, iStatsTests, docs/) as in the design
-    - _Requirements: 14.2, 14.3_
-  - [ ] 0.2 Write `docs/prerequisites-and-learning.md`: OS concepts and macOS frameworks (sysctl, Mach host stats, IOKit, SMC, IOPowerSources), plus a per-metric "validate against reference tool" checklist (Activity Monitor, `top`, `df`, `pmset`, `powermetrics`)
-    - _Requirements: 14.4, 14.5_
-  - [ ] 0.3 Write the docs set: `overview.md`, `architecture.md`, `build-and-run.md`, `glossary.md`
-    - _Requirements: 14.2_
-  - [ ] 0.4 Write `docs/phases/phase-plan.md` (whole-project skeleton + phase index) and create per-phase `tasks.md`/`report.md` stubs
-    - _Requirements: 14.3_
-  - [ ] 0.5 Author initial ADRs 0001 (stack), 0002 (threading), 0006 (privacy/no persistence)
-    - _Requirements: 14.1, 13.3_
+Each phase ends with a runnable app (from Phase 1 on) and a written `report.md`.
 
----
+## Tasks
 
-## Phase 1 — Foundation (runnable menu bar app)
+### Phase 0 — Documentation scaffolding & learning baseline ([folder](./phases/phase-00-documentation/))
+- [ ] 0.1 Create project + documentation folder structure
+  - Detail: [`tasks/0.1-folder-structure.md`](./phases/phase-00-documentation/tasks/0.1-folder-structure.md)
+- [ ] 0.2 Write the prerequisites & learning guide
+  - Detail: [`tasks/0.2-prerequisites-learning.md`](./phases/phase-00-documentation/tasks/0.2-prerequisites-learning.md)
+- [ ] 0.3 Write the core documentation set
+  - Detail: [`tasks/0.3-docs-set.md`](./phases/phase-00-documentation/tasks/0.3-docs-set.md)
+- [ ] 0.4 Write the phase plan and per-phase stubs
+  - Detail: [`tasks/0.4-phase-plan-stubs.md`](./phases/phase-00-documentation/tasks/0.4-phase-plan-stubs.md)
+- [ ] 0.5 Author the initial ADRs
+  - Detail: [`tasks/0.5-initial-adrs.md`](./phases/phase-00-documentation/tasks/0.5-initial-adrs.md)
 
-- [ ] 1. Create the Xcode app target and menu bar shell
-  - [ ] 1.1 Create Swift app target; set `LSUIElement` so it runs without a Dock icon (configurable later)
-    - _Requirements: 9.1, 9.5_
-  - [ ] 1.2 Install an `NSStatusItem` (MenuBarController) showing a placeholder; click opens an empty detail popover
-    - _Requirements: 9.1, 9.3_
-  - [ ] 1.3 Define core protocols and value types: `Sampler`, `Sample<T>`, `Availability`, `MetricCategory`
-    - _Requirements: 1.5, 12.3_
-  - [ ] 1.4 Implement `SampleScheduler` (background queue, per-category interval, publishes to main actor) with per-sampler error isolation
-    - _Requirements: 12.1, 12.3, 12.4_
-  - [ ] 1.5 Implement `MetricsStore` rolling ring buffer (pure) + unit tests for capacity/eviction
-    - _Requirements: 10.2_
-  - [ ] 1.6 Preferences shell (SwiftUI) with persisted settings store; wire interval bounds
-    - _Requirements: 11.2, 11.4_
-  - [ ] 1.7 Write `phase-01` report
-    - _Requirements: 14.3_
+### Phase 1 — Foundation ([folder](./phases/phase-01-foundation/))
+- [ ] 1.1 Create the Swift app target with LSUIElement
+  - Detail: [`tasks/1.1-app-target-lsuielement.md`](./phases/phase-01-foundation/tasks/1.1-app-target-lsuielement.md)
+- [ ] 1.2 Install the status item and detail popover
+  - Detail: [`tasks/1.2-statusitem-popover.md`](./phases/phase-01-foundation/tasks/1.2-statusitem-popover.md)
+- [ ] 1.3 Define core protocols and value types
+  - Detail: [`tasks/1.3-core-protocols-types.md`](./phases/phase-01-foundation/tasks/1.3-core-protocols-types.md)
+- [ ] 1.4 Implement the SampleScheduler
+  - Detail: [`tasks/1.4-sample-scheduler.md`](./phases/phase-01-foundation/tasks/1.4-sample-scheduler.md)
+- [ ] 1.5 Implement the MetricsStore ring buffer
+  - Detail: [`tasks/1.5-metrics-store-ringbuffer.md`](./phases/phase-01-foundation/tasks/1.5-metrics-store-ringbuffer.md)
+- [ ] 1.6 Build the preferences shell
+  - Detail: [`tasks/1.6-preferences-shell.md`](./phases/phase-01-foundation/tasks/1.6-preferences-shell.md)
+- [ ] 1.7 Write the Phase 1 report
+  - Detail: [`tasks/1.7-phase-report.md`](./phases/phase-01-foundation/tasks/1.7-phase-report.md)
 
----
+### Phase 2 — CPU & Memory ([folder](./phases/phase-02-cpu-memory/))
+- [ ] 2.1 Implement CPUSampler (total + per-core)
+  - Detail: [`tasks/2.1-cpu-sampler.md`](./phases/phase-02-cpu-memory/tasks/2.1-cpu-sampler.md)
+- [ ] 2.2 Load average and CPU frequency
+  - Detail: [`tasks/2.2-loadavg-frequency.md`](./phases/phase-02-cpu-memory/tasks/2.2-loadavg-frequency.md)
+- [ ] 2.3 Property tests for CPU % math
+  - Detail: [`tasks/2.3-cpu-math-tests.md`](./phases/phase-02-cpu-memory/tasks/2.3-cpu-math-tests.md)
+- [ ] 2.4 Implement MemorySampler
+  - Detail: [`tasks/2.4-memory-sampler.md`](./phases/phase-02-cpu-memory/tasks/2.4-memory-sampler.md)
+- [ ] 2.5 Memory pressure level + UI surfacing
+  - Detail: [`tasks/2.5-memory-pressure.md`](./phases/phase-02-cpu-memory/tasks/2.5-memory-pressure.md)
+- [ ] 2.6 Render CPU + memory in the detail view
+  - Detail: [`tasks/2.6-detail-view-graphs.md`](./phases/phase-02-cpu-memory/tasks/2.6-detail-view-graphs.md)
+- [ ] 2.7 Validate vs reference tools + Phase 2 report
+  - Detail: [`tasks/2.7-validate-and-report.md`](./phases/phase-02-cpu-memory/tasks/2.7-validate-and-report.md)
 
-## Phase 2 — CPU & Memory
+### Phase 3 — Network & Disk ([folder](./phases/phase-03-network-disk/))
+- [ ] 3.1 Implement NetworkSampler
+  - Detail: [`tasks/3.1-network-sampler.md`](./phases/phase-03-network-disk/tasks/3.1-network-sampler.md)
+- [ ] 3.2 Network rate math with counter-reset handling
+  - Detail: [`tasks/3.2-rate-math-counter-reset.md`](./phases/phase-03-network-disk/tasks/3.2-rate-math-counter-reset.md)
+- [ ] 3.3 Disk capacity per volume
+  - Detail: [`tasks/3.3-disk-capacity.md`](./phases/phase-03-network-disk/tasks/3.3-disk-capacity.md)
+- [ ] 3.4 Disk I/O throughput
+  - Detail: [`tasks/3.4-disk-io.md`](./phases/phase-03-network-disk/tasks/3.4-disk-io.md)
+- [ ] 3.5 Network/disk in detail view + bytes/bits option
+  - Detail: [`tasks/3.5-detail-view-units.md`](./phases/phase-03-network-disk/tasks/3.5-detail-view-units.md)
+- [ ] 3.6 Validate vs reference tools + Phase 3 report
+  - Detail: [`tasks/3.6-validate-and-report.md`](./phases/phase-03-network-disk/tasks/3.6-validate-and-report.md)
 
-- [ ] 2. Implement CPU and memory sampling
-  - [ ] 2.1 `CPUSampler` via Mach `host_processor_info`; compute total + per-core %, user/system/idle from tick deltas
-    - _Requirements: 1.1, 1.2, 1.4_
-  - [ ] 2.2 Load average via `sysctl vm.loadavg`; CPU frequency where available else `.unavailable`
-    - _Requirements: 1.3, 1.5_
-  - [ ] 2.3 Pure unit/property tests for CPU % math from synthetic counters (monotonic, 0–100% bounds)
-    - _Requirements: 1.1, 12.1_
-  - [ ] 2.4 `MemorySampler` via `host_statistics64(HOST_VM_INFO64)` + `sysctl hw.memsize`; used/free/wired/compressed/cached/swap
-    - _Requirements: 2.1, 2.3_
-  - [ ] 2.5 Memory pressure level (normal/warning/critical) and surface it in UI
-    - _Requirements: 2.2, 2.4_
-  - [ ] 2.6 Render CPU + memory in detail view with live rolling graphs; allow choosing CPU/mem for the menu bar
-    - _Requirements: 9.4, 10.1, 10.2, 10.3_
-  - [ ] 2.7 Validate values vs Activity Monitor / `top`; write `phase-02` report
-    - _Requirements: 14.5, 14.3_
+### Phase 4 — Battery & Power ([folder](./phases/phase-04-battery-power/))
+- [ ] 4.1 PowerSampler: charge / state / time remaining
+  - Detail: [`tasks/4.1-power-sampler-charge.md`](./phases/phase-04-battery-power/tasks/4.1-power-sampler-charge.md)
+- [ ] 4.2 Battery health metrics
+  - Detail: [`tasks/4.2-battery-health.md`](./phases/phase-04-battery-power/tasks/4.2-battery-health.md)
+- [ ] 4.3 Instantaneous power draw / wattage
+  - Detail: [`tasks/4.3-power-draw-wattage.md`](./phases/phase-04-battery-power/tasks/4.3-power-draw-wattage.md)
+- [ ] 4.4 Handle the no-battery case
+  - Detail: [`tasks/4.4-no-battery-case.md`](./phases/phase-04-battery-power/tasks/4.4-no-battery-case.md)
+- [ ] 4.5 Validate vs reference tools + Phase 4 report
+  - Detail: [`tasks/4.5-validate-and-report.md`](./phases/phase-04-battery-power/tasks/4.5-validate-and-report.md)
 
----
+### Phase 5 — Thermal, Fan & GPU ([folder](./phases/phase-05-thermal-fan-gpu/))
+- [ ] 5.1 Spike + ADR 0003: thermal/fan data source
+  - Detail: [`tasks/5.1-spike-adr-data-source.md`](./phases/phase-05-thermal-fan-gpu/tasks/5.1-spike-adr-data-source.md)
+- [ ] 5.2 Implement ThermalSampler
+  - Detail: [`tasks/5.2-thermal-sampler.md`](./phases/phase-05-thermal-fan-gpu/tasks/5.2-thermal-sampler.md)
+- [ ] 5.3 Implement FanSampler (read-only)
+  - Detail: [`tasks/5.3-fan-sampler.md`](./phases/phase-05-thermal-fan-gpu/tasks/5.3-fan-sampler.md)
+- [ ] 5.4 ADR 0004 + opt-in fan control (if safe)
+  - Detail: [`tasks/5.4-adr-fan-control.md`](./phases/phase-05-thermal-fan-gpu/tasks/5.4-adr-fan-control.md)
+- [ ] 5.5 Implement GPUSampler
+  - Detail: [`tasks/5.5-gpu-sampler.md`](./phases/phase-05-thermal-fan-gpu/tasks/5.5-gpu-sampler.md)
+- [ ] 5.6 ADR 0005 sandbox/entitlements + graceful degradation
+  - Detail: [`tasks/5.6-adr-sandbox-entitlements.md`](./phases/phase-05-thermal-fan-gpu/tasks/5.6-adr-sandbox-entitlements.md)
+- [ ] 5.7 Validate vs reference tools + Phase 5 report
+  - Detail: [`tasks/5.7-validate-and-report.md`](./phases/phase-05-thermal-fan-gpu/tasks/5.7-validate-and-report.md)
 
-## Phase 3 — Network & Disk
+### Phase 6 — Polish, preferences & performance ([folder](./phases/phase-06-polish-prefs/))
+- [ ] 6.1 Full preferences: categories, menu bar content, units
+  - Detail: [`tasks/6.1-preferences-full.md`](./phases/phase-06-polish-prefs/tasks/6.1-preferences-full.md)
+- [ ] 6.2 Launch at login + Dock-icon toggle
+  - Detail: [`tasks/6.2-launch-at-login-dock.md`](./phases/phase-06-polish-prefs/tasks/6.2-launch-at-login-dock.md)
+- [ ] 6.3 Persist all preferences across launches
+  - Detail: [`tasks/6.3-persist-preferences.md`](./phases/phase-06-polish-prefs/tasks/6.3-persist-preferences.md)
+- [ ] 6.4 Performance pass
+  - Detail: [`tasks/6.4-performance-pass.md`](./phases/phase-06-polish-prefs/tasks/6.4-performance-pass.md)
+- [ ] 6.5 Finalize docs/ADRs + Phase 6 report and README
+  - Detail: [`tasks/6.5-finalize-docs-readme.md`](./phases/phase-06-polish-prefs/tasks/6.5-finalize-docs-readme.md)
 
-- [ ] 3. Implement network and disk sampling
-  - [ ] 3.1 `NetworkSampler` via `getifaddrs`/`if_data`; per-interface + aggregate up/down throughput and session totals
-    - _Requirements: 6.1, 6.2, 6.3_
-  - [ ] 3.2 Rate math from byte deltas; handle counter reset (never negative/absurd) — property tested
-    - _Requirements: 6.4_
-  - [ ] 3.3 `DiskSampler` capacity (total/used/free) per mounted volume via `statfs`; react to volume add/remove
-    - _Requirements: 7.1, 7.3_
-  - [ ] 3.4 Disk I/O throughput via IOKit block storage statistics (mark `.unavailable` if not accessible)
-    - _Requirements: 7.2_
-  - [ ] 3.5 Network/disk in detail view; unit option bytes vs bits for network
-    - _Requirements: 10.1, 11.3_
-  - [ ] 3.6 Validate vs Activity Monitor (network) and `df`; write `phase-03` report
-    - _Requirements: 14.5, 14.3_
+## Task Dependency Graph
 
----
+Phases are largely sequential: Phase 0 sets up docs/structure, Phase 1 builds the
+scaffolding every sampler plugs into, and Phases 2–5 add metric categories on top of that
+foundation (they are independent of each other and could be reordered). Phase 6 finalizes
+once the metrics exist.
 
-## Phase 4 — Battery & Power
+```json
+{
+  "waves": [
+    { "wave": 1, "tasks": ["0.1", "0.2", "0.3", "0.4", "0.5"] },
+    { "wave": 2, "tasks": ["1.1", "1.2", "1.3", "1.4", "1.5", "1.6", "1.7"] },
+    { "wave": 3, "tasks": ["2.1", "2.2", "2.3", "2.4", "2.5", "2.6", "2.7", "3.1", "3.2", "3.3", "3.4", "3.5", "3.6", "4.1", "4.2", "4.3", "4.4", "4.5", "5.1", "5.2", "5.3", "5.4", "5.5", "5.6", "5.7"] },
+    { "wave": 4, "tasks": ["6.1", "6.2", "6.3", "6.4", "6.5"] }
+  ]
+}
+```
 
-- [ ] 4. Implement battery and power sampling
-  - [ ] 4.1 `PowerSampler` battery charge/state/time-remaining via `IOPowerSources`
-    - _Requirements: 8.1_
-  - [ ] 4.2 Battery health (cycle count, condition, design vs current max capacity) via `AppleSmartBattery` registry
-    - _Requirements: 8.2_
-  - [ ] 4.3 Instantaneous power draw / wattage + adapter power where exposed
-    - _Requirements: 8.3_
-  - [ ] 4.4 Handle no-battery case (hide / not-applicable)
-    - _Requirements: 8.4_
-  - [ ] 4.5 Validate vs `pmset -g batt` / system info; write `phase-04` report
-    - _Requirements: 14.5, 14.3_
+```mermaid
+flowchart TD
+    P0[Phase 0 — Docs & learning baseline]
+    P1[Phase 1 — Foundation: scheduler, store, shells]
+    P2[Phase 2 — CPU & Memory]
+    P3[Phase 3 — Network & Disk]
+    P4[Phase 4 — Battery & Power]
+    P5[Phase 5 — Thermal, Fan & GPU]
+    P6[Phase 6 — Polish, prefs & performance]
 
----
+    P0 --> P1
+    P1 --> P2
+    P1 --> P3
+    P1 --> P4
+    P1 --> P5
+    P2 --> P6
+    P3 --> P6
+    P4 --> P6
+    P5 --> P6
+```
 
-## Phase 5 — Thermal, Fan & GPU (highest risk)
+Within a phase, the foundational tasks (samplers, math) precede UI rendering and validation
+tasks. See each phase's `tasks/` folder for per-task detail.
 
-- [ ] 5. Implement thermal, fan, and GPU sampling
-  - [ ] 5.1 Spike + ADR 0003: decide thermal/fan/power data source (AppleSMC keys vs IOReport) on the target hardware
-    - _Requirements: 3.1, 14.1_
-  - [ ] 5.2 `ThermalSampler` reads available sensors, human-readable names, °C with °F option; `.unavailable` + thermal pressure where exposed
-    - _Requirements: 3.1, 3.2, 3.3, 3.4, 11.3_
-  - [ ] 5.3 `FanSampler` RPM + min/max bounds (read-only)
-    - _Requirements: 4.1, 4.2_
-  - [ ] 5.4 ADR 0004 + (if feasible) opt-in fan control within bounds via privileged helper; otherwise present read-only with explanation
-    - _Requirements: 4.3, 4.4, 13.2_
-  - [ ] 5.5 `GPUSampler` utilization, memory, temp/power where available; `.unavailable` otherwise
-    - _Requirements: 5.1, 5.2, 5.3_
-  - [ ] 5.6 ADR 0005 sandbox/entitlements decision; ensure graceful degradation when access denied
-    - _Requirements: 13.1, 13.2_
-  - [ ] 5.7 Validate vs `sudo powermetrics`; write `phase-05` report
-    - _Requirements: 14.5, 14.3_
+## Notes
 
----
-
-## Phase 6 — Polish, preferences & performance
-
-- [ ] 6. Finalize configuration and footprint
-  - [ ] 6.1 Preferences: enable/disable each category; configurable menu bar content; unit options (°C/°F, bytes/bits, IEC/SI)
-    - _Requirements: 11.1, 11.3, 9.4_
-  - [ ] 6.2 Launch at login via `SMAppService`; Dock-icon toggle
-    - _Requirements: 11.5, 9.5_
-  - [ ] 6.3 Persist all preferences across launches
-    - _Requirements: 11.4_
-  - [ ] 6.4 Performance pass: confirm sampling off main thread, measure iStats' own CPU at default interval, verify interval scaling reduces footprint
-    - _Requirements: 12.1, 12.2, 12.4_
-  - [ ] 6.5 Finalize all docs/ADRs; write `phase-06` report and project README
-    - _Requirements: 14.1, 14.2, 14.3_
+- Each task file states what to do and its goal; requirements and design live in the
+  per-phase `requirements.md` / `design.md`, not in the task files.
+- Phases 2–5 each end with a validation-against-reference-tool task and a `report.md`.
+- The canonical whole-project requirements and design remain in
+  [`requirements.md`](./requirements.md) and [`design.md`](./design.md).
