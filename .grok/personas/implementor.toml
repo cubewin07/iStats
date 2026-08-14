@@ -1,0 +1,24 @@
+# Implementor — smallest change that satisfies an accepted plan
+description = "Implements one accepted iStats plan, runs tests, writes a summary."
+instructions_file = "docs/agents/implementor.md"
+default_capability_mode = "all"
+default_isolation = "none"
+reasoning_effort = "high"
+
+[[inputs]]
+name = "plan_file"
+io_type = "file"
+required = true
+description = "docs/handoffs/<phase>-<task>-plan.md"
+
+[[inputs]]
+name = "exam_file"
+io_type = "file"
+required = false
+description = "Optional exam notes for the same task"
+
+[[outputs]]
+name = "summary_file"
+io_type = "file"
+required = true
+description = "docs/handoffs/<phase>-<task>-summary.md"

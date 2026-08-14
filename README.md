@@ -8,10 +8,11 @@ Tracks: CPU, memory, thermals, fans, GPU, network, disk, battery, and power.
 
 All specifications, architectural designs, guides, and implementation plans live under [`docs/`](./docs/):
 
+- **Progress**: [`docs/progress.md`](./docs/progress.md) — What is done and what is next (only status file)
 - **Master Specifications**:
   - [`docs/specs/requirements.md`](./docs/specs/requirements.md) — What the app must do (EARS format)
   - [`docs/specs/design.md`](./docs/specs/design.md) — System architecture, macOS API map per metric, threading, and privilege model
-  - [`docs/specs/tasks.md`](./docs/specs/tasks.md) — Master implementation task list
+  - [`docs/specs/tasks.md`](./docs/specs/tasks.md) — Task catalog (ids and links; do not tick)
 - **Architecture & ADRs**:
   - [`docs/architecture/overview.md`](./docs/architecture/overview.md) — Project overview, mental model, and goals
   - [`docs/architecture/architecture.md`](./docs/architecture/architecture.md) — Layered architecture narration
@@ -20,6 +21,10 @@ All specifications, architectural designs, guides, and implementation plans live
   - [`docs/guides/build-and-run.md`](./docs/guides/build-and-run.md) — Local build & run instructions
   - [`docs/guides/prerequisites-and-learning.md`](./docs/guides/prerequisites-and-learning.md) — OS concepts & metric validation guide
   - [`docs/guides/glossary.md`](./docs/guides/glossary.md) — macOS OS/kernel glossary
+  - [`docs/guides/skills-to-install.md`](./docs/guides/skills-to-install.md) — Extra skills: search, evaluate, install
+- **Agent roles**:
+  - [`docs/agents/`](./docs/agents/) — Planner, examiner, implementor, orchestrator
+  - [`AGENTS.md`](./AGENTS.md) / [`CLAUDE.md`](./CLAUDE.md) — Harness instructions
 - **Phased Implementation**:
   - [`docs/phases/`](./docs/phases/) — 7-phase delivery roadmap, scoped phase specs, and validation reports
 

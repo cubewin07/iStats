@@ -1,49 +1,56 @@
-# CLAUDE.md — iStats Project Guide
+# CLAUDE.md — iStats
 
-This guide provides concise instructions, project architecture details, and coding conventions for working on the iStats codebase.
+Native macOS menu bar monitor (Swift 6, AppKit + SwiftUI). Learning project. Full agent contract: [`AGENTS.md`](./AGENTS.md). Roles: [`docs/agents/`](./docs/agents/).
 
----
+## Where we are
 
-## 🛠️ Build & Test Commands
+[`docs/progress.md`](./docs/progress.md) is the only status file. Read it before planning or implementing. Do not copy its tables here. Phase plans under `docs/phases/` say what to build; leave their checkboxes alone.
 
-```bash
-# Build the project
-swift build
+## Commands
 
-# Run all test suites
-swift test
+Scratch path is required on this machine (SwiftPM `.build` hits disk I/O errors in-tree):
 
-# Run a specific test suite
-swift test --filter RateMathTests
-swift test --filter RingBufferTests
-swift test --filter UnitsTests
+| Command | Purpose |
+|---------|---------|
+| `swift build --scratch-path /tmp/istats-build` | Build `iStatsCore` |
+| `swift test --scratch-path /tmp/istats-build` | All package tests |
+| `swift test --scratch-path /tmp/istats-build --filter RateMathTests` | One suite |
+| `swift build -c release --scratch-path /tmp/istats-build` | Release check |
 
-# Release build validation
-swift build -c release
-```
+After Phase 1: `xcodebuild -scheme iStats -configuration Debug build`.
 
----
+## Architecture (target)
 
-## 🏛️ Architecture Overview
+Hardware APIs → Sampling (background, one `Sampler` per category) → `iStatsCore` (scheduler, ring buffers, pure math) → AppKit status item + SwiftUI popover.
 
-- **Sampling Layer**: Talks to macOS kernel/hardware (`sysctl`, Mach `host_statistics`, IOKit, AppleSMC, `IOPowerSources`, `getifaddrs`). Runs strictly on background queues. Never throws unhandled exceptions; returns `Availability.unavailable(reason:)` on failure.
-- **Domain Core (`iStatsCore`)**: Pure Swift value types, `RingBuffer`, `RateMath`, `SampleScheduler`, and units conversion. 100% testable without hardware dependencies.
-- **Presentation Layer**: AppKit (`NSStatusItem`, `NSStatusBar`) for menu bar integration + SwiftUI for detail popover and preferences views.
+Today only the pure core exists under `Sources/iStatsCore/`.
 
----
+## Roles
 
-## 📋 Coding Invariants & Conventions
+`planner` / `examiner` / `implementor` / `orchestrator` — instructions in `docs/agents/<role>.md`. Handoffs in `docs/handoffs/`. Start with `grok --agent <role>`. Orchestrator: if `HERDR_ENV=1`, split a sibling Herdr pane and start `grok --agent <role>`; otherwise in-process subagents. Do not call `herdr` from outside Herdr.
 
-1. **Thread Safety**: Never make system calls, IOKit queries, or SMC reads on the `@MainActor` / main thread.
-2. **Resilience**: A failure in one metric sampler must never crash the app or block other samplers.
-3. **Pure Math**: All rate computations (CPU %, MB/s) from tick/byte counters must be pure functions with counter-rollover protection and unit tests.
-4. **Privacy**: Telemetry is ephemeral (kept in-memory in fixed-size ring buffers). Only user preferences are saved to disk (ADR 0006).
+## Invariants
 
----
+- No `sysctl` / Mach / IOKit / SMC on `@MainActor`.
+- Failures → `Availability.unavailable(reason:)`.
+- Rates via `RateMath` (reset → 0).
+- Telemetry in-memory only (ADR 0006). Preferences may persist.
+- Fans read-only until ADR 0004 is satisfied.
 
-## 📚 Documentation Map
+## Skills
 
-- **Master Specs**: [`docs/specs/requirements.md`](./docs/specs/requirements.md), [`docs/specs/design.md`](./docs/specs/design.md), [`docs/specs/tasks.md`](./docs/specs/tasks.md)
-- **Architecture & ADRs**: [`docs/architecture/architecture.md`](./docs/architecture/architecture.md), [`docs/architecture/adr/`](./docs/architecture/adr/)
-- **Developer Guides**: [`docs/guides/build-and-run.md`](./docs/guides/build-and-run.md), [`docs/guides/prerequisites-and-learning.md`](./docs/guides/prerequisites-and-learning.md)
-- **Phased Implementation**: [`docs/phases/`](./docs/phases/) (Phases 00 to 06)
+In-repo: `macos-system-apis`, `applesmc-iokit-spi`, `swift-concurrency-patterns`, `metric-validation`. Install extras only via [`docs/guides/skills-to-install.md`](./docs/guides/skills-to-install.md).
+
+## Docs map
+
+- Progress: `docs/progress.md` (status only)
+- Specs: `docs/specs/{requirements,design,tasks}.md`
+- ADRs: `docs/architecture/adr/`
+- Phases: `docs/phases/`
+- Learning / validation: `docs/guides/prerequisites-and-learning.md`
+- Build: `docs/guides/build-and-run.md`
+
+## Gotchas
+
+- Trust `docs/progress.md` **On disk**, not the design wish-list, for which types exist.
+- `powermetrics` / `top` / `pmset` are validation references, not production data sources.

@@ -28,6 +28,8 @@ swift build --scratch-path /tmp/istats-build
 swift test  --scratch-path /tmp/istats-build
 ```
 
+Agent sessions must use this scratch path too (see [`AGENTS.md`](../../AGENTS.md)).
+
 If you ever see `accessing build database ... disk I/O error`, this is the fix.
 (`.build/` is gitignored either way.)
 

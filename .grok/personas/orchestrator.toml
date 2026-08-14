@@ -1,0 +1,12 @@
+# Orchestrator — coordinates roles; uses Herdr sibling panes when HERDR_ENV=1
+description = "Coordinates planner, examiner, and implementor. Spawns Herdr sibling panes when inside Herdr."
+instructions_file = "docs/agents/orchestrator.md"
+default_capability_mode = "all"
+default_isolation = "none"
+reasoning_effort = "high"
+
+[[inputs]]
+name = "request"
+io_type = "text"
+required = true
+description = "User request or phase/task id to run"

@@ -8,6 +8,7 @@ Welcome to the iStats documentation hub. This directory contains the complete sp
 
 ```
 docs/
+├── progress.md                        # Only status file (what is done / next)
 ├── specs/                             # Canonical master specifications
 │   ├── requirements.md                # System requirements (EARS format)
 │   ├── design.md                      # Canonical system design & macOS API mappings
@@ -24,7 +25,13 @@ docs/
 ├── guides/                            # Developer guides & references
 │   ├── build-and-run.md               # Local build, run, and debugging instructions
 │   ├── glossary.md                    # macOS & OS kernel terminology glossary
-│   └── prerequisites-and-learning.md  # Learning roadmap & metric validation guide
+│   ├── prerequisites-and-learning.md  # Learning roadmap & metric validation guide
+│   └── skills-to-install.md           # Playbook: search, score, and install extra skills
+│
+├── agents/                            # Planner / examiner / implementor / orchestrator
+│   └── README.md                      # Role roster and handoff convention
+│
+├── handoffs/                          # exam / plan / summary files between roles
 │
 └── phases/                            # Phased implementation plan & per-phase specs
     ├── README.md                      # Master phase roadmap & dependency graph
@@ -42,6 +49,7 @@ docs/
 
 | Section | Link | Description |
 |---------|------|-------------|
+| **Progress** | [`progress.md`](./progress.md) | What is done, what is next. The only status file. |
 | **Overview** | [`architecture/overview.md`](./architecture/overview.md) | What iStats is, who it's for, and core goals. **Start here.** |
 | **Requirements** | [`specs/requirements.md`](./specs/requirements.md) | Master functional and non-functional requirements (EARS format). |
 | **System Design** | [`specs/design.md`](./specs/design.md) | Canonical architecture, data flow, privilege model, and API mapping table. |
@@ -50,8 +58,10 @@ docs/
 | **ADRs** | [`architecture/adr/`](./architecture/adr/) | Architecture Decision Records (immutable log of key architectural choices). |
 | **Learning Guide** | [`guides/prerequisites-and-learning.md`](./guides/prerequisites-and-learning.md) | Prerequisites and how to validate every metric against macOS reference tools. |
 | **Build & Run** | [`guides/build-and-run.md`](./guides/build-and-run.md) | Instructions for building, running, and debugging iStats locally. |
+| **Skills to install** | [`guides/skills-to-install.md`](./guides/skills-to-install.md) | Search, score, and install extra agent skills. |
+| **Agent roles** | [`agents/`](./agents/) | Planner, examiner, implementor, orchestrator. |
 | **Glossary** | [`guides/glossary.md`](./guides/glossary.md) | Definitions of macOS, BSD, Mach, IOKit, and SMC terms. |
-| **Master Task List** | [`specs/tasks.md`](./specs/tasks.md) | Master checklist mapping all requirements to actionable tasks. |
+| **Master Task List** | [`specs/tasks.md`](./specs/tasks.md) | Task catalog (ids and links). Do not tick — status is `progress.md`. |
 | **Phase Plan** | [`phases/`](./phases/) | The 7-phase delivery roadmap, scoped phase specs, and report templates. |
 
 ---

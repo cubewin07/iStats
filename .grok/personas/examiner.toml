@@ -1,0 +1,18 @@
+# Examiner — read-only survey of code, specs, and risks
+description = "Maps what exists in iStats versus the spec and names risks. Does not implement."
+instructions_file = "docs/agents/examiner.md"
+default_capability_mode = "execute"
+default_isolation = "none"
+reasoning_effort = "high"
+
+[[inputs]]
+name = "task_id"
+io_type = "text"
+required = true
+description = "Phase task id, e.g. 1.4"
+
+[[outputs]]
+name = "exam_file"
+io_type = "file"
+required = true
+description = "docs/handoffs/<phase>-<task>-exam.md"

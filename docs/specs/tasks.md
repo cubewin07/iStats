@@ -1,5 +1,7 @@
 # Implementation Plan
 
+This is the **task catalog** (ids, titles, links). Status lives in [`docs/progress.md`](../progress.md). Do not tick the boxes below when a task finishes — update progress instead.
+
 ## Overview
 
 The implementation plan is organized by phase. Each phase is now a self-contained spec

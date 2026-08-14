@@ -2,6 +2,8 @@
 
 This directory contains the phased implementation plan and per-phase specification packages for iStats. Each phase is a self-contained increment that ends with a **runnable app**, passing tests, and a written **report**.
 
+**Where we are:** [`docs/progress.md`](../progress.md). These folders say what to build; progress says what is done. Do not tick phase `tasks.md` checkboxes for status.
+
 Phases are ordered so foundational, well-documented APIs come first and the riskiest, least-documented work (thermal/fan/GPU) comes later after building confidence.
 
 ## Phase Package Structure

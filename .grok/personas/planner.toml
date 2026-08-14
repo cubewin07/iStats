@@ -1,0 +1,18 @@
+# Planner — read-only design of a phase/task plan
+description = "Turns an iStats phase or task into a sequenced implementation plan. Does not write Swift."
+instructions_file = "docs/agents/planner.md"
+default_capability_mode = "execute"
+default_isolation = "none"
+reasoning_effort = "high"
+
+[[inputs]]
+name = "task_id"
+io_type = "text"
+required = true
+description = "Phase task id, e.g. 1.4"
+
+[[outputs]]
+name = "plan_file"
+io_type = "file"
+required = true
+description = "docs/handoffs/<phase>-<task>-plan.md"
