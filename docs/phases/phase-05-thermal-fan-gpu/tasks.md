@@ -2,7 +2,7 @@
 
 **Goal:** Read available thermal sensors, fan RPM, and GPU stats. Expect partial availability on Apple Silicon. This phase starts with a spike and finalizes ADR 0003.
 
-**Maps to Kiro spec task:** 5 (sub-tasks 5.1–5.7)
+**Maps to Master spec task:** 5 (sub-tasks 5.1–5.7)
 
 ## Tasks
 - [ ] **Spike + ADR 0003:** decide thermal/fan/power data source (AppleSMC keys vs IOReport) on the target Mac; record which keys/sources actually work.

@@ -1,6 +1,6 @@
 # iStats — Architecture (narrated)
 
-This is the teaching-oriented narration of the canonical design in `.kiro/specs/iStats/design.md`. Read this to understand *why* the system is shaped the way it is.
+This is the teaching-oriented narration of the canonical design in `[](../specs/design.md)`. Read this to understand *why* the system is shaped the way it is.
 
 ## The one big idea: isolate the OS
 

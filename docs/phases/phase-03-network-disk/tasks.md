@@ -2,7 +2,7 @@
 
 **Goal:** Network throughput and disk capacity/I/O, validated against Activity Monitor and `df`.
 
-**Maps to Kiro spec task:** 3 (sub-tasks 3.1–3.6)
+**Maps to Master spec task:** 3 (sub-tasks 3.1–3.6)
 
 ## Tasks
 - [ ] `NetworkSampler` via `getifaddrs`/`if_data`; per-interface + aggregate up/down + session totals.

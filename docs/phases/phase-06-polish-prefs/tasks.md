@@ -2,7 +2,7 @@
 
 **Goal:** Finish configurability, launch-at-login, performance tuning, and finalize all docs.
 
-**Maps to Kiro spec task:** 6 (sub-tasks 6.1–6.5)
+**Maps to Master spec task:** 6 (sub-tasks 6.1–6.5)
 
 ## Tasks
 - [ ] Preferences: enable/disable each category; configurable menu bar content; unit options (°C/°F, bytes/bits, IEC/SI).

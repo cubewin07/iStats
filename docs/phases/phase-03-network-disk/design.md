@@ -1,7 +1,7 @@
 # Phase 3 — Network & Disk — Design
 
 The slice of the architecture this phase builds. See the top-level
-[`design.md`](../../design.md) for the complete design.
+[`design.md`](../../specs/design.md) for the complete design.
 
 ## API mapping for this phase
 

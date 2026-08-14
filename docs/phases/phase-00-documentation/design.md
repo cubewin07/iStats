@@ -1,7 +1,7 @@
 # Phase 0 — Documentation Scaffolding & Learning Baseline — Design
 
 This phase produces no runtime code. It builds the **documentation architecture** that the
-rest of the project depends on. See the top-level [`design.md`](../../design.md) for the
+rest of the project depends on. See the top-level [`design.md`](../../specs/design.md) for the
 full picture; the slice below is what Phase 0 delivers.
 
 ## Project structure (skeleton to create)

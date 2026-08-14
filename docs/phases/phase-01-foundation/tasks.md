@@ -2,7 +2,7 @@
 
 **Goal:** A runnable menu bar app with the core architecture skeleton (scheduler, store, protocols) and a test harness — but no real metrics yet.
 
-**Maps to Kiro spec task:** 1 (sub-tasks 1.1–1.7)
+**Maps to Master spec task:** 1 (sub-tasks 1.1–1.7)
 
 ## Tasks
 - [ ] Create the Xcode app target; set `LSUIElement` (no Dock icon).

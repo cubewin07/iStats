@@ -1,7 +1,7 @@
 # Phase 6 — Polish, Preferences & Performance — Design
 
 The slice of the architecture this phase finalizes. See the top-level
-[`design.md`](../../design.md) for the complete design.
+[`design.md`](../../specs/design.md) for the complete design.
 
 ## Preferences (full)
 

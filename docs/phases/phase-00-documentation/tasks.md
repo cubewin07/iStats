@@ -2,7 +2,7 @@
 
 **Goal:** Establish all the supporting documentation so the build is guided and the learning is captured from day one.
 
-**Maps to Kiro spec task:** 0 (and sub-tasks 0.1–0.5)
+**Maps to Master spec task:** 0 (and sub-tasks 0.1–0.5)
 
 ## Tasks
 
@@ -17,5 +17,5 @@
 - Understand the counters-vs-rates concept before writing any sampler.
 
 ## Exit criteria
-- All planning docs exist and are internally consistent with the Kiro spec.
+- All planning docs exist and are internally consistent with the master specs.
 - You can explain, in one paragraph each, the four data sources (sysctl, Mach, IOKit, SMC).

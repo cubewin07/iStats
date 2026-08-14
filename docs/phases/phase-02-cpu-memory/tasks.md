@@ -2,7 +2,7 @@
 
 **Goal:** Real CPU and memory metrics, displayed live with rolling graphs, validated against Activity Monitor / `top`.
 
-**Maps to Kiro spec task:** 2 (sub-tasks 2.1–2.7)
+**Maps to Master spec task:** 2 (sub-tasks 2.1–2.7)
 
 ## Tasks
 - [ ] `CPUSampler` via Mach `host_processor_info`; total + per-core %, user/system/idle from tick deltas.
