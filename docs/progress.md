@@ -14,7 +14,7 @@ The only status file. Agent specs (`AGENTS.md`, `CLAUDE.md`) and phase plans do 
 |-------|--------|
 | Phase | **1 — Foundation** (next implementation work) |
 | Next task | `1.1` app target + `LSUIElement` |
-| Last closed | none (Phase 0 docs are on disk; phase not formally closed) |
+| Last closed | **Phase 0 — Documentation & learning baseline** |
 | Blocked by | — |
 
 ---
@@ -23,7 +23,7 @@ The only status file. Agent specs (`AGENTS.md`, `CLAUDE.md`) and phase plans do 
 
 | Phase | Theme | Status | Notes |
 |-------|--------|--------|-------|
-| 0 | Documentation & learning baseline | **docs on disk, not closed** | Specs, ADRs 0001–0006, phase folders exist. `report.md` is still a stub. Close 0 only after that report is written. |
+| 0 | Documentation & learning baseline | **done** | Specs, ADRs 0001–0006, phase folders, `iStatsCore` models/math, and `report.md` complete. |
 | 1 | App foundation | **next** | No Xcode project, no `SampleScheduler`, no `MetricsStore`. |
 | 2 | CPU & memory | not started | After Phase 1. Independent of 3 and 4. |
 | 3 | Network & disk | not started | After Phase 1. |
@@ -41,7 +41,7 @@ Copy a row from [`docs/specs/tasks.md`](./specs/tasks.md) when you start it. Lea
 
 | Id | Title | Status | Evidence |
 |----|-------|--------|----------|
-| 0.1–0.5 | Phase 0 documentation set | **partial** | Folders, specs, ADRs, phase stubs exist. Phase `report.md` not written. |
+| 0.1–0.5 | Phase 0 documentation set | **done** | [`docs/phases/phase-00-documentation/report.md`](./phases/phase-00-documentation/report.md), `swift test` (19 passed) |
 | 1.1 | App target + `LSUIElement` | not started | — |
 
 When a task is done, set Status to `done` and put the handoff summary path (or test command) in Evidence.
