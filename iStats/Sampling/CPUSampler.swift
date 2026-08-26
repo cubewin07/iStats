@@ -17,13 +17,22 @@ public struct ProcessorTicks: Sendable, Equatable {
     }
 }
 
-/// Abstract provider for reading CPU processor tick counters.
+/// Abstract provider for reading CPU processor tick counters, load average, and clock frequency.
 public protocol CPUInfoProvider: Sendable {
     /// Returns cumulative tick snapshots across all cores on the system.
     func processorTicks() throws -> [ProcessorTicks]
+    /// Returns system load averages for 1, 5, and 15 minute intervals if available.
+    func loadAverage() throws -> LoadAverage?
+    /// Returns CPU clock frequency in Hertz if exposed by hardware / sysctl.
+    func cpuFrequencyHz() throws -> UInt64?
 }
 
-/// Darwin Mach implementation of `CPUInfoProvider` using `host_processor_info(PROCESSOR_CPU_LOAD_INFO)`.
+public extension CPUInfoProvider {
+    func loadAverage() throws -> LoadAverage? { nil }
+    func cpuFrequencyHz() throws -> UInt64? { nil }
+}
+
+/// Darwin Mach and sysctl implementation of `CPUInfoProvider`.
 public struct HostProcessorInfoProvider: CPUInfoProvider {
     public init() {}
 
@@ -74,11 +83,49 @@ public struct HostProcessorInfoProvider: CPUInfoProvider {
 
         return ticks
     }
+
+    public func loadAverage() throws -> LoadAverage? {
+        var load = loadavg()
+        var size = MemoryLayout<loadavg>.size
+        let result = sysctlbyname("vm.loadavg", &load, &size, nil, 0)
+        guard result == 0 else {
+            throw SamplerError.systemCallFailed("sysctl vm.loadavg failed with errno: \(errno)")
+        }
+        guard load.fscale > 0 else {
+            throw SamplerError.systemCallFailed("sysctl vm.loadavg returned invalid scale: \(load.fscale)")
+        }
+        let scale = Double(load.fscale)
+        return LoadAverage(
+            oneMinute: Double(load.ldavg.0) / scale,
+            fiveMinute: Double(load.ldavg.1) / scale,
+            fifteenMinute: Double(load.ldavg.2) / scale
+        )
+    }
+
+    public func cpuFrequencyHz() throws -> UInt64? {
+        var frequency: UInt64 = 0
+        var size = MemoryLayout<UInt64>.size
+
+        // Primary key: hw.cpufrequency (common on Intel x86_64)
+        if sysctlbyname("hw.cpufrequency", &frequency, &size, nil, 0) == 0 && frequency > 0 {
+            return frequency
+        }
+
+        // Fallback key: hw.cpufrequency_max
+        size = MemoryLayout<UInt64>.size
+        if sysctlbyname("hw.cpufrequency_max", &frequency, &size, nil, 0) == 0 && frequency > 0 {
+            return frequency
+        }
+
+        // On Apple Silicon or architectures where sysctl does not expose frequency (returns ENOENT/ENOTSUP),
+        // cleanly return nil without failing or returning a fake zero (Requirement 1.3, 1.5).
+        return nil
+    }
 }
 
-/// Concrete sampler for CPU utilization (aggregate, per-core, and user/system/idle breakdown).
+/// Concrete sampler for CPU utilization (aggregate, per-core, user/system/idle, loadavg, frequency).
 ///
-/// Conforms to `Sampler` (Requirement 1.1, 1.2, 1.4). Keeps previous tick snapshot and computes
+/// Conforms to `Sampler` (Requirement 1.1, 1.2, 1.3, 1.4, 1.5). Keeps previous tick snapshot and computes
 /// rates via pure rate math (`RateMath`).
 public final class CPUSampler: Sampler, @unchecked Sendable {
     public let category: MetricCategory = .cpu
@@ -94,19 +141,28 @@ public final class CPUSampler: Sampler, @unchecked Sendable {
     /// Samples CPU metrics. Runs off the main thread.
     public func sample() throws -> CPUSample {
         let currentTicks = try provider.processorTicks()
+        let loadAvg = try? provider.loadAverage()
+        let frequency = try? provider.cpuFrequencyHz()
 
         lock.lock()
         let previous = previousTicks
         previousTicks = currentTicks
         lock.unlock()
 
-        return Self.calculateSample(previous: previous, current: currentTicks)
+        return Self.calculateSample(
+            previous: previous,
+            current: currentTicks,
+            loadAverage: loadAvg,
+            frequencyHz: frequency
+        )
     }
 
-    /// Pure calculation function deriving utilization percentages from tick snapshots.
+    /// Pure calculation function deriving utilization percentages and metrics from tick snapshots.
     public static func calculateSample(
         previous: [ProcessorTicks]?,
-        current: [ProcessorTicks]
+        current: [ProcessorTicks],
+        loadAverage: LoadAverage? = nil,
+        frequencyHz: UInt64? = nil
     ) -> CPUSample {
         guard let previous, previous.count == current.count, !current.isEmpty else {
             // First sample or mismatched topology: return 0% utilization without negative spikes
@@ -115,7 +171,9 @@ public final class CPUSampler: Sampler, @unchecked Sendable {
                 perCore: Array(repeating: 0.0, count: current.count),
                 user: 0.0,
                 system: 0.0,
-                idle: 0.0
+                idle: 0.0,
+                loadAverage: loadAverage,
+                frequencyHz: frequencyHz
             )
         }
 
@@ -168,7 +226,9 @@ public final class CPUSampler: Sampler, @unchecked Sendable {
             perCore: perCoreUsages,
             user: userPercent,
             system: systemPercent,
-            idle: idlePercent
+            idle: idlePercent,
+            loadAverage: loadAverage,
+            frequencyHz: frequencyHz
         )
     }
 }

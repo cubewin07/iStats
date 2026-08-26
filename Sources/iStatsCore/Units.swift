@@ -94,4 +94,23 @@ public enum Units {
     public static func bytesPerSecToBitsPerSec(_ bytesPerSec: Double) -> Double {
         bytesPerSec * 8.0
     }
+
+    // MARK: Frequency
+
+    private static let hzSuffixes = ["Hz", "kHz", "MHz", "GHz", "THz"]
+
+    /// Format a frequency in Hertz into a human-readable string, e.g. "2.40 GHz" or "800.00 MHz".
+    public static func formatFrequencyHz(_ hz: UInt64, fractionDigits: Int = 2) -> String {
+        let base: Double = 1000.0
+        var value = Double(hz)
+        var index = 0
+        while value >= base && index < hzSuffixes.count - 1 {
+            value /= base
+            index += 1
+        }
+        if index == 0 {
+            return "\(hz) \(hzSuffixes[0])"
+        }
+        return String(format: "%.\(fractionDigits)f %@", value, hzSuffixes[index])
+    }
 }

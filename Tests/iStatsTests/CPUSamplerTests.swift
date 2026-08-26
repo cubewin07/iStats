@@ -7,10 +7,18 @@ final class CPUSamplerTests: XCTestCase {
     final class MockCPUInfoProvider: CPUInfoProvider, @unchecked Sendable {
         private var responses: [[ProcessorTicks]]
         private var index = 0
+        private let mockLoadAverage: LoadAverage?
+        private let mockFrequencyHz: UInt64?
         private let lock = NSLock()
 
-        init(responses: [[ProcessorTicks]]) {
+        init(
+            responses: [[ProcessorTicks]],
+            loadAverage: LoadAverage? = nil,
+            cpuFrequencyHz: UInt64? = nil
+        ) {
             self.responses = responses
+            self.mockLoadAverage = loadAverage
+            self.mockFrequencyHz = cpuFrequencyHz
         }
 
         func processorTicks() throws -> [ProcessorTicks] {
@@ -22,6 +30,14 @@ final class CPUSamplerTests: XCTestCase {
             let res = responses[index]
             index += 1
             return res
+        }
+
+        func loadAverage() throws -> LoadAverage? {
+            mockLoadAverage
+        }
+
+        func cpuFrequencyHz() throws -> UInt64? {
+            mockFrequencyHz
         }
     }
 
@@ -35,7 +51,12 @@ final class CPUSamplerTests: XCTestCase {
         let core0 = ProcessorTicks(user: 1000, system: 500, idle: 8500, nice: 0)
         let core1 = ProcessorTicks(user: 2000, system: 1000, idle: 7000, nice: 0)
 
-        let provider = MockCPUInfoProvider(responses: [[core0, core1]])
+        let mockLoad = LoadAverage(oneMinute: 1.8, fiveMinute: 2.1, fifteenMinute: 2.5)
+        let provider = MockCPUInfoProvider(
+            responses: [[core0, core1]],
+            loadAverage: mockLoad,
+            cpuFrequencyHz: 2_600_000_000
+        )
         let sampler = CPUSampler(provider: provider)
 
         let sample = try sampler.sample()
@@ -45,6 +66,8 @@ final class CPUSamplerTests: XCTestCase {
         XCTAssertEqual(sample.user, 0.0)
         XCTAssertEqual(sample.system, 0.0)
         XCTAssertEqual(sample.idle, 0.0)
+        XCTAssertEqual(sample.loadAverage, mockLoad)
+        XCTAssertEqual(sample.frequencyHz, 2_600_000_000)
     }
 
     func testSecondSampleCalculatesCorrectRate() throws {
@@ -57,7 +80,12 @@ final class CPUSamplerTests: XCTestCase {
         let t2Core0 = ProcessorTicks(user: 200, system: 100, idle: 1700, nice: 0)
         let t2Core1 = ProcessorTicks(user: 1500, system: 300, idle: 1200, nice: 0)
 
-        let provider = MockCPUInfoProvider(responses: [[t1Core0, t1Core1], [t2Core0, t2Core1]])
+        let mockLoad = LoadAverage(oneMinute: 2.4, fiveMinute: 2.0, fifteenMinute: 1.8)
+        let provider = MockCPUInfoProvider(
+            responses: [[t1Core0, t1Core1], [t2Core0, t2Core1]],
+            loadAverage: mockLoad,
+            cpuFrequencyHz: nil
+        )
         let sampler = CPUSampler(provider: provider)
 
         _ = try sampler.sample() // sample 1 (baseline)
@@ -70,6 +98,8 @@ final class CPUSamplerTests: XCTestCase {
         XCTAssertEqual(sample2.user, 30.0, accuracy: 0.0001)
         XCTAssertEqual(sample2.system, 7.5, accuracy: 0.0001)
         XCTAssertEqual(sample2.idle, 62.5, accuracy: 0.0001)
+        XCTAssertEqual(sample2.loadAverage, mockLoad)
+        XCTAssertNil(sample2.frequencyHz)
     }
 
     func testCounterWrapHandlesCleanlyWithoutNegativeSpikes() throws {
@@ -133,10 +163,26 @@ final class CPUSamplerTests: XCTestCase {
             XCTAssertGreaterThan(total, 0, "Core ticks should be greater than 0")
         }
 
+        // Test live load average retrieval
+        let load = try provider.loadAverage()
+        XCTAssertNotNil(load, "Host load average should be available via sysctl vm.loadavg")
+        if let load {
+            XCTAssertGreaterThanOrEqual(load.oneMinute, 0.0)
+            XCTAssertGreaterThanOrEqual(load.fiveMinute, 0.0)
+            XCTAssertGreaterThanOrEqual(load.fifteenMinute, 0.0)
+        }
+
+        // Test CPU frequency retrieval (non-negative on Intel, nil on Apple Silicon)
+        let frequency = try provider.cpuFrequencyHz()
+        if let freq = frequency {
+            XCTAssertGreaterThan(freq, 0, "CPU frequency in Hz should be positive")
+        }
+
         let sampler = CPUSampler(provider: provider)
         let sample1 = try sampler.sample()
         XCTAssertEqual(sample1.totalUsage, 0.0)
         XCTAssertEqual(sample1.perCore.count, ticks.count)
+        XCTAssertNotNil(sample1.loadAverage)
 
         Thread.sleep(forTimeInterval: 0.1)
 
