@@ -16,7 +16,9 @@
 		11000000000000000000001D /* PreferencesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11000000000000000000001C /* PreferencesView.swift */; };
 		11000000000000000000001F /* PreferencesWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11000000000000000000001E /* PreferencesWindowController.swift */; };
 		110000000000000000000031 /* CPUSampler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000030 /* CPUSampler.swift */; };
+		110000000000000000000033 /* MemorySampler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000032 /* MemorySampler.swift */; };
 		110000000000000000000044 /* CPUSamplerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000043 /* CPUSamplerTests.swift */; };
+		11000000000000000000004A /* MemorySamplerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000049 /* MemorySamplerTests.swift */; };
 		110000000000000000000045 /* iStatsCore in Frameworks */ = {isa = PBXBuildFile; productRef = 110000000000000000000005 /* iStatsCore */; };
 /* End PBXBuildFile section */
 
@@ -41,8 +43,10 @@
 		11000000000000000000001C /* PreferencesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferencesView.swift; sourceTree = "<group>"; };
 		11000000000000000000001E /* PreferencesWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferencesWindowController.swift; sourceTree = "<group>"; };
 		110000000000000000000030 /* CPUSampler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CPUSampler.swift; sourceTree = "<group>"; };
+		110000000000000000000032 /* MemorySampler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemorySampler.swift; sourceTree = "<group>"; };
 		110000000000000000000041 /* iStatsTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = iStatsTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		110000000000000000000043 /* CPUSamplerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CPUSamplerTests.swift; sourceTree = "<group>"; };
+		110000000000000000000049 /* MemorySamplerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemorySamplerTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -101,6 +105,7 @@
 			isa = PBXGroup;
 			children = (
 				110000000000000000000030 /* CPUSampler.swift */,
+				110000000000000000000032 /* MemorySampler.swift */,
 			);
 			path = Sampling;
 			sourceTree = "<group>";
@@ -134,6 +139,7 @@
 			isa = PBXGroup;
 			children = (
 				110000000000000000000043 /* CPUSamplerTests.swift */,
+				110000000000000000000049 /* MemorySamplerTests.swift */,
 			);
 			path = iStatsTests;
 			sourceTree = "<group>";
@@ -257,6 +263,7 @@
 				11000000000000000000001D /* PreferencesView.swift in Sources */,
 				11000000000000000000001F /* PreferencesWindowController.swift in Sources */,
 				110000000000000000000031 /* CPUSampler.swift in Sources */,
+				110000000000000000000033 /* MemorySampler.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -265,6 +272,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				110000000000000000000044 /* CPUSamplerTests.swift in Sources */,
+				11000000000000000000004A /* MemorySamplerTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

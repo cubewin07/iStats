@@ -70,9 +70,27 @@ public struct MemorySample: Sendable, Equatable, Codable {
     public let cached: UInt64
     public let swapUsed: UInt64
     public let pressure: MemoryPressure
+    public let appMemory: UInt64?
+    public let active: UInt64?
+    public let inactive: UInt64?
+    public let swapTotal: UInt64?
+    public let swapFree: UInt64?
 
-    public init(total: UInt64, used: UInt64, free: UInt64, wired: UInt64,
-                compressed: UInt64, cached: UInt64, swapUsed: UInt64, pressure: MemoryPressure) {
+    public init(
+        total: UInt64,
+        used: UInt64,
+        free: UInt64,
+        wired: UInt64,
+        compressed: UInt64,
+        cached: UInt64,
+        swapUsed: UInt64,
+        pressure: MemoryPressure,
+        appMemory: UInt64? = nil,
+        active: UInt64? = nil,
+        inactive: UInt64? = nil,
+        swapTotal: UInt64? = nil,
+        swapFree: UInt64? = nil
+    ) {
         self.total = total
         self.used = used
         self.free = free
@@ -81,6 +99,11 @@ public struct MemorySample: Sendable, Equatable, Codable {
         self.cached = cached
         self.swapUsed = swapUsed
         self.pressure = pressure
+        self.appMemory = appMemory
+        self.active = active
+        self.inactive = inactive
+        self.swapTotal = swapTotal
+        self.swapFree = swapFree
     }
 }
 
