@@ -366,6 +366,89 @@ final class PowerSamplerTests: XCTestCase {
         XCTAssertNil(sample.powerDrawWatts, "Unexposed power draw watts must be nil (not 0.0)")
     }
 
+    // MARK: - Task 4.4 Tests: Handle the No-Battery Case (Requirement 8.4)
+
+    func testPowerSamplerBatteryNotPresentGracefulDegradation() throws {
+        let mock = MockPowerInfoProvider()
+        mock.mockSnapshot = RawPowerSourceSnapshot(
+            hasBattery: true,
+            isPresent: false, // Battery reported but physically absent/disconnected
+            powerSourceState: "AC Power",
+            currentCapacity: nil,
+            maxCapacity: nil,
+            isCharging: false,
+            isCharged: false
+        )
+        mock.mockSmartBattery = nil
+
+        let sampler = PowerSampler(provider: mock)
+        let sample = try sampler.sample()
+
+        XCTAssertFalse(sample.hasBattery, "When battery isPresent is false, hasBattery must be false")
+        XCTAssertNil(sample.charge, "Battery charge must be nil when battery is not present")
+        XCTAssertNil(sample.state, "Battery state must be nil when battery is not present")
+        XCTAssertNil(sample.timeRemaining, "Time remaining must be nil when battery is not present")
+        XCTAssertNil(sample.cycleCount, "Cycle count must be nil when battery is not present")
+        XCTAssertNil(sample.condition, "Condition must be nil when battery is not present")
+        XCTAssertNil(sample.designCapacity, "Design capacity must be nil when battery is not present")
+        XCTAssertNil(sample.currentMaxCapacity, "Max capacity must be nil when battery is not present")
+    }
+
+    func testPowerSamplerDesktopMacWithPowerSupplyWattage() throws {
+        let mock = MockPowerInfoProvider()
+        mock.mockSnapshot = RawPowerSourceSnapshot(
+            hasBattery: false,
+            isPresent: false,
+            powerSourceState: "AC Power"
+        )
+        mock.mockSmartBattery = RawSmartBatteryData(
+            cycleCount: nil,
+            condition: nil,
+            designCapacity: nil,
+            currentMaxCapacity: nil,
+            adapterWatts: 140.0,
+            powerDrawWatts: 38.5
+        )
+
+        let sampler = PowerSampler(provider: mock)
+        let sample = try sampler.sample()
+
+        XCTAssertFalse(sample.hasBattery)
+        XCTAssertNil(sample.charge)
+        XCTAssertNil(sample.state)
+        XCTAssertNil(sample.timeRemaining)
+        XCTAssertNil(sample.cycleCount)
+        XCTAssertNil(sample.condition)
+        XCTAssertNil(sample.designCapacity)
+        XCTAssertNil(sample.currentMaxCapacity)
+        XCTAssertEqual(sample.adapterWatts, 140.0, "Desktop power supply wattage should be preserved if exposed")
+        XCTAssertEqual(sample.powerDrawWatts, 38.5, "Desktop power draw wattage should be preserved if exposed")
+    }
+
+    func testPowerSamplerDesktopMacAllMetricsAreStrictlyNil() throws {
+        let mock = MockPowerInfoProvider()
+        mock.mockSnapshot = RawPowerSourceSnapshot(
+            hasBattery: false,
+            isPresent: false,
+            powerSourceState: "AC Power"
+        )
+        mock.mockSmartBattery = nil
+
+        let sampler = PowerSampler(provider: mock)
+        let sample = try sampler.sample()
+
+        XCTAssertFalse(sample.hasBattery)
+        XCTAssertNil(sample.charge)
+        XCTAssertNil(sample.state)
+        XCTAssertNil(sample.timeRemaining)
+        XCTAssertNil(sample.cycleCount)
+        XCTAssertNil(sample.condition)
+        XCTAssertNil(sample.designCapacity)
+        XCTAssertNil(sample.currentMaxCapacity)
+        XCTAssertNil(sample.adapterWatts)
+        XCTAssertNil(sample.powerDrawWatts)
+    }
+
     func testLiveHostPowerInfoProviderAndSampler() throws {
         let provider = HostPowerInfoProvider()
         let snapshot = try provider.powerSourceSnapshot()
