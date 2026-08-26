@@ -11,6 +11,8 @@
 		110000000000000000000013 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000012 /* AppDelegate.swift */; };
 		110000000000000000000015 /* DockIconManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000014 /* DockIconManager.swift */; };
 		110000000000000000000017 /* iStatsCore in Frameworks */ = {isa = PBXBuildFile; productRef = 110000000000000000000005 /* iStatsCore */; };
+		110000000000000000000019 /* MenuBarController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000018 /* MenuBarController.swift */; };
+		11000000000000000000001B /* DetailPopoverView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11000000000000000000001A /* DetailPopoverView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -19,6 +21,8 @@
 		110000000000000000000012 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		110000000000000000000014 /* DockIconManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DockIconManager.swift; sourceTree = "<group>"; };
 		110000000000000000000016 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		110000000000000000000018 /* MenuBarController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarController.swift; sourceTree = "<group>"; };
+		11000000000000000000001A /* DetailPopoverView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DetailPopoverView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -45,6 +49,7 @@
 			isa = PBXGroup;
 			children = (
 				11000000000000000000000B /* App */,
+				11000000000000000000000E /* UI */,
 				11000000000000000000000C /* Resources */,
 			);
 			path = iStats;
@@ -55,9 +60,18 @@
 			children = (
 				110000000000000000000010 /* iStatsApp.swift */,
 				110000000000000000000012 /* AppDelegate.swift */,
+				110000000000000000000018 /* MenuBarController.swift */,
 				110000000000000000000014 /* DockIconManager.swift */,
 			);
 			path = App;
+			sourceTree = "<group>";
+		};
+		11000000000000000000000E /* UI */ = {
+			isa = PBXGroup;
+			children = (
+				11000000000000000000001A /* DetailPopoverView.swift */,
+			);
+			path = UI;
 			sourceTree = "<group>";
 		};
 		11000000000000000000000C /* Resources */ = {
@@ -147,6 +161,8 @@
 				110000000000000000000011 /* iStatsApp.swift in Sources */,
 				110000000000000000000013 /* AppDelegate.swift in Sources */,
 				110000000000000000000015 /* DockIconManager.swift in Sources */,
+				110000000000000000000019 /* MenuBarController.swift in Sources */,
+				11000000000000000000001B /* DetailPopoverView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
