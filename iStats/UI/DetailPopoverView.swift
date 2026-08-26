@@ -12,12 +12,14 @@ public struct DetailPopoverView: View {
     private let overrideDiskSample: DiskSample?
     private let overridePowerSample: PowerSample?
     private let overrideThermalSample: ThermalSample?
+    private let overrideFanSample: FanSample?
     private let overrideCPUHistory: [Sample<CPUSample>]?
     private let overrideMemoryHistory: [Sample<MemorySample>]?
     private let overrideNetworkHistory: [Sample<NetworkSample>]?
     private let overrideDiskHistory: [Sample<DiskSample>]?
     private let overridePowerHistory: [Sample<PowerSample>]?
     private let overrideThermalHistory: [Sample<ThermalSample>]?
+    private let overrideFanHistory: [Sample<FanSample>]?
 
     public init(
         coordinator: MetricsCoordinator = .shared,
@@ -28,12 +30,14 @@ public struct DetailPopoverView: View {
         diskSample: DiskSample? = nil,
         powerSample: PowerSample? = nil,
         thermalSample: ThermalSample? = nil,
+        fanSample: FanSample? = nil,
         cpuHistory: [Sample<CPUSample>]? = nil,
         memoryHistory: [Sample<MemorySample>]? = nil,
         networkHistory: [Sample<NetworkSample>]? = nil,
         diskHistory: [Sample<DiskSample>]? = nil,
         powerHistory: [Sample<PowerSample>]? = nil,
-        thermalHistory: [Sample<ThermalSample>]? = nil
+        thermalHistory: [Sample<ThermalSample>]? = nil,
+        fanHistory: [Sample<FanSample>]? = nil
     ) {
         self.coordinator = coordinator
         self.preferences = preferences
@@ -43,12 +47,14 @@ public struct DetailPopoverView: View {
         self.overrideDiskSample = diskSample
         self.overridePowerSample = powerSample
         self.overrideThermalSample = thermalSample
+        self.overrideFanSample = fanSample
         self.overrideCPUHistory = cpuHistory
         self.overrideMemoryHistory = memoryHistory
         self.overrideNetworkHistory = networkHistory
         self.overrideDiskHistory = diskHistory
         self.overridePowerHistory = powerHistory
         self.overrideThermalHistory = thermalHistory
+        self.overrideFanHistory = fanHistory
     }
 
     private var currentCPUSample: CPUSample? {
@@ -99,6 +105,14 @@ public struct DetailPopoverView: View {
         overrideThermalHistory ?? coordinator.thermalHistory
     }
 
+    private var currentFanSample: FanSample? {
+        overrideFanSample ?? coordinator.latestFan?.value
+    }
+
+    private var currentFanHistory: [Sample<FanSample>] {
+        overrideFanHistory ?? coordinator.fanHistory
+    }
+
     public var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             // Header
@@ -142,6 +156,14 @@ public struct DetailPopoverView: View {
                             sample: currentThermalSample,
                             history: currentThermalHistory,
                             temperatureUnit: preferences.temperatureUnit
+                        )
+                    }
+
+                    // Fans & Cooling Section (Requirements 4.1-4.4, 10.1)
+                    if preferences.isCategoryEnabled(.fan) {
+                        FanSummaryView(
+                            sample: currentFanSample,
+                            history: currentFanHistory
                         )
                     }
 
@@ -199,7 +221,7 @@ public struct DetailPopoverView: View {
         .padding(14)
         .frame(width: 330)
         .onAppear {
-            if !coordinator.isRunning && overrideCPUSample == nil && overrideMemorySample == nil && overrideNetworkSample == nil && overrideDiskSample == nil && overridePowerSample == nil && overrideThermalSample == nil {
+            if !coordinator.isRunning && overrideCPUSample == nil && overrideMemorySample == nil && overrideNetworkSample == nil && overrideDiskSample == nil && overridePowerSample == nil && overrideThermalSample == nil && overrideFanSample == nil {
                 coordinator.start()
             }
         }

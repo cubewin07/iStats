@@ -42,6 +42,9 @@ public final class MetricsCoordinator: ObservableObject {
     /// The latest available Thermal sample.
     @Published public private(set) var latestThermal: Sample<ThermalSample>?
 
+    /// The latest available Fan sample.
+    @Published public private(set) var latestFan: Sample<FanSample>?
+
     /// Rolling chronological history of CPU samples.
     @Published public private(set) var cpuHistory: [Sample<CPUSample>] = []
 
@@ -59,6 +62,9 @@ public final class MetricsCoordinator: ObservableObject {
 
     /// Rolling chronological history of Thermal samples.
     @Published public private(set) var thermalHistory: [Sample<ThermalSample>] = []
+
+    /// Rolling chronological history of Fan samples.
+    @Published public private(set) var fanHistory: [Sample<FanSample>] = []
 
     /// Whether the coordinator is actively sampling.
     @Published public private(set) var isRunning: Bool = false
@@ -101,6 +107,7 @@ public final class MetricsCoordinator: ObservableObject {
             await scheduler.register(DiskSampler())
             await scheduler.register(PowerSampler())
             await scheduler.register(ThermalSampler())
+            await scheduler.register(FanSampler())
             await scheduler.setDefaultInterval(preferencesStore.refreshInterval)
 
             for category in MetricCategory.allCases {
@@ -163,6 +170,9 @@ public final class MetricsCoordinator: ObservableObject {
         case .thermal:
             self.latestThermal = store.latestThermal()
             self.thermalHistory = store.thermalHistory()
+        case .fan:
+            self.latestFan = store.latestFan()
+            self.fanHistory = store.fanHistory()
         default:
             break
         }
