@@ -54,10 +54,37 @@ public struct CPUSample: Sendable, Equatable, Codable {
 }
 
 /// macOS memory pressure level.
-public enum MemoryPressure: String, Sendable, Equatable, Codable {
+public enum MemoryPressure: String, Sendable, Equatable, Codable, Comparable {
     case normal
     case warning
     case critical
+
+    /// Human-readable title of the memory pressure state.
+    public var displayName: String {
+        switch self {
+        case .normal: return "Normal"
+        case .warning: return "Warning"
+        case .critical: return "Critical"
+        }
+    }
+
+    /// Whether memory pressure is in an elevated (warning or critical) state.
+    public var isElevated: Bool {
+        self != .normal
+    }
+
+    /// Numeric severity rank (0 = normal, 1 = warning, 2 = critical).
+    public var severityRank: Int {
+        switch self {
+        case .normal: return 0
+        case .warning: return 1
+        case .critical: return 2
+        }
+    }
+
+    public static func < (lhs: MemoryPressure, rhs: MemoryPressure) -> Bool {
+        lhs.severityRank < rhs.severityRank
+    }
 }
 
 /// Memory statistics for one sample. All byte values are in bytes.

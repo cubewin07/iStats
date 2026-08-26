@@ -2,10 +2,14 @@ import SwiftUI
 import iStatsCore
 
 public struct DetailPopoverView: View {
-    public init() {}
+    @State private var memorySample: MemorySample?
+
+    public init(memorySample: MemorySample? = nil) {
+        self._memorySample = State(initialValue: memorySample)
+    }
 
     public var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 14) {
             // Header
             HStack(spacing: 8) {
                 Image(systemName: "gauge.with.dots.needle.bottom.50percent")
@@ -18,31 +22,18 @@ public struct DetailPopoverView: View {
                     .font(.system(size: 11, weight: .medium))
                     .foregroundColor(.secondary)
             }
-            .padding(.bottom, 4)
+            .padding(.bottom, 2)
 
             Divider()
 
-            // Shell Content Placeholder
-            VStack(spacing: 12) {
-                Image(systemName: "chart.xyaxis.line")
-                    .font(.system(size: 28))
-                    .foregroundColor(.secondary)
-                Text("System Monitor")
-                    .font(.headline)
-                Text("Phase 1 Foundation Shell active.\nMetric samplers (CPU, Memory, Network, Disk, Power, Thermals) will connect in upcoming phases.")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                    .multilineTextAlignment(.center)
-                    .lineSpacing(2)
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 16)
+            // Memory Monitoring & Pressure Alert Section
+            MemorySummaryView(sample: memorySample)
 
             Divider()
 
             // Footer / Actions
             HStack {
-                Text("Status: Ready")
+                Text(memorySample != nil ? "Pressure: \(memorySample!.pressure.displayName)" : "Status: Ready")
                     .font(.caption2)
                     .foregroundColor(.secondary)
                 Spacer()
@@ -61,5 +52,17 @@ public struct DetailPopoverView: View {
         }
         .padding(16)
         .frame(width: 320)
+        .onAppear {
+            if memorySample == nil {
+                Task.detached(priority: .userInitiated) {
+                    let sampler = MemorySampler()
+                    if let sample = try? sampler.sample() {
+                        await MainActor.run {
+                            self.memorySample = sample
+                        }
+                    }
+                }
+            }
+        }
     }
 }

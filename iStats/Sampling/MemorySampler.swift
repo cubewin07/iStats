@@ -134,10 +134,10 @@ public struct HostMemoryInfoProvider: MemoryInfoProvider {
             case 4: // NOTE_MEMORYSTATUS_PRESSURE_CRITICAL
                 return .critical
             default:
-                return .normal
+                break
             }
         }
-        return .normal
+        return MemoryPressureMonitor.shared.currentPressure
     }
 }
 
