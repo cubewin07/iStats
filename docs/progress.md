@@ -13,8 +13,8 @@ The only status file. Agent specs (`AGENTS.md`, `CLAUDE.md`) and phase plans do 
 | Field | Value |
 |-------|--------|
 | Phase | **2 — CPU & memory** (in progress) |
-| Next task | `2.3` Property tests for CPU % math |
-| Last closed | **2.2** Load average and CPU frequency |
+| Next task | `2.4` Implement MemorySampler |
+| Last closed | **2.3** Property tests for CPU % math |
 | Blocked by | — |
 
 ---
@@ -51,6 +51,7 @@ Copy a row from [`docs/specs/tasks.md`](./specs/tasks.md) when you start it. Lea
 | 1.7 | Write the Phase 1 report | **done** | [`docs/handoffs/01-1.7-summary.md`](./handoffs/01-1.7-summary.md), [`docs/phases/phase-01-foundation/report.md`](./phases/phase-01-foundation/report.md), `swift test` (75 passed) |
 | 2.1 | Implement CPUSampler (total + per-core) | **done** | [`docs/handoffs/02-2.1-summary.md`](./handoffs/02-2.1-summary.md), `xcodebuild test -scheme iStatsApp` (6 passed), `swift test` (78 passed) |
 | 2.2 | Load average and CPU frequency | **done** | [`docs/handoffs/02-2.2-summary.md`](./handoffs/02-2.2-summary.md), `xcodebuild test -scheme iStatsApp` (6 passed), `swift test` (80 passed) |
+| 2.3 | Property tests for CPU % math | **done** | [`docs/handoffs/02-2.3-summary.md`](./handoffs/02-2.3-summary.md), `xcodebuild test -scheme iStatsApp` (14 passed), `swift test` (85 passed) |
 
 When a task is done, set Status to `done` and put the handoff summary path (or test command) in Evidence.
 
