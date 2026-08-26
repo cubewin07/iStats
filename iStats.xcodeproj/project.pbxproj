@@ -37,6 +37,9 @@
 		110000000000000000000093 /* PowerSamplerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000092 /* PowerSamplerTests.swift */; };
 		110000000000000000000095 /* PowerSummaryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000094 /* PowerSummaryView.swift */; };
 		110000000000000000000097 /* Phase4ValidationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000096 /* Phase4ValidationTests.swift */; };
+		1100000000000000000000A1 /* ThermalSampler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000000A0 /* ThermalSampler.swift */; };
+		1100000000000000000000A3 /* ThermalSummaryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000000A2 /* ThermalSummaryView.swift */; };
+		1100000000000000000000A5 /* ThermalSamplerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000000A4 /* ThermalSamplerTests.swift */; };
 		110000000000000000000045 /* iStatsCore in Frameworks */ = {isa = PBXBuildFile; productRef = 110000000000000000000005 /* iStatsCore */; };
 /* End PBXBuildFile section */
 
@@ -83,6 +86,9 @@
 		110000000000000000000092 /* PowerSamplerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PowerSamplerTests.swift; sourceTree = "<group>"; };
 		110000000000000000000094 /* PowerSummaryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PowerSummaryView.swift; sourceTree = "<group>"; };
 		110000000000000000000096 /* Phase4ValidationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Phase4ValidationTests.swift; sourceTree = "<group>"; };
+		1100000000000000000000A0 /* ThermalSampler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThermalSampler.swift; sourceTree = "<group>"; };
+		1100000000000000000000A2 /* ThermalSummaryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThermalSummaryView.swift; sourceTree = "<group>"; };
+		1100000000000000000000A4 /* ThermalSamplerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThermalSamplerTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -147,6 +153,7 @@
 				110000000000000000000070 /* NetworkSampler.swift */,
 				110000000000000000000080 /* DiskSampler.swift */,
 				110000000000000000000090 /* PowerSampler.swift */,
+				1100000000000000000000A0 /* ThermalSampler.swift */,
 			);
 			path = Sampling;
 			sourceTree = "<group>";
@@ -162,6 +169,7 @@
 				110000000000000000000074 /* NetworkSummaryView.swift */,
 				110000000000000000000084 /* DiskSummaryView.swift */,
 				110000000000000000000094 /* PowerSummaryView.swift */,
+				1100000000000000000000A2 /* ThermalSummaryView.swift */,
 			);
 			path = UI;
 			sourceTree = "<group>";
@@ -194,6 +202,7 @@
 				110000000000000000000086 /* Phase3ValidationTests.swift */,
 				110000000000000000000092 /* PowerSamplerTests.swift */,
 				110000000000000000000096 /* Phase4ValidationTests.swift */,
+				1100000000000000000000A4 /* ThermalSamplerTests.swift */,
 			);
 			path = iStatsTests;
 			sourceTree = "<group>";
@@ -329,6 +338,8 @@
 				110000000000000000000085 /* DiskSummaryView.swift in Sources */,
 				110000000000000000000091 /* PowerSampler.swift in Sources */,
 				110000000000000000000095 /* PowerSummaryView.swift in Sources */,
+				1100000000000000000000A1 /* ThermalSampler.swift in Sources */,
+				1100000000000000000000A3 /* ThermalSummaryView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -345,6 +356,7 @@
 				110000000000000000000087 /* Phase3ValidationTests.swift in Sources */,
 				110000000000000000000093 /* PowerSamplerTests.swift in Sources */,
 				110000000000000000000097 /* Phase4ValidationTests.swift in Sources */,
+				1100000000000000000000A5 /* ThermalSamplerTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

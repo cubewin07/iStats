@@ -73,4 +73,24 @@ final class UnitsTests: XCTestCase {
         XCTAssertEqual(Units.formatDiskRate(1024 * 1024 * 25.0, standard: .iec), "25.00 MiB/s")
         XCTAssertEqual(Units.formatDiskRate(100_000_000, standard: .si), "100.00 MB/s")
     }
+
+    func testFormatTemperatureCelsius() {
+        XCTAssertEqual(Units.formatTemperature(42.5, unit: .celsius), "42.5 °C")
+        XCTAssertEqual(Units.formatTemperature(0.0, unit: .celsius, fractionDigits: 0), "0 °C")
+        XCTAssertEqual(Units.formatTemperature(100.0, unit: .celsius, fractionDigits: 2), "100.00 °C")
+        XCTAssertEqual(Units.formatTemperature(.nan, unit: .celsius), "N/A")
+        XCTAssertEqual(Units.formatTemperature(.infinity, unit: .celsius), "N/A")
+    }
+
+    func testFormatTemperatureFahrenheit() {
+        XCTAssertEqual(Units.formatTemperature(0.0, unit: .fahrenheit), "32.0 °F")
+        XCTAssertEqual(Units.formatTemperature(100.0, unit: .fahrenheit), "212.0 °F")
+        XCTAssertEqual(Units.formatTemperature(37.0, unit: .fahrenheit, fractionDigits: 2), "98.60 °F")
+    }
+
+    func testFormatTemperatureSensor() {
+        let sensor = SensorReading(name: "CPU Package", celsius: 48.2)
+        XCTAssertEqual(Units.formatTemperatureSensor(sensor, unit: .celsius), "48.2 °C")
+        XCTAssertEqual(Units.formatTemperatureSensor(sensor, unit: .fahrenheit), "118.8 °F")
+    }
 }

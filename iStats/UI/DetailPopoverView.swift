@@ -11,11 +11,13 @@ public struct DetailPopoverView: View {
     private let overrideNetworkSample: NetworkSample?
     private let overrideDiskSample: DiskSample?
     private let overridePowerSample: PowerSample?
+    private let overrideThermalSample: ThermalSample?
     private let overrideCPUHistory: [Sample<CPUSample>]?
     private let overrideMemoryHistory: [Sample<MemorySample>]?
     private let overrideNetworkHistory: [Sample<NetworkSample>]?
     private let overrideDiskHistory: [Sample<DiskSample>]?
     private let overridePowerHistory: [Sample<PowerSample>]?
+    private let overrideThermalHistory: [Sample<ThermalSample>]?
 
     public init(
         coordinator: MetricsCoordinator = .shared,
@@ -25,11 +27,13 @@ public struct DetailPopoverView: View {
         networkSample: NetworkSample? = nil,
         diskSample: DiskSample? = nil,
         powerSample: PowerSample? = nil,
+        thermalSample: ThermalSample? = nil,
         cpuHistory: [Sample<CPUSample>]? = nil,
         memoryHistory: [Sample<MemorySample>]? = nil,
         networkHistory: [Sample<NetworkSample>]? = nil,
         diskHistory: [Sample<DiskSample>]? = nil,
-        powerHistory: [Sample<PowerSample>]? = nil
+        powerHistory: [Sample<PowerSample>]? = nil,
+        thermalHistory: [Sample<ThermalSample>]? = nil
     ) {
         self.coordinator = coordinator
         self.preferences = preferences
@@ -38,11 +42,13 @@ public struct DetailPopoverView: View {
         self.overrideNetworkSample = networkSample
         self.overrideDiskSample = diskSample
         self.overridePowerSample = powerSample
+        self.overrideThermalSample = thermalSample
         self.overrideCPUHistory = cpuHistory
         self.overrideMemoryHistory = memoryHistory
         self.overrideNetworkHistory = networkHistory
         self.overrideDiskHistory = diskHistory
         self.overridePowerHistory = powerHistory
+        self.overrideThermalHistory = thermalHistory
     }
 
     private var currentCPUSample: CPUSample? {
@@ -85,6 +91,14 @@ public struct DetailPopoverView: View {
         overridePowerHistory ?? coordinator.powerHistory
     }
 
+    private var currentThermalSample: ThermalSample? {
+        overrideThermalSample ?? coordinator.latestThermal?.value
+    }
+
+    private var currentThermalHistory: [Sample<ThermalSample>] {
+        overrideThermalHistory ?? coordinator.thermalHistory
+    }
+
     public var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             // Header
@@ -119,6 +133,15 @@ public struct DetailPopoverView: View {
                         MemorySummaryView(
                             sample: currentMemorySample,
                             history: currentMemoryHistory
+                        )
+                    }
+
+                    // Thermal Monitoring Section (Requirements 3.1-3.4, 10.1, 11.3)
+                    if preferences.isCategoryEnabled(.thermal) {
+                        ThermalSummaryView(
+                            sample: currentThermalSample,
+                            history: currentThermalHistory,
+                            temperatureUnit: preferences.temperatureUnit
                         )
                     }
 
@@ -176,14 +199,16 @@ public struct DetailPopoverView: View {
         .padding(14)
         .frame(width: 330)
         .onAppear {
-            if !coordinator.isRunning && overrideCPUSample == nil && overrideMemorySample == nil && overrideNetworkSample == nil && overrideDiskSample == nil && overridePowerSample == nil {
+            if !coordinator.isRunning && overrideCPUSample == nil && overrideMemorySample == nil && overrideNetworkSample == nil && overrideDiskSample == nil && overridePowerSample == nil && overrideThermalSample == nil {
                 coordinator.start()
             }
         }
     }
 
     private var statusFooterText: String {
-        if let memory = currentMemorySample {
+        if let thermal = currentThermalSample, let pressure = thermal.pressure, pressure.isElevated {
+            return "Thermal Pressure: \(pressure.displayName)"
+        } else if let memory = currentMemorySample {
             return "Pressure: \(memory.pressure.displayName)"
         } else if coordinator.isRunning {
             return "Sampling..."

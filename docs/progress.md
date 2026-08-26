@@ -13,8 +13,8 @@ The only status file. Agent specs (`AGENTS.md`, `CLAUDE.md`) and phase plans do 
 | Field | Value |
 |-------|--------|
 | Phase | **5 — Thermal, fan, GPU** (in progress) |
-| Next task | `5.2` Implement ThermalSampler |
-| Last closed | **5.1** Spike + ADR 0003: thermal/fan data source |
+| Next task | `5.3` Implement FanSampler |
+| Last closed | **5.2** Implement ThermalSampler |
 | Blocked by | — |
 
 ---
@@ -28,7 +28,7 @@ The only status file. Agent specs (`AGENTS.md`, `CLAUDE.md`) and phase plans do 
 | 2 | CPU & memory | **done** | `CPUSampler`, `MemorySampler`, `MemoryPressureMonitor`, rolling history graphs, live detail cards, menu bar display modes, and `report.md` complete. |
 | 3 | Network & disk | **done** | `NetworkSampler`, `DiskSampler`, mounted volume capacity, IOKit I/O throughput/IOPS, detail cards, units preferences, and `report.md` complete. |
 | 4 | Battery & power | **done** | Charge, state, time-remaining, health, power draw, no-battery desktop handling, and `report.md` complete. |
-| 5 | Thermal, fan, GPU | in progress | Spike complete. ADR 0003 Accepted. Modular IOHID/AppleSMC/IOAccelerator telemetry architecture. |
+| 5 | Thermal, fan, GPU | in progress | ThermalSampler and ADR 0003 complete. Live AppleSMC telemetry on Apple Silicon. |
 | 6 | Polish & preferences | not started | After Phase 5. |
 
 Status values: `not started` · `in progress` · `docs on disk, not closed` · `done` · `blocked`.
@@ -68,6 +68,7 @@ Copy a row from [`docs/specs/tasks.md`](./specs/tasks.md) when you start it. Lea
 | 4.4 | Handle the no-battery case | **done** | [`docs/handoffs/04-4.4-summary.md`](./handoffs/04-4.4-summary.md), `xcodebuild test -scheme iStatsApp` (89 passed), `swift test` (96 passed) |
 | 4.5 | Validate vs reference tools + Phase 4 report | **done** | [`docs/handoffs/04-4.5-summary.md`](./handoffs/04-4.5-summary.md), [`docs/phases/phase-04-battery-power/report.md`](./phases/phase-04-battery-power/report.md), `xcodebuild test -scheme iStatsApp` (89 passed), `swift test` (96 passed) |
 | 5.1 | Spike + ADR 0003: thermal/fan data source | **done** | [`docs/handoffs/05-5.1-summary.md`](./handoffs/05-5.1-summary.md), `swift test` (96 passed), `xcodebuild test` (89 passed) |
+| 5.2 | Implement ThermalSampler | **done** | [`docs/handoffs/05-5.2-summary.md`](./handoffs/05-5.2-summary.md), `xcodebuild test -scheme iStatsApp` (101 passed), `swift test` (99 passed) |
 
 When a task is done, set Status to `done` and put the handoff summary path (or test command) in Evidence.
 
@@ -79,11 +80,11 @@ Verified against the tree, not the design wish-list. Update a row when the match
 
 | Exists | Missing (designed, not built) |
 |--------|-------------------------------|
-| `Package.swift` → `iStatsCore` + `iStatsCoreTests`, `iStats.xcodeproj` (app target `iStats`, test target `iStatsTests`), `iStatsApp`, `AppDelegate`, `MenuBarController`, `MetricsCoordinator`, `DetailPopoverView`, `CPUSummaryView`, `RollingGraphView`, `DockIconManager`, `PreferencesView`, `PreferencesWindowController`, `MemoryPressureBadgeView`, `MemoryPressureAlertBanner`, `MemorySummaryView`, `NetworkSummaryView`, `DiskSummaryView`, `PowerSummaryView`, `Info.plist` (`LSUIElement = true`), `NSStatusItem`, `NSPopover` | — |
-| `Availability`, `Sample<T>`, `Sampler`, `SamplerError`, `MetricCategory`, `AnySampler`, `MetricReading`, `SampleScheduler`, `MetricsStore`, `PreferencesStore`, `MenuBarDisplayMode`, `CPUSampler`, `ProcessorTicks`, `CPUInfoProvider`, `HostProcessorInfoProvider`, `MemorySampler`, `RawVMStatistics`, `SwapUsageData`, `MemoryInfoProvider`, `HostMemoryInfoProvider`, `MemoryPressureMonitor`, `NetworkSampler`, `RawInterfaceCounters`, `NetworkInfoProvider`, `HostNetworkInfoProvider`, `InterfaceState`, `InterfaceSessionTotal`, `DiskSampler`, `RawDiskIOCounters`, `DiskInfoProvider`, `HostDiskInfoProvider`, `PowerSampler`, `RawPowerSourceSnapshot`, `RawSmartBatteryData`, `PowerInfoProvider`, `HostPowerInfoProvider` | Concrete samplers: thermal, fan, gpu |
+| `Package.swift` → `iStatsCore` + `iStatsCoreTests`, `iStats.xcodeproj` (app target `iStats`, test target `iStatsTests`), `iStatsApp`, `AppDelegate`, `MenuBarController`, `MetricsCoordinator`, `DetailPopoverView`, `CPUSummaryView`, `RollingGraphView`, `DockIconManager`, `PreferencesView`, `PreferencesWindowController`, `MemoryPressureBadgeView`, `MemoryPressureAlertBanner`, `MemorySummaryView`, `NetworkSummaryView`, `DiskSummaryView`, `PowerSummaryView`, `ThermalSummaryView`, `Info.plist` (`LSUIElement = true`), `NSStatusItem`, `NSPopover` | — |
+| `Availability`, `Sample<T>`, `Sampler`, `SamplerError`, `MetricCategory`, `AnySampler`, `MetricReading`, `SampleScheduler`, `MetricsStore`, `PreferencesStore`, `MenuBarDisplayMode`, `CPUSampler`, `ProcessorTicks`, `CPUInfoProvider`, `HostProcessorInfoProvider`, `MemorySampler`, `RawVMStatistics`, `SwapUsageData`, `MemoryInfoProvider`, `HostMemoryInfoProvider`, `MemoryPressureMonitor`, `NetworkSampler`, `RawInterfaceCounters`, `NetworkInfoProvider`, `HostNetworkInfoProvider`, `InterfaceState`, `InterfaceSessionTotal`, `DiskSampler`, `RawDiskIOCounters`, `DiskInfoProvider`, `HostDiskInfoProvider`, `PowerSampler`, `RawPowerSourceSnapshot`, `RawSmartBatteryData`, `PowerInfoProvider`, `HostPowerInfoProvider`, `ThermalSampler`, `ThermalInfoProvider`, `HostThermalInfoProvider`, `SMCParamStruct` | Concrete samplers: fan, gpu |
 | `LoadAverage`, `CPUSample`, `MemorySample`, `MemoryPressure`, `ThermalPressure`, `SensorReading`, `ThermalSample`, `FanReading`, `FanSample`, `InterfaceThroughput`, `NetworkSample`, `VolumeCapacity`, `DiskIO`, `DiskSample`, `BatteryState`, `PowerSample`, `GPUSample` | Metric validation reports |
 | `RateMath`, `RingBuffer`, `Units` (`TemperatureUnit`, `NetworkUnit`, `ByteUnitStandard`) | — |
-| Tests: `RateMathTests`, `RingBufferTests`, `UnitsTests`, `AvailabilityTests`, `MetricCategoryTests`, `SamplerTests`, `ModelsTests`, `SampleSchedulerTests`, `MetricsStoreTests`, `PreferencesStoreTests`, `CPUSamplerTests`, `MemorySamplerTests`, `MemoryPressureTests`, `DetailViewGraphsTests`, `NetworkSamplerTests`, `DiskSamplerTests`, `Phase3ValidationTests`, `PowerSamplerTests`, `Phase4ValidationTests` | — |
+| Tests: `RateMathTests`, `RingBufferTests`, `UnitsTests`, `AvailabilityTests`, `MetricCategoryTests`, `SamplerTests`, `ModelsTests`, `SampleSchedulerTests`, `MetricsStoreTests`, `PreferencesStoreTests`, `CPUSamplerTests`, `MemorySamplerTests`, `MemoryPressureTests`, `DetailViewGraphsTests`, `NetworkSamplerTests`, `DiskSamplerTests`, `Phase3ValidationTests`, `PowerSamplerTests`, `Phase4ValidationTests`, `ThermalSamplerTests` | — |
 
 
 ---

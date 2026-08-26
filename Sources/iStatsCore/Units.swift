@@ -35,6 +35,28 @@ public enum Units {
         }
     }
 
+    /// Format a temperature in Celsius to a formatted string based on the chosen unit (°C vs °F) (Requirement 11.3).
+    public static func formatTemperature(
+        _ celsius: Double,
+        unit: TemperatureUnit = .celsius,
+        fractionDigits: Int = 1
+    ) -> String {
+        guard celsius.isFinite && !celsius.isNaN else {
+            return "N/A"
+        }
+        let value = unit == .fahrenheit ? celsiusToFahrenheit(celsius) : celsius
+        return String(format: "%.\(fractionDigits)f %@", value, unit.symbol)
+    }
+
+    /// Format a SensorReading using the specified TemperatureUnit (Requirement 3.2, 11.3).
+    public static func formatTemperatureSensor(
+        _ sensor: SensorReading,
+        unit: TemperatureUnit = .celsius,
+        fractionDigits: Int = 1
+    ) -> String {
+        formatTemperature(sensor.celsius, unit: unit, fractionDigits: fractionDigits)
+    }
+
     /// Network rate display unit.
     public enum NetworkUnit: String, CaseIterable, Identifiable, Codable, Sendable {
         case bytesPerSecond = "bytesPerSecond"

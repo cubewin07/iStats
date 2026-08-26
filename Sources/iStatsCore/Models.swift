@@ -135,11 +135,40 @@ public struct MemorySample: Sendable, Equatable, Codable {
 }
 
 /// macOS thermal pressure level.
-public enum ThermalPressure: String, Sendable, Equatable, Codable {
+public enum ThermalPressure: String, Sendable, Equatable, Codable, Comparable {
     case nominal
     case fair
     case serious
     case critical
+
+    /// Human-readable title of the thermal pressure state.
+    public var displayName: String {
+        switch self {
+        case .nominal: return "Nominal"
+        case .fair: return "Fair"
+        case .serious: return "Serious"
+        case .critical: return "Critical"
+        }
+    }
+
+    /// Whether thermal pressure is elevated above nominal.
+    public var isElevated: Bool {
+        self != .nominal
+    }
+
+    /// Numeric severity rank (0 = nominal, 1 = fair, 2 = serious, 3 = critical).
+    public var severityRank: Int {
+        switch self {
+        case .nominal: return 0
+        case .fair: return 1
+        case .serious: return 2
+        case .critical: return 3
+        }
+    }
+
+    public static func < (lhs: ThermalPressure, rhs: ThermalPressure) -> Bool {
+        lhs.severityRank < rhs.severityRank
+    }
 }
 
 /// A single named temperature sensor reading, in degrees Celsius.
