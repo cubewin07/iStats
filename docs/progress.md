@@ -13,8 +13,8 @@ The only status file. Agent specs (`AGENTS.md`, `CLAUDE.md`) and phase plans do 
 | Field | Value |
 |-------|--------|
 | Phase | **3 — Network & disk** (in progress) |
-| Next task | `3.4` Implement DiskSampler I/O throughput via IOKit |
-| Last closed | **3.3** Disk capacity per volume |
+| Next task | `3.5` Network/disk in detail view + bytes/bits option |
+| Last closed | **3.4** Disk I/O throughput |
 | Blocked by | — |
 
 ---
@@ -59,6 +59,7 @@ Copy a row from [`docs/specs/tasks.md`](./specs/tasks.md) when you start it. Lea
 | 3.1 | Implement NetworkSampler | **done** | [`docs/handoffs/03-3.1-summary.md`](./handoffs/03-3.1-summary.md), `xcodebuild test -scheme iStatsApp` (43 passed), `swift test` (86 passed) |
 | 3.2 | Network rate math with counter-reset handling | **done** | [`docs/handoffs/03-3.2-summary.md`](./handoffs/03-3.2-summary.md), `xcodebuild test -scheme iStatsApp` (46 passed), `swift test` (91 passed) |
 | 3.3 | Implement DiskSampler (capacity per mounted volume) | **done** | [`docs/handoffs/03-3.3-summary.md`](./handoffs/03-3.3-summary.md), `xcodebuild test -scheme iStatsApp` (51 passed), `swift test` (91 passed) |
+| 3.4 | Implement DiskSampler I/O throughput via IOKit | **done** | [`docs/handoffs/03-3.4-summary.md`](./handoffs/03-3.4-summary.md), `xcodebuild test -scheme iStatsApp` (57 passed), `swift test` (91 passed) |
 
 When a task is done, set Status to `done` and put the handoff summary path (or test command) in Evidence.
 

@@ -10,24 +10,25 @@ final class DiskSamplerTests: XCTestCase {
     final class MockDiskInfoProvider: DiskInfoProvider, @unchecked Sendable {
         var mockVolumes: [VolumeCapacity] = []
         var mockIOCounters: RawDiskIOCounters? = nil
-        var shouldThrow: Bool = false
+        var shouldThrowVolumes: Bool = false
+        var shouldThrowIO: Bool = false
 
         func mountedVolumes() throws -> [VolumeCapacity] {
-            if shouldThrow {
-                throw SamplerError.systemCallFailed("Mock disk error")
+            if shouldThrowVolumes {
+                throw SamplerError.systemCallFailed("Mock disk volume error")
             }
             return mockVolumes
         }
 
         func diskIOCounters() throws -> RawDiskIOCounters? {
-            if shouldThrow {
+            if shouldThrowIO {
                 throw SamplerError.systemCallFailed("Mock disk IO error")
             }
             return mockIOCounters
         }
     }
 
-    // MARK: - Tests
+    // MARK: - Capacity Tests (Task 3.3)
 
     func testDiskSamplerCategory() {
         let sampler = DiskSampler(provider: MockDiskInfoProvider())
@@ -84,9 +85,9 @@ final class DiskSamplerTests: XCTestCase {
         XCTAssertEqual(sample3.volumes.first?.name, "Macintosh HD")
     }
 
-    func testDiskSamplerThrowsWhenProviderFails() {
+    func testDiskSamplerThrowsWhenVolumeProviderFails() {
         let mock = MockDiskInfoProvider()
-        mock.shouldThrow = true
+        mock.shouldThrowVolumes = true
 
         let sampler = DiskSampler(provider: mock)
         XCTAssertThrowsError(try sampler.sample()) { error in
@@ -95,7 +96,7 @@ final class DiskSamplerTests: XCTestCase {
                 return
             }
             if case .systemCallFailed(let reason) = samplerError {
-                XCTAssertTrue(reason.contains("Mock disk error"))
+                XCTAssertTrue(reason.contains("Mock disk volume error"))
             } else {
                 XCTFail("Expected systemCallFailed but got \(samplerError)")
             }
@@ -122,5 +123,148 @@ final class DiskSamplerTests: XCTestCase {
         let sampler = DiskSampler(provider: provider)
         let sample = try sampler.sample()
         XCTAssertFalse(sample.volumes.isEmpty)
+    }
+
+    // MARK: - Disk I/O Tests (Task 3.4)
+
+    func testDiskSamplerInitialSampleZeroIORates() throws {
+        let mock = MockDiskInfoProvider()
+        mock.mockVolumes = [VolumeCapacity(name: "Macintosh HD", mountPoint: "/", total: 500_000_000_000, used: 250_000_000_000, free: 250_000_000_000)]
+        mock.mockIOCounters = RawDiskIOCounters(bytesRead: 10_000_000, bytesWritten: 5_000_000, readOps: 1_000, writeOps: 500)
+
+        let sampler = DiskSampler(provider: mock)
+        let sample = try sampler.sample()
+
+        XCTAssertNotNil(sample.io, "DiskIO should be present when counters are available")
+        guard let io = sample.io else { return }
+
+        // Initial sample must report 0 rates
+        XCTAssertEqual(io.bytesReadPerSec, 0.0)
+        XCTAssertEqual(io.bytesWrittenPerSec, 0.0)
+        XCTAssertEqual(io.readOpsPerSec, 0.0)
+        XCTAssertEqual(io.writeOpsPerSec, 0.0)
+    }
+
+    func testDiskSamplerSubsequentSampleCalculatesIORates() {
+        let t0 = Date(timeIntervalSince1970: 1000.0)
+        let t1 = Date(timeIntervalSince1970: 1002.0) // 2.0s later
+
+        let c0 = RawDiskIOCounters(bytesRead: 10_000_000, bytesWritten: 5_000_000, readOps: 1_000, writeOps: 500)
+        let c1 = RawDiskIOCounters(bytesRead: 12_000_000, bytesWritten: 6_000_000, readOps: 1_200, writeOps: 600)
+
+        let (firstIO, state0) = DiskSampler.calculateIOSample(previous: nil, current: c0, currentTimestamp: t0)
+        XCTAssertEqual(firstIO?.bytesReadPerSec, 0.0)
+        XCTAssertEqual(firstIO?.bytesWrittenPerSec, 0.0)
+        XCTAssertEqual(firstIO?.readOpsPerSec, 0.0)
+        XCTAssertEqual(firstIO?.writeOpsPerSec, 0.0)
+
+        let (secondIO, state1) = DiskSampler.calculateIOSample(previous: state0, current: c1, currentTimestamp: t1)
+        XCTAssertNotNil(secondIO)
+        guard let io = secondIO else { return }
+
+        // Delta: 2,000,000 bytes read / 2s = 1,000,000 B/s
+        XCTAssertEqual(io.bytesReadPerSec, 1_000_000.0, accuracy: 0.001)
+        // Delta: 1,000,000 bytes written / 2s = 500,000 B/s
+        XCTAssertEqual(io.bytesWrittenPerSec, 500_000.0, accuracy: 0.001)
+        // Delta: 200 read ops / 2s = 100 ops/s
+        XCTAssertEqual(io.readOpsPerSec, 100.0, accuracy: 0.001)
+        // Delta: 100 write ops / 2s = 50 ops/s
+        XCTAssertEqual(io.writeOpsPerSec, 50.0, accuracy: 0.001)
+
+        XCTAssertEqual(state1?.bytesRead, 12_000_000)
+        XCTAssertEqual(state1?.bytesWritten, 6_000_000)
+    }
+
+    func testDiskSamplerIOCounterResetClampsRatesToZero() {
+        let t0 = Date(timeIntervalSince1970: 1000.0)
+        let t1 = Date(timeIntervalSince1970: 1002.0)
+
+        // Previous state has higher counters
+        let prevState = DiskIOState(bytesRead: 100_000_000, bytesWritten: 50_000_000, readOps: 10_000, writeOps: 5_000, timestamp: t0)
+        // Counter reset / disk restart -> new counters are lower
+        let resetCounters = RawDiskIOCounters(bytesRead: 1_000, bytesWritten: 500, readOps: 10, writeOps: 5)
+
+        let (io, newState) = DiskSampler.calculateIOSample(previous: prevState, current: resetCounters, currentTimestamp: t1)
+        XCTAssertNotNil(io)
+
+        // All rates must clamp to 0.0 and never produce negative spikes
+        XCTAssertEqual(io?.bytesReadPerSec, 0.0)
+        XCTAssertEqual(io?.bytesWrittenPerSec, 0.0)
+        XCTAssertEqual(io?.readOpsPerSec, 0.0)
+        XCTAssertEqual(io?.writeOpsPerSec, 0.0)
+
+        XCTAssertEqual(newState?.bytesRead, 1_000)
+        XCTAssertEqual(newState?.bytesWritten, 500)
+    }
+
+    func testDiskSamplerGracefulDegradationWhenIOUnavailable() throws {
+        let mock = MockDiskInfoProvider()
+        mock.mockVolumes = [VolumeCapacity(name: "Macintosh HD", mountPoint: "/", total: 500_000_000_000, used: 250_000_000_000, free: 250_000_000_000)]
+        mock.mockIOCounters = nil // Unavailable I/O stats
+
+        let sampler = DiskSampler(provider: mock)
+        let sample = try sampler.sample()
+
+        // Volumes capacity must NOT be blocked
+        XCTAssertEqual(sample.volumes.count, 1)
+        XCTAssertEqual(sample.volumes[0].name, "Macintosh HD")
+        // I/O degrades to nil
+        XCTAssertNil(sample.io)
+
+        // Even if I/O provider throws an error, capacity must still succeed
+        mock.shouldThrowIO = true
+        let sampleWithError = try sampler.sample()
+        XCTAssertEqual(sampleWithError.volumes.count, 1)
+        XCTAssertNil(sampleWithError.io)
+    }
+
+    func testCalculateIOSampleZeroOrNegativeElapsedTime() {
+        let t0 = Date(timeIntervalSince1970: 1000.0)
+        let tPast = Date(timeIntervalSince1970: 998.0)
+
+        let prevState = DiskIOState(bytesRead: 10_000_000, bytesWritten: 5_000_000, readOps: 1_000, writeOps: 500, timestamp: t0)
+        let currentCounters = RawDiskIOCounters(bytesRead: 20_000_000, bytesWritten: 10_000_000, readOps: 2_000, writeOps: 1_000)
+
+        // Equal timestamp
+        let (ioEqual, _) = DiskSampler.calculateIOSample(previous: prevState, current: currentCounters, currentTimestamp: t0)
+        XCTAssertEqual(ioEqual?.bytesReadPerSec, 0.0)
+        XCTAssertEqual(ioEqual?.bytesWrittenPerSec, 0.0)
+        XCTAssertEqual(ioEqual?.readOpsPerSec, 0.0)
+        XCTAssertEqual(ioEqual?.writeOpsPerSec, 0.0)
+
+        // Backwards clock
+        let (ioPast, _) = DiskSampler.calculateIOSample(previous: prevState, current: currentCounters, currentTimestamp: tPast)
+        XCTAssertEqual(ioPast?.bytesReadPerSec, 0.0)
+        XCTAssertEqual(ioPast?.bytesWrittenPerSec, 0.0)
+        XCTAssertEqual(ioPast?.readOpsPerSec, 0.0)
+        XCTAssertEqual(ioPast?.writeOpsPerSec, 0.0)
+    }
+
+    func testLiveHostDiskInfoProviderIOCounters() throws {
+        let provider = HostDiskInfoProvider()
+        let ioCounters = try provider.diskIOCounters()
+
+        // On physical/VM macOS host with block storage, IOKit IOBlockStorageDriver counters are available
+        if let io = ioCounters {
+            XCTAssertGreaterThanOrEqual(io.bytesRead, 0)
+            XCTAssertGreaterThanOrEqual(io.bytesWritten, 0)
+            XCTAssertGreaterThanOrEqual(io.readOps, 0)
+            XCTAssertGreaterThanOrEqual(io.writeOps, 0)
+        }
+
+        let sampler = DiskSampler(provider: provider)
+        let sample1 = try sampler.sample()
+        XCTAssertFalse(sample1.volumes.isEmpty)
+
+        // Sample twice to exercise rate math on live host
+        Thread.sleep(forTimeInterval: 0.05)
+        let sample2 = try sampler.sample()
+        XCTAssertFalse(sample2.volumes.isEmpty)
+        if let io2 = sample2.io {
+            XCTAssertGreaterThanOrEqual(io2.bytesReadPerSec, 0.0)
+            XCTAssertGreaterThanOrEqual(io2.bytesWrittenPerSec, 0.0)
+            XCTAssertGreaterThanOrEqual(io2.readOpsPerSec, 0.0)
+            XCTAssertGreaterThanOrEqual(io2.writeOpsPerSec, 0.0)
+        }
     }
 }
