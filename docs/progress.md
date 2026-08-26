@@ -13,8 +13,8 @@ The only status file. Agent specs (`AGENTS.md`, `CLAUDE.md`) and phase plans do 
 | Field | Value |
 |-------|--------|
 | Phase | **3 — Network & disk** (in progress) |
-| Next task | `3.2` Network rate math with counter-reset handling |
-| Last closed | **3.1** Implement NetworkSampler |
+| Next task | `3.3` Implement DiskSampler (capacity per mounted volume) |
+| Last closed | **3.2** Network rate math with counter-reset handling |
 | Blocked by | — |
 
 ---
@@ -57,6 +57,7 @@ Copy a row from [`docs/specs/tasks.md`](./specs/tasks.md) when you start it. Lea
 | 2.6 | Render CPU + memory in the detail view | **done** | [`docs/handoffs/02-2.6-summary.md`](./handoffs/02-2.6-summary.md), `xcodebuild test -scheme iStatsApp` (35 passed), `swift test` (86 passed) |
 | 2.7 | Validate vs reference tools + Phase 2 report | **done** | [`docs/handoffs/02-2.7-summary.md`](./handoffs/02-2.7-summary.md), [`docs/phases/phase-02-cpu-memory/report.md`](./phases/phase-02-cpu-memory/report.md), `xcodebuild test -scheme iStatsApp` (35 passed), `swift test` (86 passed) |
 | 3.1 | Implement NetworkSampler | **done** | [`docs/handoffs/03-3.1-summary.md`](./handoffs/03-3.1-summary.md), `xcodebuild test -scheme iStatsApp` (43 passed), `swift test` (86 passed) |
+| 3.2 | Network rate math with counter-reset handling | **done** | [`docs/handoffs/03-3.2-summary.md`](./handoffs/03-3.2-summary.md), `xcodebuild test -scheme iStatsApp` (46 passed), `swift test` (91 passed) |
 
 When a task is done, set Status to `done` and put the handoff summary path (or test command) in Evidence.
 

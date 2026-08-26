@@ -329,4 +329,183 @@ final class NetworkSamplerTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(sample2.totalBytesIn, 0)
         XCTAssertGreaterThanOrEqual(sample2.totalBytesOut, 0)
     }
+
+    // MARK: - Property & Invariant Tests (Task 3.2)
+
+    func testSessionTotalsMonotonicityUnderRandomCounterResets() {
+        var prevStates: [String: InterfaceState]? = nil
+        var sessionTotals: [String: InterfaceSessionTotal]? = nil
+
+        var currentIn: [String: UInt64] = ["en0": 1000, "en1": 2000, "utun0": 500]
+        var currentOut: [String: UInt64] = ["en0": 2000, "en1": 4000, "utun0": 1000]
+
+        var previousTotalSessionIn: UInt64 = 0
+        var previousTotalSessionOut: UInt64 = 0
+        var prevIfaceSessionIn: [String: UInt64] = ["en0": 0, "en1": 0, "utun0": 0]
+        var prevIfaceSessionOut: [String: UInt64] = ["en0": 0, "en1": 0, "utun0": 0]
+
+        var seed: UInt64 = 0x123456789ABCDEF
+        func nextRandom() -> UInt64 {
+            seed = seed &* 6364136223846793005 &+ 1442695040888963407
+            return seed
+        }
+
+        var currentTime = Date(timeIntervalSince1970: 10_000.0)
+
+        for step in 0..<100 {
+            let elapsed = Double(nextRandom() % 10 + 1) * 0.5 // 0.5 to 5.0 seconds
+            currentTime = currentTime.addingTimeInterval(elapsed)
+
+            var resetOccurred: [String: Bool] = [:]
+
+            for name in ["en0", "en1", "utun0"] {
+                let shouldReset = (nextRandom() % 10 == 0) && (currentIn[name] ?? 0) > 100
+                resetOccurred[name] = shouldReset
+
+                if shouldReset {
+                    // True counter reset / restart: counter drops to a fraction of previous
+                    currentIn[name] = (currentIn[name] ?? 0) / 4
+                    currentOut[name] = (currentOut[name] ?? 0) / 4
+                } else {
+                    // Normal delta
+                    let deltaIn = nextRandom() % 50_000
+                    let deltaOut = nextRandom() % 50_000
+                    currentIn[name] = (currentIn[name] ?? 0) &+ deltaIn
+                    currentOut[name] = (currentOut[name] ?? 0) &+ deltaOut
+                }
+            }
+
+            let counters = ["en0", "en1", "utun0"].map {
+                RawInterfaceCounters(name: $0, bytesIn: currentIn[$0]!, bytesOut: currentOut[$0]!)
+            }
+
+            let (sample, newPrev, newTotals) = NetworkSampler.calculateSample(
+                previous: prevStates,
+                current: counters,
+                currentTimestamp: currentTime,
+                sessionTotals: sessionTotals
+            )
+
+            prevStates = newPrev
+            sessionTotals = newTotals
+
+            // Invariant 1: Aggregate session totals are monotonic non-decreasing
+            XCTAssertGreaterThanOrEqual(
+                sample.totalBytesIn,
+                previousTotalSessionIn,
+                "Step \(step): Total session bytes in must never decrease"
+            )
+            XCTAssertGreaterThanOrEqual(
+                sample.totalBytesOut,
+                previousTotalSessionOut,
+                "Step \(step): Total session bytes out must never decrease"
+            )
+            previousTotalSessionIn = sample.totalBytesIn
+            previousTotalSessionOut = sample.totalBytesOut
+
+            // Invariant 2: Per-interface session totals are monotonic non-decreasing
+            for iface in sample.interfaces {
+                let name = iface.interfaceName
+                XCTAssertGreaterThanOrEqual(
+                    iface.totalBytesIn,
+                    prevIfaceSessionIn[name] ?? 0,
+                    "Step \(step): Interface \(name) session in must never decrease"
+                )
+                XCTAssertGreaterThanOrEqual(
+                    iface.totalBytesOut,
+                    prevIfaceSessionOut[name] ?? 0,
+                    "Step \(step): Interface \(name) session out must never decrease"
+                )
+                prevIfaceSessionIn[name] = iface.totalBytesIn
+                prevIfaceSessionOut[name] = iface.totalBytesOut
+
+                // Invariant 3: Rate is never negative
+                XCTAssertGreaterThanOrEqual(iface.bytesInPerSec, 0.0)
+                XCTAssertGreaterThanOrEqual(iface.bytesOutPerSec, 0.0)
+
+                // Invariant 4: Reset step yields 0 rate
+                if step > 0 && resetOccurred[name] == true {
+                    XCTAssertEqual(iface.bytesInPerSec, 0.0, "Step \(step): Rate must be 0 on reset for \(name)")
+                    XCTAssertEqual(iface.bytesOutPerSec, 0.0, "Step \(step): Rate must be 0 on reset for \(name)")
+                }
+            }
+        }
+    }
+
+    func testZeroOrNegativeTimeStepYieldsZeroRate() {
+        let t0 = Date(timeIntervalSince1970: 1000.0)
+        let tSame = Date(timeIntervalSince1970: 1000.0) // 0 elapsed
+        let tBackward = Date(timeIntervalSince1970: 999.0) // -1.0 elapsed
+
+        let c0 = [RawInterfaceCounters(name: "en0", bytesIn: 1000, bytesOut: 1000)]
+        let (_, prev0, totals0) = NetworkSampler.calculateSample(
+            previous: nil,
+            current: c0,
+            currentTimestamp: t0,
+            sessionTotals: nil
+        )
+
+        let c1 = [RawInterfaceCounters(name: "en0", bytesIn: 5000, bytesOut: 5000)]
+        let (sampleZero, _, _) = NetworkSampler.calculateSample(
+            previous: prev0,
+            current: c1,
+            currentTimestamp: tSame,
+            sessionTotals: totals0
+        )
+        XCTAssertEqual(sampleZero.interfaces.first?.bytesInPerSec, 0.0)
+        XCTAssertEqual(sampleZero.interfaces.first?.bytesOutPerSec, 0.0)
+
+        let (sampleBackward, _, _) = NetworkSampler.calculateSample(
+            previous: prev0,
+            current: c1,
+            currentTimestamp: tBackward,
+            sessionTotals: totals0
+        )
+        XCTAssertEqual(sampleBackward.interfaces.first?.bytesInPerSec, 0.0)
+        XCTAssertEqual(sampleBackward.interfaces.first?.bytesOutPerSec, 0.0)
+    }
+
+    func testExtremeCountersNearUInt64Max() {
+        let t0 = Date(timeIntervalSince1970: 100.0)
+        let t1 = Date(timeIntervalSince1970: 101.0)
+        let maxVal = UInt64.max
+
+        let c0 = [RawInterfaceCounters(name: "en0", bytesIn: maxVal - 5000, bytesOut: maxVal - 10000)]
+        let (_, prev0, totals0) = NetworkSampler.calculateSample(
+            previous: nil,
+            current: c0,
+            currentTimestamp: t0,
+            sessionTotals: nil
+        )
+
+        let c1 = [RawInterfaceCounters(name: "en0", bytesIn: maxVal, bytesOut: maxVal)]
+        let (sample1, _, totals1) = NetworkSampler.calculateSample(
+            previous: prev0,
+            current: c1,
+            currentTimestamp: t1,
+            sessionTotals: totals0
+        )
+
+        let en0 = sample1.interfaces.first
+        XCTAssertEqual(en0?.bytesInPerSec ?? 0, 5000.0, accuracy: 0.001)
+        XCTAssertEqual(en0?.bytesOutPerSec ?? 0, 10000.0, accuracy: 0.001)
+        XCTAssertEqual(en0?.totalBytesIn, 5000)
+        XCTAssertEqual(en0?.totalBytesOut, 10000)
+
+        // Now wrap around to 100
+        let t2 = Date(timeIntervalSince1970: 102.0)
+        let c2 = [RawInterfaceCounters(name: "en0", bytesIn: 100, bytesOut: 100)]
+        let (sample2, _, totals2) = NetworkSampler.calculateSample(
+            previous: prev0,
+            current: c2,
+            currentTimestamp: t2,
+            sessionTotals: totals1
+        )
+
+        let en0_wrap = sample2.interfaces.first
+        XCTAssertEqual(en0_wrap?.bytesInPerSec, 0.0, "Wrap around clamps delta to 0")
+        XCTAssertEqual(en0_wrap?.bytesOutPerSec, 0.0, "Wrap around clamps delta to 0")
+        XCTAssertEqual(totals2["en0"]?.bytesIn, 5000)
+        XCTAssertEqual(totals2["en0"]?.bytesOut, 10000)
+    }
 }

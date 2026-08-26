@@ -86,14 +86,107 @@ final class RateMathTests: XCTestCase {
 
     func testBytesPerSecondZeroElapsedReturnsZero() {
         XCTAssertEqual(RateMath.bytesPerSecond(previous: 0, current: 1000, elapsedSeconds: 0), 0)
+        XCTAssertEqual(RateMath.bytesPerSecond(previous: 0, current: 1000, elapsedSeconds: -1.5), 0)
     }
 
     func testBytesPerSecondNeverNegativeProperty() {
-        let samples: [UInt64] = [0, 100, 50, 1_000_000, 999_999, 0, UInt64.max, 10]
+        let samples: [UInt64] = [0, 1, 10, 50, 100, 999_999, 1_000_000, UInt64(UInt32.max), UInt64.max - 1, UInt64.max]
+        let elapsedTimes: [Double] = [-10.0, -1.0, 0.0, 0.0001, 0.5, 1.0, 2.0, 60.0, 3600.0]
+
         for p in samples {
             for c in samples {
-                let rate = RateMath.bytesPerSecond(previous: p, current: c, elapsedSeconds: 1)
-                XCTAssertGreaterThanOrEqual(rate, 0)
+                for elapsed in elapsedTimes {
+                    let rate = RateMath.bytesPerSecond(previous: p, current: c, elapsedSeconds: elapsed)
+                    XCTAssertGreaterThanOrEqual(rate, 0.0, "Rate must be >= 0 for prev=\(p), curr=\(c), elapsed=\(elapsed)")
+                    XCTAssertTrue(rate.isFinite, "Rate must be finite for prev=\(p), curr=\(c), elapsed=\(elapsed)")
+                }
+            }
+        }
+    }
+
+    func testBytesPerSecondCounterResetProperty() {
+        // Property: For any current < previous, rate is exactly 0 regardless of elapsed time
+        let pairs: [(UInt64, UInt64)] = [
+            (100, 99),
+            (1_000_000, 0),
+            (UInt64.max, UInt64.max - 1),
+            (UInt64.max, 0),
+            (UInt64(UInt32.max) + 1, UInt64(UInt32.max))
+        ]
+
+        for (prev, curr) in pairs {
+            for elapsed in [0.001, 0.5, 1.0, 5.0, 100.0] {
+                let rate = RateMath.bytesPerSecond(previous: prev, current: curr, elapsedSeconds: elapsed)
+                XCTAssertEqual(rate, 0.0, "Rate must be 0.0 on counter reset (prev=\(prev), curr=\(curr))")
+            }
+        }
+    }
+
+    func testBytesPerSecondScaleInvarianceProperty() {
+        // Property: bytesPerSecond(p, p + k * delta, k * t) == bytesPerSecond(p, p + delta, t)
+        let baseDelta: UInt64 = 500
+        let baseElapsed: Double = 1.25
+        let prev: UInt64 = 10_000
+
+        for k in [1, 2, 4, 8, 16] {
+            let scaledDelta = baseDelta * UInt64(k)
+            let scaledElapsed = baseElapsed * Double(k)
+
+            let baseRate = RateMath.bytesPerSecond(previous: prev, current: prev + baseDelta, elapsedSeconds: baseElapsed)
+            let scaledRate = RateMath.bytesPerSecond(previous: prev, current: prev + scaledDelta, elapsedSeconds: scaledElapsed)
+
+            XCTAssertEqual(baseRate, scaledRate, accuracy: 1e-9, "Scale invariance failed for multiplier k=\(k)")
+        }
+    }
+
+    func testBytesPerSecondMonotonicityWithRespectToCurrentProperty() {
+        // Property: for fixed prev and elapsed > 0, as current increases (current >= prev), rate is monotonic non-decreasing
+        let prev: UInt64 = 1000
+        let elapsed: Double = 2.0
+        var previousRate = 0.0
+
+        for curr in stride(from: prev, through: prev + 10_000, by: 250) {
+            let rate = RateMath.bytesPerSecond(previous: prev, current: curr, elapsedSeconds: elapsed)
+            XCTAssertGreaterThanOrEqual(rate, previousRate, "Rate must be monotonic non-decreasing with increasing current")
+            previousRate = rate
+        }
+    }
+
+    func testBytesPerSecondMonotonicityWithRespectToElapsedProperty() {
+        // Property: for fixed delta > 0, as elapsed increases, rate is strictly decreasing
+        let prev: UInt64 = 0
+        let curr: UInt64 = 10_000
+        var previousRate = Double.infinity
+
+        for elapsed in stride(from: 0.1, through: 10.0, by: 0.25) {
+            let rate = RateMath.bytesPerSecond(previous: prev, current: curr, elapsedSeconds: elapsed)
+            XCTAssertLessThan(rate, previousRate, "Rate must be strictly decreasing with increasing elapsed time")
+            previousRate = rate
+        }
+    }
+
+    func testBytesPerSecondFuzzRandomizedVectors() {
+        // Fuzz test with deterministic pseudo-random sequence
+        var seed: UInt64 = 0xDEADBEEFCAFE
+        func nextRandom() -> UInt64 {
+            seed = seed &* 6364136223846793005 &+ 1442695040888963407
+            return seed
+        }
+
+        for _ in 0..<1000 {
+            let p = nextRandom()
+            let c = nextRandom()
+            let elapsed = Double(nextRandom() % 10000) / 100.0 - 10.0 // range: -10.0 ... 90.0
+
+            let rate = RateMath.bytesPerSecond(previous: p, current: c, elapsedSeconds: elapsed)
+            XCTAssertGreaterThanOrEqual(rate, 0.0)
+            XCTAssertTrue(rate.isFinite)
+
+            if elapsed <= 0 || c < p {
+                XCTAssertEqual(rate, 0.0)
+            } else {
+                let expected = Double(c - p) / elapsed
+                XCTAssertEqual(rate, expected, accuracy: 1e-6)
             }
         }
     }
@@ -116,7 +209,7 @@ final class RateMathTests: XCTestCase {
     func testCounterDeltaMonotonicityProperty() {
         // Property: when current >= previous, delta == current - previous >= 0.
         // When current < previous, delta == 0.
-        let values: [UInt64] = [0, 1, 100, 500, 10_000, 1_000_000, UInt64.max - 100, UInt64.max]
+        let values: [UInt64] = [0, 1, 100, 500, 10_000, 1_000_000, UInt64(UInt32.max), UInt64.max - 100, UInt64.max]
         for prev in values {
             for curr in values {
                 let delta = RateMath.counterDelta(previous: prev, current: curr)
