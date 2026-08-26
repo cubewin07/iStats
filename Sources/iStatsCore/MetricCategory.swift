@@ -4,7 +4,7 @@ import Foundation
 ///
 /// See `docs/architecture.md` for how categories flow from the Sampling layer
 /// through the Domain Core to the Presentation layer.
-public enum MetricCategory: String, CaseIterable, Sendable, Codable {
+public enum MetricCategory: String, CaseIterable, Sendable, Codable, Identifiable {
     case cpu
     case memory
     case thermal
@@ -13,6 +13,8 @@ public enum MetricCategory: String, CaseIterable, Sendable, Codable {
     case network
     case disk
     case power
+
+    public var id: String { rawValue }
 
     /// Human-readable name for display in the UI.
     public var displayName: String {

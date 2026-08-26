@@ -13,7 +13,7 @@ The only status file. Agent specs (`AGENTS.md`, `CLAUDE.md`) and phase plans do 
 | Field | Value |
 |-------|--------|
 | Phase | **1 — Foundation** (in progress) |
-| Next task | `1.3` define core protocols and value types |
+| Next task | `1.4` implement the SampleScheduler |
 | Last closed | **Phase 0 — Documentation & learning baseline** |
 | Blocked by | — |
 
@@ -24,7 +24,7 @@ The only status file. Agent specs (`AGENTS.md`, `CLAUDE.md`) and phase plans do 
 | Phase | Theme | Status | Notes |
 |-------|--------|--------|-------|
 | 0 | Documentation & learning baseline | **done** | Specs, ADRs 0001–0006, phase folders, `iStatsCore` models/math, and `report.md` complete. |
-| 1 | App foundation | **in progress** | App target, `LSUIElement`, `NSStatusItem` + detail popover created; next: verify core protocols/types. |
+| 1 | App foundation | **in progress** | App target, `LSUIElement`, `NSStatusItem` + detail popover, and core protocols/types complete; next: `SampleScheduler`. |
 | 2 | CPU & memory | not started | After Phase 1. Independent of 3 and 4. |
 | 3 | Network & disk | not started | After Phase 1. |
 | 4 | Battery & power | not started | After Phase 1. |
@@ -44,6 +44,7 @@ Copy a row from [`docs/specs/tasks.md`](./specs/tasks.md) when you start it. Lea
 | 0.1–0.5 | Phase 0 documentation set | **done** | [`docs/phases/phase-00-documentation/report.md`](./phases/phase-00-documentation/report.md), `swift test` (19 passed) |
 | 1.1 | App target + `LSUIElement` | **done** | [`docs/handoffs/01-1.1-summary.md`](./handoffs/01-1.1-summary.md), `xcodebuild -scheme iStats build` passed, `swift test` (19 passed) |
 | 1.2 | Install status item and detail popover | **done** | [`docs/handoffs/01-1.2-summary.md`](./handoffs/01-1.2-summary.md), `xcodebuild -scheme iStats build` passed, `swift test` (19 passed) |
+| 1.3 | Define core protocols and value types | **done** | [`docs/handoffs/01-1.3-summary.md`](./handoffs/01-1.3-summary.md), `swift test` (44 passed) |
 
 When a task is done, set Status to `done` and put the handoff summary path (or test command) in Evidence.
 
@@ -56,10 +57,10 @@ Verified against the tree, not the design wish-list. Update a row when the match
 | Exists | Missing (designed, not built) |
 |--------|-------------------------------|
 | `Package.swift` → `iStatsCore` + `iStatsCoreTests`, `iStats.xcodeproj` (app target `iStats`), `iStatsApp`, `AppDelegate`, `MenuBarController`, `DetailPopoverView`, `DockIconManager`, `Info.plist` (`LSUIElement = true`), `NSStatusItem`, `NSPopover` | `SampleScheduler`, `MetricsStore`, preferences store |
-| `Availability`, `Sample<T>`, `Sampler`, `SamplerError`, `MetricCategory` | Composite `ThermalSample` / `FanSample` / `NetworkSample` / Disk / GPU / Power wrappers |
-| `CPUSample`, `MemorySample`, `MemoryPressure`, `SensorReading`, `FanReading`, `InterfaceThroughput` | Any concrete sampler (CPU, memory, …) |
-| `RateMath`, `RingBuffer`, `Units` | App target tests, metric validation reports |
-| Tests: `RateMathTests`, `RingBufferTests`, `UnitsTests` | — |
+| `Availability`, `Sample<T>`, `Sampler`, `SamplerError`, `MetricCategory` | Any concrete sampler (CPU, memory, …) |
+| `CPUSample`, `MemorySample`, `MemoryPressure`, `ThermalPressure`, `SensorReading`, `ThermalSample`, `FanReading`, `FanSample`, `InterfaceThroughput`, `NetworkSample`, `VolumeCapacity`, `DiskIO`, `DiskSample`, `BatteryState`, `PowerSample`, `GPUSample` | App target tests, metric validation reports |
+| `RateMath`, `RingBuffer`, `Units` | — |
+| Tests: `RateMathTests`, `RingBufferTests`, `UnitsTests`, `AvailabilityTests`, `MetricCategoryTests`, `SamplerTests`, `ModelsTests` | — |
 
 ---
 
