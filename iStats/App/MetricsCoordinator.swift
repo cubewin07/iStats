@@ -33,6 +33,9 @@ public final class MetricsCoordinator: ObservableObject {
     /// The latest available Network sample.
     @Published public private(set) var latestNetwork: Sample<NetworkSample>?
 
+    /// The latest available Disk sample.
+    @Published public private(set) var latestDisk: Sample<DiskSample>?
+
     /// Rolling chronological history of CPU samples.
     @Published public private(set) var cpuHistory: [Sample<CPUSample>] = []
 
@@ -41,6 +44,9 @@ public final class MetricsCoordinator: ObservableObject {
 
     /// Rolling chronological history of Network samples.
     @Published public private(set) var networkHistory: [Sample<NetworkSample>] = []
+
+    /// Rolling chronological history of Disk samples.
+    @Published public private(set) var diskHistory: [Sample<DiskSample>] = []
 
     /// Whether the coordinator is actively sampling.
     @Published public private(set) var isRunning: Bool = false
@@ -80,6 +86,7 @@ public final class MetricsCoordinator: ObservableObject {
             await scheduler.register(CPUSampler())
             await scheduler.register(MemorySampler())
             await scheduler.register(NetworkSampler())
+            await scheduler.register(DiskSampler())
             await scheduler.setDefaultInterval(preferencesStore.refreshInterval)
 
             for category in MetricCategory.allCases {
@@ -133,6 +140,9 @@ public final class MetricsCoordinator: ObservableObject {
         case .network:
             self.latestNetwork = store.latestNetwork()
             self.networkHistory = store.networkHistory()
+        case .disk:
+            self.latestDisk = store.latestDisk()
+            self.diskHistory = store.diskHistory()
         default:
             break
         }
