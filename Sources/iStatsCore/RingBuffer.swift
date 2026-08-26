@@ -45,4 +45,17 @@ public struct RingBuffer<Element>: Sendable where Element: Sendable {
         let lastIndex = (head - 1 + capacity) % capacity
         return storage[lastIndex]
     }
+
+    /// Removes all elements from the ring buffer.
+    public mutating func clear() {
+        storage.removeAll(keepingCapacity: true)
+        head = 0
+    }
 }
+
+extension RingBuffer: Equatable where Element: Equatable {
+    public static func == (lhs: RingBuffer<Element>, rhs: RingBuffer<Element>) -> Bool {
+        lhs.capacity == rhs.capacity && lhs.elements == rhs.elements
+    }
+}
+
