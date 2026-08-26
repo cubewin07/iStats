@@ -12,9 +12,9 @@ The only status file. Agent specs (`AGENTS.md`, `CLAUDE.md`) and phase plans do 
 
 | Field | Value |
 |-------|--------|
-| Phase | **3 — Network & disk** (not started) |
-| Next task | `3.1` Implement NetworkSampler |
-| Last closed | **2.7** Validate vs reference tools + Phase 2 report |
+| Phase | **3 — Network & disk** (in progress) |
+| Next task | `3.2` Network rate math with counter-reset handling |
+| Last closed | **3.1** Implement NetworkSampler |
 | Blocked by | — |
 
 ---
@@ -26,7 +26,7 @@ The only status file. Agent specs (`AGENTS.md`, `CLAUDE.md`) and phase plans do 
 | 0 | Documentation & learning baseline | **done** | Specs, ADRs 0001–0006, phase folders, `iStatsCore` models/math, and `report.md` complete. |
 | 1 | App foundation | **done** | App target, `LSUIElement`, `NSStatusItem` + detail popover, core protocols/types, `SampleScheduler`, `MetricsStore`, `PreferencesStore` + `PreferencesView`, and `report.md` complete. |
 | 2 | CPU & memory | **done** | `CPUSampler`, `MemorySampler`, `MemoryPressureMonitor`, rolling history graphs, live detail cards, menu bar display modes, and `report.md` complete. |
-| 3 | Network & disk | not started | After Phase 1. |
+| 3 | Network & disk | in progress | After Phase 1. |
 | 4 | Battery & power | not started | After Phase 1. |
 | 5 | Thermal, fan, GPU | not started | After 2–4. Highest risk. ADR 0003/0004 still Proposed. |
 | 6 | Polish & preferences | not started | After Phase 5. |
@@ -56,6 +56,7 @@ Copy a row from [`docs/specs/tasks.md`](./specs/tasks.md) when you start it. Lea
 | 2.5 | Memory pressure level + UI surfacing | **done** | [`docs/handoffs/02-2.5-summary.md`](./handoffs/02-2.5-summary.md), `xcodebuild test -scheme iStatsApp` (28 passed), `swift test` (85 passed) |
 | 2.6 | Render CPU + memory in the detail view | **done** | [`docs/handoffs/02-2.6-summary.md`](./handoffs/02-2.6-summary.md), `xcodebuild test -scheme iStatsApp` (35 passed), `swift test` (86 passed) |
 | 2.7 | Validate vs reference tools + Phase 2 report | **done** | [`docs/handoffs/02-2.7-summary.md`](./handoffs/02-2.7-summary.md), [`docs/phases/phase-02-cpu-memory/report.md`](./phases/phase-02-cpu-memory/report.md), `xcodebuild test -scheme iStatsApp` (35 passed), `swift test` (86 passed) |
+| 3.1 | Implement NetworkSampler | **done** | [`docs/handoffs/03-3.1-summary.md`](./handoffs/03-3.1-summary.md), `xcodebuild test -scheme iStatsApp` (43 passed), `swift test` (86 passed) |
 
 When a task is done, set Status to `done` and put the handoff summary path (or test command) in Evidence.
 
@@ -68,10 +69,10 @@ Verified against the tree, not the design wish-list. Update a row when the match
 | Exists | Missing (designed, not built) |
 |--------|-------------------------------|
 | `Package.swift` → `iStatsCore` + `iStatsCoreTests`, `iStats.xcodeproj` (app target `iStats`, test target `iStatsTests`), `iStatsApp`, `AppDelegate`, `MenuBarController`, `MetricsCoordinator`, `DetailPopoverView`, `CPUSummaryView`, `RollingGraphView`, `DockIconManager`, `PreferencesView`, `PreferencesWindowController`, `MemoryPressureBadgeView`, `MemoryPressureAlertBanner`, `MemorySummaryView`, `Info.plist` (`LSUIElement = true`), `NSStatusItem`, `NSPopover` | — |
-| `Availability`, `Sample<T>`, `Sampler`, `SamplerError`, `MetricCategory`, `AnySampler`, `MetricReading`, `SampleScheduler`, `MetricsStore`, `PreferencesStore`, `MenuBarDisplayMode`, `CPUSampler`, `ProcessorTicks`, `CPUInfoProvider`, `HostProcessorInfoProvider`, `MemorySampler`, `RawVMStatistics`, `SwapUsageData`, `MemoryInfoProvider`, `HostMemoryInfoProvider`, `MemoryPressureMonitor` | Concrete samplers: thermal, fan, gpu, network, disk, power |
+| `Availability`, `Sample<T>`, `Sampler`, `SamplerError`, `MetricCategory`, `AnySampler`, `MetricReading`, `SampleScheduler`, `MetricsStore`, `PreferencesStore`, `MenuBarDisplayMode`, `CPUSampler`, `ProcessorTicks`, `CPUInfoProvider`, `HostProcessorInfoProvider`, `MemorySampler`, `RawVMStatistics`, `SwapUsageData`, `MemoryInfoProvider`, `HostMemoryInfoProvider`, `MemoryPressureMonitor`, `NetworkSampler`, `RawInterfaceCounters`, `NetworkInfoProvider`, `HostNetworkInfoProvider`, `InterfaceState`, `InterfaceSessionTotal` | Concrete samplers: thermal, fan, gpu, disk, power |
 | `LoadAverage`, `CPUSample`, `MemorySample`, `MemoryPressure`, `ThermalPressure`, `SensorReading`, `ThermalSample`, `FanReading`, `FanSample`, `InterfaceThroughput`, `NetworkSample`, `VolumeCapacity`, `DiskIO`, `DiskSample`, `BatteryState`, `PowerSample`, `GPUSample` | Metric validation reports |
 | `RateMath`, `RingBuffer`, `Units` (`TemperatureUnit`, `NetworkUnit`, `ByteUnitStandard`) | — |
-| Tests: `RateMathTests`, `RingBufferTests`, `UnitsTests`, `AvailabilityTests`, `MetricCategoryTests`, `SamplerTests`, `ModelsTests`, `SampleSchedulerTests`, `MetricsStoreTests`, `PreferencesStoreTests`, `CPUSamplerTests`, `MemorySamplerTests`, `MemoryPressureTests`, `DetailViewGraphsTests` | — |
+| Tests: `RateMathTests`, `RingBufferTests`, `UnitsTests`, `AvailabilityTests`, `MetricCategoryTests`, `SamplerTests`, `ModelsTests`, `SampleSchedulerTests`, `MetricsStoreTests`, `PreferencesStoreTests`, `CPUSamplerTests`, `MemorySamplerTests`, `MemoryPressureTests`, `DetailViewGraphsTests`, `NetworkSamplerTests` | — |
 
 
 ---
