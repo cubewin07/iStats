@@ -31,6 +31,7 @@ final class PreferencesStoreTests: XCTestCase {
         XCTAssertEqual(store.byteUnitStandard, .iec)
         XCTAssertFalse(store.showDockIcon)
         XCTAssertFalse(store.launchAtLogin)
+        XCTAssertEqual(store.menuBarDisplayMode, .cpu)
     }
 
     func testRefreshIntervalClampingLowerBound() {
@@ -146,5 +147,28 @@ final class PreferencesStoreTests: XCTestCase {
         XCTAssertEqual(store.byteUnitStandard, .iec)
         XCTAssertFalse(store.showDockIcon)
         XCTAssertFalse(store.launchAtLogin)
+        XCTAssertEqual(store.menuBarDisplayMode, .cpu)
+    }
+
+    func testMenuBarDisplayModePersistenceAndReset() {
+        let store1 = PreferencesStore(userDefaults: testDefaults)
+        store1.menuBarDisplayMode = .both
+        XCTAssertEqual(store1.menuBarDisplayMode, .both)
+
+        let store2 = PreferencesStore(userDefaults: testDefaults)
+        XCTAssertEqual(store2.menuBarDisplayMode, .both)
+
+        store2.menuBarDisplayMode = .memory
+        let store3 = PreferencesStore(userDefaults: testDefaults)
+        XCTAssertEqual(store3.menuBarDisplayMode, .memory)
+
+        store3.menuBarDisplayMode = .icon
+        let store4 = PreferencesStore(userDefaults: testDefaults)
+        XCTAssertEqual(store4.menuBarDisplayMode, .icon)
+
+        XCTAssertEqual(PreferencesStore.MenuBarDisplayMode.icon.displayName, "Icon Only")
+        XCTAssertEqual(PreferencesStore.MenuBarDisplayMode.cpu.displayName, "CPU Usage")
+        XCTAssertEqual(PreferencesStore.MenuBarDisplayMode.memory.displayName, "Memory Usage")
+        XCTAssertEqual(PreferencesStore.MenuBarDisplayMode.both.displayName, "CPU & Memory")
     }
 }

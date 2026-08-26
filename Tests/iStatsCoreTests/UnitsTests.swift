@@ -31,4 +31,13 @@ final class UnitsTests: XCTestCase {
     func testBytesToBits() {
         XCTAssertEqual(Units.bytesPerSecToBitsPerSec(125), 1000, accuracy: 0.0001)
     }
+
+    func testFormatFrequencyHz() {
+        XCTAssertEqual(Units.formatFrequencyHz(0), "0 Hz")
+        XCTAssertEqual(Units.formatFrequencyHz(500), "500 Hz")
+        XCTAssertEqual(Units.formatFrequencyHz(800_000), "800.00 kHz")
+        XCTAssertEqual(Units.formatFrequencyHz(800_000_000), "800.00 MHz")
+        XCTAssertEqual(Units.formatFrequencyHz(2_400_000_000), "2.40 GHz")
+        XCTAssertEqual(Units.formatFrequencyHz(3_200_000_000, fractionDigits: 1), "3.2 GHz")
+    }
 }

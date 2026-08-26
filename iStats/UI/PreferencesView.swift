@@ -106,6 +106,33 @@ public struct PreferencesView: View {
 
             Section {
                 VStack(alignment: .leading, spacing: 10) {
+                    HStack {
+                        Text("Menu Bar Metric:")
+                            .font(.headline)
+                        Spacer()
+                        Picker("", selection: $store.menuBarDisplayMode) {
+                            ForEach(PreferencesStore.MenuBarDisplayMode.allCases) { mode in
+                                Text(mode.displayName).tag(mode)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                        .frame(width: 160)
+                    }
+
+                    Text("Controls which metric appears directly in the macOS menu bar status item (Requirement 9.4).")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                .padding(.vertical, 4)
+            } header: {
+                Text("Menu Bar Presentation")
+            }
+
+            Divider()
+                .padding(.vertical, 6)
+
+            Section {
+                VStack(alignment: .leading, spacing: 10) {
                     Toggle("Show Dock Icon", isOn: $store.showDockIcon)
                         .onChange(of: store.showDockIcon) { newValue in
                             DockIconManager.shared.setDockIconVisible(newValue)

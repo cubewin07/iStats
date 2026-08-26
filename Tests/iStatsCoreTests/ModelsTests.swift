@@ -4,8 +4,25 @@ import XCTest
 final class ModelsTests: XCTestCase {
 
     func testCPUSamplePropertiesAndEquality() {
-        let cpu1 = CPUSample(totalUsage: 45.0, perCore: [40.0, 50.0], user: 25.0, system: 20.0, idle: 55.0)
-        let cpu2 = CPUSample(totalUsage: 45.0, perCore: [40.0, 50.0], user: 25.0, system: 20.0, idle: 55.0)
+        let load = LoadAverage(oneMinute: 1.5, fiveMinute: 2.0, fifteenMinute: 2.5)
+        let cpu1 = CPUSample(
+            totalUsage: 45.0,
+            perCore: [40.0, 50.0],
+            user: 25.0,
+            system: 20.0,
+            idle: 55.0,
+            loadAverage: load,
+            frequencyHz: 2_400_000_000
+        )
+        let cpu2 = CPUSample(
+            totalUsage: 45.0,
+            perCore: [40.0, 50.0],
+            user: 25.0,
+            system: 20.0,
+            idle: 55.0,
+            loadAverage: load,
+            frequencyHz: 2_400_000_000
+        )
         let cpu3 = CPUSample(totalUsage: 50.0, perCore: [50.0, 50.0], user: 30.0, system: 20.0, idle: 50.0)
 
         XCTAssertEqual(cpu1, cpu2)
@@ -15,6 +32,27 @@ final class ModelsTests: XCTestCase {
         XCTAssertEqual(cpu1.user, 25.0)
         XCTAssertEqual(cpu1.system, 20.0)
         XCTAssertEqual(cpu1.idle, 55.0)
+        XCTAssertEqual(cpu1.loadAverage, load)
+        XCTAssertEqual(cpu1.loadAverage?.oneMinute, 1.5)
+        XCTAssertEqual(cpu1.loadAverage?.fiveMinute, 2.0)
+        XCTAssertEqual(cpu1.loadAverage?.fifteenMinute, 2.5)
+        XCTAssertEqual(cpu1.frequencyHz, 2_400_000_000)
+
+        XCTAssertNil(cpu3.loadAverage)
+        XCTAssertNil(cpu3.frequencyHz)
+    }
+
+    func testLoadAverageEqualityAndCodable() throws {
+        let load1 = LoadAverage(oneMinute: 1.25, fiveMinute: 2.5, fifteenMinute: 3.75)
+        let load2 = LoadAverage(oneMinute: 1.25, fiveMinute: 2.5, fifteenMinute: 3.75)
+        let load3 = LoadAverage(oneMinute: 2.0, fiveMinute: 2.5, fifteenMinute: 3.75)
+
+        XCTAssertEqual(load1, load2)
+        XCTAssertNotEqual(load1, load3)
+
+        let data = try JSONEncoder().encode(load1)
+        let decoded = try JSONDecoder().decode(LoadAverage.self, from: data)
+        XCTAssertEqual(decoded, load1)
     }
 
     func testMemorySampleAndPressure() {

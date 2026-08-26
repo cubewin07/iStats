@@ -4,7 +4,20 @@ import Foundation
 // produced by the Sampling layer and consumed by the UI. They contain no
 // OS-specific code and are fully testable.
 
-/// CPU utilization for one sample.
+/// System load average for 1, 5, and 15 minute intervals.
+public struct LoadAverage: Sendable, Equatable, Codable {
+    public let oneMinute: Double
+    public let fiveMinute: Double
+    public let fifteenMinute: Double
+
+    public init(oneMinute: Double, fiveMinute: Double, fifteenMinute: Double) {
+        self.oneMinute = oneMinute
+        self.fiveMinute = fiveMinute
+        self.fifteenMinute = fifteenMinute
+    }
+}
+
+/// CPU utilization and metrics for one sample.
 public struct CPUSample: Sendable, Equatable, Codable {
     /// Aggregate utilization across all cores, 0...100.
     public let totalUsage: Double
@@ -16,21 +29,62 @@ public struct CPUSample: Sendable, Equatable, Codable {
     public let system: Double
     /// Fraction of time idle for this interval, 0...100.
     public let idle: Double
+    /// System load average (1, 5, 15 minutes) if available.
+    public let loadAverage: LoadAverage?
+    /// CPU frequency in Hertz (Hz) if exposed by hardware / sysctl.
+    public let frequencyHz: UInt64?
 
-    public init(totalUsage: Double, perCore: [Double], user: Double, system: Double, idle: Double) {
+    public init(
+        totalUsage: Double,
+        perCore: [Double],
+        user: Double,
+        system: Double,
+        idle: Double,
+        loadAverage: LoadAverage? = nil,
+        frequencyHz: UInt64? = nil
+    ) {
         self.totalUsage = totalUsage
         self.perCore = perCore
         self.user = user
         self.system = system
         self.idle = idle
+        self.loadAverage = loadAverage
+        self.frequencyHz = frequencyHz
     }
 }
 
 /// macOS memory pressure level.
-public enum MemoryPressure: String, Sendable, Equatable, Codable {
+public enum MemoryPressure: String, Sendable, Equatable, Codable, Comparable {
     case normal
     case warning
     case critical
+
+    /// Human-readable title of the memory pressure state.
+    public var displayName: String {
+        switch self {
+        case .normal: return "Normal"
+        case .warning: return "Warning"
+        case .critical: return "Critical"
+        }
+    }
+
+    /// Whether memory pressure is in an elevated (warning or critical) state.
+    public var isElevated: Bool {
+        self != .normal
+    }
+
+    /// Numeric severity rank (0 = normal, 1 = warning, 2 = critical).
+    public var severityRank: Int {
+        switch self {
+        case .normal: return 0
+        case .warning: return 1
+        case .critical: return 2
+        }
+    }
+
+    public static func < (lhs: MemoryPressure, rhs: MemoryPressure) -> Bool {
+        lhs.severityRank < rhs.severityRank
+    }
 }
 
 /// Memory statistics for one sample. All byte values are in bytes.
@@ -43,9 +97,27 @@ public struct MemorySample: Sendable, Equatable, Codable {
     public let cached: UInt64
     public let swapUsed: UInt64
     public let pressure: MemoryPressure
+    public let appMemory: UInt64?
+    public let active: UInt64?
+    public let inactive: UInt64?
+    public let swapTotal: UInt64?
+    public let swapFree: UInt64?
 
-    public init(total: UInt64, used: UInt64, free: UInt64, wired: UInt64,
-                compressed: UInt64, cached: UInt64, swapUsed: UInt64, pressure: MemoryPressure) {
+    public init(
+        total: UInt64,
+        used: UInt64,
+        free: UInt64,
+        wired: UInt64,
+        compressed: UInt64,
+        cached: UInt64,
+        swapUsed: UInt64,
+        pressure: MemoryPressure,
+        appMemory: UInt64? = nil,
+        active: UInt64? = nil,
+        inactive: UInt64? = nil,
+        swapTotal: UInt64? = nil,
+        swapFree: UInt64? = nil
+    ) {
         self.total = total
         self.used = used
         self.free = free
@@ -54,6 +126,11 @@ public struct MemorySample: Sendable, Equatable, Codable {
         self.cached = cached
         self.swapUsed = swapUsed
         self.pressure = pressure
+        self.appMemory = appMemory
+        self.active = active
+        self.inactive = inactive
+        self.swapTotal = swapTotal
+        self.swapFree = swapFree
     }
 }
 

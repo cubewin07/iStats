@@ -2,10 +2,49 @@ import SwiftUI
 import iStatsCore
 
 public struct DetailPopoverView: View {
-    public init() {}
+    @ObservedObject public var coordinator: MetricsCoordinator
+    @ObservedObject public var preferences: PreferencesStore
+
+    // Optional overrides for testing / previews
+    private let overrideCPUSample: CPUSample?
+    private let overrideMemorySample: MemorySample?
+    private let overrideCPUHistory: [Sample<CPUSample>]?
+    private let overrideMemoryHistory: [Sample<MemorySample>]?
+
+    public init(
+        coordinator: MetricsCoordinator = .shared,
+        preferences: PreferencesStore = .shared,
+        cpuSample: CPUSample? = nil,
+        memorySample: MemorySample? = nil,
+        cpuHistory: [Sample<CPUSample>]? = nil,
+        memoryHistory: [Sample<MemorySample>]? = nil
+    ) {
+        self.coordinator = coordinator
+        self.preferences = preferences
+        self.overrideCPUSample = cpuSample
+        self.overrideMemorySample = memorySample
+        self.overrideCPUHistory = cpuHistory
+        self.overrideMemoryHistory = memoryHistory
+    }
+
+    private var currentCPUSample: CPUSample? {
+        overrideCPUSample ?? coordinator.latestCPU?.value
+    }
+
+    private var currentCPUHistory: [Sample<CPUSample>] {
+        overrideCPUHistory ?? coordinator.cpuHistory
+    }
+
+    private var currentMemorySample: MemorySample? {
+        overrideMemorySample ?? coordinator.latestMemory?.value
+    }
+
+    private var currentMemoryHistory: [Sample<MemorySample>] {
+        overrideMemoryHistory ?? coordinator.memoryHistory
+    }
 
     public var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 12) {
             // Header
             HStack(spacing: 8) {
                 Image(systemName: "gauge.with.dots.needle.bottom.50percent")
@@ -18,31 +57,37 @@ public struct DetailPopoverView: View {
                     .font(.system(size: 11, weight: .medium))
                     .foregroundColor(.secondary)
             }
-            .padding(.bottom, 4)
+            .padding(.bottom, 2)
 
             Divider()
 
-            // Shell Content Placeholder
-            VStack(spacing: 12) {
-                Image(systemName: "chart.xyaxis.line")
-                    .font(.system(size: 28))
-                    .foregroundColor(.secondary)
-                Text("System Monitor")
-                    .font(.headline)
-                Text("Phase 1 Foundation Shell active.\nMetric samplers (CPU, Memory, Network, Disk, Power, Thermals) will connect in upcoming phases.")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                    .multilineTextAlignment(.center)
-                    .lineSpacing(2)
+            // Metrics Scroll Area
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(spacing: 12) {
+                    // CPU Monitoring Section (Requirements 10.1, 10.2, 10.3)
+                    if preferences.isCategoryEnabled(.cpu) {
+                        CPUSummaryView(
+                            sample: currentCPUSample,
+                            history: currentCPUHistory
+                        )
+                    }
+
+                    // Memory Monitoring Section (Requirements 10.1, 10.2, 10.3)
+                    if preferences.isCategoryEnabled(.memory) {
+                        MemorySummaryView(
+                            sample: currentMemorySample,
+                            history: currentMemoryHistory
+                        )
+                    }
+                }
             }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 16)
+            .frame(maxHeight: 480)
 
             Divider()
 
             // Footer / Actions
             HStack {
-                Text("Status: Ready")
+                Text(statusFooterText)
                     .font(.caption2)
                     .foregroundColor(.secondary)
                 Spacer()
@@ -59,7 +104,22 @@ public struct DetailPopoverView: View {
                 .controlSize(.small)
             }
         }
-        .padding(16)
-        .frame(width: 320)
+        .padding(14)
+        .frame(width: 330)
+        .onAppear {
+            if !coordinator.isRunning && overrideCPUSample == nil && overrideMemorySample == nil {
+                coordinator.start()
+            }
+        }
+    }
+
+    private var statusFooterText: String {
+        if let memory = currentMemorySample {
+            return "Pressure: \(memory.pressure.displayName)"
+        } else if coordinator.isRunning {
+            return "Sampling..."
+        } else {
+            return "Status: Ready"
+        }
     }
 }

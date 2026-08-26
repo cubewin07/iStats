@@ -15,7 +15,29 @@
 		11000000000000000000001B /* DetailPopoverView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11000000000000000000001A /* DetailPopoverView.swift */; };
 		11000000000000000000001D /* PreferencesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11000000000000000000001C /* PreferencesView.swift */; };
 		11000000000000000000001F /* PreferencesWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11000000000000000000001E /* PreferencesWindowController.swift */; };
+		110000000000000000000031 /* CPUSampler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000030 /* CPUSampler.swift */; };
+		110000000000000000000033 /* MemorySampler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000032 /* MemorySampler.swift */; };
+		110000000000000000000035 /* MemoryPressureMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000034 /* MemoryPressureMonitor.swift */; };
+		110000000000000000000037 /* MemoryPressureView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000036 /* MemoryPressureView.swift */; };
+		110000000000000000000044 /* CPUSamplerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000043 /* CPUSamplerTests.swift */; };
+		11000000000000000000004A /* MemorySamplerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000049 /* MemorySamplerTests.swift */; };
+		11000000000000000000004E /* MemoryPressureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11000000000000000000004D /* MemoryPressureTests.swift */; };
+		110000000000000000000061 /* MetricsCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000060 /* MetricsCoordinator.swift */; };
+		110000000000000000000063 /* RollingGraphView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000062 /* RollingGraphView.swift */; };
+		110000000000000000000065 /* CPUSummaryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000064 /* CPUSummaryView.swift */; };
+		110000000000000000000067 /* DetailViewGraphsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000066 /* DetailViewGraphsTests.swift */; };
+		110000000000000000000045 /* iStatsCore in Frameworks */ = {isa = PBXBuildFile; productRef = 110000000000000000000005 /* iStatsCore */; };
 /* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		110000000000000000000048 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 110000000000000000000001 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 110000000000000000000002;
+			remoteInfo = iStats;
+		};
+/* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
 		110000000000000000000003 /* iStats.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = iStats.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -27,6 +49,18 @@
 		11000000000000000000001A /* DetailPopoverView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DetailPopoverView.swift; sourceTree = "<group>"; };
 		11000000000000000000001C /* PreferencesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferencesView.swift; sourceTree = "<group>"; };
 		11000000000000000000001E /* PreferencesWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferencesWindowController.swift; sourceTree = "<group>"; };
+		110000000000000000000030 /* CPUSampler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CPUSampler.swift; sourceTree = "<group>"; };
+		110000000000000000000032 /* MemorySampler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemorySampler.swift; sourceTree = "<group>"; };
+		110000000000000000000034 /* MemoryPressureMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryPressureMonitor.swift; sourceTree = "<group>"; };
+		110000000000000000000036 /* MemoryPressureView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryPressureView.swift; sourceTree = "<group>"; };
+		110000000000000000000041 /* iStatsTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = iStatsTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		110000000000000000000043 /* CPUSamplerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CPUSamplerTests.swift; sourceTree = "<group>"; };
+		110000000000000000000049 /* MemorySamplerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemorySamplerTests.swift; sourceTree = "<group>"; };
+		11000000000000000000004D /* MemoryPressureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryPressureTests.swift; sourceTree = "<group>"; };
+		110000000000000000000060 /* MetricsCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetricsCoordinator.swift; sourceTree = "<group>"; };
+		110000000000000000000062 /* RollingGraphView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RollingGraphView.swift; sourceTree = "<group>"; };
+		110000000000000000000064 /* CPUSummaryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CPUSummaryView.swift; sourceTree = "<group>"; };
+		110000000000000000000066 /* DetailViewGraphsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DetailViewGraphsTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -38,6 +72,14 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		110000000000000000000050 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				110000000000000000000045 /* iStatsCore in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -45,6 +87,7 @@
 			isa = PBXGroup;
 			children = (
 				11000000000000000000000A /* iStats */,
+				110000000000000000000046 /* Tests */,
 				11000000000000000000000D /* Products */,
 			);
 			sourceTree = "<group>";
@@ -53,6 +96,7 @@
 			isa = PBXGroup;
 			children = (
 				11000000000000000000000B /* App */,
+				11000000000000000000000F /* Sampling */,
 				11000000000000000000000E /* UI */,
 				11000000000000000000000C /* Resources */,
 			);
@@ -65,10 +109,21 @@
 				110000000000000000000010 /* iStatsApp.swift */,
 				110000000000000000000012 /* AppDelegate.swift */,
 				110000000000000000000018 /* MenuBarController.swift */,
+				110000000000000000000060 /* MetricsCoordinator.swift */,
 				110000000000000000000014 /* DockIconManager.swift */,
 				11000000000000000000001E /* PreferencesWindowController.swift */,
 			);
 			path = App;
+			sourceTree = "<group>";
+		};
+		11000000000000000000000F /* Sampling */ = {
+			isa = PBXGroup;
+			children = (
+				110000000000000000000030 /* CPUSampler.swift */,
+				110000000000000000000032 /* MemorySampler.swift */,
+				110000000000000000000034 /* MemoryPressureMonitor.swift */,
+			);
+			path = Sampling;
 			sourceTree = "<group>";
 		};
 		11000000000000000000000E /* UI */ = {
@@ -76,6 +131,9 @@
 			children = (
 				11000000000000000000001A /* DetailPopoverView.swift */,
 				11000000000000000000001C /* PreferencesView.swift */,
+				110000000000000000000036 /* MemoryPressureView.swift */,
+				110000000000000000000062 /* RollingGraphView.swift */,
+				110000000000000000000064 /* CPUSummaryView.swift */,
 			);
 			path = UI;
 			sourceTree = "<group>";
@@ -88,10 +146,30 @@
 			path = Resources;
 			sourceTree = "<group>";
 		};
+		110000000000000000000046 /* Tests */ = {
+			isa = PBXGroup;
+			children = (
+				110000000000000000000047 /* iStatsTests */,
+			);
+			path = Tests;
+			sourceTree = "<group>";
+		};
+		110000000000000000000047 /* iStatsTests */ = {
+			isa = PBXGroup;
+			children = (
+				110000000000000000000043 /* CPUSamplerTests.swift */,
+				110000000000000000000049 /* MemorySamplerTests.swift */,
+				11000000000000000000004D /* MemoryPressureTests.swift */,
+				110000000000000000000066 /* DetailViewGraphsTests.swift */,
+			);
+			path = iStatsTests;
+			sourceTree = "<group>";
+		};
 		11000000000000000000000D /* Products */ = {
 			isa = PBXGroup;
 			children = (
 				110000000000000000000003 /* iStats.app */,
+				110000000000000000000041 /* iStatsTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -119,6 +197,27 @@
 			productReference = 110000000000000000000003 /* iStats.app */;
 			productType = "com.apple.product-type.application";
 		};
+		110000000000000000000040 /* iStatsTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 110000000000000000000053 /* Build configuration list for PBXNativeTarget "iStatsTests" */;
+			buildPhases = (
+				110000000000000000000051 /* Sources */,
+				110000000000000000000050 /* Frameworks */,
+				110000000000000000000052 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				110000000000000000000042 /* PBXTargetDependency */,
+			);
+			name = iStatsTests;
+			packageProductDependencies = (
+				110000000000000000000005 /* iStatsCore */,
+			);
+			productName = iStatsTests;
+			productReference = 110000000000000000000041 /* iStatsTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -127,6 +226,11 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
 				LastUpgradeCheck = 1600;
+				TargetAttributes = {
+					110000000000000000000040 = {
+						TestTargetID = 110000000000000000000002;
+					};
+				};
 			};
 			buildConfigurationList = 110000000000000000000020 /* Build configuration list for PBXProject "iStats" */;
 			compatibilityVersion = "Xcode 14.0";
@@ -145,12 +249,20 @@
 			projectRoot = "";
 			targets = (
 				110000000000000000000002 /* iStats */,
+				110000000000000000000040 /* iStatsTests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
 		110000000000000000000008 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		110000000000000000000052 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -171,10 +283,36 @@
 				11000000000000000000001B /* DetailPopoverView.swift in Sources */,
 				11000000000000000000001D /* PreferencesView.swift in Sources */,
 				11000000000000000000001F /* PreferencesWindowController.swift in Sources */,
+				110000000000000000000031 /* CPUSampler.swift in Sources */,
+				110000000000000000000033 /* MemorySampler.swift in Sources */,
+				110000000000000000000035 /* MemoryPressureMonitor.swift in Sources */,
+				110000000000000000000037 /* MemoryPressureView.swift in Sources */,
+				110000000000000000000061 /* MetricsCoordinator.swift in Sources */,
+				110000000000000000000063 /* RollingGraphView.swift in Sources */,
+				110000000000000000000065 /* CPUSummaryView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		110000000000000000000051 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				110000000000000000000044 /* CPUSamplerTests.swift in Sources */,
+				11000000000000000000004A /* MemorySamplerTests.swift in Sources */,
+				11000000000000000000004E /* MemoryPressureTests.swift in Sources */,
+				110000000000000000000067 /* DetailViewGraphsTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		110000000000000000000042 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 110000000000000000000002 /* iStats */;
+			targetProxy = 110000000000000000000048 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		110000000000000000000021 /* Debug */ = {
@@ -340,6 +478,36 @@
 			};
 			name = Release;
 		};
+		110000000000000000000054 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.istats.iStatsTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/iStats.app/Contents/MacOS/iStats";
+			};
+			name = Debug;
+		};
+		110000000000000000000055 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.istats.iStatsTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/iStats.app/Contents/MacOS/iStats";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -357,6 +525,15 @@
 			buildConfigurations = (
 				110000000000000000000024 /* Debug */,
 				110000000000000000000025 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		110000000000000000000053 /* Build configuration list for PBXNativeTarget "iStatsTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				110000000000000000000054 /* Debug */,
+				110000000000000000000055 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
