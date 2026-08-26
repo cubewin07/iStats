@@ -46,6 +46,12 @@ public struct DetailPopoverView: View {
                     .font(.caption2)
                     .foregroundColor(.secondary)
                 Spacer()
+                Button("Preferences...") {
+                    PreferencesWindowController.shared.showPreferences()
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+
                 Button("Quit") {
                     NSApplication.shared.terminate(nil)
                 }

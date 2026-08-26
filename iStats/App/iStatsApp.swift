@@ -6,10 +6,10 @@ struct iStatsApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
 
     var body: some Scene {
-        // Menu bar UI will be managed by MenuBarController in Task 1.2.
-        // A minimal Settings scene satisfies the SwiftUI App protocol requirements.
+        // Main UI is presented via MenuBarController in the menu bar.
+        // The Settings scene enables standard macOS Cmd+, shortcut for preferences.
         Settings {
-            EmptyView()
+            PreferencesView(store: .shared)
         }
     }
 }
