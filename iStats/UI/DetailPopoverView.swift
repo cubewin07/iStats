@@ -10,10 +10,12 @@ public struct DetailPopoverView: View {
     private let overrideMemorySample: MemorySample?
     private let overrideNetworkSample: NetworkSample?
     private let overrideDiskSample: DiskSample?
+    private let overridePowerSample: PowerSample?
     private let overrideCPUHistory: [Sample<CPUSample>]?
     private let overrideMemoryHistory: [Sample<MemorySample>]?
     private let overrideNetworkHistory: [Sample<NetworkSample>]?
     private let overrideDiskHistory: [Sample<DiskSample>]?
+    private let overridePowerHistory: [Sample<PowerSample>]?
 
     public init(
         coordinator: MetricsCoordinator = .shared,
@@ -22,10 +24,12 @@ public struct DetailPopoverView: View {
         memorySample: MemorySample? = nil,
         networkSample: NetworkSample? = nil,
         diskSample: DiskSample? = nil,
+        powerSample: PowerSample? = nil,
         cpuHistory: [Sample<CPUSample>]? = nil,
         memoryHistory: [Sample<MemorySample>]? = nil,
         networkHistory: [Sample<NetworkSample>]? = nil,
-        diskHistory: [Sample<DiskSample>]? = nil
+        diskHistory: [Sample<DiskSample>]? = nil,
+        powerHistory: [Sample<PowerSample>]? = nil
     ) {
         self.coordinator = coordinator
         self.preferences = preferences
@@ -33,10 +37,12 @@ public struct DetailPopoverView: View {
         self.overrideMemorySample = memorySample
         self.overrideNetworkSample = networkSample
         self.overrideDiskSample = diskSample
+        self.overridePowerSample = powerSample
         self.overrideCPUHistory = cpuHistory
         self.overrideMemoryHistory = memoryHistory
         self.overrideNetworkHistory = networkHistory
         self.overrideDiskHistory = diskHistory
+        self.overridePowerHistory = powerHistory
     }
 
     private var currentCPUSample: CPUSample? {
@@ -69,6 +75,14 @@ public struct DetailPopoverView: View {
 
     private var currentDiskHistory: [Sample<DiskSample>] {
         overrideDiskHistory ?? coordinator.diskHistory
+    }
+
+    private var currentPowerSample: PowerSample? {
+        overridePowerSample ?? coordinator.latestPower?.value
+    }
+
+    private var currentPowerHistory: [Sample<PowerSample>] {
+        overridePowerHistory ?? coordinator.powerHistory
     }
 
     public var body: some View {
@@ -126,6 +140,14 @@ public struct DetailPopoverView: View {
                             byteStandard: preferences.byteUnitStandard
                         )
                     }
+
+                    // Battery & Power Monitoring Section (Requirements 8.1-8.4, 10.1)
+                    if preferences.isCategoryEnabled(.power) {
+                        PowerSummaryView(
+                            sample: currentPowerSample,
+                            history: currentPowerHistory
+                        )
+                    }
                 }
             }
             .frame(maxHeight: 520)
@@ -154,7 +176,7 @@ public struct DetailPopoverView: View {
         .padding(14)
         .frame(width: 330)
         .onAppear {
-            if !coordinator.isRunning && overrideCPUSample == nil && overrideMemorySample == nil && overrideNetworkSample == nil && overrideDiskSample == nil {
+            if !coordinator.isRunning && overrideCPUSample == nil && overrideMemorySample == nil && overrideNetworkSample == nil && overrideDiskSample == nil && overridePowerSample == nil {
                 coordinator.start()
             }
         }

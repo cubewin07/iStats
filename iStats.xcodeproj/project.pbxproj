@@ -35,6 +35,7 @@
 		110000000000000000000087 /* Phase3ValidationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000086 /* Phase3ValidationTests.swift */; };
 		110000000000000000000091 /* PowerSampler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000090 /* PowerSampler.swift */; };
 		110000000000000000000093 /* PowerSamplerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000092 /* PowerSamplerTests.swift */; };
+		110000000000000000000095 /* PowerSummaryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000094 /* PowerSummaryView.swift */; };
 		110000000000000000000045 /* iStatsCore in Frameworks */ = {isa = PBXBuildFile; productRef = 110000000000000000000005 /* iStatsCore */; };
 /* End PBXBuildFile section */
 
@@ -79,6 +80,7 @@
 		110000000000000000000086 /* Phase3ValidationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Phase3ValidationTests.swift; sourceTree = "<group>"; };
 		110000000000000000000090 /* PowerSampler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PowerSampler.swift; sourceTree = "<group>"; };
 		110000000000000000000092 /* PowerSamplerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PowerSamplerTests.swift; sourceTree = "<group>"; };
+		110000000000000000000094 /* PowerSummaryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PowerSummaryView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -157,6 +159,7 @@
 				110000000000000000000064 /* CPUSummaryView.swift */,
 				110000000000000000000074 /* NetworkSummaryView.swift */,
 				110000000000000000000084 /* DiskSummaryView.swift */,
+				110000000000000000000094 /* PowerSummaryView.swift */,
 			);
 			path = UI;
 			sourceTree = "<group>";
@@ -322,6 +325,7 @@
 				110000000000000000000075 /* NetworkSummaryView.swift in Sources */,
 				110000000000000000000085 /* DiskSummaryView.swift in Sources */,
 				110000000000000000000091 /* PowerSampler.swift in Sources */,
+				110000000000000000000095 /* PowerSummaryView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -338,4 +338,212 @@ final class DetailViewGraphsTests: XCTestCase {
         hosting.frame = CGRect(x: 0, y: 0, width: 330, height: 700)
         XCTAssertNotNil(hosting)
     }
+
+    // MARK: - Power & Battery Coordinator & View Tests (Requirements 8.1-8.4, 10.1)
+
+    func testMetricsCoordinatorHandlesPowerReadings() {
+        let coordinator = MetricsCoordinator(
+            scheduler: SampleScheduler(),
+            store: MetricsStore(),
+            preferencesStore: PreferencesStore(userDefaults: UserDefaults(suiteName: "iStats.test.powercoord.\(UUID().uuidString)")!)
+        )
+
+        let powerSample = PowerSample(
+            hasBattery: true,
+            charge: 85.0,
+            state: .discharging,
+            timeRemaining: 7200.0,
+            cycleCount: 120,
+            condition: "Normal",
+            designCapacity: 6000,
+            currentMaxCapacity: 5700,
+            powerDrawWatts: 12.5,
+            adapterWatts: nil
+        )
+        let powerReading = MetricReading.power(Sample(value: powerSample, timestamp: Date(), availability: .available))
+        coordinator.handleReading(powerReading)
+
+        XCTAssertNotNil(coordinator.latestPower)
+        XCTAssertEqual(coordinator.latestPower?.value.charge, 85.0)
+        XCTAssertEqual(coordinator.latestPower?.value.state, .discharging)
+        XCTAssertEqual(coordinator.latestPower?.value.powerDrawWatts, 12.5)
+        XCTAssertEqual(coordinator.powerHistory.count, 1)
+    }
+
+    func testPowerSummaryViewRenderingWithBattery() {
+        let sample = PowerSample(
+            hasBattery: true,
+            charge: 75.0,
+            state: .discharging,
+            timeRemaining: 10800.0,
+            cycleCount: 79,
+            condition: "Normal",
+            designCapacity: 6249,
+            currentMaxCapacity: 5894,
+            powerDrawWatts: 15.2,
+            adapterWatts: 68.0
+        )
+        let history = [Sample(value: sample, timestamp: Date(), availability: .available)]
+
+        let view = PowerSummaryView(sample: sample, history: history)
+        let hosting = NSHostingView(rootView: view)
+        hosting.frame = CGRect(x: 0, y: 0, width: 320, height: 350)
+        XCTAssertNotNil(hosting)
+    }
+
+    func testPowerSummaryViewRenderingChargingState() {
+        let sample = PowerSample(
+            hasBattery: true,
+            charge: 45.0,
+            state: .charging,
+            timeRemaining: 3000.0, // 50m to full
+            cycleCount: 150,
+            condition: "Normal",
+            designCapacity: 6000,
+            currentMaxCapacity: 5500,
+            powerDrawWatts: 28.5,
+            adapterWatts: 96.0
+        )
+        let history = [Sample(value: sample, timestamp: Date(), availability: .available)]
+
+        let view = PowerSummaryView(sample: sample, history: history)
+        let hosting = NSHostingView(rootView: view)
+        hosting.frame = CGRect(x: 0, y: 0, width: 320, height: 350)
+        XCTAssertNotNil(hosting)
+    }
+
+    func testPowerSummaryViewRenderingNoBatteryMachine() {
+        // Desktop Mac (e.g. Mac Studio, Mac mini, Mac Pro, iMac)
+        let sample = PowerSample(
+            hasBattery: false,
+            charge: nil,
+            state: nil,
+            timeRemaining: nil,
+            cycleCount: nil,
+            condition: nil,
+            designCapacity: nil,
+            currentMaxCapacity: nil,
+            powerDrawWatts: 35.0, // System power draw if exposed
+            adapterWatts: 140.0
+        )
+        let history = [Sample(value: sample, timestamp: Date(), availability: .available)]
+
+        let view = PowerSummaryView(sample: sample, history: history)
+        let hosting = NSHostingView(rootView: view)
+        hosting.frame = CGRect(x: 0, y: 0, width: 320, height: 250)
+        XCTAssertNotNil(hosting)
+    }
+
+    func testPowerSummaryViewRenderingNoBatteryUnexposedWattage() {
+        // Desktop Mac where power draw is unexposed
+        let sample = PowerSample(
+            hasBattery: false,
+            charge: nil,
+            state: nil,
+            timeRemaining: nil,
+            cycleCount: nil,
+            condition: nil,
+            designCapacity: nil,
+            currentMaxCapacity: nil,
+            powerDrawWatts: nil,
+            adapterWatts: nil
+        )
+
+        let view = PowerSummaryView(sample: sample, history: [])
+        let hosting = NSHostingView(rootView: view)
+        hosting.frame = CGRect(x: 0, y: 0, width: 320, height: 200)
+        XCTAssertNotNil(hosting)
+    }
+
+    func testPowerSummaryViewRenderingNilSample() {
+        let view = PowerSummaryView(sample: nil, history: [])
+        let hosting = NSHostingView(rootView: view)
+        hosting.frame = CGRect(x: 0, y: 0, width: 320, height: 100)
+        XCTAssertNotNil(hosting)
+    }
+
+    func testDetailPopoverViewWithAllCategoriesIncludingPower() {
+        let defaults = UserDefaults(suiteName: "iStats.test.allpopoverpower.\(UUID().uuidString)")!
+        let prefs = PreferencesStore(userDefaults: defaults)
+        let coordinator = MetricsCoordinator(
+            scheduler: SampleScheduler(),
+            store: MetricsStore(),
+            preferencesStore: prefs
+        )
+
+        let cpu = CPUSample(totalUsage: 22.0, perCore: [22.0], user: 12.0, system: 10.0, idle: 78.0)
+        let mem = MemorySample(total: 16000, used: 8000, free: 8000, wired: 2000, compressed: 1000, cached: 2000, swapUsed: 0, pressure: .normal)
+        let net = NetworkSample(interfaces: [
+            InterfaceThroughput(interfaceName: "en0", bytesInPerSec: 10000, bytesOutPerSec: 5000, totalBytesIn: 100000, totalBytesOut: 50000)
+        ])
+        let disk = DiskSample(
+            volumes: [VolumeCapacity(name: "Mac HD", mountPoint: "/", total: 100000, used: 50000, free: 50000)],
+            io: DiskIO(bytesReadPerSec: 2000, bytesWrittenPerSec: 1000, readOpsPerSec: 20, writeOpsPerSec: 10)
+        )
+        let power = PowerSample(
+            hasBattery: true,
+            charge: 88.0,
+            state: .charging,
+            timeRemaining: 1800.0,
+            cycleCount: 65,
+            condition: "Normal",
+            designCapacity: 6200,
+            currentMaxCapacity: 5900,
+            powerDrawWatts: 22.4,
+            adapterWatts: 67.0
+        )
+
+        let popover = DetailPopoverView(
+            coordinator: coordinator,
+            preferences: prefs,
+            cpuSample: cpu,
+            memorySample: mem,
+            networkSample: net,
+            diskSample: disk,
+            powerSample: power,
+            cpuHistory: [Sample(value: cpu)],
+            memoryHistory: [Sample(value: mem)],
+            networkHistory: [Sample(value: net)],
+            diskHistory: [Sample(value: disk)],
+            powerHistory: [Sample(value: power)]
+        )
+
+        let hosting = NSHostingView(rootView: popover)
+        hosting.frame = CGRect(x: 0, y: 0, width: 330, height: 850)
+        XCTAssertNotNil(hosting)
+    }
+
+    func testDetailPopoverViewWithNoBatteryMachine() {
+        let defaults = UserDefaults(suiteName: "iStats.test.nobatterypopover.\(UUID().uuidString)")!
+        let prefs = PreferencesStore(userDefaults: defaults)
+        let coordinator = MetricsCoordinator(
+            scheduler: SampleScheduler(),
+            store: MetricsStore(),
+            preferencesStore: prefs
+        )
+
+        let noBatteryPower = PowerSample(
+            hasBattery: false,
+            charge: nil,
+            state: nil,
+            timeRemaining: nil,
+            cycleCount: nil,
+            condition: nil,
+            designCapacity: nil,
+            currentMaxCapacity: nil,
+            powerDrawWatts: nil,
+            adapterWatts: nil
+        )
+
+        let popover = DetailPopoverView(
+            coordinator: coordinator,
+            preferences: prefs,
+            powerSample: noBatteryPower,
+            powerHistory: [Sample(value: noBatteryPower)]
+        )
+
+        let hosting = NSHostingView(rootView: popover)
+        hosting.frame = CGRect(x: 0, y: 0, width: 330, height: 500)
+        XCTAssertNotNil(hosting)
+    }
 }
