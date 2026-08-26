@@ -95,6 +95,66 @@ public enum Units {
         bytesPerSec * 8.0
     }
 
+    // MARK: - Transfer / Throughput Rates
+
+    private static let bytePerSecSiSuffixes = ["B/s", "KB/s", "MB/s", "GB/s", "TB/s", "PB/s"]
+    private static let bytePerSecIecSuffixes = ["B/s", "KiB/s", "MiB/s", "GiB/s", "TiB/s", "PiB/s"]
+    private static let bitPerSecSuffixes = ["bps", "Kbps", "Mbps", "Gbps", "Tbps", "Pbps"]
+
+    /// Format a network transfer rate into a human-readable string based on unit and standard (Requirement 11.3).
+    public static func formatNetworkRate(
+        _ bytesPerSec: Double,
+        unit: NetworkUnit = .bytesPerSecond,
+        standard: ByteUnitStandard = .iec,
+        fractionDigits: Int = 2
+    ) -> String {
+        guard bytesPerSec.isFinite && !bytesPerSec.isNaN else {
+            switch unit {
+            case .bytesPerSecond: return "0 B/s"
+            case .bitsPerSecond: return "0 bps"
+            }
+        }
+
+        switch unit {
+        case .bytesPerSecond:
+            let base: Double = standard == .si ? 1000.0 : 1024.0
+            let suffixes = standard == .si ? bytePerSecSiSuffixes : bytePerSecIecSuffixes
+            var value = max(0.0, bytesPerSec)
+            var index = 0
+            while value >= base && index < suffixes.count - 1 {
+                value /= base
+                index += 1
+            }
+            if index == 0 && value.rounded() == value {
+                return "\(Int(value)) \(suffixes[0])"
+            }
+            return String(format: "%.\(fractionDigits)f %@", value, suffixes[index])
+
+        case .bitsPerSecond:
+            let base: Double = 1000.0
+            let suffixes = bitPerSecSuffixes
+            var value = max(0.0, bytesPerSecToBitsPerSec(bytesPerSec))
+            var index = 0
+            while value >= base && index < suffixes.count - 1 {
+                value /= base
+                index += 1
+            }
+            if index == 0 && value.rounded() == value {
+                return "\(Int(value)) \(suffixes[0])"
+            }
+            return String(format: "%.\(fractionDigits)f %@", value, suffixes[index])
+        }
+    }
+
+    /// Format a disk I/O transfer rate (in bytes per second) into a human-readable string.
+    public static func formatDiskRate(
+        _ bytesPerSec: Double,
+        standard: ByteUnitStandard = .iec,
+        fractionDigits: Int = 2
+    ) -> String {
+        formatNetworkRate(bytesPerSec, unit: .bytesPerSecond, standard: standard, fractionDigits: fractionDigits)
+    }
+
     // MARK: Frequency
 
     private static let hzSuffixes = ["Hz", "kHz", "MHz", "GHz", "THz"]

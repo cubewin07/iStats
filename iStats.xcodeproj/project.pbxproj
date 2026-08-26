@@ -26,6 +26,13 @@
 		110000000000000000000063 /* RollingGraphView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000062 /* RollingGraphView.swift */; };
 		110000000000000000000065 /* CPUSummaryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000064 /* CPUSummaryView.swift */; };
 		110000000000000000000067 /* DetailViewGraphsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000066 /* DetailViewGraphsTests.swift */; };
+		110000000000000000000071 /* NetworkSampler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000070 /* NetworkSampler.swift */; };
+		110000000000000000000073 /* NetworkSamplerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000072 /* NetworkSamplerTests.swift */; };
+		110000000000000000000081 /* DiskSampler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000080 /* DiskSampler.swift */; };
+		110000000000000000000083 /* DiskSamplerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000082 /* DiskSamplerTests.swift */; };
+		110000000000000000000075 /* NetworkSummaryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000074 /* NetworkSummaryView.swift */; };
+		110000000000000000000085 /* DiskSummaryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000084 /* DiskSummaryView.swift */; };
+		110000000000000000000087 /* Phase3ValidationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000086 /* Phase3ValidationTests.swift */; };
 		110000000000000000000045 /* iStatsCore in Frameworks */ = {isa = PBXBuildFile; productRef = 110000000000000000000005 /* iStatsCore */; };
 /* End PBXBuildFile section */
 
@@ -61,6 +68,13 @@
 		110000000000000000000062 /* RollingGraphView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RollingGraphView.swift; sourceTree = "<group>"; };
 		110000000000000000000064 /* CPUSummaryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CPUSummaryView.swift; sourceTree = "<group>"; };
 		110000000000000000000066 /* DetailViewGraphsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DetailViewGraphsTests.swift; sourceTree = "<group>"; };
+		110000000000000000000070 /* NetworkSampler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkSampler.swift; sourceTree = "<group>"; };
+		110000000000000000000072 /* NetworkSamplerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkSamplerTests.swift; sourceTree = "<group>"; };
+		110000000000000000000080 /* DiskSampler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiskSampler.swift; sourceTree = "<group>"; };
+		110000000000000000000082 /* DiskSamplerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiskSamplerTests.swift; sourceTree = "<group>"; };
+		110000000000000000000074 /* NetworkSummaryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkSummaryView.swift; sourceTree = "<group>"; };
+		110000000000000000000084 /* DiskSummaryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiskSummaryView.swift; sourceTree = "<group>"; };
+		110000000000000000000086 /* Phase3ValidationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Phase3ValidationTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -122,6 +136,8 @@
 				110000000000000000000030 /* CPUSampler.swift */,
 				110000000000000000000032 /* MemorySampler.swift */,
 				110000000000000000000034 /* MemoryPressureMonitor.swift */,
+				110000000000000000000070 /* NetworkSampler.swift */,
+				110000000000000000000080 /* DiskSampler.swift */,
 			);
 			path = Sampling;
 			sourceTree = "<group>";
@@ -134,6 +150,8 @@
 				110000000000000000000036 /* MemoryPressureView.swift */,
 				110000000000000000000062 /* RollingGraphView.swift */,
 				110000000000000000000064 /* CPUSummaryView.swift */,
+				110000000000000000000074 /* NetworkSummaryView.swift */,
+				110000000000000000000084 /* DiskSummaryView.swift */,
 			);
 			path = UI;
 			sourceTree = "<group>";
@@ -161,6 +179,9 @@
 				110000000000000000000049 /* MemorySamplerTests.swift */,
 				11000000000000000000004D /* MemoryPressureTests.swift */,
 				110000000000000000000066 /* DetailViewGraphsTests.swift */,
+				110000000000000000000072 /* NetworkSamplerTests.swift */,
+				110000000000000000000082 /* DiskSamplerTests.swift */,
+				110000000000000000000086 /* Phase3ValidationTests.swift */,
 			);
 			path = iStatsTests;
 			sourceTree = "<group>";
@@ -290,6 +311,10 @@
 				110000000000000000000061 /* MetricsCoordinator.swift in Sources */,
 				110000000000000000000063 /* RollingGraphView.swift in Sources */,
 				110000000000000000000065 /* CPUSummaryView.swift in Sources */,
+				110000000000000000000071 /* NetworkSampler.swift in Sources */,
+				110000000000000000000081 /* DiskSampler.swift in Sources */,
+				110000000000000000000075 /* NetworkSummaryView.swift in Sources */,
+				110000000000000000000085 /* DiskSummaryView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -301,6 +326,9 @@
 				11000000000000000000004A /* MemorySamplerTests.swift in Sources */,
 				11000000000000000000004E /* MemoryPressureTests.swift in Sources */,
 				110000000000000000000067 /* DetailViewGraphsTests.swift in Sources */,
+				110000000000000000000073 /* NetworkSamplerTests.swift in Sources */,
+				110000000000000000000083 /* DiskSamplerTests.swift in Sources */,
+				110000000000000000000087 /* Phase3ValidationTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
