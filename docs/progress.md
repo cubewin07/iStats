@@ -13,8 +13,8 @@ The only status file. Agent specs (`AGENTS.md`, `CLAUDE.md`) and phase plans do 
 | Field | Value |
 |-------|--------|
 | Phase | **3 — Network & disk** (in progress) |
-| Next task | `3.5` Network/disk in detail view + bytes/bits option |
-| Last closed | **3.4** Disk I/O throughput |
+| Next task | `3.6` Validate vs reference tools + Phase 3 report |
+| Last closed | **3.5** Network/disk in detail view + bytes/bits option |
 | Blocked by | — |
 
 ---
@@ -60,6 +60,7 @@ Copy a row from [`docs/specs/tasks.md`](./specs/tasks.md) when you start it. Lea
 | 3.2 | Network rate math with counter-reset handling | **done** | [`docs/handoffs/03-3.2-summary.md`](./handoffs/03-3.2-summary.md), `xcodebuild test -scheme iStatsApp` (46 passed), `swift test` (91 passed) |
 | 3.3 | Implement DiskSampler (capacity per mounted volume) | **done** | [`docs/handoffs/03-3.3-summary.md`](./handoffs/03-3.3-summary.md), `xcodebuild test -scheme iStatsApp` (51 passed), `swift test` (91 passed) |
 | 3.4 | Implement DiskSampler I/O throughput via IOKit | **done** | [`docs/handoffs/03-3.4-summary.md`](./handoffs/03-3.4-summary.md), `xcodebuild test -scheme iStatsApp` (57 passed), `swift test` (91 passed) |
+| 3.5 | Network/disk in detail view + bytes/bits option | **done** | [`docs/handoffs/03-3.5-summary.md`](./handoffs/03-3.5-summary.md), `xcodebuild test -scheme iStatsApp` (61 passed), `swift test` (96 passed) |
 
 When a task is done, set Status to `done` and put the handoff summary path (or test command) in Evidence.
 
@@ -71,7 +72,7 @@ Verified against the tree, not the design wish-list. Update a row when the match
 
 | Exists | Missing (designed, not built) |
 |--------|-------------------------------|
-| `Package.swift` → `iStatsCore` + `iStatsCoreTests`, `iStats.xcodeproj` (app target `iStats`, test target `iStatsTests`), `iStatsApp`, `AppDelegate`, `MenuBarController`, `MetricsCoordinator`, `DetailPopoverView`, `CPUSummaryView`, `RollingGraphView`, `DockIconManager`, `PreferencesView`, `PreferencesWindowController`, `MemoryPressureBadgeView`, `MemoryPressureAlertBanner`, `MemorySummaryView`, `Info.plist` (`LSUIElement = true`), `NSStatusItem`, `NSPopover` | — |
+| `Package.swift` → `iStatsCore` + `iStatsCoreTests`, `iStats.xcodeproj` (app target `iStats`, test target `iStatsTests`), `iStatsApp`, `AppDelegate`, `MenuBarController`, `MetricsCoordinator`, `DetailPopoverView`, `CPUSummaryView`, `RollingGraphView`, `DockIconManager`, `PreferencesView`, `PreferencesWindowController`, `MemoryPressureBadgeView`, `MemoryPressureAlertBanner`, `MemorySummaryView`, `NetworkSummaryView`, `DiskSummaryView`, `Info.plist` (`LSUIElement = true`), `NSStatusItem`, `NSPopover` | — |
 | `Availability`, `Sample<T>`, `Sampler`, `SamplerError`, `MetricCategory`, `AnySampler`, `MetricReading`, `SampleScheduler`, `MetricsStore`, `PreferencesStore`, `MenuBarDisplayMode`, `CPUSampler`, `ProcessorTicks`, `CPUInfoProvider`, `HostProcessorInfoProvider`, `MemorySampler`, `RawVMStatistics`, `SwapUsageData`, `MemoryInfoProvider`, `HostMemoryInfoProvider`, `MemoryPressureMonitor`, `NetworkSampler`, `RawInterfaceCounters`, `NetworkInfoProvider`, `HostNetworkInfoProvider`, `InterfaceState`, `InterfaceSessionTotal`, `DiskSampler`, `RawDiskIOCounters`, `DiskInfoProvider`, `HostDiskInfoProvider` | Concrete samplers: thermal, fan, gpu, power |
 | `LoadAverage`, `CPUSample`, `MemorySample`, `MemoryPressure`, `ThermalPressure`, `SensorReading`, `ThermalSample`, `FanReading`, `FanSample`, `InterfaceThroughput`, `NetworkSample`, `VolumeCapacity`, `DiskIO`, `DiskSample`, `BatteryState`, `PowerSample`, `GPUSample` | Metric validation reports |
 | `RateMath`, `RingBuffer`, `Units` (`TemperatureUnit`, `NetworkUnit`, `ByteUnitStandard`) | — |

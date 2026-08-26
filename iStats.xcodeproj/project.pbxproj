@@ -30,6 +30,8 @@
 		110000000000000000000073 /* NetworkSamplerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000072 /* NetworkSamplerTests.swift */; };
 		110000000000000000000081 /* DiskSampler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000080 /* DiskSampler.swift */; };
 		110000000000000000000083 /* DiskSamplerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000082 /* DiskSamplerTests.swift */; };
+		110000000000000000000075 /* NetworkSummaryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000074 /* NetworkSummaryView.swift */; };
+		110000000000000000000085 /* DiskSummaryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000084 /* DiskSummaryView.swift */; };
 		110000000000000000000045 /* iStatsCore in Frameworks */ = {isa = PBXBuildFile; productRef = 110000000000000000000005 /* iStatsCore */; };
 /* End PBXBuildFile section */
 
@@ -69,6 +71,8 @@
 		110000000000000000000072 /* NetworkSamplerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkSamplerTests.swift; sourceTree = "<group>"; };
 		110000000000000000000080 /* DiskSampler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiskSampler.swift; sourceTree = "<group>"; };
 		110000000000000000000082 /* DiskSamplerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiskSamplerTests.swift; sourceTree = "<group>"; };
+		110000000000000000000074 /* NetworkSummaryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkSummaryView.swift; sourceTree = "<group>"; };
+		110000000000000000000084 /* DiskSummaryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiskSummaryView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -144,6 +148,8 @@
 				110000000000000000000036 /* MemoryPressureView.swift */,
 				110000000000000000000062 /* RollingGraphView.swift */,
 				110000000000000000000064 /* CPUSummaryView.swift */,
+				110000000000000000000074 /* NetworkSummaryView.swift */,
+				110000000000000000000084 /* DiskSummaryView.swift */,
 			);
 			path = UI;
 			sourceTree = "<group>";
@@ -304,6 +310,8 @@
 				110000000000000000000065 /* CPUSummaryView.swift in Sources */,
 				110000000000000000000071 /* NetworkSampler.swift in Sources */,
 				110000000000000000000081 /* DiskSampler.swift in Sources */,
+				110000000000000000000075 /* NetworkSummaryView.swift in Sources */,
+				110000000000000000000085 /* DiskSummaryView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

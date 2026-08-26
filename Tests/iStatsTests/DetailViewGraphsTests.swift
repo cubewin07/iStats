@@ -185,4 +185,157 @@ final class DetailViewGraphsTests: XCTestCase {
         hosting.frame = CGRect(x: 0, y: 0, width: 330, height: 500)
         XCTAssertNotNil(hosting)
     }
+
+    // MARK: - Network & Disk Coordinator & View Tests
+
+    func testMetricsCoordinatorHandlesNetworkAndDiskReadings() {
+        let coordinator = MetricsCoordinator(
+            scheduler: SampleScheduler(),
+            store: MetricsStore(),
+            preferencesStore: PreferencesStore(userDefaults: UserDefaults(suiteName: "iStats.test.netdisk.\(UUID().uuidString)")!)
+        )
+
+        let netSample = NetworkSample(interfaces: [
+            InterfaceThroughput(
+                interfaceName: "en0",
+                bytesInPerSec: 1024 * 500,
+                bytesOutPerSec: 1024 * 100,
+                totalBytesIn: 1024 * 1024 * 50,
+                totalBytesOut: 1024 * 1024 * 10
+            )
+        ])
+        let netReading = MetricReading.network(Sample(value: netSample, timestamp: Date(), availability: .available))
+        coordinator.handleReading(netReading)
+
+        XCTAssertNotNil(coordinator.latestNetwork)
+        XCTAssertEqual(coordinator.latestNetwork?.value.totalBytesInPerSec, 1024 * 500)
+        XCTAssertEqual(coordinator.latestNetwork?.value.totalBytesOutPerSec, 1024 * 100)
+        XCTAssertEqual(coordinator.networkHistory.count, 1)
+
+        let diskSample = DiskSample(
+            volumes: [
+                VolumeCapacity(name: "Macintosh HD", mountPoint: "/", total: 1_000_000_000_000, used: 400_000_000_000, free: 600_000_000_000)
+            ],
+            io: DiskIO(bytesReadPerSec: 5_000_000, bytesWrittenPerSec: 2_000_000, readOpsPerSec: 150, writeOpsPerSec: 60)
+        )
+        let diskReading = MetricReading.disk(Sample(value: diskSample, timestamp: Date(), availability: .available))
+        coordinator.handleReading(diskReading)
+
+        XCTAssertNotNil(coordinator.latestDisk)
+        XCTAssertEqual(coordinator.latestDisk?.value.volumes.count, 1)
+        XCTAssertEqual(coordinator.latestDisk?.value.io?.bytesReadPerSec, 5_000_000)
+        XCTAssertEqual(coordinator.diskHistory.count, 1)
+    }
+
+    func testNetworkSummaryViewRendering() {
+        let netSample = NetworkSample(interfaces: [
+            InterfaceThroughput(
+                interfaceName: "en0",
+                bytesInPerSec: 1024 * 1024 * 2.5,
+                bytesOutPerSec: 1024 * 512,
+                totalBytesIn: 1024 * 1024 * 1024 * 10,
+                totalBytesOut: 1024 * 1024 * 1024 * 2
+            ),
+            InterfaceThroughput(
+                interfaceName: "pdp_ip0",
+                bytesInPerSec: 0,
+                bytesOutPerSec: 0,
+                totalBytesIn: 1024 * 100,
+                totalBytesOut: 1024 * 50
+            )
+        ])
+        let history = [Sample(value: netSample, timestamp: Date(), availability: .available)]
+
+        // Bytes/sec IEC
+        let viewBytesIEC = NetworkSummaryView(
+            sample: netSample,
+            history: history,
+            networkUnit: .bytesPerSecond,
+            byteStandard: .iec
+        )
+        let hostingBytesIEC = NSHostingView(rootView: viewBytesIEC)
+        hostingBytesIEC.frame = CGRect(x: 0, y: 0, width: 320, height: 300)
+        XCTAssertNotNil(hostingBytesIEC)
+
+        // Bits/sec SI
+        let viewBitsSI = NetworkSummaryView(
+            sample: netSample,
+            history: history,
+            networkUnit: .bitsPerSecond,
+            byteStandard: .si
+        )
+        let hostingBitsSI = NSHostingView(rootView: viewBitsSI)
+        hostingBitsSI.frame = CGRect(x: 0, y: 0, width: 320, height: 300)
+        XCTAssertNotNil(hostingBitsSI)
+
+        // Empty / nil sample
+        let viewNil = NetworkSummaryView(sample: nil, history: [])
+        let hostingNil = NSHostingView(rootView: viewNil)
+        XCTAssertNotNil(hostingNil)
+    }
+
+    func testDiskSummaryViewRenderingWithAndWithoutIO() {
+        let volumes = [
+            VolumeCapacity(name: "Macintosh HD", mountPoint: "/", total: 500 * 1024 * 1024 * 1024, used: 250 * 1024 * 1024 * 1024, free: 250 * 1024 * 1024 * 1024),
+            VolumeCapacity(name: "External Drive", mountPoint: "/Volumes/Backup", total: 1000 * 1024 * 1024 * 1024, used: 900 * 1024 * 1024 * 1024, free: 100 * 1024 * 1024 * 1024)
+        ]
+        let io = DiskIO(bytesReadPerSec: 1024 * 1024 * 15, bytesWrittenPerSec: 1024 * 1024 * 8, readOpsPerSec: 200, writeOpsPerSec: 80)
+        let sampleWithIO = DiskSample(volumes: volumes, io: io)
+        let history = [Sample(value: sampleWithIO, timestamp: Date(), availability: .available)]
+
+        // With I/O
+        let viewWithIO = DiskSummaryView(sample: sampleWithIO, history: history, byteStandard: .iec)
+        let hostingWithIO = NSHostingView(rootView: viewWithIO)
+        hostingWithIO.frame = CGRect(x: 0, y: 0, width: 320, height: 350)
+        XCTAssertNotNil(hostingWithIO)
+
+        // Without I/O (graceful degradation)
+        let sampleWithoutIO = DiskSample(volumes: volumes, io: nil)
+        let viewWithoutIO = DiskSummaryView(sample: sampleWithoutIO, history: [], byteStandard: .si)
+        let hostingWithoutIO = NSHostingView(rootView: viewWithoutIO)
+        hostingWithoutIO.frame = CGRect(x: 0, y: 0, width: 320, height: 250)
+        XCTAssertNotNil(hostingWithoutIO)
+
+        // Nil sample
+        let viewNil = DiskSummaryView(sample: nil, history: [])
+        let hostingNil = NSHostingView(rootView: viewNil)
+        XCTAssertNotNil(hostingNil)
+    }
+
+    func testDetailPopoverViewWithAllCategories() {
+        let defaults = UserDefaults(suiteName: "iStats.test.allpopover.\(UUID().uuidString)")!
+        let prefs = PreferencesStore(userDefaults: defaults)
+        let coordinator = MetricsCoordinator(
+            scheduler: SampleScheduler(),
+            store: MetricsStore(),
+            preferencesStore: prefs
+        )
+
+        let cpu = CPUSample(totalUsage: 22.0, perCore: [22.0], user: 12.0, system: 10.0, idle: 78.0)
+        let mem = MemorySample(total: 16000, used: 8000, free: 8000, wired: 2000, compressed: 1000, cached: 2000, swapUsed: 0, pressure: .normal)
+        let net = NetworkSample(interfaces: [
+            InterfaceThroughput(interfaceName: "en0", bytesInPerSec: 10000, bytesOutPerSec: 5000, totalBytesIn: 100000, totalBytesOut: 50000)
+        ])
+        let disk = DiskSample(
+            volumes: [VolumeCapacity(name: "Mac HD", mountPoint: "/", total: 100000, used: 50000, free: 50000)],
+            io: DiskIO(bytesReadPerSec: 2000, bytesWrittenPerSec: 1000, readOpsPerSec: 20, writeOpsPerSec: 10)
+        )
+
+        let popover = DetailPopoverView(
+            coordinator: coordinator,
+            preferences: prefs,
+            cpuSample: cpu,
+            memorySample: mem,
+            networkSample: net,
+            diskSample: disk,
+            cpuHistory: [Sample(value: cpu)],
+            memoryHistory: [Sample(value: mem)],
+            networkHistory: [Sample(value: net)],
+            diskHistory: [Sample(value: disk)]
+        )
+
+        let hosting = NSHostingView(rootView: popover)
+        hosting.frame = CGRect(x: 0, y: 0, width: 330, height: 700)
+        XCTAssertNotNil(hosting)
+    }
 }

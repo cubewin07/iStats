@@ -8,23 +8,35 @@ public struct DetailPopoverView: View {
     // Optional overrides for testing / previews
     private let overrideCPUSample: CPUSample?
     private let overrideMemorySample: MemorySample?
+    private let overrideNetworkSample: NetworkSample?
+    private let overrideDiskSample: DiskSample?
     private let overrideCPUHistory: [Sample<CPUSample>]?
     private let overrideMemoryHistory: [Sample<MemorySample>]?
+    private let overrideNetworkHistory: [Sample<NetworkSample>]?
+    private let overrideDiskHistory: [Sample<DiskSample>]?
 
     public init(
         coordinator: MetricsCoordinator = .shared,
         preferences: PreferencesStore = .shared,
         cpuSample: CPUSample? = nil,
         memorySample: MemorySample? = nil,
+        networkSample: NetworkSample? = nil,
+        diskSample: DiskSample? = nil,
         cpuHistory: [Sample<CPUSample>]? = nil,
-        memoryHistory: [Sample<MemorySample>]? = nil
+        memoryHistory: [Sample<MemorySample>]? = nil,
+        networkHistory: [Sample<NetworkSample>]? = nil,
+        diskHistory: [Sample<DiskSample>]? = nil
     ) {
         self.coordinator = coordinator
         self.preferences = preferences
         self.overrideCPUSample = cpuSample
         self.overrideMemorySample = memorySample
+        self.overrideNetworkSample = networkSample
+        self.overrideDiskSample = diskSample
         self.overrideCPUHistory = cpuHistory
         self.overrideMemoryHistory = memoryHistory
+        self.overrideNetworkHistory = networkHistory
+        self.overrideDiskHistory = diskHistory
     }
 
     private var currentCPUSample: CPUSample? {
@@ -41,6 +53,22 @@ public struct DetailPopoverView: View {
 
     private var currentMemoryHistory: [Sample<MemorySample>] {
         overrideMemoryHistory ?? coordinator.memoryHistory
+    }
+
+    private var currentNetworkSample: NetworkSample? {
+        overrideNetworkSample ?? coordinator.latestNetwork?.value
+    }
+
+    private var currentNetworkHistory: [Sample<NetworkSample>] {
+        overrideNetworkHistory ?? coordinator.networkHistory
+    }
+
+    private var currentDiskSample: DiskSample? {
+        overrideDiskSample ?? coordinator.latestDisk?.value
+    }
+
+    private var currentDiskHistory: [Sample<DiskSample>] {
+        overrideDiskHistory ?? coordinator.diskHistory
     }
 
     public var body: some View {
@@ -79,9 +107,28 @@ public struct DetailPopoverView: View {
                             history: currentMemoryHistory
                         )
                     }
+
+                    // Network Monitoring Section (Requirements 6.1-6.4, 10.1, 11.3)
+                    if preferences.isCategoryEnabled(.network) {
+                        NetworkSummaryView(
+                            sample: currentNetworkSample,
+                            history: currentNetworkHistory,
+                            networkUnit: preferences.networkUnit,
+                            byteStandard: preferences.byteUnitStandard
+                        )
+                    }
+
+                    // Disk Monitoring Section (Requirements 7.1-7.3, 10.1, 11.3)
+                    if preferences.isCategoryEnabled(.disk) {
+                        DiskSummaryView(
+                            sample: currentDiskSample,
+                            history: currentDiskHistory,
+                            byteStandard: preferences.byteUnitStandard
+                        )
+                    }
                 }
             }
-            .frame(maxHeight: 480)
+            .frame(maxHeight: 520)
 
             Divider()
 
@@ -107,7 +154,7 @@ public struct DetailPopoverView: View {
         .padding(14)
         .frame(width: 330)
         .onAppear {
-            if !coordinator.isRunning && overrideCPUSample == nil && overrideMemorySample == nil {
+            if !coordinator.isRunning && overrideCPUSample == nil && overrideMemorySample == nil && overrideNetworkSample == nil && overrideDiskSample == nil {
                 coordinator.start()
             }
         }
