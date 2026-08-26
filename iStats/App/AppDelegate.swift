@@ -9,6 +9,9 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         // Enforce activation policy according to settings (default: .accessory via LSUIElement).
         DockIconManager.shared.applyCurrentPolicy()
 
+        // Start background metrics collection
+        MetricsCoordinator.shared.start()
+
         // Install the menu bar item and detail popover.
         menuBarController = MenuBarController()
     }

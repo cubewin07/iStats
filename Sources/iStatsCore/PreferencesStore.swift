@@ -26,6 +26,26 @@ public final class PreferencesStore: ObservableObject, @unchecked Sendable {
         public static let byteUnitStandard = "iStats.byteUnitStandard"
         public static let showDockIcon = "iStats.showDockIcon"
         public static let launchAtLogin = "iStats.launchAtLogin"
+        public static let menuBarDisplayMode = "iStats.menuBarDisplayMode"
+    }
+
+    /// The metric representation shown directly in the macOS menu bar status item (Requirement 9.4).
+    public enum MenuBarDisplayMode: String, CaseIterable, Identifiable, Codable, Sendable {
+        case icon = "icon"
+        case cpu = "cpu"
+        case memory = "memory"
+        case both = "both"
+
+        public var id: String { rawValue }
+
+        public var displayName: String {
+            switch self {
+            case .icon: return "Icon Only"
+            case .cpu: return "CPU Usage"
+            case .memory: return "Memory Usage"
+            case .both: return "CPU & Memory"
+            }
+        }
     }
 
     // MARK: - Singleton
@@ -95,6 +115,13 @@ public final class PreferencesStore: ObservableObject, @unchecked Sendable {
         }
     }
 
+    /// The metric display mode active in the macOS menu bar status item (Requirement 9.4).
+    @Published public var menuBarDisplayMode: MenuBarDisplayMode {
+        didSet {
+            userDefaults.set(menuBarDisplayMode.rawValue, forKey: Keys.menuBarDisplayMode)
+        }
+    }
+
     // MARK: - Initialization
 
     /// Creates a new `PreferencesStore` instance.
@@ -143,6 +170,14 @@ public final class PreferencesStore: ObservableObject, @unchecked Sendable {
 
         // Load launchAtLogin
         self.launchAtLogin = userDefaults.bool(forKey: Keys.launchAtLogin)
+
+        // Load menuBarDisplayMode (default: .cpu)
+        if let storedMode = userDefaults.string(forKey: Keys.menuBarDisplayMode),
+           let mode = MenuBarDisplayMode(rawValue: storedMode) {
+            self.menuBarDisplayMode = mode
+        } else {
+            self.menuBarDisplayMode = .cpu
+        }
     }
 
     // MARK: - Helpers
@@ -184,5 +219,6 @@ public final class PreferencesStore: ObservableObject, @unchecked Sendable {
         self.byteUnitStandard = .iec
         self.showDockIcon = false
         self.launchAtLogin = false
+        self.menuBarDisplayMode = .cpu
     }
 }

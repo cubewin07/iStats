@@ -101,9 +101,17 @@ public struct MemoryPressureAlertBanner: View {
 /// Memory statistics summary section for the detail popover.
 public struct MemorySummaryView: View {
     public let sample: MemorySample?
+    public let history: [Sample<MemorySample>]
 
-    public init(sample: MemorySample?) {
+    public init(sample: MemorySample?, history: [Sample<MemorySample>] = []) {
         self.sample = sample
+        self.history = history
+    }
+
+    private var historyPercentages: [Double] {
+        history.map { s in
+            s.value.total > 0 ? (Double(s.value.used) / Double(s.value.total)) * 100.0 : 0.0
+        }
     }
 
     public var body: some View {
@@ -113,7 +121,7 @@ public struct MemorySummaryView: View {
                 HStack(spacing: 6) {
                     Image(systemName: "memorychip")
                         .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(.accentColor)
+                        .foregroundColor(.green)
                     Text("Memory")
                         .font(.system(size: 13, weight: .bold))
                 }
@@ -122,6 +130,32 @@ public struct MemorySummaryView: View {
 
                 if let sample {
                     MemoryPressureBadgeView(pressure: sample.pressure)
+                }
+            }
+
+            // Rolling Short-Term History Graph (Requirement 10.2)
+            VStack(alignment: .leading, spacing: 4) {
+                RollingGraphView(
+                    values: historyPercentages,
+                    minValue: 0.0,
+                    maxValue: 100.0,
+                    tintColor: graphTintColor(for: sample?.pressure ?? .normal),
+                    capacity: 60,
+                    height: 48,
+                    showGrid: true
+                )
+
+                HStack {
+                    Text("60s history")
+                        .font(.system(size: 9))
+                        .foregroundColor(.secondary)
+                    Spacer()
+                    if let sample = sample {
+                        let usedRatio = sample.total > 0 ? (Double(sample.used) / Double(sample.total)) * 100.0 : 0.0
+                        Text(String(format: "Current: %.1f%%", usedRatio))
+                            .font(.system(size: 9, design: .monospaced))
+                            .foregroundColor(.secondary)
+                    }
                 }
             }
 
@@ -178,6 +212,14 @@ public struct MemorySummaryView: View {
             RoundedRectangle(cornerRadius: 8)
                 .fill(Color(nsColor: .controlBackgroundColor).opacity(0.5))
         )
+    }
+
+    private func graphTintColor(for pressure: MemoryPressure) -> Color {
+        switch pressure {
+        case .critical: return .red
+        case .warning: return .orange
+        case .normal: return .green
+        }
     }
 
     private func gaugeColor(ratio: Double, pressure: MemoryPressure) -> Color {

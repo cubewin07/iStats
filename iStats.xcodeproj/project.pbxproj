@@ -22,6 +22,10 @@
 		110000000000000000000044 /* CPUSamplerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000043 /* CPUSamplerTests.swift */; };
 		11000000000000000000004A /* MemorySamplerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000049 /* MemorySamplerTests.swift */; };
 		11000000000000000000004E /* MemoryPressureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11000000000000000000004D /* MemoryPressureTests.swift */; };
+		110000000000000000000061 /* MetricsCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000060 /* MetricsCoordinator.swift */; };
+		110000000000000000000063 /* RollingGraphView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000062 /* RollingGraphView.swift */; };
+		110000000000000000000065 /* CPUSummaryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000064 /* CPUSummaryView.swift */; };
+		110000000000000000000067 /* DetailViewGraphsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000066 /* DetailViewGraphsTests.swift */; };
 		110000000000000000000045 /* iStatsCore in Frameworks */ = {isa = PBXBuildFile; productRef = 110000000000000000000005 /* iStatsCore */; };
 /* End PBXBuildFile section */
 
@@ -53,6 +57,10 @@
 		110000000000000000000043 /* CPUSamplerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CPUSamplerTests.swift; sourceTree = "<group>"; };
 		110000000000000000000049 /* MemorySamplerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemorySamplerTests.swift; sourceTree = "<group>"; };
 		11000000000000000000004D /* MemoryPressureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryPressureTests.swift; sourceTree = "<group>"; };
+		110000000000000000000060 /* MetricsCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetricsCoordinator.swift; sourceTree = "<group>"; };
+		110000000000000000000062 /* RollingGraphView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RollingGraphView.swift; sourceTree = "<group>"; };
+		110000000000000000000064 /* CPUSummaryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CPUSummaryView.swift; sourceTree = "<group>"; };
+		110000000000000000000066 /* DetailViewGraphsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DetailViewGraphsTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -101,6 +109,7 @@
 				110000000000000000000010 /* iStatsApp.swift */,
 				110000000000000000000012 /* AppDelegate.swift */,
 				110000000000000000000018 /* MenuBarController.swift */,
+				110000000000000000000060 /* MetricsCoordinator.swift */,
 				110000000000000000000014 /* DockIconManager.swift */,
 				11000000000000000000001E /* PreferencesWindowController.swift */,
 			);
@@ -123,6 +132,8 @@
 				11000000000000000000001A /* DetailPopoverView.swift */,
 				11000000000000000000001C /* PreferencesView.swift */,
 				110000000000000000000036 /* MemoryPressureView.swift */,
+				110000000000000000000062 /* RollingGraphView.swift */,
+				110000000000000000000064 /* CPUSummaryView.swift */,
 			);
 			path = UI;
 			sourceTree = "<group>";
@@ -149,6 +160,7 @@
 				110000000000000000000043 /* CPUSamplerTests.swift */,
 				110000000000000000000049 /* MemorySamplerTests.swift */,
 				11000000000000000000004D /* MemoryPressureTests.swift */,
+				110000000000000000000066 /* DetailViewGraphsTests.swift */,
 			);
 			path = iStatsTests;
 			sourceTree = "<group>";
@@ -275,6 +287,9 @@
 				110000000000000000000033 /* MemorySampler.swift in Sources */,
 				110000000000000000000035 /* MemoryPressureMonitor.swift in Sources */,
 				110000000000000000000037 /* MemoryPressureView.swift in Sources */,
+				110000000000000000000061 /* MetricsCoordinator.swift in Sources */,
+				110000000000000000000063 /* RollingGraphView.swift in Sources */,
+				110000000000000000000065 /* CPUSummaryView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -285,6 +300,7 @@
 				110000000000000000000044 /* CPUSamplerTests.swift in Sources */,
 				11000000000000000000004A /* MemorySamplerTests.swift in Sources */,
 				11000000000000000000004E /* MemoryPressureTests.swift in Sources */,
+				110000000000000000000067 /* DetailViewGraphsTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

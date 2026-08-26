@@ -13,8 +13,8 @@ The only status file. Agent specs (`AGENTS.md`, `CLAUDE.md`) and phase plans do 
 | Field | Value |
 |-------|--------|
 | Phase | **2 — CPU & memory** (in progress) |
-| Next task | `2.6` Render CPU + memory in the detail view |
-| Last closed | **2.5** Memory pressure level + UI surfacing |
+| Next task | `2.7` Validate vs reference tools + Phase 2 report |
+| Last closed | **2.6** Render CPU + memory in the detail view |
 | Blocked by | — |
 
 ---
@@ -54,6 +54,7 @@ Copy a row from [`docs/specs/tasks.md`](./specs/tasks.md) when you start it. Lea
 | 2.3 | Property tests for CPU % math | **done** | [`docs/handoffs/02-2.3-summary.md`](./handoffs/02-2.3-summary.md), `xcodebuild test -scheme iStatsApp` (14 passed), `swift test` (85 passed) |
 | 2.4 | Implement MemorySampler | **done** | [`docs/handoffs/02-2.4-summary.md`](./handoffs/02-2.4-summary.md), `xcodebuild test -scheme iStatsApp` (23 passed), `swift test` (85 passed) |
 | 2.5 | Memory pressure level + UI surfacing | **done** | [`docs/handoffs/02-2.5-summary.md`](./handoffs/02-2.5-summary.md), `xcodebuild test -scheme iStatsApp` (28 passed), `swift test` (85 passed) |
+| 2.6 | Render CPU + memory in the detail view | **done** | [`docs/handoffs/02-2.6-summary.md`](./handoffs/02-2.6-summary.md), `xcodebuild test -scheme iStatsApp` (35 passed), `swift test` (86 passed) |
 
 When a task is done, set Status to `done` and put the handoff summary path (or test command) in Evidence.
 
@@ -65,11 +66,11 @@ Verified against the tree, not the design wish-list. Update a row when the match
 
 | Exists | Missing (designed, not built) |
 |--------|-------------------------------|
-| `Package.swift` → `iStatsCore` + `iStatsCoreTests`, `iStats.xcodeproj` (app target `iStats`, test target `iStatsTests`), `iStatsApp`, `AppDelegate`, `MenuBarController`, `DetailPopoverView`, `DockIconManager`, `PreferencesView`, `PreferencesWindowController`, `MemoryPressureBadgeView`, `MemoryPressureAlertBanner`, `MemorySummaryView`, `Info.plist` (`LSUIElement = true`), `NSStatusItem`, `NSPopover` | — |
-| `Availability`, `Sample<T>`, `Sampler`, `SamplerError`, `MetricCategory`, `AnySampler`, `MetricReading`, `SampleScheduler`, `MetricsStore`, `PreferencesStore`, `CPUSampler`, `ProcessorTicks`, `CPUInfoProvider`, `HostProcessorInfoProvider`, `MemorySampler`, `RawVMStatistics`, `SwapUsageData`, `MemoryInfoProvider`, `HostMemoryInfoProvider`, `MemoryPressureMonitor` | Concrete samplers: thermal, fan, gpu, network, disk, power |
+| `Package.swift` → `iStatsCore` + `iStatsCoreTests`, `iStats.xcodeproj` (app target `iStats`, test target `iStatsTests`), `iStatsApp`, `AppDelegate`, `MenuBarController`, `MetricsCoordinator`, `DetailPopoverView`, `CPUSummaryView`, `RollingGraphView`, `DockIconManager`, `PreferencesView`, `PreferencesWindowController`, `MemoryPressureBadgeView`, `MemoryPressureAlertBanner`, `MemorySummaryView`, `Info.plist` (`LSUIElement = true`), `NSStatusItem`, `NSPopover` | — |
+| `Availability`, `Sample<T>`, `Sampler`, `SamplerError`, `MetricCategory`, `AnySampler`, `MetricReading`, `SampleScheduler`, `MetricsStore`, `PreferencesStore`, `MenuBarDisplayMode`, `CPUSampler`, `ProcessorTicks`, `CPUInfoProvider`, `HostProcessorInfoProvider`, `MemorySampler`, `RawVMStatistics`, `SwapUsageData`, `MemoryInfoProvider`, `HostMemoryInfoProvider`, `MemoryPressureMonitor` | Concrete samplers: thermal, fan, gpu, network, disk, power |
 | `LoadAverage`, `CPUSample`, `MemorySample`, `MemoryPressure`, `ThermalPressure`, `SensorReading`, `ThermalSample`, `FanReading`, `FanSample`, `InterfaceThroughput`, `NetworkSample`, `VolumeCapacity`, `DiskIO`, `DiskSample`, `BatteryState`, `PowerSample`, `GPUSample` | Metric validation reports |
 | `RateMath`, `RingBuffer`, `Units` (`TemperatureUnit`, `NetworkUnit`, `ByteUnitStandard`) | — |
-| Tests: `RateMathTests`, `RingBufferTests`, `UnitsTests`, `AvailabilityTests`, `MetricCategoryTests`, `SamplerTests`, `ModelsTests`, `SampleSchedulerTests`, `MetricsStoreTests`, `PreferencesStoreTests`, `CPUSamplerTests`, `MemorySamplerTests`, `MemoryPressureTests` | — |
+| Tests: `RateMathTests`, `RingBufferTests`, `UnitsTests`, `AvailabilityTests`, `MetricCategoryTests`, `SamplerTests`, `ModelsTests`, `SampleSchedulerTests`, `MetricsStoreTests`, `PreferencesStoreTests`, `CPUSamplerTests`, `MemorySamplerTests`, `MemoryPressureTests`, `DetailViewGraphsTests` | — |
 
 
 ---
