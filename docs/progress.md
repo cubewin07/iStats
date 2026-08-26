@@ -12,9 +12,9 @@ The only status file. Agent specs (`AGENTS.md`, `CLAUDE.md`) and phase plans do 
 
 | Field | Value |
 |-------|--------|
-| Phase | **2 — CPU & memory** (not started) |
-| Next task | `2.1` Implement CPUSampler (total + per-core) |
-| Last closed | **Phase 1 — Foundation** |
+| Phase | **2 — CPU & memory** (in progress) |
+| Next task | `2.2` Load average and CPU frequency |
+| Last closed | **1.7** Write the Phase 1 report |
 | Blocked by | — |
 
 ---
@@ -25,7 +25,7 @@ The only status file. Agent specs (`AGENTS.md`, `CLAUDE.md`) and phase plans do 
 |-------|--------|--------|-------|
 | 0 | Documentation & learning baseline | **done** | Specs, ADRs 0001–0006, phase folders, `iStatsCore` models/math, and `report.md` complete. |
 | 1 | App foundation | **done** | App target, `LSUIElement`, `NSStatusItem` + detail popover, core protocols/types, `SampleScheduler`, `MetricsStore`, `PreferencesStore` + `PreferencesView`, and `report.md` complete. |
-| 2 | CPU & memory | not started | After Phase 1. Independent of 3 and 4. |
+| 2 | CPU & memory | in progress | After Phase 1. Independent of 3 and 4. |
 | 3 | Network & disk | not started | After Phase 1. |
 | 4 | Battery & power | not started | After Phase 1. |
 | 5 | Thermal, fan, GPU | not started | After 2–4. Highest risk. ADR 0003/0004 still Proposed. |
@@ -49,6 +49,7 @@ Copy a row from [`docs/specs/tasks.md`](./specs/tasks.md) when you start it. Lea
 | 1.5 | Implement the MetricsStore ring buffer | **done** | [`docs/handoffs/01-1.5-summary.md`](./handoffs/01-1.5-summary.md), `swift test` (67 passed) |
 | 1.6 | Build the preferences shell | **done** | [`docs/handoffs/01-1.6-summary.md`](./handoffs/01-1.6-summary.md), `xcodebuild -scheme iStats build` passed, `swift test` (75 passed) |
 | 1.7 | Write the Phase 1 report | **done** | [`docs/handoffs/01-1.7-summary.md`](./handoffs/01-1.7-summary.md), [`docs/phases/phase-01-foundation/report.md`](./phases/phase-01-foundation/report.md), `swift test` (75 passed) |
+| 2.1 | Implement CPUSampler (total + per-core) | **done** | [`docs/handoffs/02-2.1-summary.md`](./handoffs/02-2.1-summary.md), `xcodebuild test -scheme iStatsApp` (6 passed), `swift test` (78 passed) |
 
 When a task is done, set Status to `done` and put the handoff summary path (or test command) in Evidence.
 
@@ -60,11 +61,11 @@ Verified against the tree, not the design wish-list. Update a row when the match
 
 | Exists | Missing (designed, not built) |
 |--------|-------------------------------|
-| `Package.swift` → `iStatsCore` + `iStatsCoreTests`, `iStats.xcodeproj` (app target `iStats`), `iStatsApp`, `AppDelegate`, `MenuBarController`, `DetailPopoverView`, `DockIconManager`, `PreferencesView`, `PreferencesWindowController`, `Info.plist` (`LSUIElement = true`), `NSStatusItem`, `NSPopover` | — |
-| `Availability`, `Sample<T>`, `Sampler`, `SamplerError`, `MetricCategory`, `AnySampler`, `MetricReading`, `SampleScheduler`, `MetricsStore`, `PreferencesStore` | Any concrete sampler (CPU, memory, …) |
-| `CPUSample`, `MemorySample`, `MemoryPressure`, `ThermalPressure`, `SensorReading`, `ThermalSample`, `FanReading`, `FanSample`, `InterfaceThroughput`, `NetworkSample`, `VolumeCapacity`, `DiskIO`, `DiskSample`, `BatteryState`, `PowerSample`, `GPUSample` | App target tests, metric validation reports |
+| `Package.swift` → `iStatsCore` + `iStatsCoreTests`, `iStats.xcodeproj` (app target `iStats`, test target `iStatsTests`), `iStatsApp`, `AppDelegate`, `MenuBarController`, `DetailPopoverView`, `DockIconManager`, `PreferencesView`, `PreferencesWindowController`, `Info.plist` (`LSUIElement = true`), `NSStatusItem`, `NSPopover` | — |
+| `Availability`, `Sample<T>`, `Sampler`, `SamplerError`, `MetricCategory`, `AnySampler`, `MetricReading`, `SampleScheduler`, `MetricsStore`, `PreferencesStore`, `CPUSampler`, `ProcessorTicks`, `CPUInfoProvider`, `HostProcessorInfoProvider` | Concrete samplers: memory, thermal, fan, gpu, network, disk, power |
+| `CPUSample`, `MemorySample`, `MemoryPressure`, `ThermalPressure`, `SensorReading`, `ThermalSample`, `FanReading`, `FanSample`, `InterfaceThroughput`, `NetworkSample`, `VolumeCapacity`, `DiskIO`, `DiskSample`, `BatteryState`, `PowerSample`, `GPUSample` | Metric validation reports |
 | `RateMath`, `RingBuffer`, `Units` (`TemperatureUnit`, `NetworkUnit`, `ByteUnitStandard`) | — |
-| Tests: `RateMathTests`, `RingBufferTests`, `UnitsTests`, `AvailabilityTests`, `MetricCategoryTests`, `SamplerTests`, `ModelsTests`, `SampleSchedulerTests`, `MetricsStoreTests`, `PreferencesStoreTests` | — |
+| Tests: `RateMathTests`, `RingBufferTests`, `UnitsTests`, `AvailabilityTests`, `MetricCategoryTests`, `SamplerTests`, `ModelsTests`, `SampleSchedulerTests`, `MetricsStoreTests`, `PreferencesStoreTests`, `CPUSamplerTests` | — |
 
 
 ---

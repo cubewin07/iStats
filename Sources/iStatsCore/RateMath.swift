@@ -20,6 +20,21 @@ public enum RateMath {
         return min(100, max(0, pct))
     }
 
+    /// Compute delta between two cumulative counter readings.
+    ///
+    /// Handles the counter-reset/wrap case: if the new counter is less than the
+    /// previous one, the delta is treated as 0 for this cycle rather than producing
+    /// an underflow or negative spike.
+    ///
+    /// - Parameters:
+    ///   - previous: previous counter value.
+    ///   - current: current counter value.
+    /// - Returns: delta between current and previous, or 0 if current < previous.
+    public static func counterDelta(previous: UInt64, current: UInt64) -> UInt64 {
+        guard current >= previous else { return 0 }
+        return current - previous
+    }
+
     /// Compute a per-second byte rate from two cumulative counter samples.
     ///
     /// Handles the counter-reset case (Requirement 6.4): if the new counter is
@@ -30,8 +45,7 @@ public enum RateMath {
     /// - Returns: bytes per second, never negative. Returns 0 if `elapsedSeconds <= 0`.
     public static func bytesPerSecond(previous: UInt64, current: UInt64, elapsedSeconds: Double) -> Double {
         guard elapsedSeconds > 0 else { return 0 }
-        guard current >= previous else { return 0 } // counter reset/wrap
-        let delta = Double(current - previous)
+        let delta = Double(counterDelta(previous: previous, current: current))
         return delta / elapsedSeconds
     }
 }

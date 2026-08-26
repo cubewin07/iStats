@@ -60,4 +60,19 @@ final class RateMathTests: XCTestCase {
             }
         }
     }
+
+    // MARK: Counter Delta
+
+    func testCounterDeltaNormal() {
+        XCTAssertEqual(RateMath.counterDelta(previous: 100, current: 250), 150)
+    }
+
+    func testCounterDeltaResetOrWrapReturnsZero() {
+        // Counter wrapped or restarted (current < previous)
+        XCTAssertEqual(RateMath.counterDelta(previous: 500, current: 200), 0)
+    }
+
+    func testCounterDeltaEqualReturnsZero() {
+        XCTAssertEqual(RateMath.counterDelta(previous: 500, current: 500), 0)
+    }
 }
