@@ -187,5 +187,91 @@ final class PowerSamplerTests: XCTestCase {
         XCTAssertNil(sample.charge)
         XCTAssertNil(sample.state)
         XCTAssertNil(sample.timeRemaining)
+        XCTAssertNil(sample.cycleCount)
+        XCTAssertNil(sample.condition)
+        XCTAssertNil(sample.designCapacity)
+        XCTAssertNil(sample.currentMaxCapacity)
+    }
+
+    // MARK: - Task 4.2 Tests: Battery Health Metrics
+
+    func testPowerSamplerBatteryHealthMetrics() throws {
+        let mock = MockPowerInfoProvider()
+        mock.mockSnapshot = RawPowerSourceSnapshot(
+            hasBattery: true,
+            isPresent: true,
+            powerSourceState: "Battery Power",
+            currentCapacity: 80,
+            maxCapacity: 100,
+            isCharging: false,
+            isCharged: false
+        )
+        mock.mockSmartBattery = RawSmartBatteryData(
+            cycleCount: 79,
+            condition: "Normal",
+            designCapacity: 6249,
+            currentMaxCapacity: 5894
+        )
+
+        let sampler = PowerSampler(provider: mock)
+        let sample = try sampler.sample()
+
+        XCTAssertTrue(sample.hasBattery)
+        XCTAssertEqual(sample.cycleCount, 79)
+        XCTAssertEqual(sample.condition, "Normal")
+        XCTAssertEqual(sample.designCapacity, 6249)
+        XCTAssertEqual(sample.currentMaxCapacity, 5894)
+    }
+
+    func testPowerSamplerHealthConditionServiceBattery() throws {
+        let mock = MockPowerInfoProvider()
+        mock.mockSnapshot = RawPowerSourceSnapshot(
+            hasBattery: true,
+            isPresent: true,
+            powerSourceState: "Battery Power",
+            currentCapacity: 50,
+            maxCapacity: 100,
+            isCharging: false,
+            isCharged: false
+        )
+        mock.mockSmartBattery = RawSmartBatteryData(
+            cycleCount: 1200,
+            condition: "Service Battery",
+            designCapacity: 6000,
+            currentMaxCapacity: 3500
+        )
+
+        let sampler = PowerSampler(provider: mock)
+        let sample = try sampler.sample()
+
+        XCTAssertTrue(sample.hasBattery)
+        XCTAssertEqual(sample.cycleCount, 1200)
+        XCTAssertEqual(sample.condition, "Service Battery")
+        XCTAssertEqual(sample.designCapacity, 6000)
+        XCTAssertEqual(sample.currentMaxCapacity, 3500)
+    }
+
+    func testPowerSamplerSmartBatteryUnavailableDegradesToNil() throws {
+        let mock = MockPowerInfoProvider()
+        mock.mockSnapshot = RawPowerSourceSnapshot(
+            hasBattery: true,
+            isPresent: true,
+            powerSourceState: "Battery Power",
+            currentCapacity: 80,
+            maxCapacity: 100,
+            isCharging: false,
+            isCharged: false
+        )
+        mock.mockSmartBattery = nil // Unavailable smart battery
+
+        let sampler = PowerSampler(provider: mock)
+        let sample = try sampler.sample()
+
+        XCTAssertTrue(sample.hasBattery)
+        XCTAssertEqual(sample.charge, 80.0)
+        XCTAssertNil(sample.cycleCount)
+        XCTAssertNil(sample.condition)
+        XCTAssertNil(sample.designCapacity)
+        XCTAssertNil(sample.currentMaxCapacity)
     }
 }
