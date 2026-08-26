@@ -12,9 +12,9 @@ The only status file. Agent specs (`AGENTS.md`, `CLAUDE.md`) and phase plans do 
 
 | Field | Value |
 |-------|--------|
-| Phase | **3 — Network & disk** (in progress) |
-| Next task | `3.6` Validate vs reference tools + Phase 3 report |
-| Last closed | **3.5** Network/disk in detail view + bytes/bits option |
+| Phase | **4 — Battery & power** (not started) |
+| Next task | `4.1` PowerSampler: charge / state / time remaining |
+| Last closed | **3.6** Validate vs reference tools + Phase 3 report |
 | Blocked by | — |
 
 ---
@@ -26,7 +26,7 @@ The only status file. Agent specs (`AGENTS.md`, `CLAUDE.md`) and phase plans do 
 | 0 | Documentation & learning baseline | **done** | Specs, ADRs 0001–0006, phase folders, `iStatsCore` models/math, and `report.md` complete. |
 | 1 | App foundation | **done** | App target, `LSUIElement`, `NSStatusItem` + detail popover, core protocols/types, `SampleScheduler`, `MetricsStore`, `PreferencesStore` + `PreferencesView`, and `report.md` complete. |
 | 2 | CPU & memory | **done** | `CPUSampler`, `MemorySampler`, `MemoryPressureMonitor`, rolling history graphs, live detail cards, menu bar display modes, and `report.md` complete. |
-| 3 | Network & disk | in progress | After Phase 1. |
+| 3 | Network & disk | **done** | `NetworkSampler`, `DiskSampler`, mounted volume capacity, IOKit I/O throughput/IOPS, detail cards, units preferences, and `report.md` complete. |
 | 4 | Battery & power | not started | After Phase 1. |
 | 5 | Thermal, fan, GPU | not started | After 2–4. Highest risk. ADR 0003/0004 still Proposed. |
 | 6 | Polish & preferences | not started | After Phase 5. |
@@ -61,6 +61,7 @@ Copy a row from [`docs/specs/tasks.md`](./specs/tasks.md) when you start it. Lea
 | 3.3 | Implement DiskSampler (capacity per mounted volume) | **done** | [`docs/handoffs/03-3.3-summary.md`](./handoffs/03-3.3-summary.md), `xcodebuild test -scheme iStatsApp` (51 passed), `swift test` (91 passed) |
 | 3.4 | Implement DiskSampler I/O throughput via IOKit | **done** | [`docs/handoffs/03-3.4-summary.md`](./handoffs/03-3.4-summary.md), `xcodebuild test -scheme iStatsApp` (57 passed), `swift test` (91 passed) |
 | 3.5 | Network/disk in detail view + bytes/bits option | **done** | [`docs/handoffs/03-3.5-summary.md`](./handoffs/03-3.5-summary.md), `xcodebuild test -scheme iStatsApp` (61 passed), `swift test` (96 passed) |
+| 3.6 | Validate vs reference tools + Phase 3 report | **done** | [`docs/handoffs/03-3.6-summary.md`](./handoffs/03-3.6-summary.md), [`docs/phases/phase-03-network-disk/report.md`](./phases/phase-03-network-disk/report.md), `xcodebuild test -scheme iStatsApp` (62 passed), `swift test` (96 passed) |
 
 When a task is done, set Status to `done` and put the handoff summary path (or test command) in Evidence.
 
@@ -76,7 +77,7 @@ Verified against the tree, not the design wish-list. Update a row when the match
 | `Availability`, `Sample<T>`, `Sampler`, `SamplerError`, `MetricCategory`, `AnySampler`, `MetricReading`, `SampleScheduler`, `MetricsStore`, `PreferencesStore`, `MenuBarDisplayMode`, `CPUSampler`, `ProcessorTicks`, `CPUInfoProvider`, `HostProcessorInfoProvider`, `MemorySampler`, `RawVMStatistics`, `SwapUsageData`, `MemoryInfoProvider`, `HostMemoryInfoProvider`, `MemoryPressureMonitor`, `NetworkSampler`, `RawInterfaceCounters`, `NetworkInfoProvider`, `HostNetworkInfoProvider`, `InterfaceState`, `InterfaceSessionTotal`, `DiskSampler`, `RawDiskIOCounters`, `DiskInfoProvider`, `HostDiskInfoProvider` | Concrete samplers: thermal, fan, gpu, power |
 | `LoadAverage`, `CPUSample`, `MemorySample`, `MemoryPressure`, `ThermalPressure`, `SensorReading`, `ThermalSample`, `FanReading`, `FanSample`, `InterfaceThroughput`, `NetworkSample`, `VolumeCapacity`, `DiskIO`, `DiskSample`, `BatteryState`, `PowerSample`, `GPUSample` | Metric validation reports |
 | `RateMath`, `RingBuffer`, `Units` (`TemperatureUnit`, `NetworkUnit`, `ByteUnitStandard`) | — |
-| Tests: `RateMathTests`, `RingBufferTests`, `UnitsTests`, `AvailabilityTests`, `MetricCategoryTests`, `SamplerTests`, `ModelsTests`, `SampleSchedulerTests`, `MetricsStoreTests`, `PreferencesStoreTests`, `CPUSamplerTests`, `MemorySamplerTests`, `MemoryPressureTests`, `DetailViewGraphsTests`, `NetworkSamplerTests`, `DiskSamplerTests` | — |
+| Tests: `RateMathTests`, `RingBufferTests`, `UnitsTests`, `AvailabilityTests`, `MetricCategoryTests`, `SamplerTests`, `ModelsTests`, `SampleSchedulerTests`, `MetricsStoreTests`, `PreferencesStoreTests`, `CPUSamplerTests`, `MemorySamplerTests`, `MemoryPressureTests`, `DetailViewGraphsTests`, `NetworkSamplerTests`, `DiskSamplerTests`, `Phase3ValidationTests` | — |
 
 
 ---

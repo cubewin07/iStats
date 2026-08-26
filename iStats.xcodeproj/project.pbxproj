@@ -32,6 +32,7 @@
 		110000000000000000000083 /* DiskSamplerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000082 /* DiskSamplerTests.swift */; };
 		110000000000000000000075 /* NetworkSummaryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000074 /* NetworkSummaryView.swift */; };
 		110000000000000000000085 /* DiskSummaryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000084 /* DiskSummaryView.swift */; };
+		110000000000000000000087 /* Phase3ValidationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000086 /* Phase3ValidationTests.swift */; };
 		110000000000000000000045 /* iStatsCore in Frameworks */ = {isa = PBXBuildFile; productRef = 110000000000000000000005 /* iStatsCore */; };
 /* End PBXBuildFile section */
 
@@ -73,6 +74,7 @@
 		110000000000000000000082 /* DiskSamplerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiskSamplerTests.swift; sourceTree = "<group>"; };
 		110000000000000000000074 /* NetworkSummaryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkSummaryView.swift; sourceTree = "<group>"; };
 		110000000000000000000084 /* DiskSummaryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiskSummaryView.swift; sourceTree = "<group>"; };
+		110000000000000000000086 /* Phase3ValidationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Phase3ValidationTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -179,6 +181,7 @@
 				110000000000000000000066 /* DetailViewGraphsTests.swift */,
 				110000000000000000000072 /* NetworkSamplerTests.swift */,
 				110000000000000000000082 /* DiskSamplerTests.swift */,
+				110000000000000000000086 /* Phase3ValidationTests.swift */,
 			);
 			path = iStatsTests;
 			sourceTree = "<group>";
@@ -325,6 +328,7 @@
 				110000000000000000000067 /* DetailViewGraphsTests.swift in Sources */,
 				110000000000000000000073 /* NetworkSamplerTests.swift in Sources */,
 				110000000000000000000083 /* DiskSamplerTests.swift in Sources */,
+				110000000000000000000087 /* Phase3ValidationTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
