@@ -64,13 +64,28 @@ public struct FanSummaryView: View {
                         .background(Color.green.opacity(0.12))
                         .cornerRadius(4)
                     } else {
-                        Text("\(sample.fans.count) \(sample.fans.count == 1 ? "Fan" : "Fans")")
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundColor(.secondary)
-                            .padding(.horizontal, 6)
+                        HStack(spacing: 6) {
+                            HStack(spacing: 3) {
+                                Image(systemName: "checkmark.shield")
+                                    .font(.system(size: 9))
+                                    .foregroundColor(.cyan)
+                                Text(FanControlPolicy.statusLabel)
+                                    .font(.system(size: 10, weight: .medium))
+                                    .foregroundColor(.secondary)
+                            }
+                            .padding(.horizontal, 5)
                             .padding(.vertical, 2)
-                            .background(Color.secondary.opacity(0.12))
+                            .background(Color.cyan.opacity(0.08))
                             .cornerRadius(4)
+
+                            Text("\(sample.fans.count) \(sample.fans.count == 1 ? "Fan" : "Fans")")
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundColor(.secondary)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(Color.secondary.opacity(0.12))
+                                .cornerRadius(4)
+                        }
                     }
                 } else {
                     Text("Sampling...")
@@ -140,6 +155,19 @@ public struct FanSummaryView: View {
                             fanRow(fan)
                         }
                     }
+
+                    // Explanatory Note on Automatic System Firmware Control (Requirements 4.3, 4.4, ADR 0004)
+                    HStack(alignment: .top, spacing: 5) {
+                        Image(systemName: "info.circle")
+                            .font(.system(size: 10))
+                            .foregroundColor(.secondary)
+                            .padding(.top, 1)
+                        Text(FanControlPolicy.readOnlyExplanation)
+                            .font(.system(size: 10))
+                            .foregroundColor(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .padding(.top, 2)
                 } else {
                     // Fanless System View (Requirement 4.4, ADR 0003)
                     HStack(spacing: 10) {

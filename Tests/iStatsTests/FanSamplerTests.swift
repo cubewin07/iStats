@@ -134,8 +134,6 @@ final class FanSamplerTests: XCTestCase {
         }
     }
 
-    // MARK: - UI Rendering & View Model Tests
-
     @MainActor
     func testFanSummaryViewRendersWithData() {
         let sample = FanSample(fans: [
@@ -176,5 +174,29 @@ final class FanSamplerTests: XCTestCase {
         )
 
         XCTAssertNotNil(popover.body)
+    }
+
+    // MARK: - Fan Policy & Safety Bounds Integration (Requirements 4.3, 4.4, 13.2, ADR 0004)
+
+    func testFanPolicyDefaultAndDescriptions() {
+        XCTAssertEqual(FanControlPolicy.defaultMode, .systemAutomatic)
+        XCTAssertEqual(FanControlPolicy.statusLabel, "System Controlled")
+        XCTAssertFalse(FanControlPolicy.readOnlyExplanation.isEmpty)
+    }
+
+    func testFanSafetyClampingWithSampleBounds() {
+        let fan = FanReading(name: "Exhaust Fan", rpm: 2000, minRPM: 1200, maxRPM: 5400)
+        
+        // Clamping below min bounds
+        let clampedLow = FanSafetyBounds.clamp(targetRPM: 500, minRPM: fan.minRPM, maxRPM: fan.maxRPM)
+        XCTAssertEqual(clampedLow, 1200)
+
+        // Clamping above max bounds
+        let clampedHigh = FanSafetyBounds.clamp(targetRPM: 7000, minRPM: fan.minRPM, maxRPM: fan.maxRPM)
+        XCTAssertEqual(clampedHigh, 5400)
+
+        // Target within bounds
+        let clampedNormal = FanSafetyBounds.clamp(targetRPM: 3000, minRPM: fan.minRPM, maxRPM: fan.maxRPM)
+        XCTAssertEqual(clampedNormal, 3000)
     }
 }

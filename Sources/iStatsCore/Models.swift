@@ -206,12 +206,89 @@ public struct FanReading: Sendable, Equatable, Codable {
     }
 }
 
+/// Fan operational and control modes (ADR 0004, Requirements 4.3, 4.4).
+public enum FanControlMode: String, Sendable, Equatable, Codable, CaseIterable {
+    /// System firmware automatically controls cooling curves (safe default).
+    case systemAutomatic = "automatic"
+    /// Manual target speed set within hardware-reported min/max bounds.
+    case manual = "manual"
+    /// Fan control not supported on this platform/hardware.
+    case unsupported = "unsupported"
+}
+
+/// Errors encountered during fan target speed validation and boundary checks (Requirement 4.3, ADR 0004).
+public enum FanSafetyError: Error, Sendable, Equatable {
+    case targetBelowMinimum(target: Int, minimum: Int)
+    case targetAboveMaximum(target: Int, maximum: Int)
+    case boundsUnavailable
+    case invalidBounds(min: Int, max: Int)
+}
+
+/// Pure domain safety logic for enforcing hardware-reported fan speed bounds (Requirements 4.2, 4.3, ADR 0004).
+public struct FanSafetyBounds: Sendable, Equatable {
+    /// Clamps a target fan RPM strictly within the hardware-reported minimum and maximum bounds.
+    /// - If `targetRPM` < `minRPM`, clamps up to `minRPM` to prevent under-cooling and thermal throttling.
+    /// - If `targetRPM` > `maxRPM`, clamps down to `maxRPM` to prevent motor bearing damage.
+    /// - If bounds are nil or inverted, returns the sanitized target (clamped to non-negative).
+    public static func clamp(targetRPM: Int, minRPM: Int?, maxRPM: Int?) -> Int {
+        var clamped = Swift.max(0, targetRPM)
+        if let minVal = minRPM, minVal >= 0 {
+            clamped = Swift.max(clamped, minVal)
+        }
+        if let maxVal = maxRPM, maxVal >= 0 {
+            if let minVal = minRPM, minVal >= 0, maxVal < minVal {
+                return Swift.max(0, minVal)
+            }
+            clamped = Swift.min(clamped, maxVal)
+        }
+        return clamped
+    }
+
+    /// Validates whether a target fan RPM is strictly within the hardware bounds.
+    public static func validate(targetRPM: Int, minRPM: Int?, maxRPM: Int?) -> Result<Int, FanSafetyError> {
+        guard let min = minRPM, let max = maxRPM else {
+            return .failure(.boundsUnavailable)
+        }
+        guard min >= 0, max >= min else {
+            return .failure(.invalidBounds(min: min, max: max))
+        }
+        if targetRPM < min {
+            return .failure(.targetBelowMinimum(target: targetRPM, minimum: min))
+        }
+        if targetRPM > max {
+            return .failure(.targetAboveMaximum(target: targetRPM, maximum: max))
+        }
+        return .success(targetRPM)
+    }
+}
+
+/// Architecture policy and user explanations for fan control and privilege boundaries (Requirements 4.3, 4.4, 13.2, ADR 0004).
+public struct FanControlPolicy: Sendable, Equatable {
+    /// The default and enforced operating mode for iStats.
+    public static let defaultMode: FanControlMode = .systemAutomatic
+
+    /// User-facing explanation of why fans are presented in read-only / system-controlled mode.
+    public static let readOnlyExplanation: String =
+        "Fan speeds are automatically managed by macOS system firmware to protect thermal safety and hardware longevity."
+
+    /// Short status label for the UI badge.
+    public static let statusLabel: String = "System Controlled"
+
+    /// Explanatory details for the privilege posture.
+    public static let privilegePostureDescription: String =
+        "iStats operates with zero privilege escalation and does not install root background helper daemons."
+}
+
 /// Fan statistics for one sample.
 public struct FanSample: Sendable, Equatable, Codable {
     public let fans: [FanReading]
 
     public init(fans: [FanReading] = []) {
         self.fans = fans
+    }
+
+    public var isFanless: Bool {
+        fans.isEmpty
     }
 }
 
