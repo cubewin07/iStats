@@ -5,7 +5,7 @@ import Foundation
 // OS-specific code and are fully testable.
 
 /// CPU utilization for one sample.
-public struct CPUSample: Sendable, Equatable {
+public struct CPUSample: Sendable, Equatable, Codable {
     /// Aggregate utilization across all cores, 0...100.
     public let totalUsage: Double
     /// Per-core utilization, each 0...100.
@@ -34,7 +34,7 @@ public enum MemoryPressure: String, Sendable, Equatable, Codable {
 }
 
 /// Memory statistics for one sample. All byte values are in bytes.
-public struct MemorySample: Sendable, Equatable {
+public struct MemorySample: Sendable, Equatable, Codable {
     public let total: UInt64
     public let used: UInt64
     public let free: UInt64
@@ -57,8 +57,16 @@ public struct MemorySample: Sendable, Equatable {
     }
 }
 
+/// macOS thermal pressure level.
+public enum ThermalPressure: String, Sendable, Equatable, Codable {
+    case nominal
+    case fair
+    case serious
+    case critical
+}
+
 /// A single named temperature sensor reading, in degrees Celsius.
-public struct SensorReading: Sendable, Equatable {
+public struct SensorReading: Sendable, Equatable, Codable {
     public let name: String
     public let celsius: Double
     public init(name: String, celsius: Double) {
@@ -67,8 +75,19 @@ public struct SensorReading: Sendable, Equatable {
     }
 }
 
+/// Thermal statistics for one sample.
+public struct ThermalSample: Sendable, Equatable, Codable {
+    public let sensors: [SensorReading]
+    public let pressure: ThermalPressure?
+
+    public init(sensors: [SensorReading] = [], pressure: ThermalPressure? = nil) {
+        self.sensors = sensors
+        self.pressure = pressure
+    }
+}
+
 /// A single fan reading.
-public struct FanReading: Sendable, Equatable {
+public struct FanReading: Sendable, Equatable, Codable {
     public let name: String
     public let rpm: Int
     public let minRPM: Int?
@@ -81,8 +100,17 @@ public struct FanReading: Sendable, Equatable {
     }
 }
 
+/// Fan statistics for one sample.
+public struct FanSample: Sendable, Equatable, Codable {
+    public let fans: [FanReading]
+
+    public init(fans: [FanReading] = []) {
+        self.fans = fans
+    }
+}
+
 /// Throughput for one network interface, in bytes per second plus session totals.
-public struct InterfaceThroughput: Sendable, Equatable {
+public struct InterfaceThroughput: Sendable, Equatable, Codable {
     public let interfaceName: String
     public let bytesInPerSec: Double
     public let bytesOutPerSec: Double
@@ -97,3 +125,128 @@ public struct InterfaceThroughput: Sendable, Equatable {
         self.totalBytesOut = totalBytesOut
     }
 }
+
+/// Network statistics across all monitored interfaces for one sample.
+public struct NetworkSample: Sendable, Equatable, Codable {
+    public let interfaces: [InterfaceThroughput]
+
+    public var totalBytesInPerSec: Double {
+        interfaces.reduce(0.0) { $0 + $1.bytesInPerSec }
+    }
+
+    public var totalBytesOutPerSec: Double {
+        interfaces.reduce(0.0) { $0 + $1.bytesOutPerSec }
+    }
+
+    public var totalBytesIn: UInt64 {
+        interfaces.reduce(0) { $0 + $1.totalBytesIn }
+    }
+
+    public var totalBytesOut: UInt64 {
+        interfaces.reduce(0) { $0 + $1.totalBytesOut }
+    }
+
+    public init(interfaces: [InterfaceThroughput] = []) {
+        self.interfaces = interfaces
+    }
+}
+
+/// Capacity statistics for a single mounted volume.
+public struct VolumeCapacity: Sendable, Equatable, Codable {
+    public let name: String
+    public let mountPoint: String
+    public let total: UInt64
+    public let used: UInt64
+    public let free: UInt64
+
+    public init(name: String, mountPoint: String, total: UInt64, used: UInt64, free: UInt64) {
+        self.name = name
+        self.mountPoint = mountPoint
+        self.total = total
+        self.used = used
+        self.free = free
+    }
+}
+
+/// Disk I/O activity rates.
+public struct DiskIO: Sendable, Equatable, Codable {
+    public let bytesReadPerSec: Double
+    public let bytesWrittenPerSec: Double
+    public let readOpsPerSec: Double
+    public let writeOpsPerSec: Double
+
+    public init(bytesReadPerSec: Double, bytesWrittenPerSec: Double,
+                readOpsPerSec: Double, writeOpsPerSec: Double) {
+        self.bytesReadPerSec = bytesReadPerSec
+        self.bytesWrittenPerSec = bytesWrittenPerSec
+        self.readOpsPerSec = readOpsPerSec
+        self.writeOpsPerSec = writeOpsPerSec
+    }
+}
+
+/// Disk statistics for one sample.
+public struct DiskSample: Sendable, Equatable, Codable {
+    public let volumes: [VolumeCapacity]
+    public let io: DiskIO?
+
+    public init(volumes: [VolumeCapacity] = [], io: DiskIO? = nil) {
+        self.volumes = volumes
+        self.io = io
+    }
+}
+
+/// State of the internal battery.
+public enum BatteryState: String, Sendable, Equatable, Codable {
+    case charging
+    case discharging
+    case charged
+    case acConnected
+    case unknown
+}
+
+/// Battery and power statistics for one sample.
+public struct PowerSample: Sendable, Equatable, Codable {
+    public let hasBattery: Bool
+    public let charge: Double?
+    public let state: BatteryState?
+    public let timeRemaining: TimeInterval?
+    public let cycleCount: Int?
+    public let condition: String?
+    public let designCapacity: Int?
+    public let currentMaxCapacity: Int?
+    public let powerDrawWatts: Double?
+    public let adapterWatts: Double?
+
+    public init(hasBattery: Bool, charge: Double? = nil, state: BatteryState? = nil,
+                timeRemaining: TimeInterval? = nil, cycleCount: Int? = nil, condition: String? = nil,
+                designCapacity: Int? = nil, currentMaxCapacity: Int? = nil,
+                powerDrawWatts: Double? = nil, adapterWatts: Double? = nil) {
+        self.hasBattery = hasBattery
+        self.charge = charge
+        self.state = state
+        self.timeRemaining = timeRemaining
+        self.cycleCount = cycleCount
+        self.condition = condition
+        self.designCapacity = designCapacity
+        self.currentMaxCapacity = currentMaxCapacity
+        self.powerDrawWatts = powerDrawWatts
+        self.adapterWatts = adapterWatts
+    }
+}
+
+/// GPU statistics for one sample.
+public struct GPUSample: Sendable, Equatable, Codable {
+    public let utilization: Double?
+    public let memoryUsed: UInt64?
+    public let tempCelsius: Double?
+    public let powerWatts: Double?
+
+    public init(utilization: Double? = nil, memoryUsed: UInt64? = nil,
+                tempCelsius: Double? = nil, powerWatts: Double? = nil) {
+        self.utilization = utilization
+        self.memoryUsed = memoryUsed
+        self.tempCelsius = tempCelsius
+        self.powerWatts = powerWatts
+    }
+}
+

@@ -13,14 +13,60 @@ public enum Units {
         (f - 32.0) * 5.0 / 9.0
     }
 
+    /// Temperature display unit.
+    public enum TemperatureUnit: String, CaseIterable, Identifiable, Codable, Sendable {
+        case celsius = "celsius"
+        case fahrenheit = "fahrenheit"
+
+        public var id: String { rawValue }
+
+        public var symbol: String {
+            switch self {
+            case .celsius: return "°C"
+            case .fahrenheit: return "°F"
+            }
+        }
+
+        public var displayName: String {
+            switch self {
+            case .celsius: return "Celsius (°C)"
+            case .fahrenheit: return "Fahrenheit (°F)"
+            }
+        }
+    }
+
+    /// Network rate display unit.
+    public enum NetworkUnit: String, CaseIterable, Identifiable, Codable, Sendable {
+        case bytesPerSecond = "bytesPerSecond"
+        case bitsPerSecond = "bitsPerSecond"
+
+        public var id: String { rawValue }
+
+        public var displayName: String {
+            switch self {
+            case .bytesPerSecond: return "Bytes/sec (B/s, KB/s, MB/s)"
+            case .bitsPerSecond: return "Bits/sec (bps, Kbps, Mbps)"
+            }
+        }
+    }
+
     // MARK: Data size
 
     /// How byte values are grouped for display.
-    public enum ByteUnitStandard: Sendable {
+    public enum ByteUnitStandard: String, CaseIterable, Identifiable, Codable, Sendable {
         /// 1 KB = 1000 bytes (SI / decimal).
-        case si
+        case si = "si"
         /// 1 KiB = 1024 bytes (IEC / binary).
-        case iec
+        case iec = "iec"
+
+        public var id: String { rawValue }
+
+        public var displayName: String {
+            switch self {
+            case .si: return "SI / Decimal (1000 B = 1 KB)"
+            case .iec: return "IEC / Binary (1024 B = 1 KiB)"
+            }
+        }
     }
 
     private static let siSuffixes = ["B", "KB", "MB", "GB", "TB", "PB"]

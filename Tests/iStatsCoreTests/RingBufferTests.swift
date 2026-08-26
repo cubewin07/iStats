@@ -51,4 +51,40 @@ final class RingBufferTests: XCTestCase {
         XCTAssertEqual(buffer.elements, ["b"])
         XCTAssertEqual(buffer.latest, "b")
     }
+
+    func testClearEmptiesBufferWhilePreservingCapacity() {
+        var buffer = RingBuffer<Int>(capacity: 3)
+        buffer.append(10)
+        buffer.append(20)
+        XCTAssertEqual(buffer.count, 2)
+        buffer.clear()
+        XCTAssertEqual(buffer.count, 0)
+        XCTAssertTrue(buffer.isEmpty)
+        XCTAssertNil(buffer.latest)
+        XCTAssertEqual(buffer.elements, [])
+        XCTAssertEqual(buffer.capacity, 3)
+
+        // Can append again after clear
+        buffer.append(30)
+        XCTAssertEqual(buffer.count, 1)
+        XCTAssertEqual(buffer.latest, 30)
+        XCTAssertEqual(buffer.elements, [30])
+    }
+
+    func testEquality() {
+        var b1 = RingBuffer<Int>(capacity: 3)
+        var b2 = RingBuffer<Int>(capacity: 3)
+        var b3 = RingBuffer<Int>(capacity: 4)
+
+        b1.append(1); b1.append(2)
+        b2.append(1); b2.append(2)
+        b3.append(1); b3.append(2)
+
+        XCTAssertEqual(b1, b2)
+        XCTAssertNotEqual(b1, b3) // Different capacity
+
+        b2.append(3)
+        XCTAssertNotEqual(b1, b2) // Different elements
+    }
 }
+
