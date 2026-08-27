@@ -13,8 +13,8 @@ The only status file. Agent specs (`AGENTS.md`, `CLAUDE.md`) and phase plans do 
 | Field | Value |
 |-------|--------|
 | Phase | **5 — Thermal, fan, GPU** (in progress) |
-| Next task | `5.6` ADR 0005 sandbox/entitlements + graceful degradation |
-| Last closed | **5.5** Implement GPUSampler |
+| Next task | `5.7` Validate vs reference tools + Phase 5 report |
+| Last closed | **5.6** ADR 0005 sandbox/entitlements + graceful degradation |
 | Blocked by | — |
 
 ---
@@ -72,6 +72,7 @@ Copy a row from [`docs/specs/tasks.md`](./specs/tasks.md) when you start it. Lea
 | 5.3 | Implement FanSampler (read-only) | **done** | [`docs/handoffs/05-5.3-summary.md`](./handoffs/05-5.3-summary.md), `xcodebuild test -scheme iStatsApp` (111 passed), `swift test` (101 passed) |
 | 5.4 | ADR 0004 + opt-in fan control (if safe) | **done** | [`docs/handoffs/05-5.4-summary.md`](./handoffs/05-5.4-summary.md), `xcodebuild test -scheme iStatsApp` (113 passed), `swift test` (115 passed) |
 | 5.5 | Implement GPUSampler | **done** | [`docs/handoffs/05-5.5-summary.md`](./handoffs/05-5.5-summary.md), `xcodebuild test -scheme iStatsApp` (126 passed), `swift test` (115 passed) |
+| 5.6 | ADR 0005 sandbox/entitlements + graceful degradation | **done** | [`docs/handoffs/05-5.6-summary.md`](./handoffs/05-5.6-summary.md), `xcodebuild test -scheme iStatsApp` (135 passed), `swift test` (115 passed) |
 
 When a task is done, set Status to `done` and put the handoff summary path (or test command) in Evidence.
 
@@ -87,7 +88,7 @@ Verified against the tree, not the design wish-list. Update a row when the match
 | `Availability`, `Sample<T>`, `Sampler`, `SamplerError`, `MetricCategory`, `AnySampler`, `MetricReading`, `SampleScheduler`, `MetricsStore`, `PreferencesStore`, `MenuBarDisplayMode`, `CPUSampler`, `ProcessorTicks`, `CPUInfoProvider`, `HostProcessorInfoProvider`, `MemorySampler`, `RawVMStatistics`, `SwapUsageData`, `MemoryInfoProvider`, `HostMemoryInfoProvider`, `MemoryPressureMonitor`, `NetworkSampler`, `RawInterfaceCounters`, `NetworkInfoProvider`, `HostNetworkInfoProvider`, `InterfaceState`, `InterfaceSessionTotal`, `DiskSampler`, `RawDiskIOCounters`, `DiskInfoProvider`, `HostDiskInfoProvider`, `PowerSampler`, `RawPowerSourceSnapshot`, `RawSmartBatteryData`, `PowerInfoProvider`, `HostPowerInfoProvider`, `ThermalSampler`, `ThermalInfoProvider`, `HostThermalInfoProvider`, `FanSampler`, `FanInfoProvider`, `HostFanInfoProvider`, `SMCParamStruct`, `FanControlMode`, `FanSafetyBounds`, `FanControlPolicy`, `FanSafetyError`, `GPUSampler`, `RawGPUStatistics`, `GPUInfoProvider`, `HostGPUInfoProvider` | — |
 | `LoadAverage`, `CPUSample`, `MemorySample`, `MemoryPressure`, `ThermalPressure`, `SensorReading`, `ThermalSample`, `FanReading`, `FanSample`, `InterfaceThroughput`, `NetworkSample`, `VolumeCapacity`, `DiskIO`, `DiskSample`, `BatteryState`, `PowerSample`, `GPUSample` | Metric validation reports |
 | `RateMath`, `RingBuffer`, `Units` (`TemperatureUnit`, `NetworkUnit`, `ByteUnitStandard`) | — |
-| Tests: `RateMathTests`, `RingBufferTests`, `UnitsTests`, `AvailabilityTests`, `MetricCategoryTests`, `SamplerTests`, `ModelsTests`, `SampleSchedulerTests`, `MetricsStoreTests`, `PreferencesStoreTests`, `CPUSamplerTests`, `MemorySamplerTests`, `MemoryPressureTests`, `DetailViewGraphsTests`, `NetworkSamplerTests`, `DiskSamplerTests`, `Phase3ValidationTests`, `PowerSamplerTests`, `Phase4ValidationTests`, `ThermalSamplerTests`, `FanSamplerTests`, `FanSafetyBoundsTests`, `GPUSamplerTests` | — |
+| Tests: `RateMathTests`, `RingBufferTests`, `UnitsTests`, `AvailabilityTests`, `MetricCategoryTests`, `SamplerTests`, `ModelsTests`, `SampleSchedulerTests`, `MetricsStoreTests`, `PreferencesStoreTests`, `CPUSamplerTests`, `MemorySamplerTests`, `MemoryPressureTests`, `DetailViewGraphsTests`, `NetworkSamplerTests`, `DiskSamplerTests`, `Phase3ValidationTests`, `PowerSamplerTests`, `Phase4ValidationTests`, `ThermalSamplerTests`, `FanSamplerTests`, `FanSafetyBoundsTests`, `GPUSamplerTests`, `SandboxDegradationTests` | — |
 
 
 

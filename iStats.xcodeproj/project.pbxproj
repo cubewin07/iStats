@@ -46,6 +46,7 @@
 		1100000000000000000000C1 /* GPUSampler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000000C0 /* GPUSampler.swift */; };
 		1100000000000000000000C3 /* GPUSummaryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000000C2 /* GPUSummaryView.swift */; };
 		1100000000000000000000C5 /* GPUSamplerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000000C4 /* GPUSamplerTests.swift */; };
+		1100000000000000000000D5 /* SandboxDegradationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000000D4 /* SandboxDegradationTests.swift */; };
 		110000000000000000000045 /* iStatsCore in Frameworks */ = {isa = PBXBuildFile; productRef = 110000000000000000000005 /* iStatsCore */; };
 /* End PBXBuildFile section */
 
@@ -101,6 +102,7 @@
 		1100000000000000000000C0 /* GPUSampler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GPUSampler.swift; sourceTree = "<group>"; };
 		1100000000000000000000C2 /* GPUSummaryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GPUSummaryView.swift; sourceTree = "<group>"; };
 		1100000000000000000000C4 /* GPUSamplerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GPUSamplerTests.swift; sourceTree = "<group>"; };
+		1100000000000000000000D4 /* SandboxDegradationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SandboxDegradationTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -221,6 +223,7 @@
 				1100000000000000000000A4 /* ThermalSamplerTests.swift */,
 				1100000000000000000000B4 /* FanSamplerTests.swift */,
 				1100000000000000000000C4 /* GPUSamplerTests.swift */,
+				1100000000000000000000D4 /* SandboxDegradationTests.swift */,
 			);
 			path = iStatsTests;
 			sourceTree = "<group>";
@@ -381,6 +384,7 @@
 				1100000000000000000000A5 /* ThermalSamplerTests.swift in Sources */,
 				1100000000000000000000B5 /* FanSamplerTests.swift in Sources */,
 				1100000000000000000000C5 /* GPUSamplerTests.swift in Sources */,
+				1100000000000000000000D5 /* SandboxDegradationTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
