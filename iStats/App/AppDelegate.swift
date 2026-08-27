@@ -9,6 +9,11 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         // Enforce activation policy according to settings (default: .accessory via LSUIElement).
         DockIconManager.shared.applyCurrentPolicy()
 
+        // Sync LaunchAtLogin registration if configured
+        if PreferencesStore.shared.launchAtLogin {
+            LaunchAtLoginManager.shared.setLaunchAtLogin(enabled: true)
+        }
+
         // Start background metrics collection
         MetricsCoordinator.shared.start()
 

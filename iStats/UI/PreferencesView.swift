@@ -143,6 +143,9 @@ public struct PreferencesView: View {
                         .foregroundColor(.secondary)
 
                     Toggle("Launch at Login", isOn: $store.launchAtLogin)
+                        .onChange(of: store.launchAtLogin) { newValue in
+                            LaunchAtLoginManager.shared.setLaunchAtLogin(enabled: newValue)
+                        }
 
                     Text("Automatically start iStats in the background when logging into macOS.")
                         .font(.caption)
@@ -161,6 +164,7 @@ public struct PreferencesView: View {
                 Button("Reset to Defaults", role: .destructive) {
                     store.resetToDefaults()
                     DockIconManager.shared.setDockIconVisible(store.showDockIcon)
+                    LaunchAtLoginManager.shared.setLaunchAtLogin(enabled: store.launchAtLogin)
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
