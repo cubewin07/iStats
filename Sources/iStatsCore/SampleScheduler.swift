@@ -174,9 +174,28 @@ public actor SampleScheduler {
     /// - Parameters:
     ///   - defaultInterval: The default sampling interval in seconds (default: 2.0).
     ///   - timeBudget: The maximum execution duration allowed per sampler before timing out (default: 2.0).
-    public init(defaultInterval: TimeInterval = 2.0, timeBudget: TimeInterval = 2.0) {
+    ///   - onSample: Optional callback for reading updates.
+    ///   - onMainActorSample: Optional `@MainActor` callback for reading updates.
+    public init(
+        defaultInterval: TimeInterval = 2.0,
+        timeBudget: TimeInterval = 2.0,
+        onSample: SampleHandler? = nil,
+        onMainActorSample: MainActorSampleHandler? = nil
+    ) {
         self.defaultInterval = max(defaultInterval, 0.001)
         self.timeBudget = max(timeBudget, 0.001)
+        self.onSample = onSample
+        self.onMainActorSample = onMainActorSample
+    }
+
+    /// Sets the general onSample callback.
+    public func setOnSample(_ handler: SampleHandler?) {
+        self.onSample = handler
+    }
+
+    /// Sets the MainActor onSample callback.
+    public func setOnMainActorSample(_ handler: MainActorSampleHandler?) {
+        self.onMainActorSample = handler
     }
 
     deinit {

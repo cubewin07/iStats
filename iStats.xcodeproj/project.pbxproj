@@ -51,6 +51,7 @@
 		1100000000000000000000E1 /* MenuBarDisplayTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000000E0 /* MenuBarDisplayTests.swift */; };
 		1100000000000000000000E3 /* LaunchAtLoginManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000000E2 /* LaunchAtLoginManager.swift */; };
 		1100000000000000000000E5 /* SystemIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000000E4 /* SystemIntegrationTests.swift */; };
+		1100000000000000000000E7 /* PerformancePassTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000000E6 /* PerformancePassTests.swift */; };
 		110000000000000000000045 /* iStatsCore in Frameworks */ = {isa = PBXBuildFile; productRef = 110000000000000000000005 /* iStatsCore */; };
 /* End PBXBuildFile section */
 
@@ -111,6 +112,7 @@
 		1100000000000000000000E0 /* MenuBarDisplayTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarDisplayTests.swift; sourceTree = "<group>"; };
 		1100000000000000000000E2 /* LaunchAtLoginManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchAtLoginManager.swift; sourceTree = "<group>"; };
 		1100000000000000000000E4 /* SystemIntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemIntegrationTests.swift; sourceTree = "<group>"; };
+		1100000000000000000000E6 /* PerformancePassTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PerformancePassTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -236,6 +238,7 @@
 				1100000000000000000000D6 /* Phase5ValidationTests.swift */,
 				1100000000000000000000E0 /* MenuBarDisplayTests.swift */,
 				1100000000000000000000E4 /* SystemIntegrationTests.swift */,
+				1100000000000000000000E6 /* PerformancePassTests.swift */,
 			);
 			path = iStatsTests;
 			sourceTree = "<group>";
@@ -401,6 +404,7 @@
 				1100000000000000000000D7 /* Phase5ValidationTests.swift in Sources */,
 				1100000000000000000000E1 /* MenuBarDisplayTests.swift in Sources */,
 				1100000000000000000000E5 /* SystemIntegrationTests.swift in Sources */,
+				1100000000000000000000E7 /* PerformancePassTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
