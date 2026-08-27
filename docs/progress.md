@@ -13,8 +13,8 @@ The only status file. Agent specs (`AGENTS.md`, `CLAUDE.md`) and phase plans do 
 | Field | Value |
 |-------|--------|
 | Phase | **6 — Polish & preferences** (in progress) |
-| Next task | `6.3` Persist all preferences across launches |
-| Last closed | **6.2** Launch at login + Dock-icon toggle |
+| Next task | `6.4` Performance pass |
+| Last closed | **6.3** Persist all preferences across launches |
 | Blocked by | — |
 
 ---
@@ -76,6 +76,7 @@ Copy a row from [`docs/specs/tasks.md`](./specs/tasks.md) when you start it. Lea
 | 5.7 | Validate vs reference tools + Phase 5 report | **done** | [`docs/handoffs/05-5.7-summary.md`](./handoffs/05-5.7-summary.md), [`docs/phases/phase-05-thermal-fan-gpu/report.md`](./phases/phase-05-thermal-fan-gpu/report.md), `xcodebuild test -scheme iStatsApp` (136 passed), `swift test` (115 passed) |
 | 6.1 | Full preferences: categories, menu bar content, units | **done** | [`docs/handoffs/06-6.1-summary.md`](./handoffs/06-6.1-summary.md), `xcodebuild test -scheme iStatsApp` (145 passed), `swift test` (115 passed) |
 | 6.2 | Launch at login + Dock-icon toggle | **done** | [`docs/handoffs/06-6.2-summary.md`](./handoffs/06-6.2-summary.md), `xcodebuild test -scheme iStatsApp` (151 passed), `swift test` (115 passed) |
+| 6.3 | Persist all preferences across launches | **done** | [`docs/handoffs/06-6.3-summary.md`](./handoffs/06-6.3-summary.md), `swift test` (120 passed), `xcodebuild test -scheme iStatsApp` (151 passed) |
 
 When a task is done, set Status to `done` and put the handoff summary path (or test command) in Evidence.
 
@@ -91,7 +92,7 @@ Verified against the tree, not the design wish-list. Update a row when the match
 | `Availability`, `Sample<T>`, `Sampler`, `SamplerError`, `MetricCategory`, `AnySampler`, `MetricReading`, `SampleScheduler`, `MetricsStore`, `PreferencesStore`, `MenuBarDisplayMode`, `CPUSampler`, `ProcessorTicks`, `CPUInfoProvider`, `HostProcessorInfoProvider`, `MemorySampler`, `RawVMStatistics`, `SwapUsageData`, `MemoryInfoProvider`, `HostMemoryInfoProvider`, `MemoryPressureMonitor`, `NetworkSampler`, `RawInterfaceCounters`, `NetworkInfoProvider`, `HostNetworkInfoProvider`, `InterfaceState`, `InterfaceSessionTotal`, `DiskSampler`, `RawDiskIOCounters`, `DiskInfoProvider`, `HostDiskInfoProvider`, `PowerSampler`, `RawPowerSourceSnapshot`, `RawSmartBatteryData`, `PowerInfoProvider`, `HostPowerInfoProvider`, `ThermalSampler`, `ThermalInfoProvider`, `HostThermalInfoProvider`, `FanSampler`, `FanInfoProvider`, `HostFanInfoProvider`, `SMCParamStruct`, `FanControlMode`, `FanSafetyBounds`, `FanControlPolicy`, `FanSafetyError`, `GPUSampler`, `RawGPUStatistics`, `GPUInfoProvider`, `HostGPUInfoProvider` | — |
 | `LoadAverage`, `CPUSample`, `MemorySample`, `MemoryPressure`, `ThermalPressure`, `SensorReading`, `ThermalSample`, `FanReading`, `FanSample`, `InterfaceThroughput`, `NetworkSample`, `VolumeCapacity`, `DiskIO`, `DiskSample`, `BatteryState`, `PowerSample`, `GPUSample` | — |
 | `RateMath`, `RingBuffer`, `Units` (`TemperatureUnit`, `NetworkUnit`, `ByteUnitStandard`) | — |
-| Tests: `RateMathTests`, `RingBufferTests`, `UnitsTests`, `AvailabilityTests`, `MetricCategoryTests`, `SamplerTests`, `ModelsTests`, `SampleSchedulerTests`, `MetricsStoreTests`, `PreferencesStoreTests`, `CPUSamplerTests`, `MemorySamplerTests`, `MemoryPressureTests`, `DetailViewGraphsTests`, `NetworkSamplerTests`, `DiskSamplerTests`, `Phase3ValidationTests`, `PowerSamplerTests`, `Phase4ValidationTests`, `ThermalSamplerTests`, `FanSamplerTests`, `FanSafetyBoundsTests`, `GPUSamplerTests`, `SandboxDegradationTests`, `Phase5ValidationTests`, `MenuBarDisplayTests`, `SystemIntegrationTests` | — |
+| Tests: `RateMathTests`, `RingBufferTests`, `UnitsTests`, `AvailabilityTests`, `MetricCategoryTests`, `SamplerTests`, `ModelsTests`, `SampleSchedulerTests`, `MetricsStoreTests`, `PreferencesStoreTests`, `PreferencesPersistenceTests`, `CPUSamplerTests`, `MemorySamplerTests`, `MemoryPressureTests`, `DetailViewGraphsTests`, `NetworkSamplerTests`, `DiskSamplerTests`, `Phase3ValidationTests`, `PowerSamplerTests`, `Phase4ValidationTests`, `ThermalSamplerTests`, `FanSamplerTests`, `FanSafetyBoundsTests`, `GPUSamplerTests`, `SandboxDegradationTests`, `Phase5ValidationTests`, `MenuBarDisplayTests`, `SystemIntegrationTests` | — |
 
 
 
