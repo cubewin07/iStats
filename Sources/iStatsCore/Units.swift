@@ -35,6 +35,28 @@ public enum Units {
         }
     }
 
+    /// Format a temperature in Celsius to a formatted string based on the chosen unit (°C vs °F) (Requirement 11.3).
+    public static func formatTemperature(
+        _ celsius: Double,
+        unit: TemperatureUnit = .celsius,
+        fractionDigits: Int = 1
+    ) -> String {
+        guard celsius.isFinite && !celsius.isNaN else {
+            return "N/A"
+        }
+        let value = unit == .fahrenheit ? celsiusToFahrenheit(celsius) : celsius
+        return String(format: "%.\(fractionDigits)f %@", value, unit.symbol)
+    }
+
+    /// Format a SensorReading using the specified TemperatureUnit (Requirement 3.2, 11.3).
+    public static func formatTemperatureSensor(
+        _ sensor: SensorReading,
+        unit: TemperatureUnit = .celsius,
+        fractionDigits: Int = 1
+    ) -> String {
+        formatTemperature(sensor.celsius, unit: unit, fractionDigits: fractionDigits)
+    }
+
     /// Network rate display unit.
     public enum NetworkUnit: String, CaseIterable, Identifiable, Codable, Sendable {
         case bytesPerSecond = "bytesPerSecond"
@@ -173,4 +195,34 @@ public enum Units {
         }
         return String(format: "%.\(fractionDigits)f %@", value, hzSuffixes[index])
     }
+
+    // MARK: Fan Speed / RPM
+
+    /// Format a rotational speed in Revolutions Per Minute (RPM) (Requirements 4.1, 11.3).
+    public static func formatRPM(_ rpm: Int) -> String {
+        let formatter = NumberFormatter()
+        formatter.locale = Locale(identifier: "en_US")
+        formatter.numberStyle = .decimal
+        formatter.usesGroupingSeparator = true
+        formatter.groupingSeparator = ","
+        formatter.groupingSize = 3
+        let formatted = formatter.string(from: NSNumber(value: max(0, rpm))) ?? "\(max(0, rpm))"
+        return "\(formatted) RPM"
+    }
+
+
+    /// Format minimum and maximum fan RPM bounds into a descriptive range string (Requirement 4.2).
+    public static func formatFanBounds(min: Int?, max: Int?) -> String? {
+        if let min = min, let max = max {
+            return "\(formatRPM(min)) – \(formatRPM(max))"
+        } else if let max = max {
+            return "Max: \(formatRPM(max))"
+        } else if let min = min {
+            return "Min: \(formatRPM(min))"
+        }
+        return nil
+    }
 }
+
+
+

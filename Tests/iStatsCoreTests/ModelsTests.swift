@@ -83,9 +83,25 @@ final class ModelsTests: XCTestCase {
         XCTAssertEqual(sample.sensors[0].name, "CPU Proximity")
         XCTAssertEqual(sample.sensors[0].celsius, 42.5)
         XCTAssertEqual(sample.pressure, .fair)
+
         XCTAssertEqual(ThermalPressure.nominal.rawValue, "nominal")
+        XCTAssertEqual(ThermalPressure.fair.rawValue, "fair")
         XCTAssertEqual(ThermalPressure.serious.rawValue, "serious")
         XCTAssertEqual(ThermalPressure.critical.rawValue, "critical")
+
+        XCTAssertEqual(ThermalPressure.nominal.displayName, "Nominal")
+        XCTAssertEqual(ThermalPressure.fair.displayName, "Fair")
+        XCTAssertEqual(ThermalPressure.serious.displayName, "Serious")
+        XCTAssertEqual(ThermalPressure.critical.displayName, "Critical")
+
+        XCTAssertFalse(ThermalPressure.nominal.isElevated)
+        XCTAssertTrue(ThermalPressure.fair.isElevated)
+        XCTAssertTrue(ThermalPressure.serious.isElevated)
+        XCTAssertTrue(ThermalPressure.critical.isElevated)
+
+        XCTAssertTrue(ThermalPressure.nominal < ThermalPressure.fair)
+        XCTAssertTrue(ThermalPressure.fair < ThermalPressure.serious)
+        XCTAssertTrue(ThermalPressure.serious < ThermalPressure.critical)
     }
 
     func testFanSampleAndReadings() {

@@ -37,6 +37,17 @@
 		110000000000000000000093 /* PowerSamplerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000092 /* PowerSamplerTests.swift */; };
 		110000000000000000000095 /* PowerSummaryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000094 /* PowerSummaryView.swift */; };
 		110000000000000000000097 /* Phase4ValidationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000096 /* Phase4ValidationTests.swift */; };
+		1100000000000000000000A1 /* ThermalSampler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000000A0 /* ThermalSampler.swift */; };
+		1100000000000000000000A3 /* ThermalSummaryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000000A2 /* ThermalSummaryView.swift */; };
+		1100000000000000000000A5 /* ThermalSamplerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000000A4 /* ThermalSamplerTests.swift */; };
+		1100000000000000000000B1 /* FanSampler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000000B0 /* FanSampler.swift */; };
+		1100000000000000000000B3 /* FanSummaryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000000B2 /* FanSummaryView.swift */; };
+		1100000000000000000000B5 /* FanSamplerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000000B4 /* FanSamplerTests.swift */; };
+		1100000000000000000000C1 /* GPUSampler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000000C0 /* GPUSampler.swift */; };
+		1100000000000000000000C3 /* GPUSummaryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000000C2 /* GPUSummaryView.swift */; };
+		1100000000000000000000C5 /* GPUSamplerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000000C4 /* GPUSamplerTests.swift */; };
+		1100000000000000000000D5 /* SandboxDegradationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000000D4 /* SandboxDegradationTests.swift */; };
+		1100000000000000000000D7 /* Phase5ValidationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000000D6 /* Phase5ValidationTests.swift */; };
 		110000000000000000000045 /* iStatsCore in Frameworks */ = {isa = PBXBuildFile; productRef = 110000000000000000000005 /* iStatsCore */; };
 /* End PBXBuildFile section */
 
@@ -83,6 +94,17 @@
 		110000000000000000000092 /* PowerSamplerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PowerSamplerTests.swift; sourceTree = "<group>"; };
 		110000000000000000000094 /* PowerSummaryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PowerSummaryView.swift; sourceTree = "<group>"; };
 		110000000000000000000096 /* Phase4ValidationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Phase4ValidationTests.swift; sourceTree = "<group>"; };
+		1100000000000000000000A0 /* ThermalSampler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThermalSampler.swift; sourceTree = "<group>"; };
+		1100000000000000000000A2 /* ThermalSummaryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThermalSummaryView.swift; sourceTree = "<group>"; };
+		1100000000000000000000A4 /* ThermalSamplerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThermalSamplerTests.swift; sourceTree = "<group>"; };
+		1100000000000000000000B0 /* FanSampler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FanSampler.swift; sourceTree = "<group>"; };
+		1100000000000000000000B2 /* FanSummaryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FanSummaryView.swift; sourceTree = "<group>"; };
+		1100000000000000000000B4 /* FanSamplerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FanSamplerTests.swift; sourceTree = "<group>"; };
+		1100000000000000000000C0 /* GPUSampler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GPUSampler.swift; sourceTree = "<group>"; };
+		1100000000000000000000C2 /* GPUSummaryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GPUSummaryView.swift; sourceTree = "<group>"; };
+		1100000000000000000000C4 /* GPUSamplerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GPUSamplerTests.swift; sourceTree = "<group>"; };
+		1100000000000000000000D4 /* SandboxDegradationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SandboxDegradationTests.swift; sourceTree = "<group>"; };
+		1100000000000000000000D6 /* Phase5ValidationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Phase5ValidationTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -147,6 +169,9 @@
 				110000000000000000000070 /* NetworkSampler.swift */,
 				110000000000000000000080 /* DiskSampler.swift */,
 				110000000000000000000090 /* PowerSampler.swift */,
+				1100000000000000000000A0 /* ThermalSampler.swift */,
+				1100000000000000000000B0 /* FanSampler.swift */,
+				1100000000000000000000C0 /* GPUSampler.swift */,
 			);
 			path = Sampling;
 			sourceTree = "<group>";
@@ -162,6 +187,9 @@
 				110000000000000000000074 /* NetworkSummaryView.swift */,
 				110000000000000000000084 /* DiskSummaryView.swift */,
 				110000000000000000000094 /* PowerSummaryView.swift */,
+				1100000000000000000000A2 /* ThermalSummaryView.swift */,
+				1100000000000000000000B2 /* FanSummaryView.swift */,
+				1100000000000000000000C2 /* GPUSummaryView.swift */,
 			);
 			path = UI;
 			sourceTree = "<group>";
@@ -194,6 +222,11 @@
 				110000000000000000000086 /* Phase3ValidationTests.swift */,
 				110000000000000000000092 /* PowerSamplerTests.swift */,
 				110000000000000000000096 /* Phase4ValidationTests.swift */,
+				1100000000000000000000A4 /* ThermalSamplerTests.swift */,
+				1100000000000000000000B4 /* FanSamplerTests.swift */,
+				1100000000000000000000C4 /* GPUSamplerTests.swift */,
+				1100000000000000000000D4 /* SandboxDegradationTests.swift */,
+				1100000000000000000000D6 /* Phase5ValidationTests.swift */,
 			);
 			path = iStatsTests;
 			sourceTree = "<group>";
@@ -329,6 +362,12 @@
 				110000000000000000000085 /* DiskSummaryView.swift in Sources */,
 				110000000000000000000091 /* PowerSampler.swift in Sources */,
 				110000000000000000000095 /* PowerSummaryView.swift in Sources */,
+				1100000000000000000000A1 /* ThermalSampler.swift in Sources */,
+				1100000000000000000000A3 /* ThermalSummaryView.swift in Sources */,
+				1100000000000000000000B1 /* FanSampler.swift in Sources */,
+				1100000000000000000000B3 /* FanSummaryView.swift in Sources */,
+				1100000000000000000000C1 /* GPUSampler.swift in Sources */,
+				1100000000000000000000C3 /* GPUSummaryView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -345,6 +384,11 @@
 				110000000000000000000087 /* Phase3ValidationTests.swift in Sources */,
 				110000000000000000000093 /* PowerSamplerTests.swift in Sources */,
 				110000000000000000000097 /* Phase4ValidationTests.swift in Sources */,
+				1100000000000000000000A5 /* ThermalSamplerTests.swift in Sources */,
+				1100000000000000000000B5 /* FanSamplerTests.swift in Sources */,
+				1100000000000000000000C5 /* GPUSamplerTests.swift in Sources */,
+				1100000000000000000000D5 /* SandboxDegradationTests.swift in Sources */,
+				1100000000000000000000D7 /* Phase5ValidationTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

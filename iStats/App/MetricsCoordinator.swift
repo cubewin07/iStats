@@ -39,6 +39,15 @@ public final class MetricsCoordinator: ObservableObject {
     /// The latest available Power sample.
     @Published public private(set) var latestPower: Sample<PowerSample>?
 
+    /// The latest available Thermal sample.
+    @Published public private(set) var latestThermal: Sample<ThermalSample>?
+
+    /// The latest available Fan sample.
+    @Published public private(set) var latestFan: Sample<FanSample>?
+
+    /// The latest available GPU sample.
+    @Published public private(set) var latestGPU: Sample<GPUSample>?
+
     /// Rolling chronological history of CPU samples.
     @Published public private(set) var cpuHistory: [Sample<CPUSample>] = []
 
@@ -53,6 +62,15 @@ public final class MetricsCoordinator: ObservableObject {
 
     /// Rolling chronological history of Power samples.
     @Published public private(set) var powerHistory: [Sample<PowerSample>] = []
+
+    /// Rolling chronological history of Thermal samples.
+    @Published public private(set) var thermalHistory: [Sample<ThermalSample>] = []
+
+    /// Rolling chronological history of Fan samples.
+    @Published public private(set) var fanHistory: [Sample<FanSample>] = []
+
+    /// Rolling chronological history of GPU samples.
+    @Published public private(set) var gpuHistory: [Sample<GPUSample>] = []
 
     /// Whether the coordinator is actively sampling.
     @Published public private(set) var isRunning: Bool = false
@@ -94,6 +112,9 @@ public final class MetricsCoordinator: ObservableObject {
             await scheduler.register(NetworkSampler())
             await scheduler.register(DiskSampler())
             await scheduler.register(PowerSampler())
+            await scheduler.register(ThermalSampler())
+            await scheduler.register(FanSampler())
+            await scheduler.register(GPUSampler())
             await scheduler.setDefaultInterval(preferencesStore.refreshInterval)
 
             for category in MetricCategory.allCases {
@@ -153,6 +174,15 @@ public final class MetricsCoordinator: ObservableObject {
         case .power:
             self.latestPower = store.latestPower()
             self.powerHistory = store.powerHistory()
+        case .thermal:
+            self.latestThermal = store.latestThermal()
+            self.thermalHistory = store.thermalHistory()
+        case .fan:
+            self.latestFan = store.latestFan()
+            self.fanHistory = store.fanHistory()
+        case .gpu:
+            self.latestGPU = store.latestGPU()
+            self.gpuHistory = store.gpuHistory()
         default:
             break
         }
