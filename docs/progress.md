@@ -12,9 +12,9 @@ The only status file. Agent specs (`AGENTS.md`, `CLAUDE.md`) and phase plans do 
 
 | Field | Value |
 |-------|--------|
-| Phase | **6 — Polish & preferences** (in progress) |
-| Next task | `6.5` Finalize docs/ADRs + write Phase 6 report and README |
-| Last closed | **6.4** Performance pass |
+| Phase | **Complete** (Phases 0–6 done) |
+| Next task | — |
+| Last closed | **6.5** Finalize docs/ADRs + write Phase 6 report and README |
 | Blocked by | — |
 
 ---
@@ -29,7 +29,7 @@ The only status file. Agent specs (`AGENTS.md`, `CLAUDE.md`) and phase plans do 
 | 3 | Network & disk | **done** | `NetworkSampler`, `DiskSampler`, mounted volume capacity, IOKit I/O throughput/IOPS, detail cards, units preferences, and `report.md` complete. |
 | 4 | Battery & power | **done** | Charge, state, time-remaining, health, power draw, no-battery desktop handling, and `report.md` complete. |
 | 5 | Thermal, fan, GPU | **done** | ThermalSampler, FanSampler, GPUSampler, ADR 0003, ADR 0004, ADR 0005, and Phase 5 report complete. Live AppleSMC & IOKit accelerator telemetry validated on Apple Silicon. |
-| 6 | Polish & preferences | not started | After Phase 5. |
+| 6 | Polish & preferences | **done** | Full preferences (General, Categories, Units), 8 menu bar modes, SMAppService launch-at-login, Dock icon toggle, ADR 0006 zero-telemetry persistence, performance benchmark pass, docs/ADRs finalized, and `report.md` complete. |
 
 Status values: `not started` · `in progress` · `docs on disk, not closed` · `done` · `blocked`.
 
@@ -78,6 +78,7 @@ Copy a row from [`docs/specs/tasks.md`](./specs/tasks.md) when you start it. Lea
 | 6.2 | Launch at login + Dock-icon toggle | **done** | [`docs/handoffs/06-6.2-summary.md`](./handoffs/06-6.2-summary.md), `xcodebuild test -scheme iStatsApp` (151 passed), `swift test` (115 passed) |
 | 6.3 | Persist all preferences across launches | **done** | [`docs/handoffs/06-6.3-summary.md`](./handoffs/06-6.3-summary.md), `swift test` (120 passed), `xcodebuild test -scheme iStatsApp` (151 passed) |
 | 6.4 | Performance pass | **done** | [`docs/handoffs/06-6.4-summary.md`](./handoffs/06-6.4-summary.md), `xcodebuild test -scheme iStatsApp` (155 passed), `swift test` (120 passed) |
+| 6.5 | Finalize docs/ADRs + write Phase 6 report and README | **done** | [`docs/handoffs/06-6.5-summary.md`](./handoffs/06-6.5-summary.md), [`docs/phases/phase-06-polish-prefs/report.md`](./phases/phase-06-polish-prefs/report.md), `xcodebuild test -scheme iStatsApp` (155 passed), `swift test` (120 passed) |
 
 When a task is done, set Status to `done` and put the handoff summary path (or test command) in Evidence.
 
