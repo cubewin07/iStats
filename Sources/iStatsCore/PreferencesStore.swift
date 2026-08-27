@@ -35,6 +35,10 @@ public final class PreferencesStore: ObservableObject, @unchecked Sendable {
         case cpu = "cpu"
         case memory = "memory"
         case both = "both"
+        case network = "network"
+        case battery = "battery"
+        case thermal = "thermal"
+        case gpu = "gpu"
 
         public var id: String { rawValue }
 
@@ -44,6 +48,10 @@ public final class PreferencesStore: ObservableObject, @unchecked Sendable {
             case .cpu: return "CPU Usage"
             case .memory: return "Memory Usage"
             case .both: return "CPU & Memory"
+            case .network: return "Network Rate"
+            case .battery: return "Battery Level"
+            case .thermal: return "SoC Temperature"
+            case .gpu: return "GPU Usage"
             }
         }
     }

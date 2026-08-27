@@ -102,10 +102,16 @@ public struct MemoryPressureAlertBanner: View {
 public struct MemorySummaryView: View {
     public let sample: MemorySample?
     public let history: [Sample<MemorySample>]
+    public let byteStandard: Units.ByteUnitStandard
 
-    public init(sample: MemorySample?, history: [Sample<MemorySample>] = []) {
+    public init(
+        sample: MemorySample?,
+        history: [Sample<MemorySample>] = [],
+        byteStandard: Units.ByteUnitStandard = .iec
+    ) {
         self.sample = sample
         self.history = history
+        self.byteStandard = byteStandard
     }
 
     private var historyPercentages: [Double] {
@@ -180,7 +186,7 @@ public struct MemorySummaryView: View {
                     .frame(height: 8)
 
                     HStack {
-                        Text("\(Units.formatBytes(sample.used)) used of \(Units.formatBytes(sample.total))")
+                        Text("\(Units.formatBytes(sample.used, standard: byteStandard)) used of \(Units.formatBytes(sample.total, standard: byteStandard))")
                             .font(.system(size: 11, weight: .medium))
                             .foregroundColor(.secondary)
 
@@ -193,10 +199,10 @@ public struct MemorySummaryView: View {
 
                 // Breakdown Grid
                 LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 6) {
-                    metricItem(label: "Wired", value: Units.formatBytes(sample.wired))
-                    metricItem(label: "Compressed", value: Units.formatBytes(sample.compressed))
-                    metricItem(label: "Cached Files", value: Units.formatBytes(sample.cached))
-                    metricItem(label: "Swap Used", value: Units.formatBytes(sample.swapUsed))
+                    metricItem(label: "Wired", value: Units.formatBytes(sample.wired, standard: byteStandard))
+                    metricItem(label: "Compressed", value: Units.formatBytes(sample.compressed, standard: byteStandard))
+                    metricItem(label: "Cached Files", value: Units.formatBytes(sample.cached, standard: byteStandard))
+                    metricItem(label: "Swap Used", value: Units.formatBytes(sample.swapUsed, standard: byteStandard))
                 }
                 .padding(.top, 2)
             } else {

@@ -12,9 +12,9 @@ The only status file. Agent specs (`AGENTS.md`, `CLAUDE.md`) and phase plans do 
 
 | Field | Value |
 |-------|--------|
-| Phase | **6 — Polish & preferences** (not started) |
-| Next task | `6.1` Wire up PreferencesView and settings persistence |
-| Last closed | **5.7** Validate vs reference tools + Phase 5 report |
+| Phase | **6 — Polish & preferences** (in progress) |
+| Next task | `6.2` Launch at login + Dock-icon toggle |
+| Last closed | **6.1** Full preferences: categories, menu bar content, units |
 | Blocked by | — |
 
 ---
@@ -74,6 +74,7 @@ Copy a row from [`docs/specs/tasks.md`](./specs/tasks.md) when you start it. Lea
 | 5.5 | Implement GPUSampler | **done** | [`docs/handoffs/05-5.5-summary.md`](./handoffs/05-5.5-summary.md), `xcodebuild test -scheme iStatsApp` (126 passed), `swift test` (115 passed) |
 | 5.6 | ADR 0005 sandbox/entitlements + graceful degradation | **done** | [`docs/handoffs/05-5.6-summary.md`](./handoffs/05-5.6-summary.md), `xcodebuild test -scheme iStatsApp` (135 passed), `swift test` (115 passed) |
 | 5.7 | Validate vs reference tools + Phase 5 report | **done** | [`docs/handoffs/05-5.7-summary.md`](./handoffs/05-5.7-summary.md), [`docs/phases/phase-05-thermal-fan-gpu/report.md`](./phases/phase-05-thermal-fan-gpu/report.md), `xcodebuild test -scheme iStatsApp` (136 passed), `swift test` (115 passed) |
+| 6.1 | Full preferences: categories, menu bar content, units | **done** | [`docs/handoffs/06-6.1-summary.md`](./handoffs/06-6.1-summary.md), `xcodebuild test -scheme iStatsApp` (145 passed), `swift test` (115 passed) |
 
 When a task is done, set Status to `done` and put the handoff summary path (or test command) in Evidence.
 

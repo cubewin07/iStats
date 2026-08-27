@@ -160,7 +160,8 @@ public struct DetailPopoverView: View {
                     if preferences.isCategoryEnabled(.memory) {
                         MemorySummaryView(
                             sample: currentMemorySample,
-                            history: currentMemoryHistory
+                            history: currentMemoryHistory,
+                            byteStandard: preferences.byteUnitStandard
                         )
                     }
 
