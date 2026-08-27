@@ -2,7 +2,7 @@ import SwiftUI
 import iStatsCore
 
 /// A macOS preferences window view allowing configuration of sampling intervals,
-/// category toggles, display units, and system behavior (Requirements 11.1, 11.2, 11.3, 11.4).
+/// per-category menu bar widgets, display units, and system behavior (Requirements 11.1-11.4, ADR 0007).
 public struct PreferencesView: View {
     @ObservedObject public var store: PreferencesStore
 
@@ -20,9 +20,9 @@ public struct PreferencesView: View {
                 }
                 .tag(0)
 
-            categoriesTab
+            menuBarTab
                 .tabItem {
-                    Label("Categories", systemImage: "square.grid.2x2")
+                    Label("Menu Bar", systemImage: "menubar.rectangle")
                 }
                 .tag(1)
 
@@ -38,7 +38,7 @@ public struct PreferencesView: View {
                 }
                 .tag(3)
         }
-        .frame(width: 520, height: 420)
+        .frame(width: 560, height: 480)
         .padding(16)
     }
 
@@ -106,33 +106,6 @@ public struct PreferencesView: View {
 
             Section {
                 VStack(alignment: .leading, spacing: 10) {
-                    HStack {
-                        Text("Menu Bar Metric:")
-                            .font(.headline)
-                        Spacer()
-                        Picker("", selection: $store.menuBarDisplayMode) {
-                            ForEach(PreferencesStore.MenuBarDisplayMode.allCases) { mode in
-                                Text(mode.displayName).tag(mode)
-                            }
-                        }
-                        .pickerStyle(.menu)
-                        .frame(width: 160)
-                    }
-
-                    Text("Controls which metric appears directly in the macOS menu bar status item (Requirement 9.4).")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-                .padding(.vertical, 4)
-            } header: {
-                Text("Menu Bar Presentation")
-            }
-
-            Divider()
-                .padding(.vertical, 6)
-
-            Section {
-                VStack(alignment: .leading, spacing: 10) {
                     Toggle("Show Dock Icon", isOn: $store.showDockIcon)
                         .onChange(of: store.showDockIcon) { newValue in
                             DockIconManager.shared.setDockIconVisible(newValue)
@@ -173,41 +146,106 @@ public struct PreferencesView: View {
         .formStyle(.grouped)
     }
 
-    // MARK: - Categories Tab
+    // MARK: - Menu Bar Tab (ADR 0007)
 
-    private var categoriesTab: some View {
+    private var menuBarTab: some View {
         Form {
             Section {
                 List {
                     ForEach(MetricCategory.allCases, id: \.self) { category in
-                        HStack(spacing: 12) {
-                            Image(systemName: iconName(for: category))
-                                .frame(width: 24)
-                                .foregroundColor(.accentColor)
+                        VStack(alignment: .leading, spacing: 8) {
+                            // Category Row & Master Toggle
+                            HStack(spacing: 12) {
+                                Image(systemName: iconName(for: category))
+                                    .frame(width: 24)
+                                    .foregroundColor(.accentColor)
 
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(category.displayName)
-                                    .font(.body)
-                                Text(categoryDescription(for: category))
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(category.displayName)
+                                        .font(.body)
+                                        .fontWeight(.semibold)
+                                    Text(categoryDescription(for: category))
+                                        .font(.caption2)
+                                        .foregroundColor(.secondary)
+                                }
+
+                                Spacer()
+
+                                // Add Widget Menu
+                                Menu {
+                                    ForEach(MetricDisplayStyle.supportedStyles(for: category)) { style in
+                                        Button(action: {
+                                            let newConfig = MenuBarItemConfig(category: category, style: style)
+                                            store.addMenuBarItem(newConfig)
+                                            if !store.isCategoryEnabled(category) {
+                                                store.setCategory(category, isEnabled: true)
+                                            }
+                                        }) {
+                                            Label(style.displayName, systemImage: "plus.circle")
+                                        }
+                                    }
+                                } label: {
+                                    Image(systemName: "plus")
+                                        .font(.caption)
+                                }
+                                .menuStyle(.borderlessButton)
+                                .frame(width: 24)
+
+                                Toggle("", isOn: Binding(
+                                    get: { store.isCategoryEnabled(category) },
+                                    set: { store.setCategory(category, isEnabled: $0) }
+                                ))
+                                .labelsHidden()
                             }
 
-                            Spacer()
+                            // Active Configured Widgets for this Category
+                            let items = store.items(for: category)
+                            if !items.isEmpty && store.isCategoryEnabled(category) {
+                                VStack(spacing: 6) {
+                                    ForEach(items) { item in
+                                        HStack(spacing: 8) {
+                                            Image(systemName: styleIcon(for: item.style))
+                                                .font(.caption)
+                                                .foregroundColor(.secondary)
 
-                            Toggle("", isOn: Binding(
-                                get: { store.isCategoryEnabled(category) },
-                                set: { store.setCategory(category, isEnabled: $0) }
-                            ))
-                            .labelsHidden()
+                                            Text(item.style.displayName)
+                                                .font(.caption)
+
+                                            Spacer()
+
+                                            Toggle("", isOn: Binding(
+                                                get: { item.isEnabled },
+                                                set: { _ in store.toggleMenuBarItem(id: item.id) }
+                                            ))
+                                            .toggleStyle(.switch)
+                                            .controlSize(.mini)
+                                            .labelsHidden()
+
+                                            Button(action: {
+                                                store.removeMenuBarItem(id: item.id)
+                                            }) {
+                                                Image(systemName: "trash")
+                                                    .font(.caption2)
+                                                    .foregroundColor(.red)
+                                            }
+                                            .buttonStyle(.borderless)
+                                        }
+                                        .padding(.horizontal, 10)
+                                        .padding(.vertical, 4)
+                                        .background(Color.secondary.opacity(0.08))
+                                        .cornerRadius(6)
+                                    }
+                                }
+                                .padding(.leading, 36)
+                            }
                         }
-                        .padding(.vertical, 2)
+                        .padding(.vertical, 4)
                     }
                 }
             } header: {
-                Text("Monitored Categories")
+                Text("Customizable Menu Bar Icons & Widgets")
             } footer: {
-                Text("Disabled categories are excluded from background sampling loops to conserve resources.")
+                Text("Each category can have multiple icons (gauges, graphs, text). Clicking any icon opens that category's dedicated popover.")
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
@@ -243,7 +281,7 @@ public struct PreferencesView: View {
             } header: {
                 Text("Display Formatting")
             } footer: {
-                Text("Applies globally across the menu bar display and detail popover.")
+                Text("Applies globally across all menu bar items and popovers.")
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
@@ -263,7 +301,7 @@ public struct PreferencesView: View {
                 Text("iStats")
                     .font(.title2)
                     .fontWeight(.bold)
-                Text("Version 0.1.0 (Phase 1 Foundation)")
+                Text("Version 0.1.0")
                     .font(.subheadline)
                     .foregroundColor(.secondary)
             }
@@ -308,6 +346,17 @@ public struct PreferencesView: View {
         case .network: return "network"
         case .disk: return "internaldrive"
         case .power: return "bolt.fill"
+        }
+    }
+
+    private func styleIcon(for style: MetricDisplayStyle) -> String {
+        switch style {
+        case .symbol: return "star"
+        case .gauge: return "gauge.medium"
+        case .bar: return "chart.bar.fill"
+        case .sparkline: return "chart.xyaxis.line"
+        case .text: return "textformat.123"
+        case .throughput: return "arrow.up.arrow.down"
         }
     }
 

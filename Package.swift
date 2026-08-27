@@ -7,17 +7,27 @@ let package = Package(
         .macOS(.v13)
     ],
     products: [
-        // The pure, hardware-independent core. The menu bar app target (created in
-        // Xcode during Phase 1) will depend on this library.
-        .library(name: "iStatsCore", targets: ["iStatsCore"])
+        .library(name: "iStatsCore", targets: ["iStatsCore"]),
+        .library(name: "iStats", targets: ["iStats"])
     ],
     targets: [
         .target(
             name: "iStatsCore"
         ),
+        .target(
+            name: "iStats",
+            dependencies: ["iStatsCore"],
+            path: "iStats",
+            exclude: ["App/iStatsApp.swift", "Resources"]
+        ),
         .testTarget(
             name: "iStatsCoreTests",
             dependencies: ["iStatsCore"]
+        ),
+        .testTarget(
+            name: "iStatsTests",
+            dependencies: ["iStats", "iStatsCore"],
+            path: "Tests/iStatsTests"
         )
     ]
 )

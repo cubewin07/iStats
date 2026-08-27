@@ -5,145 +5,211 @@ import iStatsCore
 
 @MainActor
 public final class MenuBarController: NSObject {
-    public let statusItem: NSStatusItem
+    /// Active status items in the macOS menu bar, mapped by item configuration UUID (ADR 0007).
+    public private(set) var statusItems: [UUID: NSStatusItem] = [:]
+
     public let popover: NSPopover
     public let preferences: PreferencesStore
     public let coordinator: MetricsCoordinator
 
     private var cancellables = Set<AnyCancellable>()
-    private var defaultIcon: NSImage?
+    private var currentlyShownButton: NSStatusBarButton?
 
     public init(
         preferences: PreferencesStore = .shared,
         coordinator: MetricsCoordinator = .shared
     ) {
-        self.statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         self.popover = NSPopover()
         self.preferences = preferences
         self.coordinator = coordinator
         super.init()
 
-        loadDefaultIcon()
-        configureStatusItem()
         configurePopover()
+        syncStatusItems()
         setupSubscriptions()
-        updateStatusItemDisplay()
-    }
-
-    private func loadDefaultIcon() {
-        let iconConfig = NSImage.SymbolConfiguration(pointSize: 13, weight: .medium)
-        if let image = NSImage(systemSymbolName: "gauge.with.dots.needle.bottom.50percent", accessibilityDescription: "iStats")?.withSymbolConfiguration(iconConfig) {
-            image.isTemplate = true
-            self.defaultIcon = image
-        }
-    }
-
-    private func configureStatusItem() {
-        guard let button = statusItem.button else { return }
-
-        button.target = self
-        button.action = #selector(togglePopover(_:))
     }
 
     private func configurePopover() {
         popover.behavior = .transient
         popover.animates = true
-        popover.contentViewController = NSHostingController(
-            rootView: DetailPopoverView(coordinator: coordinator, preferences: preferences)
-        )
     }
 
+    // MARK: - Status Item Lifecycle & Synchronization (ADR 0007)
+
+    /// Synchronizes active NSStatusItems with the current preferences (activeMenuBarItems).
+    public func syncStatusItems() {
+        let activeConfigs = preferences.activeMenuBarItems
+        let activeIds = Set(activeConfigs.map(\.id))
+
+        // 1. Remove status items for items/categories that have been disabled or deleted
+        for (id, item) in statusItems where !activeIds.contains(id) {
+            NSStatusBar.system.removeStatusItem(item)
+            statusItems.removeValue(forKey: id)
+        }
+
+        // 2. Create and configure status items for newly active items
+        for config in activeConfigs where statusItems[config.id] == nil {
+            let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+            if let button = item.button {
+                button.target = self
+                button.action = #selector(statusItemClicked(_:))
+                button.identifier = NSUserInterfaceItemIdentifier(config.id.uuidString)
+            }
+            statusItems[config.id] = item
+        }
+
+        // 3. Re-render all active status items
+        updateAllStatusItems()
+    }
+
+    // MARK: - Subscriptions
+
     private func setupSubscriptions() {
-        // Observe preference changes affecting display
-        Publishers.Merge4(
-            preferences.$menuBarDisplayMode.map { _ in () }.eraseToAnyPublisher(),
+        // Observe configuration and display formatting changes
+        Publishers.Merge3(
+            preferences.$menuBarItems.map { _ in () }.eraseToAnyPublisher(),
+            preferences.$enabledCategories.map { _ in () }.eraseToAnyPublisher(),
+            preferences.$menuBarDisplayMode.map { _ in () }.eraseToAnyPublisher()
+        )
+        .receive(on: RunLoop.main)
+        .sink { [weak self] _ in
+            self?.syncStatusItems()
+        }
+        .store(in: &cancellables)
+
+        Publishers.Merge3(
             preferences.$temperatureUnit.map { _ in () }.eraseToAnyPublisher(),
             preferences.$networkUnit.map { _ in () }.eraseToAnyPublisher(),
             preferences.$byteUnitStandard.map { _ in () }.eraseToAnyPublisher()
         )
         .receive(on: RunLoop.main)
         .sink { [weak self] _ in
-            self?.updateStatusItemDisplay()
+            self?.updateAllStatusItems()
         }
         .store(in: &cancellables)
 
-        // Observe live telemetry samples
-        Publishers.Merge4(
-            coordinator.$latestCPU.map { _ in () }.eraseToAnyPublisher(),
-            coordinator.$latestMemory.map { _ in () }.eraseToAnyPublisher(),
-            coordinator.$latestNetwork.map { _ in () }.eraseToAnyPublisher(),
-            coordinator.$latestGPU.map { _ in () }.eraseToAnyPublisher()
-        )
-        .receive(on: RunLoop.main)
-        .sink { [weak self] _ in
-            self?.updateStatusItemDisplay()
-        }
-        .store(in: &cancellables)
+        // Observe telemetry streams and update matching category items
+        coordinator.$latestCPU
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in self?.updateItems(for: .cpu) }
+            .store(in: &cancellables)
 
-        Publishers.Merge(
-            coordinator.$latestPower.map { _ in () }.eraseToAnyPublisher(),
-            coordinator.$latestThermal.map { _ in () }.eraseToAnyPublisher()
-        )
-        .receive(on: RunLoop.main)
-        .sink { [weak self] _ in
-            self?.updateStatusItemDisplay()
-        }
-        .store(in: &cancellables)
+        coordinator.$latestMemory
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in self?.updateItems(for: .memory) }
+            .store(in: &cancellables)
+
+        coordinator.$latestGPU
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in self?.updateItems(for: .gpu) }
+            .store(in: &cancellables)
+
+        coordinator.$latestThermal
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in self?.updateItems(for: .thermal) }
+            .store(in: &cancellables)
+
+        coordinator.$latestFan
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in self?.updateItems(for: .fan) }
+            .store(in: &cancellables)
+
+        coordinator.$latestNetwork
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in self?.updateItems(for: .network) }
+            .store(in: &cancellables)
+
+        coordinator.$latestDisk
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in self?.updateItems(for: .disk) }
+            .store(in: &cancellables)
+
+        coordinator.$latestPower
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in self?.updateItems(for: .power) }
+            .store(in: &cancellables)
     }
 
-    /// Formats the menu bar title and icon according to the active `MenuBarDisplayMode` (Requirement 9.4).
-    public func updateStatusItemDisplay() {
-        guard let button = statusItem.button else { return }
+    // MARK: - Rendering & Updates
 
-        let mode = preferences.menuBarDisplayMode
-        let cpu = coordinator.latestCPU?.value
-        let memory = coordinator.latestMemory?.value
-        let network = coordinator.latestNetwork?.value
-        let power = coordinator.latestPower?.value
-        let thermal = coordinator.latestThermal?.value
-        let gpu = coordinator.latestGPU?.value
-        let tempUnit = preferences.temperatureUnit
-        let netUnit = preferences.networkUnit
-        let byteStd = preferences.byteUnitStandard
+    /// Updates all active status item representations.
+    public func updateAllStatusItems() {
+        for config in preferences.activeMenuBarItems {
+            updateStatusItem(config: config)
+        }
+    }
 
-        switch mode {
-        case .icon:
-            button.image = defaultIcon
+    /// Updates all active status items belonging to a specific metric category.
+    public func updateItems(for category: MetricCategory) {
+        let matching = preferences.activeMenuBarItems.filter { $0.category == category }
+        for config in matching {
+            updateStatusItem(config: config)
+        }
+    }
+
+    private func updateStatusItem(config: MenuBarItemConfig) {
+        guard let item = statusItems[config.id], let button = item.button else { return }
+
+        let result = MenuBarIconRenderer.render(
+            config: config,
+            coordinator: coordinator,
+            preferences: preferences
+        )
+
+        button.image = result.image
+        button.title = result.title
+        button.toolTip = result.toolTip
+
+        if result.image != nil && !result.title.isEmpty {
+            button.imagePosition = .imageLeading
+        } else if result.image != nil {
             button.imagePosition = .imageOnly
-            button.title = ""
-        case .cpu, .memory, .both, .network, .battery, .thermal, .gpu:
-            let title = Self.formatTitle(
-                mode: mode,
-                cpu: cpu,
-                memory: memory,
-                network: network,
-                power: power,
-                thermal: thermal,
-                gpu: gpu,
-                temperatureUnit: tempUnit,
-                networkUnit: netUnit,
-                byteUnitStandard: byteStd
-            )
-            button.image = nil
+        } else {
             button.imagePosition = .noImage
-            button.title = title
         }
-
-        // Set rich tooltip
-        button.toolTip = Self.formatToolTip(
-            cpu: cpu,
-            memory: memory,
-            network: network,
-            power: power,
-            thermal: thermal,
-            gpu: gpu,
-            temperatureUnit: tempUnit,
-            networkUnit: netUnit,
-            byteUnitStandard: byteStd
-        )
     }
 
-    /// Pure formatting logic for menu bar text representation across display modes.
+    // MARK: - Popover Actions & Category Routing (ADR 0007)
+
+    @objc public func statusItemClicked(_ sender: AnyObject?) {
+        guard let button = sender as? NSStatusBarButton,
+              let rawId = button.identifier?.rawValue,
+              let uuid = UUID(uuidString: rawId),
+              let config = preferences.menuBarItems.first(where: { $0.id == uuid })
+        else {
+            return
+        }
+
+        if popover.isShown && currentlyShownButton == button {
+            hidePopover()
+        } else {
+            showPopover(for: config.category, relativeTo: button)
+        }
+    }
+
+    /// Shows the dedicated popover for a specific category anchored to a menu bar button.
+    public func showPopover(for category: MetricCategory, relativeTo button: NSStatusBarButton) {
+        popover.contentViewController = NSHostingController(
+            rootView: CategoryDetailPopoverView(
+                category: category,
+                coordinator: coordinator,
+                preferences: preferences
+            )
+        )
+        currentlyShownButton = button
+        popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+        popover.contentViewController?.view.window?.makeKey()
+    }
+
+    public func hidePopover() {
+        if popover.isShown {
+            popover.performClose(nil)
+            currentlyShownButton = nil
+        }
+    }
+
+    // MARK: - Legacy Formatting Helpers (Preserved for compatibility)
+
     public static func formatTitle(
         mode: PreferencesStore.MenuBarDisplayMode,
         cpu: CPUSample? = nil,
@@ -160,11 +226,7 @@ public final class MenuBarController: NSObject {
         case .icon:
             return ""
         case .cpu:
-            if let cpu = cpu {
-                return String(format: "CPU %.0f%%", cpu.totalUsage)
-            } else {
-                return "CPU --%"
-            }
+            return cpu != nil ? String(format: "CPU %.0f%%", cpu!.totalUsage) : "CPU --%"
         case .memory:
             if let mem = memory, mem.total > 0 {
                 let ratio = (Double(mem.used) / Double(mem.total)) * 100.0
@@ -218,7 +280,6 @@ public final class MenuBarController: NSObject {
         }
     }
 
-    /// Formats tooltip text displaying current snapshot stats.
     public static func formatToolTip(
         cpu: CPUSample? = nil,
         memory: MemorySample? = nil,
@@ -258,28 +319,5 @@ public final class MenuBarController: NSObject {
             }
         }
         return parts.joined(separator: " • ")
-    }
-
-    @objc public func togglePopover(_ sender: AnyObject?) {
-        guard let button = statusItem.button else { return }
-
-        if popover.isShown {
-            popover.performClose(sender)
-        } else {
-            popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
-            popover.contentViewController?.view.window?.makeKey()
-        }
-    }
-
-    public func showPopover() {
-        guard let button = statusItem.button, !popover.isShown else { return }
-        popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
-        popover.contentViewController?.view.window?.makeKey()
-    }
-
-    public func hidePopover() {
-        if popover.isShown {
-            popover.performClose(nil)
-        }
     }
 }

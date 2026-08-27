@@ -1,5 +1,6 @@
 import XCTest
 import AppKit
+import SwiftUI
 @testable import iStatsCore
 @testable import iStats
 
@@ -198,5 +199,107 @@ final class MenuBarDisplayTests: XCTestCase {
         XCTAssertTrue(tooltip.contains("Net:"))
         XCTAssertTrue(tooltip.contains("Temp: 48.0 °C"))
         XCTAssertTrue(tooltip.contains("Bat: 95% (Charging)"))
+    }
+
+    // MARK: - ADR 0007 Modular Rendering & Controller Lifecycle Tests
+
+    func testMenuBarIconRendererDrawings() {
+        // Circular Gauge
+        let gaugeImg = MenuBarIconRenderer.drawCircularGauge(percentage: 50.0)
+        XCTAssertEqual(gaugeImg.size.width, 18)
+        XCTAssertEqual(gaugeImg.size.height, 18)
+        XCTAssertTrue(gaugeImg.isTemplate)
+
+        // Bar Graph
+        let barImg = MenuBarIconRenderer.drawBarGraph(percentage: 75.0)
+        XCTAssertEqual(barImg.size.width, 10)
+        XCTAssertEqual(barImg.size.height, 18)
+        XCTAssertTrue(barImg.isTemplate)
+
+        // Sparkline
+        let sparklineImg = MenuBarIconRenderer.drawSparkline(values: [10.0, 30.0, 60.0, 90.0], maxValue: 100.0)
+        XCTAssertEqual(sparklineImg.size.width, 28)
+        XCTAssertEqual(sparklineImg.size.height, 16)
+        XCTAssertTrue(sparklineImg.isTemplate)
+    }
+
+    func testMenuBarIconRendererConfigRendering() {
+        let suiteName = "test.istats.renderer.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        let prefs = PreferencesStore(userDefaults: defaults)
+        let coord = MetricsCoordinator(preferencesStore: prefs)
+
+        let cpuGaugeConfig = MenuBarItemConfig(category: .cpu, style: .gauge)
+        let resGauge = MenuBarIconRenderer.render(config: cpuGaugeConfig, coordinator: coord, preferences: prefs)
+        XCTAssertNotNil(resGauge.image)
+        XCTAssertTrue(resGauge.toolTip.contains("CPU"))
+
+        let netThroughputConfig = MenuBarItemConfig(category: .network, style: .throughput)
+        let resThroughput = MenuBarIconRenderer.render(config: netThroughputConfig, coordinator: coord, preferences: prefs)
+        XCTAssertFalse(resThroughput.title.isEmpty)
+        XCTAssertTrue(resThroughput.toolTip.contains("Network"))
+
+        defaults.removePersistentDomain(forName: suiteName)
+    }
+
+    func testMenuBarControllerMultiItemDynamicLifecycle() {
+        let suiteName = "test.istats.controller.lifecycle.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        let prefs = PreferencesStore(userDefaults: defaults)
+        let coord = MetricsCoordinator(preferencesStore: prefs)
+
+        // Set explicit items: 1 CPU gauge, 1 RAM bar
+        let item1 = MenuBarItemConfig(category: .cpu, style: .gauge)
+        let item2 = MenuBarItemConfig(category: .memory, style: .bar)
+        prefs.menuBarItems = [item1, item2]
+
+        let controller = MenuBarController(preferences: prefs, coordinator: coord)
+
+        // Verify both items created
+        XCTAssertEqual(controller.statusItems.count, 2)
+        XCTAssertNotNil(controller.statusItems[item1.id])
+        XCTAssertNotNil(controller.statusItems[item2.id])
+
+        // Add a 3rd item for CPU (text)
+        let item3 = MenuBarItemConfig(category: .cpu, style: .text)
+        prefs.addMenuBarItem(item3)
+        controller.syncStatusItems()
+
+        XCTAssertEqual(controller.statusItems.count, 3)
+        XCTAssertNotNil(controller.statusItems[item3.id])
+
+        // Disable CPU category -> All CPU items (item1, item3) are removed from active status items
+        prefs.setCategory(.cpu, isEnabled: false)
+        controller.syncStatusItems()
+
+        XCTAssertEqual(controller.statusItems.count, 1)
+        XCTAssertNil(controller.statusItems[item1.id])
+        XCTAssertNotNil(controller.statusItems[item2.id])
+        XCTAssertNil(controller.statusItems[item3.id])
+
+        // Re-enable CPU category -> CPU items reappear
+        prefs.setCategory(.cpu, isEnabled: true)
+        controller.syncStatusItems()
+
+        XCTAssertEqual(controller.statusItems.count, 3)
+        XCTAssertNotNil(controller.statusItems[item1.id])
+
+        // Clean up
+        for (_, item) in controller.statusItems {
+            NSStatusBar.system.removeStatusItem(item)
+        }
+        defaults.removePersistentDomain(forName: suiteName)
+    }
+
+    func testCategoryDetailPopoverViewInstantiation() {
+        for category in MetricCategory.allCases {
+            let view = CategoryDetailPopoverView(
+                category: category,
+                coordinator: .shared,
+                preferences: .shared
+            )
+            let hosting = NSHostingView(rootView: view)
+            XCTAssertNotNil(hosting)
+        }
     }
 }

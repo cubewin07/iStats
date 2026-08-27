@@ -21,3 +21,5 @@ Each ADR uses this structure:
 | [0004](0004-privilege-and-fan-control.md) | Privilege model and fan control | Accepted |
 | [0005](0005-sandbox-and-entitlements.md) | App Sandbox and entitlements | Accepted |
 | [0006](0006-telemetry-privacy-no-persistence.md) | Telemetry privacy / no persistence | Accepted |
+| [0007](0007-per-category-menu-bar-items-and-popovers.md) | Per-category menu bar items and dedicated popovers | Proposed |
+

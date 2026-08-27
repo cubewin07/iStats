@@ -27,6 +27,7 @@ public final class PreferencesStore: ObservableObject, @unchecked Sendable {
         public static let showDockIcon = "iStats.showDockIcon"
         public static let launchAtLogin = "iStats.launchAtLogin"
         public static let menuBarDisplayMode = "iStats.menuBarDisplayMode"
+        public static let menuBarItems = "iStats.menuBarItems"
     }
 
     /// The metric representation shown directly in the macOS menu bar status item (Requirement 9.4).
@@ -123,10 +124,19 @@ public final class PreferencesStore: ObservableObject, @unchecked Sendable {
         }
     }
 
-    /// The metric display mode active in the macOS menu bar status item (Requirement 9.4).
+    /// The metric display mode active in the macOS menu bar status item (Legacy fallback, Requirement 9.4).
     @Published public var menuBarDisplayMode: MenuBarDisplayMode {
         didSet {
             userDefaults.set(menuBarDisplayMode.rawValue, forKey: Keys.menuBarDisplayMode)
+        }
+    }
+
+    /// User-configured modular menu bar items/widgets (ADR 0007).
+    @Published public var menuBarItems: [MenuBarItemConfig] {
+        didSet {
+            if let data = try? JSONEncoder().encode(menuBarItems) {
+                userDefaults.set(data, forKey: Keys.menuBarItems)
+            }
         }
     }
 
@@ -186,6 +196,14 @@ public final class PreferencesStore: ObservableObject, @unchecked Sendable {
         } else {
             self.menuBarDisplayMode = .cpu
         }
+
+        // Load modular menuBarItems (ADR 0007)
+        if let data = userDefaults.data(forKey: Keys.menuBarItems),
+           let items = try? JSONDecoder().decode([MenuBarItemConfig].self, from: data) {
+            self.menuBarItems = items
+        } else {
+            self.menuBarItems = MenuBarItemConfig.defaultConfigs()
+        }
     }
 
     // MARK: - Helpers
@@ -218,6 +236,40 @@ public final class PreferencesStore: ObservableObject, @unchecked Sendable {
         }
     }
 
+    // MARK: - Menu Bar Item Management (ADR 0007)
+
+    /// Returns all active menu bar items whose parent category is currently enabled.
+    public var activeMenuBarItems: [MenuBarItemConfig] {
+        menuBarItems.filter { $0.isEnabled && isCategoryEnabled($0.category) }
+    }
+
+    /// Returns all configured items for a specific category.
+    public func items(for category: MetricCategory) -> [MenuBarItemConfig] {
+        menuBarItems.filter { $0.category == category }
+    }
+
+    /// Adds a new menu bar widget item configuration.
+    public func addMenuBarItem(_ item: MenuBarItemConfig) {
+        menuBarItems.append(item)
+    }
+
+    /// Removes a menu bar item by its unique ID.
+    public func removeMenuBarItem(id: UUID) {
+        menuBarItems.removeAll { $0.id == id }
+    }
+
+    /// Toggles the enabled state of a specific menu bar item.
+    public func toggleMenuBarItem(id: UUID) {
+        if let index = menuBarItems.firstIndex(where: { $0.id == id }) {
+            menuBarItems[index].isEnabled.toggle()
+        }
+    }
+
+    /// Removes all menu bar items associated with a given category.
+    public func removeAllItems(for category: MetricCategory) {
+        menuBarItems.removeAll { $0.category == category }
+    }
+
     /// Resets all preferences back to factory defaults.
     public func resetToDefaults() {
         self.refreshInterval = Self.defaultRefreshInterval
@@ -228,5 +280,7 @@ public final class PreferencesStore: ObservableObject, @unchecked Sendable {
         self.showDockIcon = false
         self.launchAtLogin = false
         self.menuBarDisplayMode = .cpu
+        self.menuBarItems = MenuBarItemConfig.defaultConfigs()
     }
 }
+
