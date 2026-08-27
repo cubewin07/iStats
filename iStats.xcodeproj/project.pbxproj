@@ -43,6 +43,9 @@
 		1100000000000000000000B1 /* FanSampler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000000B0 /* FanSampler.swift */; };
 		1100000000000000000000B3 /* FanSummaryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000000B2 /* FanSummaryView.swift */; };
 		1100000000000000000000B5 /* FanSamplerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000000B4 /* FanSamplerTests.swift */; };
+		1100000000000000000000C1 /* GPUSampler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000000C0 /* GPUSampler.swift */; };
+		1100000000000000000000C3 /* GPUSummaryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000000C2 /* GPUSummaryView.swift */; };
+		1100000000000000000000C5 /* GPUSamplerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000000C4 /* GPUSamplerTests.swift */; };
 		110000000000000000000045 /* iStatsCore in Frameworks */ = {isa = PBXBuildFile; productRef = 110000000000000000000005 /* iStatsCore */; };
 /* End PBXBuildFile section */
 
@@ -95,6 +98,9 @@
 		1100000000000000000000B0 /* FanSampler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FanSampler.swift; sourceTree = "<group>"; };
 		1100000000000000000000B2 /* FanSummaryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FanSummaryView.swift; sourceTree = "<group>"; };
 		1100000000000000000000B4 /* FanSamplerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FanSamplerTests.swift; sourceTree = "<group>"; };
+		1100000000000000000000C0 /* GPUSampler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GPUSampler.swift; sourceTree = "<group>"; };
+		1100000000000000000000C2 /* GPUSummaryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GPUSummaryView.swift; sourceTree = "<group>"; };
+		1100000000000000000000C4 /* GPUSamplerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GPUSamplerTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -161,6 +167,7 @@
 				110000000000000000000090 /* PowerSampler.swift */,
 				1100000000000000000000A0 /* ThermalSampler.swift */,
 				1100000000000000000000B0 /* FanSampler.swift */,
+				1100000000000000000000C0 /* GPUSampler.swift */,
 			);
 			path = Sampling;
 			sourceTree = "<group>";
@@ -178,6 +185,7 @@
 				110000000000000000000094 /* PowerSummaryView.swift */,
 				1100000000000000000000A2 /* ThermalSummaryView.swift */,
 				1100000000000000000000B2 /* FanSummaryView.swift */,
+				1100000000000000000000C2 /* GPUSummaryView.swift */,
 			);
 			path = UI;
 			sourceTree = "<group>";
@@ -212,6 +220,7 @@
 				110000000000000000000096 /* Phase4ValidationTests.swift */,
 				1100000000000000000000A4 /* ThermalSamplerTests.swift */,
 				1100000000000000000000B4 /* FanSamplerTests.swift */,
+				1100000000000000000000C4 /* GPUSamplerTests.swift */,
 			);
 			path = iStatsTests;
 			sourceTree = "<group>";
@@ -351,6 +360,8 @@
 				1100000000000000000000A3 /* ThermalSummaryView.swift in Sources */,
 				1100000000000000000000B1 /* FanSampler.swift in Sources */,
 				1100000000000000000000B3 /* FanSummaryView.swift in Sources */,
+				1100000000000000000000C1 /* GPUSampler.swift in Sources */,
+				1100000000000000000000C3 /* GPUSummaryView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -369,6 +380,7 @@
 				110000000000000000000097 /* Phase4ValidationTests.swift in Sources */,
 				1100000000000000000000A5 /* ThermalSamplerTests.swift in Sources */,
 				1100000000000000000000B5 /* FanSamplerTests.swift in Sources */,
+				1100000000000000000000C5 /* GPUSamplerTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
