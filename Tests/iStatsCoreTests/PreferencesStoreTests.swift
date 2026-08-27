@@ -162,13 +162,33 @@ final class PreferencesStoreTests: XCTestCase {
         let store3 = PreferencesStore(userDefaults: testDefaults)
         XCTAssertEqual(store3.menuBarDisplayMode, .memory)
 
-        store3.menuBarDisplayMode = .icon
+        store3.menuBarDisplayMode = .network
         let store4 = PreferencesStore(userDefaults: testDefaults)
-        XCTAssertEqual(store4.menuBarDisplayMode, .icon)
+        XCTAssertEqual(store4.menuBarDisplayMode, .network)
+
+        store4.menuBarDisplayMode = .battery
+        let store5 = PreferencesStore(userDefaults: testDefaults)
+        XCTAssertEqual(store5.menuBarDisplayMode, .battery)
+
+        store5.menuBarDisplayMode = .thermal
+        let store6 = PreferencesStore(userDefaults: testDefaults)
+        XCTAssertEqual(store6.menuBarDisplayMode, .thermal)
+
+        store6.menuBarDisplayMode = .gpu
+        let store7 = PreferencesStore(userDefaults: testDefaults)
+        XCTAssertEqual(store7.menuBarDisplayMode, .gpu)
+
+        store7.menuBarDisplayMode = .icon
+        let store8 = PreferencesStore(userDefaults: testDefaults)
+        XCTAssertEqual(store8.menuBarDisplayMode, .icon)
 
         XCTAssertEqual(PreferencesStore.MenuBarDisplayMode.icon.displayName, "Icon Only")
         XCTAssertEqual(PreferencesStore.MenuBarDisplayMode.cpu.displayName, "CPU Usage")
         XCTAssertEqual(PreferencesStore.MenuBarDisplayMode.memory.displayName, "Memory Usage")
         XCTAssertEqual(PreferencesStore.MenuBarDisplayMode.both.displayName, "CPU & Memory")
+        XCTAssertEqual(PreferencesStore.MenuBarDisplayMode.network.displayName, "Network Rate")
+        XCTAssertEqual(PreferencesStore.MenuBarDisplayMode.battery.displayName, "Battery Level")
+        XCTAssertEqual(PreferencesStore.MenuBarDisplayMode.thermal.displayName, "SoC Temperature")
+        XCTAssertEqual(PreferencesStore.MenuBarDisplayMode.gpu.displayName, "GPU Usage")
     }
 }

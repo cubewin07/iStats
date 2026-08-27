@@ -17,7 +17,7 @@ Each ADR uses this structure:
 |-----|-------|--------|
 | [0001](0001-language-and-ui-stack.md) | Language and UI stack | Accepted |
 | [0002](0002-threading-and-scheduling-model.md) | Threading and scheduling model | Accepted |
-| [0003](0003-thermal-fan-data-source.md) | Thermal/fan/power data source | Proposed (spike-driven, Phase 5) |
-| [0004](0004-privilege-and-fan-control.md) | Privilege model and fan control | Proposed |
+| [0003](0003-thermal-fan-data-source.md) | Thermal, fan, and GPU data sources | Accepted |
+| [0004](0004-privilege-and-fan-control.md) | Privilege model and fan control | Accepted |
 | [0005](0005-sandbox-and-entitlements.md) | App Sandbox and entitlements | Accepted |
 | [0006](0006-telemetry-privacy-no-persistence.md) | Telemetry privacy / no persistence | Accepted |
