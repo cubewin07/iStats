@@ -8,17 +8,21 @@ public enum MetricDisplayStyle: String, CaseIterable, Identifiable, Codable, Sen
     case sparkline
     case text
     case throughput
+    case tachometer
+    case blades
 
     public var id: String { rawValue }
 
     public var displayName: String {
         switch self {
         case .gauge: return "Donut / Pie Chart"
-        case .bar: return "Load Bar / Core Cluster"
+        case .bar: return "Load Bar / Multi-Fan Bar"
         case .sparkline: return "Real-Time History Graph"
         case .throughput: return "Stacked 2-Line Text"
         case .text: return "Single-Line Text"
         case .symbol: return "Activity Instrument"
+        case .tachometer: return "Speed Tachometer"
+        case .blades: return "Fan Turbine / Blades"
         }
     }
 
@@ -27,14 +31,16 @@ public enum MetricDisplayStyle: String, CaseIterable, Identifiable, Codable, Sen
         switch category {
         case .cpu, .memory, .gpu:
             return [.gauge, .bar, .sparkline, .text, .symbol]
-        case .thermal, .fan:
+        case .thermal:
             return [.gauge, .bar, .sparkline, .text, .symbol]
+        case .fan:
+            return [.gauge, .bar, .sparkline, .text, .throughput, .tachometer, .blades]
         case .network:
             return [.throughput, .gauge, .bar, .sparkline, .text, .symbol]
         case .disk:
             return [.throughput, .gauge, .bar, .sparkline, .text, .symbol]
         case .power:
-            return [.gauge, .bar, .sparkline, .text, .symbol]
+            return [.symbol, .gauge, .bar, .sparkline, .text]
         }
     }
 }

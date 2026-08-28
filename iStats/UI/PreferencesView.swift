@@ -358,6 +358,8 @@ public struct PreferencesView: View {
         case .sparkline: return "chart.xyaxis.line"
         case .text: return "textformat.123"
         case .throughput: return "arrow.up.arrow.down"
+        case .tachometer: return "speedometer"
+        case .blades: return "fanblades"
         }
     }
 

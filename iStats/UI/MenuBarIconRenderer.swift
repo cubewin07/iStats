@@ -91,7 +91,7 @@ public struct MenuBarIconRenderer {
         let valStr = cpu != nil ? String(format: "%.0f%%", usage) : "--%"
 
         switch style {
-        case .gauge:
+        case .gauge, .tachometer:
             // Segmented Donut Pie (User vs Kernel load) with vibrant signature colors
             let img = drawCPUDonutPie(user: cpu?.user ?? usage, system: cpu?.system ?? 0.0)
             return RenderResult(image: img, toolTip: tip)
@@ -107,7 +107,7 @@ public struct MenuBarIconRenderer {
             // Invariant Jitter-Free Stacked Text (CPU over Usage%)
             let img = drawCategoryStackedText(title: "CPU", value: valStr, fixedWidth: 32.0)
             return RenderResult(image: img, toolTip: tip)
-        case .symbol:
+        case .symbol, .blades:
             // Activity Instrument (Tri-Segment / 3-Blade Pie)
             let img = drawCPUSymbol(usage: usage)
             return RenderResult(image: img, toolTip: tip)
@@ -135,7 +135,7 @@ public struct MenuBarIconRenderer {
         let valStr = memory != nil ? String(format: "%.0f%%", ratio) : "--%"
 
         switch style {
-        case .gauge:
+        case .gauge, .tachometer:
             // Memory Breakdown Donut Ring (Wired / Active / Compressed / Free)
             let img = drawMemoryDonutPie(sample: memory, ratio: ratio)
             return RenderResult(image: img, toolTip: tip)
@@ -151,7 +151,7 @@ public struct MenuBarIconRenderer {
             // Two-Line Jitter-Free Stacked Text (MEM / Used %)
             let img = drawCategoryStackedText(title: "MEM", value: valStr, fixedWidth: 32.0)
             return RenderResult(image: img, toolTip: tip)
-        case .symbol:
+        case .symbol, .blades:
             // Activity Instrument (Tri-Segment Pie)
             let img = drawMemorySymbol(ratio: ratio, pressure: memory?.pressure)
             return RenderResult(image: img, toolTip: tip)
@@ -166,7 +166,7 @@ public struct MenuBarIconRenderer {
         let valStr = gpu?.utilization != nil ? String(format: "%.0f%%", util) : "--%"
 
         switch style {
-        case .gauge:
+        case .gauge, .tachometer:
             let img = drawGPUGauge(percentage: util)
             return RenderResult(image: img, toolTip: tip)
         case .bar:
@@ -178,7 +178,7 @@ public struct MenuBarIconRenderer {
         case .throughput, .text:
             let img = drawCategoryStackedText(title: "GPU", value: valStr, fixedWidth: 32.0)
             return RenderResult(image: img, toolTip: tip)
-        case .symbol:
+        case .symbol, .blades:
             let img = drawGPUSymbol(utilization: gpu?.utilization)
             return RenderResult(image: img, toolTip: tip)
         }
@@ -199,7 +199,7 @@ public struct MenuBarIconRenderer {
         let valStr = sensor != nil ? (unit == .celsius ? String(format: "%.0f°", tempC) : String(format: "%.0f°", Units.celsiusToFahrenheit(tempC))) : (unit == .celsius ? "--°" : "--°")
 
         switch style {
-        case .gauge:
+        case .gauge, .tachometer:
             let img = drawThermalGauge(percentage: pct, celsius: sensor?.celsius)
             return RenderResult(image: img, toolTip: tip)
         case .bar:
@@ -211,7 +211,7 @@ public struct MenuBarIconRenderer {
         case .throughput, .text:
             let img = drawCategoryStackedText(title: "CPU", value: valStr, fixedWidth: 32.0)
             return RenderResult(image: img, toolTip: tip)
-        case .symbol:
+        case .symbol, .blades:
             let img = drawThermalSymbol(celsius: sensor?.celsius)
             return RenderResult(image: img, toolTip: tip)
         }
@@ -219,37 +219,52 @@ public struct MenuBarIconRenderer {
 
     // MARK: - 5. Fan Rendering
 
+    public static func fanPercentage(for fan: FanReading) -> Double {
+        if let maxRPM = fan.maxRPM, let minRPM = fan.minRPM, maxRPM > minRPM {
+            return Swift.min(Swift.max(Double(fan.rpm - minRPM) / Double(maxRPM - minRPM) * 100.0, 0.0), 100.0)
+        } else if let maxRPM = fan.maxRPM, maxRPM > 0 {
+            return Swift.min(Swift.max(Double(fan.rpm) / Double(maxRPM) * 100.0, 0.0), 100.0)
+        } else {
+            return Swift.min(Swift.max(Double(fan.rpm) / 6000.0 * 100.0, 0.0), 100.0)
+        }
+    }
+
     private static func renderFan(style: MetricDisplayStyle, fan: FanSample?, history: [Double]) -> RenderResult {
         let primaryFan = fan?.fans.first
         let rpm = primaryFan?.rpm ?? 0
-        let tip = primaryFan != nil ? "Fans: \(rpm) RPM (\(primaryFan!.name))" : "Fans: -- RPM"
-
-        let pct: Double
-        if let f = primaryFan, let max = f.maxRPM, let min = f.minRPM, max > min {
-            pct = Double(f.rpm - min) / Double(max - min) * 100.0
-        } else if let f = primaryFan, let max = f.maxRPM, max > 0 {
-            pct = Double(f.rpm) / Double(max) * 100.0
+        let tip: String
+        if let f = primaryFan {
+            tip = "Fans: \(rpm) RPM (\(f.name))"
+        } else if fan?.isFanless == true {
+            tip = "Fans: Fanless System"
         } else {
-            pct = min(Double(rpm) / 6000.0 * 100.0, 100.0)
+            tip = "Fans: -- RPM"
         }
 
-        let fanVal = primaryFan != nil ? (rpm >= 1000 ? String(format: "%.1fk", Double(rpm)/1000.0) : "\(rpm)") : "--"
+        let pct: Double = primaryFan != nil ? fanPercentage(for: primaryFan!) : 0.0
+        let valStr = primaryFan != nil ? String(format: "%.0f%%", pct) : (fan?.isFanless == true ? "0%" : "--%")
 
         switch style {
         case .gauge:
             let img = drawFanGauge(percentage: pct)
             return RenderResult(image: img, toolTip: tip)
         case .bar:
-            let img = drawFanBar(percentage: pct)
+            let img = drawFanBar(fan: fan, primaryPct: pct)
             return RenderResult(image: img, toolTip: tip)
         case .sparkline:
             let img = drawFanSparkline(history: history)
             return RenderResult(image: img, toolTip: tip)
-        case .throughput, .text:
-            let img = drawCategoryStackedText(title: "FAN", value: fanVal, fixedWidth: 32.0)
+        case .text:
+            let img = drawCategoryStackedText(title: "FAN", value: valStr, fixedWidth: 32.0)
             return RenderResult(image: img, toolTip: tip)
-        case .symbol:
-            let img = drawFanSymbol(rpm: primaryFan?.rpm, percentage: pct)
+        case .throughput:
+            let img = drawFanStackedThroughput(fan: fan, primaryPct: pct)
+            return RenderResult(image: img, toolTip: tip)
+        case .tachometer:
+            let img = drawFanTachometer(percentage: pct, rpm: primaryFan?.rpm)
+            return RenderResult(image: img, toolTip: tip)
+        case .blades, .symbol:
+            let img = drawFanBlades(percentage: pct, rpm: primaryFan?.rpm)
             return RenderResult(image: img, toolTip: tip)
         }
     }
@@ -282,7 +297,7 @@ public struct MenuBarIconRenderer {
             // Signature iStat Menus Split Duplex Graph (Download top half, Upload bottom half)
             let img = drawNetworkSplitDuplexGraph(inHistory: inHistory, outHistory: outHistory)
             return RenderResult(image: img, toolTip: tip)
-        case .symbol:
+        case .symbol, .blades:
             // Dynamic Dual Activity Arrows
             let img = drawNetworkActivityArrows(inBytes: inBytes, outBytes: outBytes)
             return RenderResult(image: img, toolTip: tip)
@@ -290,7 +305,7 @@ public struct MenuBarIconRenderer {
             // Dual In/Out Saturation Bars
             let img = drawNetworkBar(inPct: inPct, outPct: outPct)
             return RenderResult(image: img, toolTip: tip)
-        case .gauge:
+        case .gauge, .tachometer:
             let img = drawNetworkGauge(percentage: pct)
             return RenderResult(image: img, toolTip: tip)
         }
@@ -322,11 +337,11 @@ public struct MenuBarIconRenderer {
             // Two-Line Stacked Read / Write Speeds
             let img = drawDiskStackedThroughput(readBytes: readBytes, writeBytes: writeBytes, standard: standard)
             return RenderResult(image: img, toolTip: tip)
-        case .symbol:
+        case .symbol, .blades:
             // Dynamic Read / Write Activity LEDs
             let img = drawDiskActivityLeds(readBytes: readBytes, writeBytes: writeBytes)
             return RenderResult(image: img, toolTip: tip)
-        case .gauge:
+        case .gauge, .tachometer:
             // Volume Capacity Donut Pie
             let img = drawCircularGauge(percentage: volRatio, iconName: "internaldrive")
             return RenderResult(image: img, toolTip: tip)
@@ -360,7 +375,7 @@ public struct MenuBarIconRenderer {
         let hasBattery = power?.hasBattery ?? true
 
         switch style {
-        case .symbol:
+        case .symbol, .blades:
             // Authentic Battery Shell Instrument with Live Fill & Charging Bolt
             let img = drawBatteryInstrument(charge: power?.charge, state: power?.state, hasBattery: hasBattery)
             return RenderResult(image: img, toolTip: tip)
@@ -368,7 +383,7 @@ public struct MenuBarIconRenderer {
             // Two-Line Stacked Battery Charge% + Time Remaining / Wattage
             let img = drawPowerStackedText(charge: power?.charge, state: power?.state, timeRemaining: power?.timeRemaining, watts: power?.powerDrawWatts)
             return RenderResult(image: img, toolTip: tip)
-        case .gauge:
+        case .gauge, .tachometer:
             let img = drawPowerGauge(percentage: charge, isCharging: isCharging)
             return RenderResult(image: img, toolTip: tip)
         case .bar:
@@ -1488,7 +1503,7 @@ public struct MenuBarIconRenderer {
     }
 
     public static func drawFanSymbol(rpm: Int? = nil, percentage: Double? = nil) -> NSImage {
-        drawFanGauge(percentage: percentage ?? 0.0)
+        drawFanBlades(percentage: percentage ?? 0.0, rpm: rpm)
     }
 
     public static func drawFanGauge(percentage: Double) -> NSImage {
@@ -1518,8 +1533,223 @@ public struct MenuBarIconRenderer {
         return image
     }
 
+    public static func drawFanBar(fan: FanSample?, primaryPct: Double? = nil) -> NSImage {
+        let fans = fan?.fans ?? []
+        if fans.count >= 2 {
+            let pct0 = fanPercentage(for: fans[0])
+            let pct1 = fanPercentage(for: fans[1])
+            return drawDualCapsuleBar(
+                label: "FAN",
+                leftPercentage: pct0,
+                rightPercentage: pct1,
+                leftColor: .systemCyan,
+                rightColor: .systemTeal
+            )
+        } else {
+            let pct = primaryPct ?? (fans.first != nil ? fanPercentage(for: fans[0]) : 0.0)
+            return drawSingleCapsuleBar(label: "FAN", percentage: pct, barColor: .systemCyan)
+        }
+    }
+
     public static func drawFanBar(percentage: Double) -> NSImage {
         drawSingleCapsuleBar(label: "FAN", percentage: percentage, barColor: .systemCyan)
+    }
+
+    public static func drawFanStackedThroughput(fan: FanSample?, primaryPct: Double? = nil) -> NSImage {
+        let fans = fan?.fans ?? []
+        if fans.count >= 2 {
+            let f0 = fans[0]
+            let f1 = fans[1]
+            return drawStackedTwoLineText(
+                prefix1: "L",
+                value1: "\(f0.rpm)",
+                prefix2: "R",
+                value2: "\(f1.rpm)",
+                minWidth: 36.0,
+                color1: .systemCyan,
+                color2: .systemTeal,
+                prefixColor1: .systemCyan,
+                prefixColor2: .systemTeal
+            )
+        } else if let f0 = fans.first {
+            let pct = primaryPct ?? fanPercentage(for: f0)
+            let pStr = String(format: "%.0f%%", pct)
+            let rStr = "\(f0.rpm)"
+            return drawStackedTwoLineText(
+                prefix1: "FAN",
+                value1: pStr,
+                prefix2: "RPM",
+                value2: rStr,
+                minWidth: 44.0,
+                color1: .systemCyan,
+                color2: .labelColor,
+                prefixColor1: .systemCyan,
+                prefixColor2: .secondaryLabelColor
+            )
+        } else {
+            return drawStackedTwoLineText(
+                prefix1: "FAN",
+                value1: "0%",
+                prefix2: "RPM",
+                value2: "0",
+                minWidth: 44.0,
+                color1: .systemCyan,
+                color2: .labelColor,
+                prefixColor1: .systemCyan,
+                prefixColor2: .secondaryLabelColor
+            )
+        }
+    }
+
+    /// Draws high-DPI 240° instrument-cluster Speed Tachometer with graduation ticks, progressive cyan arc, and pointer needle.
+    public static func drawFanTachometer(percentage: Double, rpm: Int? = nil) -> NSImage {
+        let size = NSSize(width: 18, height: 18)
+        let image = NSImage(size: size, flipped: false) { bounds in
+            let center = NSPoint(x: bounds.midX, y: bounds.midY)
+            let radius: CGFloat = 6.8
+            let lineWidth: CGFloat = 2.2
+
+            let startAngle: CGFloat = 215.0
+            let totalSpan: CGFloat = 250.0
+            let endAngle: CGFloat = startAngle - totalSpan // -35°
+
+            // 1. Background full gauge track
+            let track = NSBezierPath()
+            track.appendArc(withCenter: center, radius: radius, startAngle: startAngle, endAngle: endAngle, clockwise: true)
+            track.lineWidth = lineWidth
+            track.lineCapStyle = .round
+            NSColor.secondaryLabelColor.withAlphaComponent(0.20).setStroke()
+            track.stroke()
+
+            // 2. Dial tick marks at 0%, 50%, 100%
+            let tickAngles: [CGFloat] = [startAngle, startAngle - totalSpan * 0.5, endAngle]
+            for angle in tickAngles {
+                let rad = angle * .pi / 180.0
+                let innerPt = NSPoint(x: center.x + cos(rad) * 4.6, y: center.y + sin(rad) * 4.6)
+                let outerPt = NSPoint(x: center.x + cos(rad) * (radius + 1.2), y: center.y + sin(rad) * (radius + 1.2))
+                let tick = NSBezierPath()
+                tick.move(to: innerPt)
+                tick.line(to: outerPt)
+                tick.lineWidth = 0.8
+                NSColor.secondaryLabelColor.withAlphaComponent(0.40).setStroke()
+                tick.stroke()
+            }
+
+            // 3. Active speed arc
+            let clamped = min(max(percentage, 0.0), 100.0)
+            if clamped > 0 {
+                let activeSweep = totalSpan * CGFloat(clamped / 100.0)
+                let activeEnd = startAngle - activeSweep
+                let activeArc = NSBezierPath()
+                activeArc.appendArc(withCenter: center, radius: radius, startAngle: startAngle, endAngle: activeEnd, clockwise: true)
+                activeArc.lineWidth = lineWidth
+                activeArc.lineCapStyle = .round
+
+                let strokeColor = clamped > 80.0 ? NSColor.systemTeal : NSColor.systemCyan
+                strokeColor.setStroke()
+                activeArc.stroke()
+            }
+
+            // 4. Center hub and pointer needle
+            let hub = NSBezierPath(ovalIn: NSRect(x: center.x - 1.8, y: center.y - 1.8, width: 3.6, height: 3.6))
+            (clamped > 0 ? NSColor.systemCyan : NSColor.secondaryLabelColor.withAlphaComponent(0.60)).setFill()
+            hub.fill()
+
+            // Needle
+            let needleAngle = startAngle - totalSpan * CGFloat(clamped / 100.0)
+            let needleRad = needleAngle * .pi / 180.0
+            let needleLen: CGFloat = 5.2
+            let needleTip = NSPoint(x: center.x + cos(needleRad) * needleLen, y: center.y + sin(needleRad) * needleLen)
+            let needle = NSBezierPath()
+            needle.move(to: center)
+            needle.line(to: needleTip)
+            needle.lineWidth = 1.3
+            needle.lineCapStyle = .round
+            (clamped > 0 ? NSColor.labelColor : NSColor.secondaryLabelColor.withAlphaComponent(0.70)).setStroke()
+            needle.stroke()
+
+            return true
+        }
+        image.isTemplate = false
+        return image
+    }
+
+    /// Draws aerodynamic 4-blade fan turbine with dynamic speed-responsive cyan blade fill and central spinner hub.
+    public static func drawFanBlades(percentage: Double, rpm: Int? = nil) -> NSImage {
+        let size = NSSize(width: 18, height: 18)
+        let image = NSImage(size: size, flipped: false) { bounds in
+            let center = NSPoint(x: bounds.midX, y: bounds.midY)
+            let outerRadius: CGFloat = 7.5
+            let hubRadius: CGFloat = 2.4
+
+            // 1. Shroud outer bezel ring
+            let shroud = NSBezierPath(ovalIn: bounds.insetBy(dx: 1.2, dy: 1.2))
+            shroud.lineWidth = 1.0
+            NSColor.secondaryLabelColor.withAlphaComponent(0.28).setStroke()
+            shroud.stroke()
+
+            let isActive = (rpm ?? 0) > 0 || percentage > 0.0
+            let clamped = min(max(percentage, 0.0), 100.0)
+
+            // 2. 4 Aerodynamic Curved Turbine Blades
+            let bladeAngles: [CGFloat] = [45.0, 135.0, 225.0, 315.0]
+            let bladeColor: NSColor
+            if isActive {
+                let alpha = min(max(0.45 + (clamped / 100.0) * 0.55, 0.45), 1.0)
+                bladeColor = NSColor.systemCyan.withAlphaComponent(alpha)
+            } else {
+                bladeColor = NSColor.secondaryLabelColor.withAlphaComponent(0.35)
+            }
+
+            for angle in bladeAngles {
+                let path = NSBezierPath()
+                let rootAngle = angle * .pi / 180.0
+                let tipAngle = (angle + 32.0) * .pi / 180.0
+                let trailAngle = (angle - 18.0) * .pi / 180.0
+
+                let pRoot = NSPoint(x: center.x + cos(rootAngle) * hubRadius, y: center.y + sin(rootAngle) * hubRadius)
+                let pTip = NSPoint(x: center.x + cos(tipAngle) * (outerRadius - 0.5), y: center.y + sin(tipAngle) * (outerRadius - 0.5))
+                let pTrail = NSPoint(x: center.x + cos(trailAngle) * hubRadius, y: center.y + sin(trailAngle) * hubRadius)
+
+                path.move(to: pRoot)
+                // Curved leading edge
+                let ctrl1 = NSPoint(x: center.x + cos(tipAngle - 0.1) * (outerRadius * 0.7), y: center.y + sin(tipAngle - 0.1) * (outerRadius * 0.7))
+                path.curve(to: pTip, controlPoint1: pRoot, controlPoint2: ctrl1)
+                // Curved trailing edge back to hub
+                let ctrl2 = NSPoint(x: center.x + cos(rootAngle - 0.1) * (outerRadius * 0.5), y: center.y + sin(rootAngle - 0.1) * (outerRadius * 0.5))
+                path.curve(to: pTrail, controlPoint1: pTip, controlPoint2: ctrl2)
+                path.close()
+
+                bladeColor.setFill()
+                path.fill()
+
+                if isActive {
+                    NSColor.systemCyan.withAlphaComponent(0.80).setStroke()
+                    path.lineWidth = 0.5
+                    path.stroke()
+                }
+            }
+
+            // 3. Central Spinner Hub
+            let hubRect = NSRect(x: center.x - hubRadius, y: center.y - hubRadius, width: hubRadius * 2.0, height: hubRadius * 2.0)
+            let hub = NSBezierPath(ovalIn: hubRect)
+            if isActive {
+                NSColor.systemCyan.setFill()
+                hub.fill()
+
+                // Center micro pin
+                let pin = NSBezierPath(ovalIn: NSRect(x: center.x - 0.8, y: center.y - 0.8, width: 1.6, height: 1.6))
+                NSColor.white.withAlphaComponent(0.90).setFill()
+                pin.fill()
+            } else {
+                NSColor.secondaryLabelColor.withAlphaComponent(0.50).setFill()
+                hub.fill()
+            }
+
+            return true
+        }
+        image.isTemplate = false
+        return image
     }
 
     public static func drawFanSparkline(history: [Double]) -> NSImage {

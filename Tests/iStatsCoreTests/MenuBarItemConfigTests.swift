@@ -50,6 +50,16 @@ final class MenuBarItemConfigTests: XCTestCase {
 
         let netStyles = MetricDisplayStyle.supportedStyles(for: .network)
         XCTAssertTrue(netStyles.contains(.throughput))
+
+        let fanStyles = MetricDisplayStyle.supportedStyles(for: .fan)
+        XCTAssertTrue(fanStyles.contains(.gauge))
+        XCTAssertTrue(fanStyles.contains(.bar))
+        XCTAssertTrue(fanStyles.contains(.sparkline))
+        XCTAssertTrue(fanStyles.contains(.text))
+        XCTAssertTrue(fanStyles.contains(.throughput))
+        XCTAssertTrue(fanStyles.contains(.tachometer))
+        XCTAssertTrue(fanStyles.contains(.blades))
+        XCTAssertFalse(fanStyles.contains(.symbol), "Activity Instrument (.symbol) should be removed from Fans category")
     }
 
     func testPreferencesStoreMenuBarItemOperations() {

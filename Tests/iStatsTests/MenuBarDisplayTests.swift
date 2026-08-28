@@ -239,6 +239,24 @@ final class MenuBarDisplayTests: XCTestCase {
         XCTAssertNotNil(resThroughput.image)
         XCTAssertTrue(resThroughput.toolTip.contains("Network"))
 
+        // Fan configs
+        let fanTextConfig = MenuBarItemConfig(category: .fan, style: .text)
+        let resFanText = MenuBarIconRenderer.render(config: fanTextConfig, coordinator: coord, preferences: prefs)
+        XCTAssertNotNil(resFanText.image)
+        XCTAssertTrue(resFanText.toolTip.contains("Fans"))
+
+        let fanTachoConfig = MenuBarItemConfig(category: .fan, style: .tachometer)
+        let resFanTacho = MenuBarIconRenderer.render(config: fanTachoConfig, coordinator: coord, preferences: prefs)
+        XCTAssertNotNil(resFanTacho.image)
+
+        let fanBladesConfig = MenuBarItemConfig(category: .fan, style: .blades)
+        let resFanBlades = MenuBarIconRenderer.render(config: fanBladesConfig, coordinator: coord, preferences: prefs)
+        XCTAssertNotNil(resFanBlades.image)
+
+        let fanThroughputConfig = MenuBarItemConfig(category: .fan, style: .throughput)
+        let resFanThroughput = MenuBarIconRenderer.render(config: fanThroughputConfig, coordinator: coord, preferences: prefs)
+        XCTAssertNotNil(resFanThroughput.image)
+
         defaults.removePersistentDomain(forName: suiteName)
     }
 
@@ -436,7 +454,22 @@ final class MenuBarDisplayTests: XCTestCase {
         // Fan
         XCTAssertNotNil(MenuBarIconRenderer.drawFanGauge(percentage: 50.0))
         XCTAssertNotNil(MenuBarIconRenderer.drawFanBar(percentage: 50.0))
+        XCTAssertNotNil(MenuBarIconRenderer.drawFanTachometer(percentage: 50.0, rpm: 2500))
+        XCTAssertNotNil(MenuBarIconRenderer.drawFanBlades(percentage: 50.0, rpm: 2500))
         XCTAssertNotNil(MenuBarIconRenderer.drawFanSparkline(history: [1200, 1500, 1800, 2000]))
+
+        // Multi-fan bar and stacked throughput
+        let dualFanSample = FanSample(fans: [
+            FanReading(name: "Left Fan", rpm: 2300, minRPM: 2000, maxRPM: 6000),
+            FanReading(name: "Right Fan", rpm: 2500, minRPM: 2000, maxRPM: 6000)
+        ])
+        let dualBarImg = MenuBarIconRenderer.drawFanBar(fan: dualFanSample)
+        XCTAssertEqual(dualBarImg.size.width, 36)
+        XCTAssertEqual(dualBarImg.size.height, 22)
+
+        let dualThroughputImg = MenuBarIconRenderer.drawFanStackedThroughput(fan: dualFanSample)
+        XCTAssertEqual(dualThroughputImg.size.height, 22)
+        XCTAssertEqual(dualThroughputImg.size.width, 36.0)
 
         // Network
         XCTAssertNotNil(MenuBarIconRenderer.drawNetworkGauge(percentage: 20.0))
