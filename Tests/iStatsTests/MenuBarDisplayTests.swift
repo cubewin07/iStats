@@ -471,12 +471,24 @@ final class MenuBarDisplayTests: XCTestCase {
         let cores8 = [10.0, 25.0, 50.0, 75.0, 20.0, 40.0, 60.0, 80.0]
         let img8 = MenuBarIconRenderer.drawCPUBar(perCore: cores8, user: 45.0, system: 15.0)
         XCTAssertEqual(img8.size.height, 18)
-        XCTAssertGreaterThanOrEqual(img8.size.width, 18)
+        XCTAssertEqual(img8.size.width, 22)
         XCTAssertTrue(img8.isTemplate)
 
         let cores12 = Array(repeating: 30.0, count: 12)
         let img12 = MenuBarIconRenderer.drawCPUBar(perCore: cores12, user: 30.0, system: 0.0)
-        XCTAssertGreaterThan(img12.size.width, img8.size.width)
+        XCTAssertEqual(img12.size.width, 22)
+        XCTAssertEqual(img12.size.height, 18)
+
+        let coresNil = MenuBarIconRenderer.drawCPUBar(perCore: nil, user: 40.0, system: 10.0)
+        XCTAssertEqual(coresNil.size.width, 22)
+        XCTAssertEqual(coresNil.size.height, 18)
+    }
+
+    func testDrawSingleLineText() {
+        let img = MenuBarIconRenderer.drawSingleLineText(text: "CPU 45%", fixedWidth: 56.0)
+        XCTAssertEqual(img.size.height, 18)
+        XCTAssertEqual(img.size.width, 56.0)
+        XCTAssertTrue(img.isTemplate)
     }
 
     func testDrawCPUDonutPie() {
@@ -516,5 +528,9 @@ final class MenuBarDisplayTests: XCTestCase {
         let desktopAC = MenuBarIconRenderer.drawBatteryInstrument(charge: nil, state: nil, hasBattery: false)
         XCTAssertEqual(desktopAC.size, NSSize(width: 22, height: 14))
         XCTAssertTrue(desktopAC.isTemplate)
+
+        let unmetered = MenuBarIconRenderer.drawBatteryInstrument(charge: nil, state: nil, hasBattery: true)
+        XCTAssertEqual(unmetered.size, NSSize(width: 22, height: 14))
+        XCTAssertTrue(unmetered.isTemplate)
     }
 }

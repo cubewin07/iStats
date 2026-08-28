@@ -109,7 +109,8 @@ public struct MenuBarIconRenderer {
             return RenderResult(image: img, toolTip: tip)
         case .text:
             let text = cpu != nil ? String(format: "CPU %.0f%%", usage) : "CPU --%"
-            return RenderResult(title: text, toolTip: tip)
+            let img = drawSingleLineText(text: text, fixedWidth: 56.0)
+            return RenderResult(image: img, toolTip: tip)
         case .symbol:
             // Activity Instrument (Donut with core dot)
             let img = drawCPUSymbol(usage: usage)
@@ -156,7 +157,8 @@ public struct MenuBarIconRenderer {
             return RenderResult(image: img, toolTip: tip)
         case .text:
             let text = memory != nil ? String(format: "RAM %.0f%%", ratio) : "RAM --%"
-            return RenderResult(title: text, toolTip: tip)
+            let img = drawSingleLineText(text: text, fixedWidth: 56.0)
+            return RenderResult(image: img, toolTip: tip)
         case .symbol:
             // Activity Instrument
             let img = drawMemorySymbol(ratio: ratio, pressure: memory?.pressure)
@@ -187,7 +189,8 @@ public struct MenuBarIconRenderer {
             return RenderResult(image: img, toolTip: tip)
         case .text:
             let text = gpu?.utilization != nil ? String(format: "GPU %.0f%%", util) : "GPU --%"
-            return RenderResult(title: text, toolTip: tip)
+            let img = drawSingleLineText(text: text, fixedWidth: 56.0)
+            return RenderResult(image: img, toolTip: tip)
         case .symbol:
             let img = drawGPUSymbol(utilization: gpu?.utilization)
             return RenderResult(image: img, toolTip: tip)
@@ -224,7 +227,8 @@ public struct MenuBarIconRenderer {
             return RenderResult(image: img, toolTip: tip)
         case .text:
             let text = sensor != nil ? Units.formatTemperature(tempC, unit: unit, fractionDigits: 0) : (unit == .celsius ? "--°C" : "--°F")
-            return RenderResult(title: text, toolTip: tip)
+            let img = drawSingleLineText(text: text, fixedWidth: 42.0)
+            return RenderResult(image: img, toolTip: tip)
         case .symbol:
             let img = drawThermalSymbol(celsius: sensor?.celsius)
             return RenderResult(image: img, toolTip: tip)
@@ -264,7 +268,8 @@ public struct MenuBarIconRenderer {
             return RenderResult(image: img, toolTip: tip)
         case .text:
             let text = primaryFan != nil ? "\(rpm) RPM" : "-- RPM"
-            return RenderResult(title: text, toolTip: tip)
+            let img = drawSingleLineText(text: text, fixedWidth: 56.0)
+            return RenderResult(image: img, toolTip: tip)
         case .symbol:
             let img = drawFanSymbol(rpm: primaryFan?.rpm, percentage: pct)
             return RenderResult(image: img, toolTip: tip)
@@ -314,7 +319,8 @@ public struct MenuBarIconRenderer {
             return RenderResult(image: img, toolTip: tip)
         case .text:
             let text = network != nil ? "↓ \(inStr) ↑ \(outStr)" : "Net --"
-            return RenderResult(title: text, toolTip: tip)
+            let img = drawSingleLineText(text: text, fixedWidth: 84.0)
+            return RenderResult(image: img, toolTip: tip)
         }
     }
 
@@ -365,7 +371,8 @@ public struct MenuBarIconRenderer {
             return RenderResult(image: img, toolTip: tip)
         case .text:
             let text = disk?.io != nil ? "R: \(readStr) W: \(writeStr)" : "Disk --"
-            return RenderResult(title: text, toolTip: tip)
+            let img = drawSingleLineText(text: text, fixedWidth: 84.0)
+            return RenderResult(image: img, toolTip: tip)
         }
     }
 
@@ -407,20 +414,47 @@ public struct MenuBarIconRenderer {
             let img = drawPowerSparkline(history: history)
             return RenderResult(image: img, toolTip: tip)
         case .text:
+            let text: String
             if let pwr = power {
                 if !pwr.hasBattery {
-                    return RenderResult(title: "AC", toolTip: tip)
+                    text = "AC"
                 } else {
                     let bolt = (pwr.state == .charging) ? " ⚡" : ""
-                    return RenderResult(title: String(format: "%.0f%%%@", charge, bolt), toolTip: tip)
+                    text = String(format: "%.0f%%%@", charge, bolt)
                 }
             } else {
-                return RenderResult(title: "Bat --%", toolTip: tip)
+                text = "Bat --%"
             }
+            let img = drawSingleLineText(text: text, fixedWidth: 46.0)
+            return RenderResult(image: img, toolTip: tip)
         }
     }
 
     // MARK: - Core iStat Menus Instrument Drawing Primitives
+
+    /// Draws single-line tabular monospaced text right-aligned within a fixed-width template canvas.
+    public static func drawSingleLineText(
+        text: String,
+        fixedWidth: CGFloat = 56.0
+    ) -> NSImage {
+        let font = NSFont.monospacedDigitSystemFont(ofSize: 10.5, weight: .bold)
+        let attrs: [NSAttributedString.Key: Any] = [
+            .font: font,
+            .foregroundColor: NSColor.labelColor
+        ]
+        let str = text as NSString
+        let textSize = str.size(withAttributes: attrs)
+        let canvasWidth = max(textSize.width + 4.0, fixedWidth)
+        let size = NSSize(width: canvasWidth, height: 18)
+
+        let image = NSImage(size: size, flipped: false) { bounds in
+            let point = NSPoint(x: bounds.maxX - textSize.width - 2.0, y: (bounds.height - textSize.height) / 2.0)
+            str.draw(at: point, withAttributes: attrs)
+            return true
+        }
+        image.isTemplate = true
+        return image
+    }
 
     /// Draws authentic iStat Menus 2-line stacked high-density monospaced typography (8.5 pt).
     public static func drawStackedText(
@@ -563,22 +597,23 @@ public struct MenuBarIconRenderer {
         return image
     }
 
-    /// Draws authentic iStat Menus per-core CPU micro-bar cluster.
+    /// Draws authentic iStat Menus per-core CPU micro-bar cluster with invariant canvas dimensions (22x18).
     public static func drawCPUBar(
         perCore: [Double]?,
         user: Double? = nil,
         system: Double? = nil
     ) -> NSImage {
-        if let cores = perCore, cores.count >= 2 {
-            // Authentic Per-Core Micro-Bar Cluster!
-            let coreWidth: CGFloat = 1.6
-            let gap: CGFloat = 0.6
-            let totalWidth = CGFloat(cores.count) * (coreWidth + gap) + 2.0
-            let size = NSSize(width: max(totalWidth, 14.0), height: 18)
+        let size = NSSize(width: 22, height: 18)
+        let image = NSImage(size: size, flipped: false) { bounds in
+            if let cores = perCore, cores.count >= 2 {
+                let n = cores.count
+                let availableWidth: CGFloat = 20.0
+                let totalGap = CGFloat(n - 1) * 0.4
+                let coreWidth = max(0.8, (availableWidth - totalGap) / CGFloat(n))
+                let actualGap = n > 1 ? (availableWidth - CGFloat(n) * coreWidth) / CGFloat(n - 1) : 0.0
 
-            let image = NSImage(size: size, flipped: false) { bounds in
                 for (idx, coreUsage) in cores.enumerated() {
-                    let x = 1.0 + CGFloat(idx) * (coreWidth + gap)
+                    let x = 1.0 + CGFloat(idx) * (coreWidth + actualGap)
                     let trackRect = NSRect(x: x, y: 2.0, width: coreWidth, height: 14.0)
                     let track = NSBezierPath(roundedRect: trackRect, xRadius: 0.5, yRadius: 0.5)
                     NSColor.secondaryLabelColor.withAlphaComponent(0.25).setFill()
@@ -594,15 +629,12 @@ public struct MenuBarIconRenderer {
                     }
                 }
                 return true
-            }
-            image.isTemplate = true
-            return image
-        } else {
-            // Dual-tone aggregate bar (User on top, System on bottom)
-            let size = NSSize(width: 10, height: 18)
-            let image = NSImage(size: size, flipped: false) { _ in
-                let trackRect = NSRect(x: 2.0, y: 2.0, width: 6.0, height: 14.0)
-                let track = NSBezierPath(roundedRect: trackRect, xRadius: 2.5, yRadius: 2.5)
+            } else {
+                // Dual-tone aggregate bar centered inside 22pt canvas
+                let barWidth: CGFloat = 6.0
+                let barX: CGFloat = (bounds.width - barWidth) / 2.0
+                let trackRect = NSRect(x: barX, y: 2.0, width: barWidth, height: 14.0)
+                let track = NSBezierPath(roundedRect: trackRect, xRadius: 2.0, yRadius: 2.0)
                 NSColor.secondaryLabelColor.withAlphaComponent(0.25).setFill()
                 track.fill()
 
@@ -616,8 +648,8 @@ public struct MenuBarIconRenderer {
 
                     // Bottom system segment
                     if sysHeight > 0 {
-                        let sysRect = NSRect(x: 2.0, y: 2.0, width: 6.0, height: max(sysHeight, 1.5))
-                        let sysPath = NSBezierPath(roundedRect: sysRect, xRadius: 2.5, yRadius: 2.5)
+                        let sysRect = NSRect(x: barX, y: 2.0, width: barWidth, height: max(sysHeight, 1.5))
+                        let sysPath = NSBezierPath(roundedRect: sysRect, xRadius: 2.0, yRadius: 2.0)
                         NSColor.labelColor.withAlphaComponent(0.55).setFill()
                         sysPath.fill()
                     }
@@ -625,17 +657,17 @@ public struct MenuBarIconRenderer {
                     // Top user segment
                     let usrHeight = totalHeight - sysHeight
                     if usrHeight > 0 {
-                        let usrRect = NSRect(x: 2.0, y: 2.0 + sysHeight, width: 6.0, height: max(usrHeight, 1.5))
-                        let usrPath = NSBezierPath(roundedRect: usrRect, xRadius: 2.5, yRadius: 2.5)
+                        let usrRect = NSRect(x: barX, y: 2.0 + sysHeight, width: barWidth, height: max(usrHeight, 1.5))
+                        let usrPath = NSBezierPath(roundedRect: usrRect, xRadius: 2.0, yRadius: 2.0)
                         NSColor.labelColor.setFill()
                         usrPath.fill()
                     }
                 }
                 return true
             }
-            image.isTemplate = true
-            return image
         }
+        image.isTemplate = true
+        return image
     }
 
     /// Draws authentic iStat Menus segmented CPU Donut Pie (User vs. System load).
@@ -816,9 +848,6 @@ public struct MenuBarIconRenderer {
         let size = NSSize(width: 22, height: 14)
         let image = NSImage(size: size, flipped: false) { bounds in
             if hasBattery {
-                let chg = charge ?? 80.0
-                let clamped = min(max(chg, 0.0), 100.0)
-
                 // Battery Body Frame
                 let bodyRect = NSRect(x: 1.0, y: 2.0, width: 17.0, height: 10.0)
                 let body = NSBezierPath(roundedRect: bodyRect, xRadius: 2.0, yRadius: 2.0)
@@ -832,29 +861,42 @@ public struct MenuBarIconRenderer {
                 NSColor.labelColor.withAlphaComponent(0.85).setFill()
                 cap.fill()
 
-                // Proportional Level Fill
-                let maxFillWidth: CGFloat = 13.6
-                let fillWidth = max(maxFillWidth * CGFloat(clamped / 100.0), 1.5)
-                let fillRect = NSRect(x: 2.7, y: 3.7, width: fillWidth, height: 6.6)
-                let fillPath = NSBezierPath(roundedRect: fillRect, xRadius: 1.0, yRadius: 1.0)
-                NSColor.labelColor.setFill()
-                fillPath.fill()
+                if let chg = charge {
+                    let clamped = min(max(chg, 0.0), 100.0)
+                    // Proportional Level Fill
+                    let maxFillWidth: CGFloat = 13.6
+                    let fillWidth = max(maxFillWidth * CGFloat(clamped / 100.0), 1.5)
+                    let fillRect = NSRect(x: 2.7, y: 3.7, width: fillWidth, height: 6.6)
+                    let fillPath = NSBezierPath(roundedRect: fillRect, xRadius: 1.0, yRadius: 1.0)
+                    NSColor.labelColor.setFill()
+                    fillPath.fill()
 
-                // Charging Lightning Bolt Overlay
-                if state == .charging {
-                    let bolt = NSBezierPath()
-                    bolt.move(to: NSPoint(x: 10.5, y: 11.5))
-                    bolt.line(to: NSPoint(x: 7.5, y: 7.2))
-                    bolt.line(to: NSPoint(x: 9.8, y: 7.2))
-                    bolt.line(to: NSPoint(x: 8.8, y: 3.0))
-                    bolt.line(to: NSPoint(x: 12.5, y: 8.0))
-                    bolt.line(to: NSPoint(x: 10.2, y: 8.0))
-                    bolt.close()
-                    NSColor.windowBackgroundColor.setFill()
-                    bolt.fill()
-                    bolt.lineWidth = 0.6
-                    NSColor.labelColor.setStroke()
-                    bolt.stroke()
+                    // Charging Lightning Bolt Overlay
+                    if state == .charging {
+                        let bolt = NSBezierPath()
+                        bolt.move(to: NSPoint(x: 10.5, y: 11.5))
+                        bolt.line(to: NSPoint(x: 7.5, y: 7.2))
+                        bolt.line(to: NSPoint(x: 9.8, y: 7.2))
+                        bolt.line(to: NSPoint(x: 8.8, y: 3.0))
+                        bolt.line(to: NSPoint(x: 12.5, y: 8.0))
+                        bolt.line(to: NSPoint(x: 10.2, y: 8.0))
+                        bolt.close()
+                        NSColor.windowBackgroundColor.setFill()
+                        bolt.fill()
+                        bolt.lineWidth = 0.6
+                        NSColor.labelColor.setStroke()
+                        bolt.stroke()
+                    }
+                } else {
+                    // Unavailable/Unmetered: dashed line across center
+                    let dashLine = NSBezierPath()
+                    dashLine.move(to: NSPoint(x: 5.0, y: 7.0))
+                    dashLine.line(to: NSPoint(x: 14.0, y: 7.0))
+                    let dashes: [CGFloat] = [2.0, 2.0]
+                    dashLine.setLineDash(dashes, count: 2, phase: 0.0)
+                    dashLine.lineWidth = 1.0
+                    NSColor.secondaryLabelColor.withAlphaComponent(0.5).setStroke()
+                    dashLine.stroke()
                 }
             } else {
                 // Desktop Mac: AC Plug
