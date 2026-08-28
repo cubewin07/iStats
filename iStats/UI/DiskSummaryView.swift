@@ -75,7 +75,7 @@ public struct DiskSummaryView: View {
                     )
 
                     HStack {
-                        Text("60s I/O Activity")
+                        Text("Disk I/O History")
                             .font(.system(size: 9, weight: .medium))
                             .foregroundColor(.secondary)
                         Spacer()

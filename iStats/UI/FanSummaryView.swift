@@ -96,7 +96,7 @@ public struct FanSummaryView: View {
                             )
 
                             HStack {
-                                Text("60s Fan Speed History")
+                                Text("Fan Speed History")
                                     .font(.system(size: 9, weight: .medium))
                                     .foregroundColor(.secondary)
                                 Spacer()

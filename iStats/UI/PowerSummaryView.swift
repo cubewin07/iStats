@@ -241,7 +241,7 @@ public struct PowerSummaryView: View {
             )
 
             HStack {
-                Text("60s Power Consumption")
+                Text("Power Draw History")
                     .font(.system(size: 9, weight: .medium))
                     .foregroundColor(.secondary)
                 Spacer()

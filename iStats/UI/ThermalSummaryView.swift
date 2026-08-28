@@ -95,7 +95,7 @@ public struct ThermalSummaryView: View {
                         RollingGraphView(
                             values: historyTemperatures,
                             minValue: 20.0,
-                            maxValue: max(100.0, (maxTemperature ?? 80.0) + 10.0),
+                            maxValue: max(100.0, (historyTemperatures.max() ?? maxTemperature ?? 80.0) + 5.0),
                             tintColor: headerColor,
                             capacity: 60,
                             height: 44,
@@ -103,7 +103,7 @@ public struct ThermalSummaryView: View {
                         )
 
                         HStack {
-                            Text("60s Temperature History")
+                            Text("Temperature History")
                                 .font(.system(size: 9, weight: .medium))
                                 .foregroundColor(.secondary)
                             Spacer()

@@ -78,7 +78,7 @@ public struct CPUSummaryView: View {
                 )
 
                 HStack {
-                    Text("60s CPU Activity")
+                    Text("CPU Activity History")
                         .font(.system(size: 9, weight: .medium))
                         .foregroundColor(.secondary)
                     Spacer()

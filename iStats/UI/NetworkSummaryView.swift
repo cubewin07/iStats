@@ -76,7 +76,7 @@ public struct NetworkSummaryView: View {
                 )
 
                 HStack {
-                    Text("60s Network Traffic")
+                    Text("Network Traffic History")
                         .font(.system(size: 9, weight: .medium))
                         .foregroundColor(.secondary)
                     Spacer()

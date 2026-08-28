@@ -124,7 +124,7 @@ public struct GPUSummaryView: View {
                         )
 
                         HStack {
-                            Text("60s GPU Activity")
+                            Text("GPU Activity History")
                                 .font(.system(size: 9, weight: .medium))
                                 .foregroundColor(.secondary)
                             Spacer()

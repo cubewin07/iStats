@@ -262,16 +262,4 @@ public struct DetailPopoverView: View {
             }
         }
     }
-
-    private var statusFooterText: String {
-        if let thermal = currentThermalSample, let pressure = thermal.pressure, pressure.isElevated {
-            return "Thermal Pressure: \(pressure.displayName)"
-        } else if let memory = currentMemorySample {
-            return "Pressure: \(memory.pressure.displayName)"
-        } else if coordinator.isRunning {
-            return "Sampling..."
-        } else {
-            return "Status: Ready"
-        }
-    }
 }

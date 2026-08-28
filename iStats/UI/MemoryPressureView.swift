@@ -184,7 +184,7 @@ public struct MemorySummaryView: View {
                 )
 
                 HStack {
-                    Text("60s Memory History")
+                    Text("Memory History")
                         .font(.system(size: 9, weight: .medium))
                         .foregroundColor(.secondary)
                     Spacer()
@@ -259,18 +259,18 @@ public struct MemorySummaryView: View {
 
     private func memoryCompositionBar(sample: MemorySample) -> some View {
         GeometryReader { geo in
-            let total = max(1.0, Double(sample.total))
             let appBytes = Double(sample.appMemory ?? (sample.used >= (sample.wired + sample.compressed) ? sample.used - sample.wired - sample.compressed : sample.used))
             let wiredBytes = Double(sample.wired)
             let compressedBytes = Double(sample.compressed)
             let cachedBytes = Double(sample.cached)
-            let freeBytes = max(0.0, total - appBytes - wiredBytes - compressedBytes - cachedBytes)
+            let freeBytes = Double(sample.free)
+            let sum = max(1.0, appBytes + wiredBytes + compressedBytes + cachedBytes + freeBytes)
 
             let w = geo.size.width
-            let appW = max(0, w * CGFloat(appBytes / total))
-            let wiredW = max(0, w * CGFloat(wiredBytes / total))
-            let compW = max(0, w * CGFloat(compressedBytes / total))
-            let cachedW = max(0, w * CGFloat(cachedBytes / total))
+            let appW = max(0, w * CGFloat(appBytes / sum))
+            let wiredW = max(0, w * CGFloat(wiredBytes / sum))
+            let compW = max(0, w * CGFloat(compressedBytes / sum))
+            let cachedW = max(0, w * CGFloat(cachedBytes / sum))
             let freeW = max(0, w - appW - wiredW - compW - cachedW)
 
             HStack(spacing: 1.5) {
