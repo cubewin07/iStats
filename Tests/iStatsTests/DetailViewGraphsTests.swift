@@ -150,7 +150,9 @@ final class DetailViewGraphsTests: XCTestCase {
             system: 15.0,
             idle: 55.0,
             loadAverage: LoadAverage(oneMinute: 2.1, fiveMinute: 1.8, fifteenMinute: 1.5),
-            frequencyHz: 3_500_000_000
+            frequencyHz: 3_500_000_000,
+            efficiencyCoreCount: 4,
+            performanceCoreCount: 4
         )
         let history = [Sample(value: sample, timestamp: Date(), availability: .available)]
 
@@ -158,6 +160,36 @@ final class DetailViewGraphsTests: XCTestCase {
         let hosting = NSHostingView(rootView: view)
         hosting.frame = CGRect(x: 0, y: 0, width: 320, height: 300)
         XCTAssertNotNil(hosting)
+    }
+
+    func testCPUSummaryViewHighCoreCountAndIntelRendering() {
+        // High core count (e.g. 24 cores)
+        let highCoreSample = CPUSample(
+            totalUsage: 65.0,
+            perCore: Array(repeating: 65.0, count: 24),
+            user: 50.0,
+            system: 15.0,
+            idle: 35.0,
+            efficiencyCoreCount: 8,
+            performanceCoreCount: 16
+        )
+        let view24 = CPUSummaryView(sample: highCoreSample, history: [])
+        let hosting24 = NSHostingView(rootView: view24)
+        hosting24.frame = CGRect(x: 0, y: 0, width: 320, height: 350)
+        XCTAssertNotNil(hosting24)
+
+        // Intel / No topology
+        let intelSample = CPUSample(
+            totalUsage: 25.0,
+            perCore: [20.0, 30.0, 25.0, 25.0],
+            user: 15.0,
+            system: 10.0,
+            idle: 75.0
+        )
+        let viewIntel = CPUSummaryView(sample: intelSample, history: [])
+        let hostingIntel = NSHostingView(rootView: viewIntel)
+        hostingIntel.frame = CGRect(x: 0, y: 0, width: 320, height: 300)
+        XCTAssertNotNil(hostingIntel)
     }
 
     func testDetailPopoverViewRendering() {

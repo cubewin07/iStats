@@ -116,9 +116,9 @@ public struct CPUSummaryView: View {
                     )
                 }
 
-                // Per-Core Utilization Section
+                // Per-Core Utilization Section (Real iStat Rings & Cluster Breakdown)
                 if !sample.perCore.isEmpty {
-                    perCoreSection(perCore: sample.perCore)
+                    perCoreSection(sample: sample)
                 }
             }
         }
@@ -210,67 +210,94 @@ public struct CPUSummaryView: View {
         )
     }
 
-    // MARK: - Per-Core Section
+    // MARK: - Per-Core Section (Real iStat Style)
 
-    private func perCoreSection(perCore: [Double]) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Button(action: {
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    isPerCoreExpanded.toggle()
-                }
-            }) {
-                HStack {
-                    Text("Cores (\(perCore.count))")
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundColor(.primary)
-                    Spacer()
-                    Image(systemName: isPerCoreExpanded ? "chevron.up" : "chevron.down")
-                        .font(.system(size: 9, weight: .bold))
-                        .foregroundColor(.secondary)
-                }
-            }
-            .buttonStyle(.plain)
+    private func perCoreSection(sample: CPUSample) -> some View {
+        let perCore = sample.perCore
+        let hasEandP = (sample.efficiencyCoreCount ?? 0) > 0 && (sample.performanceCoreCount ?? 0) > 0
 
-            if isPerCoreExpanded {
-                let columns = [
-                    GridItem(.flexible(), spacing: 8),
-                    GridItem(.flexible(), spacing: 8)
-                ]
-
-                LazyVGrid(columns: columns, spacing: 4) {
+        return VStack(alignment: .leading, spacing: 8) {
+            // Row of Circular Ring Gauges
+            if perCore.count <= 12 {
+                HStack(spacing: 5) {
                     ForEach(0..<perCore.count, id: \.self) { index in
-                        let coreUsage = perCore[index]
-                        HStack(spacing: 4) {
-                            Text(String(format: "C%d", index))
-                                .font(.system(size: 9, weight: .semibold, design: .monospaced))
-                                .foregroundColor(.secondary)
-                                .frame(width: 22, alignment: .leading)
-
-                            GeometryReader { geo in
-                                ZStack(alignment: .leading) {
-                                    Capsule()
-                                        .fill(Color.secondary.opacity(0.15))
-                                        .frame(height: 4)
-
-                                    Capsule()
-                                        .fill(usageColor(for: coreUsage))
-                                        .frame(width: max(2, geo.size.width * CGFloat(min(max(coreUsage, 0), 100) / 100.0)), height: 4)
-                                }
-                            }
-                            .frame(height: 4)
-
-                            Text(String(format: "%2.0f%%", coreUsage))
-                                .font(.system(size: 9, weight: .medium, design: .monospaced))
-                                .foregroundColor(.secondary)
-                                .frame(width: 26, alignment: .trailing)
-                        }
-                        .padding(.vertical, 1)
+                        CoreRingGauge(
+                            usage: perCore[index],
+                            coreType: sample.coreType(at: index),
+                            index: index
+                        )
                     }
                 }
-                .transition(.opacity)
+                .frame(maxWidth: .infinity, alignment: .center)
+            } else {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 17, maximum: 22), spacing: 5)], spacing: 6) {
+                    ForEach(0..<perCore.count, id: \.self) { index in
+                        CoreRingGauge(
+                            usage: perCore[index],
+                            coreType: sample.coreType(at: index),
+                            index: index
+                        )
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .center)
+            }
+
+            // Cluster Utilization Rows
+            VStack(spacing: 5) {
+                if hasEandP {
+                    if let eUsage = sample.efficiencyUsage {
+                        coreClusterRow(
+                            title: "Efficiency Cores",
+                            value: String(format: "%.0f%%", eUsage),
+                            color: Color(red: 0.98, green: 0.28, blue: 0.60)
+                        )
+                    }
+                    if let pUsage = sample.performanceUsage {
+                        coreClusterRow(
+                            title: "Performance Cores",
+                            value: String(format: "%.0f%%", pUsage),
+                            color: Color(red: 0.08, green: 0.52, blue: 1.0)
+                        )
+                    }
+                } else if let pUsage = sample.performanceUsage {
+                    coreClusterRow(
+                        title: "Performance Cores",
+                        value: String(format: "%.0f%%", pUsage),
+                        color: Color(red: 0.08, green: 0.52, blue: 1.0)
+                    )
+                } else {
+                    coreClusterRow(
+                        title: "Cores (\(perCore.count))",
+                        value: String(format: "%.0f%%", sample.totalUsage),
+                        color: Color(red: 0.08, green: 0.52, blue: 1.0)
+                    )
+                }
             }
         }
-        .padding(.top, 2)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 7)
+                .fill(Color.secondary.opacity(0.06))
+        )
+    }
+
+    private func coreClusterRow(title: String, value: String, color: Color) -> some View {
+        HStack(spacing: 6) {
+            Circle()
+                .fill(color)
+                .frame(width: 7, height: 7)
+
+            Text(title)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundColor(.secondary)
+
+            Spacer()
+
+            Text(value)
+                .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                .foregroundColor(.primary)
+        }
     }
 
     // MARK: - Helpers
@@ -283,6 +310,59 @@ public struct CPUSummaryView: View {
         } else {
             return .blue
         }
+    }
+}
+
+/// A circular progress ring gauge for an individual CPU core.
+struct CoreRingGauge: View {
+    let usage: Double
+    let coreType: CPUCoreType
+    let index: Int
+
+    private var coreColor: Color {
+        switch coreType {
+        case .efficiency:
+            return Color(red: 0.98, green: 0.28, blue: 0.60)
+        case .performance:
+            return Color(red: 0.08, green: 0.52, blue: 1.0)
+        case .standard:
+            return Color(red: 0.08, green: 0.52, blue: 1.0)
+        }
+    }
+
+    private var label: String {
+        let typeName: String
+        switch coreType {
+        case .efficiency: typeName = "Efficiency"
+        case .performance: typeName = "Performance"
+        case .standard: typeName = "Standard"
+        }
+        return "Core \(index + 1) (\(typeName)): \(String(format: "%.0f%%", usage))"
+    }
+
+    var body: some View {
+        let clamped = max(0.0, min(100.0, usage))
+        let fraction = CGFloat(clamped / 100.0)
+
+        ZStack {
+            // Background Track
+            Circle()
+                .stroke(
+                    coreColor.opacity(0.18),
+                    style: StrokeStyle(lineWidth: 2.5)
+                )
+
+            // Progress Arc
+            Circle()
+                .trim(from: 0.0, to: fraction)
+                .stroke(
+                    coreColor,
+                    style: StrokeStyle(lineWidth: 2.5, lineCap: .round)
+                )
+                .rotationEffect(.degrees(-90))
+        }
+        .frame(width: 17, height: 17)
+        .help(label)
     }
 }
 

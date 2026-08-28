@@ -9,16 +9,19 @@ final class CPUSamplerTests: XCTestCase {
         private var index = 0
         private let mockLoadAverage: LoadAverage?
         private let mockFrequencyHz: UInt64?
+        private let mockTopology: (efficiencyCount: Int, performanceCount: Int)?
         private let lock = NSLock()
 
         init(
             responses: [[ProcessorTicks]],
             loadAverage: LoadAverage? = nil,
-            cpuFrequencyHz: UInt64? = nil
+            cpuFrequencyHz: UInt64? = nil,
+            topology: (efficiencyCount: Int, performanceCount: Int)? = nil
         ) {
             self.responses = responses
             self.mockLoadAverage = loadAverage
             self.mockFrequencyHz = cpuFrequencyHz
+            self.mockTopology = topology
         }
 
         func processorTicks() throws -> [ProcessorTicks] {
@@ -38,6 +41,10 @@ final class CPUSamplerTests: XCTestCase {
 
         func cpuFrequencyHz() throws -> UInt64? {
             mockFrequencyHz
+        }
+
+        func cpuTopology() throws -> (efficiencyCount: Int, performanceCount: Int)? {
+            mockTopology
         }
     }
 
@@ -200,6 +207,64 @@ final class CPUSamplerTests: XCTestCase {
         if sample2.totalUsage > 0 {
             XCTAssertEqual(sum, 100.0, accuracy: 0.5)
         }
+
+        // Test live CPU topology retrieval
+        let topology = try provider.cpuTopology()
+        if let (eCount, pCount) = topology {
+            XCTAssertGreaterThanOrEqual(eCount, 0)
+            XCTAssertGreaterThanOrEqual(pCount, 0)
+            XCTAssertEqual(eCount + pCount, ticks.count)
+            XCTAssertEqual(sample2.efficiencyCoreCount, eCount)
+            XCTAssertEqual(sample2.performanceCoreCount, pCount)
+            if eCount > 0 {
+                XCTAssertNotNil(sample2.efficiencyUsage)
+            }
+            if pCount > 0 {
+                XCTAssertNotNil(sample2.performanceUsage)
+            }
+        }
+    }
+
+    func testCPUSamplerTopologyDetectionAndClusterUsage() throws {
+        // 4 cores total: 2 E-cores (C0, C1) + 2 P-cores (C2, C3)
+        // t1: all 0
+        let t1 = [
+            ProcessorTicks(user: 0, system: 0, idle: 0, nice: 0),
+            ProcessorTicks(user: 0, system: 0, idle: 0, nice: 0),
+            ProcessorTicks(user: 0, system: 0, idle: 0, nice: 0),
+            ProcessorTicks(user: 0, system: 0, idle: 0, nice: 0)
+        ]
+        // t2:
+        // C0 (E): user=200, system=0, idle=800 -> 20%
+        // C1 (E): user=400, system=0, idle=600 -> 40%
+        // E-cores avg = (20 + 40) / 2 = 30%
+        // C2 (P): user=600, system=0, idle=400 -> 60%
+        // C3 (P): user=800, system=0, idle=200 -> 80%
+        // P-cores avg = (60 + 80) / 2 = 70%
+        let t2 = [
+            ProcessorTicks(user: 200, system: 0, idle: 800, nice: 0),
+            ProcessorTicks(user: 400, system: 0, idle: 600, nice: 0),
+            ProcessorTicks(user: 600, system: 0, idle: 400, nice: 0),
+            ProcessorTicks(user: 800, system: 0, idle: 200, nice: 0)
+        ]
+
+        let mockProvider = MockCPUInfoProvider(
+            responses: [t1, t2],
+            topology: (efficiencyCount: 2, performanceCount: 2)
+        )
+        let sampler = CPUSampler(provider: mockProvider)
+
+        _ = try sampler.sample()
+        let sample = try sampler.sample()
+
+        XCTAssertEqual(sample.efficiencyCoreCount, 2)
+        XCTAssertEqual(sample.performanceCoreCount, 2)
+        XCTAssertEqual(sample.efficiencyUsage!, 30.0, accuracy: 1e-5)
+        XCTAssertEqual(sample.performanceUsage!, 70.0, accuracy: 1e-5)
+        XCTAssertEqual(sample.coreType(at: 0), .efficiency)
+        XCTAssertEqual(sample.coreType(at: 1), .efficiency)
+        XCTAssertEqual(sample.coreType(at: 2), .performance)
+        XCTAssertEqual(sample.coreType(at: 3), .performance)
     }
 
     // MARK: - Property-Based Tests for CPU % Math (Task 2.3)

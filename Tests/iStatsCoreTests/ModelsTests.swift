@@ -40,6 +40,65 @@ final class ModelsTests: XCTestCase {
 
         XCTAssertNil(cpu3.loadAverage)
         XCTAssertNil(cpu3.frequencyHz)
+        XCTAssertNil(cpu3.efficiencyCoreCount)
+        XCTAssertNil(cpu3.performanceCoreCount)
+    }
+
+    func testCPUSampleClusterTopologyAndUsage() {
+        // Topology: 4 Efficiency cores, 8 Performance cores (12 cores total)
+        // Core 0-3 (E): [10.0, 20.0, 30.0, 40.0] -> avg = 25.0%
+        // Core 4-11 (P): [50.0, 60.0, 70.0, 80.0, 90.0, 100.0, 50.0, 60.0] -> avg = 70.0%
+        let perCore = [10.0, 20.0, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0, 90.0, 100.0, 50.0, 60.0]
+        let sample = CPUSample(
+            totalUsage: 55.0,
+            perCore: perCore,
+            user: 35.0,
+            system: 20.0,
+            idle: 45.0,
+            efficiencyCoreCount: 4,
+            performanceCoreCount: 8
+        )
+
+        XCTAssertEqual(sample.efficiencyCoreCount, 4)
+        XCTAssertEqual(sample.performanceCoreCount, 8)
+        XCTAssertEqual(sample.efficiencyUsage!, 25.0, accuracy: 1e-5)
+        XCTAssertEqual(sample.performanceUsage!, 70.0, accuracy: 1e-5)
+
+        // Verify coreType(at:) mapping
+        XCTAssertEqual(sample.coreType(at: 0), .efficiency)
+        XCTAssertEqual(sample.coreType(at: 1), .efficiency)
+        XCTAssertEqual(sample.coreType(at: 2), .efficiency)
+        XCTAssertEqual(sample.coreType(at: 3), .efficiency)
+        XCTAssertEqual(sample.coreType(at: 4), .performance)
+        XCTAssertEqual(sample.coreType(at: 11), .performance)
+        XCTAssertEqual(sample.coreType(at: 12), .standard) // Out of bounds fallback
+
+        // Edge case: no topology
+        let plainSample = CPUSample(totalUsage: 20.0, perCore: [20.0, 20.0], user: 10.0, system: 10.0, idle: 80.0)
+        XCTAssertNil(plainSample.efficiencyUsage)
+        XCTAssertNil(plainSample.performanceUsage)
+        XCTAssertEqual(plainSample.coreType(at: 0), .standard)
+    }
+
+    func testCPUSampleCodableWithTopology() throws {
+        let sample = CPUSample(
+            totalUsage: 42.0,
+            perCore: [20.0, 40.0, 60.0, 80.0],
+            user: 22.0,
+            system: 20.0,
+            idle: 58.0,
+            efficiencyCoreCount: 2,
+            performanceCoreCount: 2
+        )
+
+        let data = try JSONEncoder().encode(sample)
+        let decoded = try JSONDecoder().decode(CPUSample.self, from: data)
+
+        XCTAssertEqual(decoded, sample)
+        XCTAssertEqual(decoded.efficiencyCoreCount, 2)
+        XCTAssertEqual(decoded.performanceCoreCount, 2)
+        XCTAssertEqual(decoded.efficiencyUsage!, 30.0, accuracy: 1e-5)
+        XCTAssertEqual(decoded.performanceUsage!, 70.0, accuracy: 1e-5)
     }
 
     func testLoadAverageEqualityAndCodable() throws {

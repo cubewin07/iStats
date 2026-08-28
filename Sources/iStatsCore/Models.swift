@@ -17,6 +17,13 @@ public struct LoadAverage: Sendable, Equatable, Codable {
     }
 }
 
+/// Classification of CPU core type (Efficiency vs Performance vs Standard).
+public enum CPUCoreType: String, Sendable, Equatable, Codable {
+    case efficiency
+    case performance
+    case standard
+}
+
 /// CPU utilization and metrics for one sample.
 public struct CPUSample: Sendable, Equatable, Codable {
     /// Aggregate utilization across all cores, 0...100.
@@ -33,6 +40,10 @@ public struct CPUSample: Sendable, Equatable, Codable {
     public let loadAverage: LoadAverage?
     /// CPU frequency in Hertz (Hz) if exposed by hardware / sysctl.
     public let frequencyHz: UInt64?
+    /// Number of Efficiency (E) cores if known (e.g. Apple Silicon).
+    public let efficiencyCoreCount: Int?
+    /// Number of Performance (P) cores if known (e.g. Apple Silicon).
+    public let performanceCoreCount: Int?
 
     public init(
         totalUsage: Double,
@@ -41,7 +52,9 @@ public struct CPUSample: Sendable, Equatable, Codable {
         system: Double,
         idle: Double,
         loadAverage: LoadAverage? = nil,
-        frequencyHz: UInt64? = nil
+        frequencyHz: UInt64? = nil,
+        efficiencyCoreCount: Int? = nil,
+        performanceCoreCount: Int? = nil
     ) {
         self.totalUsage = totalUsage
         self.perCore = perCore
@@ -50,6 +63,45 @@ public struct CPUSample: Sendable, Equatable, Codable {
         self.idle = idle
         self.loadAverage = loadAverage
         self.frequencyHz = frequencyHz
+        self.efficiencyCoreCount = efficiencyCoreCount
+        self.performanceCoreCount = performanceCoreCount
+    }
+
+    /// Average utilization percentage across Efficiency cores (0...100), if present.
+    public var efficiencyUsage: Double? {
+        guard let eCount = efficiencyCoreCount, eCount > 0, !perCore.isEmpty else { return nil }
+        let validCount = min(eCount, perCore.count)
+        guard validCount > 0 else { return nil }
+        let sum = perCore[0..<validCount].reduce(0.0, +)
+        return sum / Double(validCount)
+    }
+
+    /// Average utilization percentage across Performance cores (0...100), if present.
+    public var performanceUsage: Double? {
+        guard let pCount = performanceCoreCount, pCount > 0, !perCore.isEmpty else { return nil }
+        let startIndex = min(efficiencyCoreCount ?? 0, perCore.count)
+        let endIndex = min(startIndex + pCount, perCore.count)
+        guard endIndex > startIndex else { return nil }
+        let count = endIndex - startIndex
+        let sum = perCore[startIndex..<endIndex].reduce(0.0, +)
+        return sum / Double(count)
+    }
+
+    /// Returns the core type for a given core index (0-indexed).
+    public func coreType(at index: Int) -> CPUCoreType {
+        guard index >= 0 && index < perCore.count else { return .standard }
+        if let eCount = efficiencyCoreCount, eCount > 0 {
+            if index < eCount {
+                return .efficiency
+            } else if let pCount = performanceCoreCount, index < (eCount + pCount) {
+                return .performance
+            }
+        } else if let pCount = performanceCoreCount, pCount > 0 {
+            if index < pCount {
+                return .performance
+            }
+        }
+        return .standard
     }
 }
 

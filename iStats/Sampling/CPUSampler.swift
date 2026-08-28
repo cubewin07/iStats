@@ -25,11 +25,14 @@ public protocol CPUInfoProvider: Sendable {
     func loadAverage() throws -> LoadAverage?
     /// Returns CPU clock frequency in Hertz if exposed by hardware / sysctl.
     func cpuFrequencyHz() throws -> UInt64?
+    /// Returns CPU cluster topology (Efficiency vs Performance core counts) if available.
+    func cpuTopology() throws -> (efficiencyCount: Int, performanceCount: Int)?
 }
 
 public extension CPUInfoProvider {
     func loadAverage() throws -> LoadAverage? { nil }
     func cpuFrequencyHz() throws -> UInt64? { nil }
+    func cpuTopology() throws -> (efficiencyCount: Int, performanceCount: Int)? { nil }
 }
 
 /// Darwin Mach and sysctl implementation of `CPUInfoProvider`.
@@ -121,9 +124,44 @@ public struct HostProcessorInfoProvider: CPUInfoProvider {
         // cleanly return nil without failing or returning a fake zero (Requirement 1.3, 1.5).
         return nil
     }
+
+    public func cpuTopology() throws -> (efficiencyCount: Int, performanceCount: Int)? {
+        var nperflevels: Int32 = 0
+        var size = MemoryLayout<Int32>.size
+        guard sysctlbyname("hw.nperflevels", &nperflevels, &size, nil, 0) == 0, nperflevels > 1 else {
+            return nil
+        }
+
+        var pCount: Int = 0
+        var eCount: Int = 0
+
+        for i in 0..<nperflevels {
+            var nameBuffer = [CChar](repeating: 0, count: 64)
+            var nameSize = nameBuffer.count
+            let nameKey = "hw.perflevel\(i).name"
+            guard sysctlbyname(nameKey, &nameBuffer, &nameSize, nil, 0) == 0 else { continue }
+            let name = String(cString: nameBuffer).trimmingCharacters(in: .whitespacesAndNewlines)
+
+            var logicalCpu: Int32 = 0
+            var cpuSize = MemoryLayout<Int32>.size
+            let cpuKey = "hw.perflevel\(i).logicalcpu"
+            guard sysctlbyname(cpuKey, &logicalCpu, &cpuSize, nil, 0) == 0, logicalCpu > 0 else { continue }
+
+            if name.caseInsensitiveCompare("Performance") == .orderedSame {
+                pCount = Int(logicalCpu)
+            } else if name.caseInsensitiveCompare("Efficiency") == .orderedSame {
+                eCount = Int(logicalCpu)
+            }
+        }
+
+        if pCount > 0 || eCount > 0 {
+            return (efficiencyCount: eCount, performanceCount: pCount)
+        }
+        return nil
+    }
 }
 
-/// Concrete sampler for CPU utilization (aggregate, per-core, user/system/idle, loadavg, frequency).
+/// Concrete sampler for CPU utilization (aggregate, per-core, user/system/idle, loadavg, frequency, topology).
 ///
 /// Conforms to `Sampler` (Requirement 1.1, 1.2, 1.3, 1.4, 1.5). Keeps previous tick snapshot and computes
 /// rates via pure rate math (`RateMath`).
@@ -133,6 +171,7 @@ public final class CPUSampler: Sampler, @unchecked Sendable {
     private let provider: any CPUInfoProvider
     private let lock = NSLock()
     private var previousTicks: [ProcessorTicks]?
+    private var cachedTopology: (efficiencyCount: Int, performanceCount: Int)??
 
     public init(provider: any CPUInfoProvider = HostProcessorInfoProvider()) {
         self.provider = provider
@@ -144,7 +183,15 @@ public final class CPUSampler: Sampler, @unchecked Sendable {
         let loadAvg = try? provider.loadAverage()
         let frequency = try? provider.cpuFrequencyHz()
 
+        let topology: (efficiencyCount: Int, performanceCount: Int)?
         lock.lock()
+        if let cached = cachedTopology {
+            topology = cached
+        } else {
+            let fetched = try? provider.cpuTopology()
+            cachedTopology = fetched
+            topology = fetched
+        }
         let previous = previousTicks
         previousTicks = currentTicks
         lock.unlock()
@@ -153,7 +200,9 @@ public final class CPUSampler: Sampler, @unchecked Sendable {
             previous: previous,
             current: currentTicks,
             loadAverage: loadAvg,
-            frequencyHz: frequency
+            frequencyHz: frequency,
+            efficiencyCoreCount: topology?.efficiencyCount,
+            performanceCoreCount: topology?.performanceCount
         )
     }
 
@@ -162,7 +211,9 @@ public final class CPUSampler: Sampler, @unchecked Sendable {
         previous: [ProcessorTicks]?,
         current: [ProcessorTicks],
         loadAverage: LoadAverage? = nil,
-        frequencyHz: UInt64? = nil
+        frequencyHz: UInt64? = nil,
+        efficiencyCoreCount: Int? = nil,
+        performanceCoreCount: Int? = nil
     ) -> CPUSample {
         guard let previous, previous.count == current.count, !current.isEmpty else {
             // First sample or mismatched topology: return 0% utilization without negative spikes
@@ -173,7 +224,9 @@ public final class CPUSampler: Sampler, @unchecked Sendable {
                 system: 0.0,
                 idle: 0.0,
                 loadAverage: loadAverage,
-                frequencyHz: frequencyHz
+                frequencyHz: frequencyHz,
+                efficiencyCoreCount: efficiencyCoreCount,
+                performanceCoreCount: performanceCoreCount
             )
         }
 
@@ -228,7 +281,9 @@ public final class CPUSampler: Sampler, @unchecked Sendable {
             system: systemPercent,
             idle: idlePercent,
             loadAverage: loadAverage,
-            frequencyHz: frequencyHz
+            frequencyHz: frequencyHz,
+            efficiencyCoreCount: efficiencyCoreCount,
+            performanceCoreCount: performanceCoreCount
         )
     }
 }
