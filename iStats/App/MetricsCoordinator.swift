@@ -72,6 +72,9 @@ public final class MetricsCoordinator: ObservableObject {
     /// Rolling chronological history of GPU samples.
     @Published public private(set) var gpuHistory: [Sample<GPUSample>] = []
 
+    /// Live availability status per metric category.
+    @Published public private(set) var categoryAvailability: [MetricCategory: Availability] = [:]
+
     /// Whether the coordinator is actively sampling.
     @Published public private(set) var isRunning: Bool = false
 
@@ -157,6 +160,7 @@ public final class MetricsCoordinator: ObservableObject {
     /// Handles a new reading from the sampling layer and updates published properties.
     public func handleReading(_ reading: MetricReading) {
         store.append(reading)
+        self.categoryAvailability[reading.category] = reading.availability
 
         switch reading.category {
         case .cpu:

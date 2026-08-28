@@ -220,7 +220,7 @@ public struct PowerSummaryView: View {
                 }
             }
 
-            if !historyPowerDraw.isEmpty {
+            if historyPowerDraw.count >= 2 {
                 powerDrawGraphSection()
             }
         }
@@ -231,7 +231,7 @@ public struct PowerSummaryView: View {
     private func powerDrawGraphSection() -> some View {
         VStack(alignment: .leading, spacing: 4) {
             RollingGraphView(
-                values: historyPowerDraw.isEmpty ? (sample?.powerDrawWatts != nil ? [sample!.powerDrawWatts!] : []) : historyPowerDraw,
+                values: historyPowerDraw,
                 minValue: 0.0,
                 maxValue: peakPowerDraw,
                 tintColor: .orange,

@@ -103,8 +103,8 @@ public struct CPUSummaryView: View {
 
                     telemetryCard(
                         title: "Clock",
-                        value: sample.frequencyHz != nil ? Units.formatFrequencyHz(sample.frequencyHz!, fractionDigits: 1) : "Dynamic",
-                        detail: sample.frequencyHz != nil ? nil : "Apple Silicon",
+                        value: sample.frequencyHz != nil ? Units.formatFrequencyHz(sample.frequencyHz!, fractionDigits: 1) : "—",
+                        detail: sample.frequencyHz != nil ? nil : "Dynamic",
                         icon: "bolt.badge.clock"
                     )
 

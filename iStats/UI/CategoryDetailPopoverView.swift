@@ -186,6 +186,10 @@ public struct CategoryDetailPopoverView: View {
     }
 
     private var statusBadgeText: String {
+        if let avail = coordinator.categoryAvailability[category], !avail.isAvailable {
+            return "Unavailable"
+        }
+
         switch category {
         case .thermal:
             if let thermal = coordinator.latestThermal?.value, let pressure = thermal.pressure, pressure.isElevated {
@@ -203,10 +207,17 @@ public struct CategoryDetailPopoverView: View {
             break
         }
 
-        return coordinator.isRunning ? "Live" : "Ready"
+        if !coordinator.isRunning {
+            return "Ready"
+        }
+        return coordinator.categoryAvailability[category] != nil ? "Live" : "Sampling..."
     }
 
     private var statusDotColor: Color {
+        if let avail = coordinator.categoryAvailability[category], !avail.isAvailable {
+            return .secondary
+        }
+
         switch category {
         case .thermal:
             if let thermal = coordinator.latestThermal?.value, let pressure = thermal.pressure {
@@ -235,7 +246,10 @@ public struct CategoryDetailPopoverView: View {
             break
         }
 
-        return coordinator.isRunning ? .green : .secondary
+        if !coordinator.isRunning {
+            return .secondary
+        }
+        return coordinator.categoryAvailability[category] != nil ? .green : .blue
     }
 
     private func categoryHeaderTitle(for category: MetricCategory) -> String {

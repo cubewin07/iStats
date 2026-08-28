@@ -141,21 +141,21 @@ public struct GPUSummaryView: View {
                 LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 6) {
                     telemetryCard(
                         title: "Memory Used",
-                        value: sample?.memoryUsed != nil ? Units.formatBytes(sample!.memoryUsed!, standard: byteStandard, fractionDigits: 1) : "Unified",
+                        value: sample?.memoryUsed != nil ? Units.formatBytes(sample!.memoryUsed!, standard: byteStandard, fractionDigits: 1) : "—",
                         color: .purple,
                         icon: "memorychip"
                     )
 
                     telemetryCard(
                         title: "Temperature",
-                        value: sample?.tempCelsius != nil ? Units.formatTemperature(sample!.tempCelsius!, unit: temperatureUnit, fractionDigits: 0) : "N/A",
+                        value: sample?.tempCelsius != nil ? Units.formatTemperature(sample!.tempCelsius!, unit: temperatureUnit, fractionDigits: 0) : "—",
                         color: sample?.tempCelsius != nil ? tempColor(sample!.tempCelsius!) : .secondary,
                         icon: "thermometer.medium"
                     )
 
                     telemetryCard(
                         title: "Power Draw",
-                        value: sample?.powerWatts != nil ? String(format: "%.1f W", sample!.powerWatts!) : "Dynamic",
+                        value: sample?.powerWatts != nil ? String(format: "%.1f W", sample!.powerWatts!) : "—",
                         color: sample?.powerWatts != nil ? .orange : .secondary,
                         icon: "bolt.fill"
                     )

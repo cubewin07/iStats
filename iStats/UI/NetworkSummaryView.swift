@@ -49,7 +49,7 @@ public struct NetworkSummaryView: View {
                 // Download Speed Card
                 speedCard(
                     title: "Download",
-                    rateString: sample != nil ? Units.formatNetworkRate(sample!.totalBytesInPerSec, unit: networkUnit, standard: byteStandard, fractionDigits: 1) : "0 B/s",
+                    rateString: sample != nil ? Units.formatNetworkRate(sample!.totalBytesInPerSec, unit: networkUnit, standard: byteStandard, fractionDigits: 1) : "—",
                     icon: "arrow.down.circle.fill",
                     color: .teal
                 )
@@ -57,7 +57,7 @@ public struct NetworkSummaryView: View {
                 // Upload Speed Card
                 speedCard(
                     title: "Upload",
-                    rateString: sample != nil ? Units.formatNetworkRate(sample!.totalBytesOutPerSec, unit: networkUnit, standard: byteStandard, fractionDigits: 1) : "0 B/s",
+                    rateString: sample != nil ? Units.formatNetworkRate(sample!.totalBytesOutPerSec, unit: networkUnit, standard: byteStandard, fractionDigits: 1) : "—",
                     icon: "arrow.up.circle.fill",
                     color: .blue
                 )

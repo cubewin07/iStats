@@ -134,6 +134,11 @@ public struct MetricsStore: Sendable, Equatable {
         MetricCategory.allCases.filter { count(for: $0) > 0 }
     }
 
+    /// Returns the availability status of the most recent reading for a category, if any.
+    public func latestAvailability(for category: MetricCategory) -> Availability? {
+        latest(for: category)?.availability
+    }
+
     // MARK: - Typed Extractors
 
     /// The latest available CPU sample, if present.
