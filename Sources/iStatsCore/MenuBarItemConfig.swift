@@ -13,12 +13,12 @@ public enum MetricDisplayStyle: String, CaseIterable, Identifiable, Codable, Sen
 
     public var displayName: String {
         switch self {
-        case .symbol: return "Icon / Symbol"
-        case .gauge: return "Circular Gauge"
-        case .bar: return "Load Bar"
-        case .sparkline: return "History Graph"
-        case .text: return "Text Reading"
-        case .throughput: return "Throughput (Speed)"
+        case .gauge: return "Donut / Pie Chart"
+        case .bar: return "Load Bar / Core Cluster"
+        case .sparkline: return "Real-Time History Graph"
+        case .throughput: return "Stacked 2-Line Text"
+        case .text: return "Single-Line Text"
+        case .symbol: return "Activity Instrument"
         }
     }
 
@@ -27,16 +27,14 @@ public enum MetricDisplayStyle: String, CaseIterable, Identifiable, Codable, Sen
         switch category {
         case .cpu, .memory, .gpu:
             return [.gauge, .bar, .sparkline, .text, .symbol]
-        case .thermal:
-            return [.text, .gauge, .sparkline, .symbol]
-        case .fan:
-            return [.text, .gauge, .symbol]
+        case .thermal, .fan:
+            return [.gauge, .bar, .sparkline, .text, .symbol]
         case .network:
-            return [.throughput, .sparkline, .text, .symbol]
+            return [.throughput, .gauge, .bar, .sparkline, .text, .symbol]
         case .disk:
-            return [.throughput, .text, .gauge, .symbol]
+            return [.throughput, .gauge, .bar, .sparkline, .text, .symbol]
         case .power:
-            return [.gauge, .text, .bar, .symbol]
+            return [.gauge, .bar, .sparkline, .text, .symbol]
         }
     }
 }

@@ -53,6 +53,7 @@ public final class MenuBarController: NSObject {
             if let button = item.button {
                 button.target = self
                 button.action = #selector(statusItemClicked(_:))
+                button.sendAction(on: [.leftMouseUp, .rightMouseUp])
                 button.identifier = NSUserInterfaceItemIdentifier(config.id)
             }
             statusItems[config.id] = item
@@ -178,6 +179,14 @@ public final class MenuBarController: NSObject {
             return
         }
 
+        let isRightClick = (NSApp.currentEvent?.type == .rightMouseUp) ||
+                           ((NSApp.currentEvent?.modifierFlags.contains(.control)) ?? false)
+
+        if isRightClick {
+            showContextMenu(for: button)
+            return
+        }
+
         let categoryRaw = rawId.components(separatedBy: ".").first ?? rawId
         guard let category = MetricCategory(rawValue: categoryRaw) else { return }
 
@@ -186,6 +195,44 @@ public final class MenuBarController: NSObject {
         } else {
             showPopover(for: category, relativeTo: button)
         }
+    }
+
+    /// Shows a standard macOS context menu on right-click.
+    private func showContextMenu(for button: NSStatusBarButton) {
+        let menu = NSMenu()
+
+        let titleItem = NSMenuItem(title: "iStats", action: nil, keyEquivalent: "")
+        titleItem.attributedTitle = NSAttributedString(string: "iStats", attributes: [.font: NSFont.boldSystemFont(ofSize: 13)])
+        menu.addItem(titleItem)
+        menu.addItem(NSMenuItem.separator())
+
+        let prefItem = NSMenuItem(title: "Preferences...", action: #selector(openPreferences), keyEquivalent: ",")
+        prefItem.target = self
+        menu.addItem(prefItem)
+
+        let activityMonitorItem = NSMenuItem(title: "Open Activity Monitor", action: #selector(openActivityMonitor), keyEquivalent: "")
+        activityMonitorItem.target = self
+        menu.addItem(activityMonitorItem)
+
+        menu.addItem(NSMenuItem.separator())
+
+        let quitItem = NSMenuItem(title: "Quit iStats", action: #selector(quitApp), keyEquivalent: "q")
+        quitItem.target = self
+        menu.addItem(quitItem)
+
+        menu.popUp(positioning: nil, at: NSPoint(x: 0, y: button.bounds.height + 4), in: button)
+    }
+
+    @objc private func openPreferences() {
+        PreferencesWindowController.shared.showPreferences()
+    }
+
+    @objc private func openActivityMonitor() {
+        NSWorkspace.shared.open(URL(fileURLWithPath: "/System/Applications/Utilities/Activity Monitor.app"))
+    }
+
+    @objc private func quitApp() {
+        NSApplication.shared.terminate(nil)
     }
 
     /// Shows the dedicated popover for a specific category anchored to a menu bar button.
