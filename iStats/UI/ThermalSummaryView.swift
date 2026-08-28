@@ -53,12 +53,12 @@ public struct ThermalSummaryView: View {
                 HStack(alignment: .center, spacing: 8) {
                     VStack(alignment: .leading, spacing: 1) {
                         Text(primarySensor?.name ?? "Primary SoC Sensor")
-                            .font(.system(size: 10, weight: .semibold))
+                            .font(.system(size: 11, weight: .semibold))
                             .foregroundColor(.secondary)
 
                         if let primary = primarySensor {
                             Text(Units.formatTemperature(primary.celsius, unit: temperatureUnit))
-                                .font(.system(size: 24, weight: .bold, design: .rounded))
+                                .font(.system(size: 26, weight: .bold, design: .rounded))
                                 .foregroundColor(temperatureColor(primary.celsius))
                         }
                     }
@@ -182,7 +182,7 @@ public struct ThermalSummaryView: View {
     private func sensorRow(_ sensor: SensorReading) -> some View {
         HStack(spacing: 6) {
             Text(sensor.name)
-                .font(.system(size: 10, weight: .medium))
+                .font(.system(size: 11, weight: .medium))
                 .foregroundColor(.primary)
                 .lineLimit(1)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -192,21 +192,21 @@ public struct ThermalSummaryView: View {
                 ZStack(alignment: .leading) {
                     Capsule()
                         .fill(Color.secondary.opacity(0.18))
-                        .frame(height: 4)
+                        .frame(height: 4.5)
 
                     Capsule()
                         .fill(temperatureColor(sensor.celsius))
-                        .frame(width: max(2, min(geo.size.width, geo.size.width * CGFloat(min(max(sensor.celsius, 0), 100) / 100.0))), height: 4)
+                        .frame(width: max(2, min(geo.size.width, geo.size.width * CGFloat(min(max(sensor.celsius, 0), 100) / 100.0))), height: 4.5)
                 }
             }
-            .frame(width: 50, height: 4)
+            .frame(width: 55, height: 4.5)
 
             Text(Units.formatTemperature(sensor.celsius, unit: temperatureUnit, fractionDigits: 1))
-                .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                .font(.system(size: 11, weight: .semibold, design: .monospaced))
                 .foregroundColor(.secondary)
-                .frame(width: 60, alignment: .trailing)
+                .frame(width: 64, alignment: .trailing)
         }
-        .padding(.vertical, 2.5)
+        .padding(.vertical, 3.0)
         .padding(.horizontal, 6)
         .background(
             RoundedRectangle(cornerRadius: 5)

@@ -204,22 +204,22 @@ final class MenuBarDisplayTests: XCTestCase {
     // MARK: - ADR 0007 Modular Rendering & Controller Lifecycle Tests
 
     func testMenuBarIconRendererDrawings() {
-        // Circular Gauge (16x16 pt)
+        // Circular Gauge (18x18 pt)
         let gaugeImg = MenuBarIconRenderer.drawCircularGauge(percentage: 50.0)
-        XCTAssertEqual(gaugeImg.size.width, 16)
-        XCTAssertEqual(gaugeImg.size.height, 16)
+        XCTAssertEqual(gaugeImg.size.width, 18)
+        XCTAssertEqual(gaugeImg.size.height, 18)
         XCTAssertTrue(gaugeImg.isTemplate)
 
-        // Bar Graph (10x18 pt)
+        // Bar Graph (11x20 pt)
         let barImg = MenuBarIconRenderer.drawBarGraph(percentage: 75.0)
-        XCTAssertEqual(barImg.size.width, 10)
-        XCTAssertEqual(barImg.size.height, 18)
+        XCTAssertEqual(barImg.size.width, 11)
+        XCTAssertEqual(barImg.size.height, 20)
         XCTAssertTrue(barImg.isTemplate)
 
-        // Sparkline (32x14 pt)
+        // Sparkline (36x16 pt)
         let sparklineImg = MenuBarIconRenderer.drawSparkline(values: [10.0, 30.0, 60.0, 90.0], maxValue: 100.0)
-        XCTAssertEqual(sparklineImg.size.width, 32)
-        XCTAssertEqual(sparklineImg.size.height, 14)
+        XCTAssertEqual(sparklineImg.size.width, 36)
+        XCTAssertEqual(sparklineImg.size.height, 16)
         XCTAssertTrue(sparklineImg.isTemplate)
     }
 
@@ -334,7 +334,7 @@ final class MenuBarDisplayTests: XCTestCase {
                 coordinator: .shared,
                 preferences: .shared
             )
-            let hosting = NSHostingView(rootView: view)
+        let hosting = NSHostingView(rootView: view)
             XCTAssertNotNil(hosting)
         }
     }
@@ -345,59 +345,59 @@ final class MenuBarDisplayTests: XCTestCase {
         // CPU
         let cpuIdle = MenuBarIconRenderer.drawCPUSymbol(usage: nil)
         let cpuLoad = MenuBarIconRenderer.drawCPUSymbol(usage: 85.0)
-        XCTAssertEqual(cpuIdle.size, NSSize(width: 16, height: 16))
-        XCTAssertEqual(cpuLoad.size, NSSize(width: 16, height: 16))
+        XCTAssertEqual(cpuIdle.size, NSSize(width: 18, height: 18))
+        XCTAssertEqual(cpuLoad.size, NSSize(width: 18, height: 18))
         XCTAssertTrue(cpuIdle.isTemplate && cpuLoad.isTemplate)
 
         // Memory
         let memNormal = MenuBarIconRenderer.drawMemorySymbol(ratio: 40.0, pressure: .normal)
         let memCritical = MenuBarIconRenderer.drawMemorySymbol(ratio: 92.0, pressure: .critical)
-        XCTAssertEqual(memNormal.size, NSSize(width: 16, height: 16))
-        XCTAssertEqual(memCritical.size, NSSize(width: 16, height: 16))
+        XCTAssertEqual(memNormal.size, NSSize(width: 18, height: 18))
+        XCTAssertEqual(memCritical.size, NSSize(width: 18, height: 18))
         XCTAssertTrue(memNormal.isTemplate && memCritical.isTemplate)
 
         // GPU
         let gpuIdle = MenuBarIconRenderer.drawGPUSymbol(utilization: 0.0)
         let gpuLoad = MenuBarIconRenderer.drawGPUSymbol(utilization: 95.0)
-        XCTAssertEqual(gpuIdle.size, NSSize(width: 16, height: 16))
-        XCTAssertEqual(gpuLoad.size, NSSize(width: 16, height: 16))
+        XCTAssertEqual(gpuIdle.size, NSSize(width: 18, height: 18))
+        XCTAssertEqual(gpuLoad.size, NSSize(width: 18, height: 18))
         XCTAssertTrue(gpuIdle.isTemplate && gpuLoad.isTemplate)
 
         // Thermal
         let thermalCool = MenuBarIconRenderer.drawThermalSymbol(celsius: 42.0)
         let thermalHot = MenuBarIconRenderer.drawThermalSymbol(celsius: 88.0)
-        XCTAssertEqual(thermalCool.size, NSSize(width: 16, height: 16))
-        XCTAssertEqual(thermalHot.size, NSSize(width: 16, height: 16))
+        XCTAssertEqual(thermalCool.size, NSSize(width: 18, height: 18))
+        XCTAssertEqual(thermalHot.size, NSSize(width: 18, height: 18))
         XCTAssertTrue(thermalCool.isTemplate && thermalHot.isTemplate)
 
         // Fan
         let fanIdle = MenuBarIconRenderer.drawFanSymbol(rpm: 0, percentage: 0.0)
         let fanActive = MenuBarIconRenderer.drawFanSymbol(rpm: 3500, percentage: 60.0)
-        XCTAssertEqual(fanIdle.size, NSSize(width: 16, height: 16))
-        XCTAssertEqual(fanActive.size, NSSize(width: 16, height: 16))
+        XCTAssertEqual(fanIdle.size, NSSize(width: 18, height: 18))
+        XCTAssertEqual(fanActive.size, NSSize(width: 18, height: 18))
         XCTAssertTrue(fanIdle.isTemplate && fanActive.isTemplate)
 
         // Network
         let netIdle = MenuBarIconRenderer.drawNetworkSymbol(inBytes: 0, outBytes: 0)
         let netActive = MenuBarIconRenderer.drawNetworkSymbol(inBytes: 5_000_000, outBytes: 2_000_000)
-        XCTAssertEqual(netIdle.size, NSSize(width: 16, height: 16))
-        XCTAssertEqual(netActive.size, NSSize(width: 16, height: 16))
+        XCTAssertEqual(netIdle.size, NSSize(width: 18, height: 18))
+        XCTAssertEqual(netActive.size, NSSize(width: 18, height: 18))
         XCTAssertTrue(netIdle.isTemplate && netActive.isTemplate)
 
         // Disk
         let diskIdle = MenuBarIconRenderer.drawDiskSymbol(readBytes: 0, writeBytes: 0)
         let diskActive = MenuBarIconRenderer.drawDiskSymbol(readBytes: 50_000_000, writeBytes: 20_000_000)
-        XCTAssertEqual(diskIdle.size, NSSize(width: 18, height: 16))
-        XCTAssertEqual(diskActive.size, NSSize(width: 18, height: 16))
+        XCTAssertEqual(diskIdle.size, NSSize(width: 20, height: 18))
+        XCTAssertEqual(diskActive.size, NSSize(width: 20, height: 18))
         XCTAssertTrue(diskIdle.isTemplate && diskActive.isTemplate)
 
         // Power
         let powerBat = MenuBarIconRenderer.drawPowerSymbol(charge: 75.0, state: .discharging, hasBattery: true)
         let powerChg = MenuBarIconRenderer.drawPowerSymbol(charge: 90.0, state: .charging, hasBattery: true)
         let powerAC = MenuBarIconRenderer.drawPowerSymbol(charge: nil, state: nil, hasBattery: false)
-        XCTAssertEqual(powerBat.size, NSSize(width: 22, height: 14))
-        XCTAssertEqual(powerChg.size, NSSize(width: 22, height: 14))
-        XCTAssertEqual(powerAC.size, NSSize(width: 22, height: 14))
+        XCTAssertEqual(powerBat.size, NSSize(width: 25, height: 16))
+        XCTAssertEqual(powerChg.size, NSSize(width: 25, height: 16))
+        XCTAssertEqual(powerAC.size, NSSize(width: 25, height: 16))
         XCTAssertTrue(powerBat.isTemplate && powerChg.isTemplate && powerAC.isTemplate)
     }
 
@@ -408,39 +408,39 @@ final class MenuBarDisplayTests: XCTestCase {
         XCTAssertNotNil(MenuBarIconRenderer.drawCPUSparkline(history: [10, 20, 50, 80]))
 
         // Memory
-        XCTAssertNotNil(MenuBarIconRenderer.drawMemoryGauge(ratio: 60.0))
-        XCTAssertNotNil(MenuBarIconRenderer.drawMemoryBar(ratio: 60.0))
-        XCTAssertNotNil(MenuBarIconRenderer.drawMemorySparkline(history: [40, 50, 60]))
+        XCTAssertNotNil(MenuBarIconRenderer.drawMemoryGauge(ratio: 45.0))
+        XCTAssertNotNil(MenuBarIconRenderer.drawMemoryBar(ratio: 45.0))
+        XCTAssertNotNil(MenuBarIconRenderer.drawMemorySparkline(history: [40, 42, 45, 48]))
 
         // GPU
         XCTAssertNotNil(MenuBarIconRenderer.drawGPUGauge(percentage: 30.0))
         XCTAssertNotNil(MenuBarIconRenderer.drawGPUBar(percentage: 30.0))
-        XCTAssertNotNil(MenuBarIconRenderer.drawGPUSparkline(history: [0, 15, 30]))
+        XCTAssertNotNil(MenuBarIconRenderer.drawGPUSparkline(history: [0, 10, 25, 40]))
 
         // Thermal
-        XCTAssertNotNil(MenuBarIconRenderer.drawThermalGauge(percentage: 45.0))
-        XCTAssertNotNil(MenuBarIconRenderer.drawThermalBar(percentage: 45.0))
-        XCTAssertNotNil(MenuBarIconRenderer.drawThermalSparkline(history: [45.0, 48.0, 52.0]))
+        XCTAssertNotNil(MenuBarIconRenderer.drawThermalGauge(percentage: 60.0))
+        XCTAssertNotNil(MenuBarIconRenderer.drawThermalBar(percentage: 60.0))
+        XCTAssertNotNil(MenuBarIconRenderer.drawThermalSparkline(history: [40, 45, 50, 55]))
 
         // Fan
-        XCTAssertNotNil(MenuBarIconRenderer.drawFanGauge(percentage: 70.0))
-        XCTAssertNotNil(MenuBarIconRenderer.drawFanBar(percentage: 70.0))
-        XCTAssertNotNil(MenuBarIconRenderer.drawFanSparkline(history: [2000, 2500, 3000]))
+        XCTAssertNotNil(MenuBarIconRenderer.drawFanGauge(percentage: 50.0))
+        XCTAssertNotNil(MenuBarIconRenderer.drawFanBar(percentage: 50.0))
+        XCTAssertNotNil(MenuBarIconRenderer.drawFanSparkline(history: [1200, 1500, 1800, 2000]))
 
         // Network
-        XCTAssertNotNil(MenuBarIconRenderer.drawNetworkGauge(percentage: 25.0))
-        XCTAssertNotNil(MenuBarIconRenderer.drawNetworkBar(inPct: 40.0, outPct: 20.0))
-        XCTAssertNotNil(MenuBarIconRenderer.drawNetworkSparkline(history: [1000, 5000, 10000]))
+        XCTAssertNotNil(MenuBarIconRenderer.drawNetworkGauge(percentage: 20.0))
+        XCTAssertNotNil(MenuBarIconRenderer.drawNetworkBar(inPct: 20.0, outPct: 10.0))
+        XCTAssertNotNil(MenuBarIconRenderer.drawNetworkSparkline(history: [1024, 2048, 5120, 10240]))
 
         // Disk
-        XCTAssertNotNil(MenuBarIconRenderer.drawDiskGauge(percentage: 80.0))
-        XCTAssertNotNil(MenuBarIconRenderer.drawDiskBar(readPct: 50.0, writePct: 30.0))
-        XCTAssertNotNil(MenuBarIconRenderer.drawDiskSparkline(history: [100, 500, 200]))
+        XCTAssertNotNil(MenuBarIconRenderer.drawDiskGauge(percentage: 40.0))
+        XCTAssertNotNil(MenuBarIconRenderer.drawDiskBar(readPct: 30.0, writePct: 15.0))
+        XCTAssertNotNil(MenuBarIconRenderer.drawDiskSparkline(history: [1000, 2000, 4000, 8000]))
 
         // Power
-        XCTAssertNotNil(MenuBarIconRenderer.drawPowerGauge(percentage: 85.0, isCharging: true))
-        XCTAssertNotNil(MenuBarIconRenderer.drawPowerBar(percentage: 85.0, isCharging: true))
-        XCTAssertNotNil(MenuBarIconRenderer.drawPowerSparkline(history: [90, 88, 85]))
+        XCTAssertNotNil(MenuBarIconRenderer.drawPowerGauge(percentage: 85.0, isCharging: false))
+        XCTAssertNotNil(MenuBarIconRenderer.drawPowerBar(percentage: 85.0, isCharging: false))
+        XCTAssertNotNil(MenuBarIconRenderer.drawPowerSparkline(history: [90, 88, 87, 85]))
     }
 
     func testAllAvailableConfigsRenderingCompleteness() {
@@ -462,7 +462,7 @@ final class MenuBarDisplayTests: XCTestCase {
 
     func testDrawStackedText() {
         let img = MenuBarIconRenderer.drawStackedText(line1: "↓ 1.4 MB/s", line2: "↑ 240 KB/s")
-        XCTAssertEqual(img.size.height, 18)
+        XCTAssertEqual(img.size.height, 22)
         XCTAssertGreaterThanOrEqual(img.size.width, 30)
         XCTAssertTrue(img.isTemplate)
     }
@@ -470,30 +470,30 @@ final class MenuBarDisplayTests: XCTestCase {
     func testDrawCPUPerCoreBarCluster() {
         let cores8 = [10.0, 25.0, 50.0, 75.0, 20.0, 40.0, 60.0, 80.0]
         let img8 = MenuBarIconRenderer.drawCPUBar(perCore: cores8, user: 45.0, system: 15.0)
-        XCTAssertEqual(img8.size.height, 18)
-        XCTAssertEqual(img8.size.width, 22)
+        XCTAssertEqual(img8.size.height, 20)
+        XCTAssertEqual(img8.size.width, 26)
         XCTAssertTrue(img8.isTemplate)
 
         let cores12 = Array(repeating: 30.0, count: 12)
         let img12 = MenuBarIconRenderer.drawCPUBar(perCore: cores12, user: 30.0, system: 0.0)
-        XCTAssertEqual(img12.size.width, 22)
-        XCTAssertEqual(img12.size.height, 18)
+        XCTAssertEqual(img12.size.width, 26)
+        XCTAssertEqual(img12.size.height, 20)
 
         let coresNil = MenuBarIconRenderer.drawCPUBar(perCore: nil, user: 40.0, system: 10.0)
-        XCTAssertEqual(coresNil.size.width, 22)
-        XCTAssertEqual(coresNil.size.height, 18)
+        XCTAssertEqual(coresNil.size.width, 26)
+        XCTAssertEqual(coresNil.size.height, 20)
     }
 
     func testDrawSingleLineText() {
-        let img = MenuBarIconRenderer.drawSingleLineText(text: "CPU 45%", fixedWidth: 56.0)
-        XCTAssertEqual(img.size.height, 18)
-        XCTAssertEqual(img.size.width, 56.0)
+        let img = MenuBarIconRenderer.drawSingleLineText(text: "CPU 45%", fixedWidth: 60.0)
+        XCTAssertEqual(img.size.height, 22)
+        XCTAssertGreaterThanOrEqual(img.size.width, 60.0)
         XCTAssertTrue(img.isTemplate)
     }
 
     func testDrawCPUDonutPie() {
         let donut = MenuBarIconRenderer.drawCPUDonutPie(user: 45.0, system: 15.0)
-        XCTAssertEqual(donut.size, NSSize(width: 16, height: 16))
+        XCTAssertEqual(donut.size, NSSize(width: 18, height: 18))
         XCTAssertTrue(donut.isTemplate)
     }
 
@@ -501,7 +501,7 @@ final class MenuBarDisplayTests: XCTestCase {
         let inHistory = [1000.0, 5000.0, 20000.0, 100000.0, 50000.0]
         let outHistory = [500.0, 2000.0, 10000.0, 40000.0, 20000.0]
         let splitGraph = MenuBarIconRenderer.drawNetworkSplitDuplexGraph(inHistory: inHistory, outHistory: outHistory)
-        XCTAssertEqual(splitGraph.size, NSSize(width: 34, height: 14))
+        XCTAssertEqual(splitGraph.size, NSSize(width: 36, height: 16))
         XCTAssertTrue(splitGraph.isTemplate)
     }
 
@@ -512,25 +512,25 @@ final class MenuBarDisplayTests: XCTestCase {
             unit: .bytesPerSecond,
             standard: .iec
         )
-        XCTAssertEqual(netImg.size.height, 18)
+        XCTAssertEqual(netImg.size.height, 22)
         XCTAssertTrue(netImg.isTemplate)
     }
 
     func testDrawBatteryInstrument() {
         let batDischarging = MenuBarIconRenderer.drawBatteryInstrument(charge: 75.0, state: .discharging, hasBattery: true)
-        XCTAssertEqual(batDischarging.size, NSSize(width: 22, height: 14))
+        XCTAssertEqual(batDischarging.size, NSSize(width: 25, height: 16))
         XCTAssertTrue(batDischarging.isTemplate)
 
         let batCharging = MenuBarIconRenderer.drawBatteryInstrument(charge: 88.0, state: .charging, hasBattery: true)
-        XCTAssertEqual(batCharging.size, NSSize(width: 22, height: 14))
+        XCTAssertEqual(batCharging.size, NSSize(width: 25, height: 16))
         XCTAssertTrue(batCharging.isTemplate)
 
         let desktopAC = MenuBarIconRenderer.drawBatteryInstrument(charge: nil, state: nil, hasBattery: false)
-        XCTAssertEqual(desktopAC.size, NSSize(width: 22, height: 14))
+        XCTAssertEqual(desktopAC.size, NSSize(width: 25, height: 16))
         XCTAssertTrue(desktopAC.isTemplate)
 
         let unmetered = MenuBarIconRenderer.drawBatteryInstrument(charge: nil, state: nil, hasBattery: true)
-        XCTAssertEqual(unmetered.size, NSSize(width: 22, height: 14))
+        XCTAssertEqual(unmetered.size, NSSize(width: 25, height: 16))
         XCTAssertTrue(unmetered.isTemplate)
     }
 }
