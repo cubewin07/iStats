@@ -2,14 +2,19 @@ import SwiftUI
 import iStatsCore
 
 /// A macOS preferences window view allowing configuration of sampling intervals,
-/// category toggles, display units, and system behavior (Requirements 11.1, 11.2, 11.3, 11.4).
+/// per-category menu bar widgets, display units, and system behavior (Requirements 11.1-11.4, ADR 0007).
 public struct PreferencesView: View {
     @ObservedObject public var store: PreferencesStore
+    @ObservedObject public var coordinator: MetricsCoordinator
 
     private let presetIntervals: [TimeInterval] = [0.5, 1.0, 2.0, 5.0, 10.0, 30.0, 60.0]
 
-    public init(store: PreferencesStore = .shared) {
+    public init(
+        store: PreferencesStore = .shared,
+        coordinator: MetricsCoordinator = .shared
+    ) {
         self.store = store
+        self.coordinator = coordinator
     }
 
     public var body: some View {
@@ -20,9 +25,9 @@ public struct PreferencesView: View {
                 }
                 .tag(0)
 
-            categoriesTab
+            menuBarTab
                 .tabItem {
-                    Label("Categories", systemImage: "square.grid.2x2")
+                    Label("Menu Bar", systemImage: "menubar.rectangle")
                 }
                 .tag(1)
 
@@ -38,7 +43,7 @@ public struct PreferencesView: View {
                 }
                 .tag(3)
         }
-        .frame(width: 520, height: 420)
+        .frame(width: 560, height: 480)
         .padding(16)
     }
 
@@ -106,33 +111,6 @@ public struct PreferencesView: View {
 
             Section {
                 VStack(alignment: .leading, spacing: 10) {
-                    HStack {
-                        Text("Menu Bar Metric:")
-                            .font(.headline)
-                        Spacer()
-                        Picker("", selection: $store.menuBarDisplayMode) {
-                            ForEach(PreferencesStore.MenuBarDisplayMode.allCases) { mode in
-                                Text(mode.displayName).tag(mode)
-                            }
-                        }
-                        .pickerStyle(.menu)
-                        .frame(width: 160)
-                    }
-
-                    Text("Controls which metric appears directly in the macOS menu bar status item (Requirement 9.4).")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-                .padding(.vertical, 4)
-            } header: {
-                Text("Menu Bar Presentation")
-            }
-
-            Divider()
-                .padding(.vertical, 6)
-
-            Section {
-                VStack(alignment: .leading, spacing: 10) {
                     Toggle("Show Dock Icon", isOn: $store.showDockIcon)
                         .onChange(of: store.showDockIcon) { newValue in
                             DockIconManager.shared.setDockIconVisible(newValue)
@@ -173,46 +151,107 @@ public struct PreferencesView: View {
         .formStyle(.grouped)
     }
 
-    // MARK: - Categories Tab
+    // MARK: - Menu Bar Tab (ADR 0007)
 
-    private var categoriesTab: some View {
+    private var menuBarTab: some View {
         Form {
             Section {
                 List {
                     ForEach(MetricCategory.allCases, id: \.self) { category in
-                        HStack(spacing: 12) {
-                            Image(systemName: iconName(for: category))
-                                .frame(width: 24)
-                                .foregroundColor(.accentColor)
+                        VStack(alignment: .leading, spacing: 10) {
+                            // Category Row & Master Toggle
+                            HStack(spacing: 12) {
+                                Image(systemName: iconName(for: category))
+                                    .frame(width: 24)
+                                    .foregroundColor(.accentColor)
 
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(category.displayName)
-                                    .font(.body)
-                                Text(categoryDescription(for: category))
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(category.displayName)
+                                        .font(.body)
+                                        .fontWeight(.semibold)
+                                    Text(categoryDescription(for: category))
+                                        .font(.caption2)
+                                        .foregroundColor(.secondary)
+                                }
+
+                                Spacer()
+
+                                Toggle("", isOn: Binding(
+                                    get: { store.isCategoryEnabled(category) },
+                                    set: { store.setCategory(category, isEnabled: $0) }
+                                ))
+                                .labelsHidden()
                             }
 
-                            Spacer()
-
-                            Toggle("", isOn: Binding(
-                                get: { store.isCategoryEnabled(category) },
-                                set: { store.setCategory(category, isEnabled: $0) }
-                            ))
-                            .labelsHidden()
+                            // Available Widget Styles with Live Previews
+                            if store.isCategoryEnabled(category) {
+                                VStack(spacing: 8) {
+                                    ForEach(MetricDisplayStyle.supportedStyles(for: category)) { style in
+                                        widgetStyleRow(category: category, style: style)
+                                    }
+                                }
+                                .padding(.leading, 36)
+                            }
                         }
-                        .padding(.vertical, 2)
+                        .padding(.vertical, 6)
                     }
                 }
             } header: {
-                Text("Monitored Categories")
+                Text("Customizable Menu Bar Icons & Widgets")
             } footer: {
-                Text("Disabled categories are excluded from background sampling loops to conserve resources.")
+                Text("Live previews reflect real-time telemetry. Toggle any widget style to show it in your macOS menu bar. Clicking any item opens its popover.")
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
         }
         .formStyle(.grouped)
+    }
+
+    private func widgetStyleRow(category: MetricCategory, style: MetricDisplayStyle) -> some View {
+        let renderResult = MenuBarIconRenderer.render(
+            config: MenuBarItemConfig(category: category, style: style),
+            coordinator: coordinator,
+            preferences: store
+        )
+
+        return HStack(spacing: 12) {
+            // Live Preview Badge
+            HStack(spacing: 5) {
+                if let img = renderResult.image {
+                    Image(nsImage: img)
+                        .renderingMode(.template)
+                }
+                if !renderResult.title.isEmpty {
+                    Text(renderResult.title)
+                        .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                }
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .frame(minWidth: 48, minHeight: 22)
+            .background(Color.secondary.opacity(0.12))
+            .clipShape(RoundedRectangle(cornerRadius: 6))
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(style.displayName)
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+            }
+
+            Spacer()
+
+            Toggle("", isOn: Binding(
+                get: { store.isItemEnabled(category: category, style: style) },
+                set: { store.setItemEnabled(category: category, style: style, isEnabled: $0) }
+            ))
+            .toggleStyle(.switch)
+            .controlSize(.small)
+            .labelsHidden()
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 5)
+        .background(Color.secondary.opacity(0.05))
+        .cornerRadius(8)
     }
 
     // MARK: - Units Tab
@@ -243,7 +282,7 @@ public struct PreferencesView: View {
             } header: {
                 Text("Display Formatting")
             } footer: {
-                Text("Applies globally across the menu bar display and detail popover.")
+                Text("Applies globally across all menu bar items and popovers.")
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
@@ -263,7 +302,7 @@ public struct PreferencesView: View {
                 Text("iStats")
                     .font(.title2)
                     .fontWeight(.bold)
-                Text("Version 0.1.0 (Phase 1 Foundation)")
+                Text("Version 0.1.0")
                     .font(.subheadline)
                     .foregroundColor(.secondary)
             }
@@ -308,6 +347,17 @@ public struct PreferencesView: View {
         case .network: return "network"
         case .disk: return "internaldrive"
         case .power: return "bolt.fill"
+        }
+    }
+
+    private func styleIcon(for style: MetricDisplayStyle) -> String {
+        switch style {
+        case .symbol: return "star"
+        case .gauge: return "gauge.medium"
+        case .bar: return "chart.bar.fill"
+        case .sparkline: return "chart.xyaxis.line"
+        case .text: return "textformat.123"
+        case .throughput: return "arrow.up.arrow.down"
         }
     }
 

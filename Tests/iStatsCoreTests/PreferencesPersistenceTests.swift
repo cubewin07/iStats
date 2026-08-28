@@ -92,7 +92,8 @@ final class PreferencesPersistenceTests: XCTestCase {
             PreferencesStore.Keys.byteUnitStandard,
             PreferencesStore.Keys.showDockIcon,
             PreferencesStore.Keys.launchAtLogin,
-            PreferencesStore.Keys.menuBarDisplayMode
+            PreferencesStore.Keys.menuBarDisplayMode,
+            PreferencesStore.Keys.menuBarItems
         ]
 
         for (key, _) in persistentDict where key.hasPrefix("iStats.") {
