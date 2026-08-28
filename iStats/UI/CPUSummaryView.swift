@@ -66,28 +66,58 @@ public struct CPUSummaryView: View {
             }
 
             // Rolling 60s History Graph
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 5) {
+                HStack(spacing: 4) {
+                    Image(systemName: "chart.xyaxis.line")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundColor(.blue)
+                    Text("CPU Utilization History (60s)")
+                        .font(.system(size: 9.5, weight: .semibold))
+                        .foregroundColor(.primary)
+                    Spacer()
+                    if let sample = sample {
+                        let peak = historyPercentages.max() ?? sample.totalUsage
+                        Text(String(format: "Peak: %.1f%%", peak))
+                            .font(.system(size: 9, weight: .bold, design: .monospaced))
+                            .foregroundColor(.secondary)
+                    }
+                }
+
                 RollingGraphView(
                     values: historyPercentages,
                     minValue: 0.0,
                     maxValue: 100.0,
                     tintColor: .blue,
                     capacity: 60,
-                    height: 44,
+                    height: 46,
                     showGrid: true
                 )
 
-                HStack {
-                    Text("CPU Activity History")
-                        .font(.system(size: 9, weight: .medium))
-                        .foregroundColor(.secondary)
-                    Spacer()
-                    if let sample = sample {
-                        let peak = historyPercentages.max() ?? sample.totalUsage
-                        Text(String(format: "Peak: %.1f%%", peak))
-                            .font(.system(size: 9, weight: .semibold, design: .monospaced))
-                            .foregroundColor(.secondary)
+                if let sample = sample {
+                    HStack(spacing: 10) {
+                        HStack(spacing: 3) {
+                            Circle().fill(Color.blue).frame(width: 4.5, height: 4.5)
+                            Text("User: \(String(format: "%.1f%%", sample.user))")
+                                .font(.system(size: 8.5, weight: .medium))
+                                .foregroundColor(.secondary)
+                        }
+
+                        HStack(spacing: 3) {
+                            Circle().fill(Color.orange).frame(width: 4.5, height: 4.5)
+                            Text("Sys: \(String(format: "%.1f%%", sample.system))")
+                                .font(.system(size: 8.5, weight: .medium))
+                                .foregroundColor(.secondary)
+                        }
+
+                        Spacer()
+
+                        if let load = sample.loadAverage {
+                            Text("Load: \(String(format: "%.2f", load.oneMinute))")
+                                .font(.system(size: 8.5, weight: .semibold, design: .monospaced))
+                                .foregroundColor(.secondary)
+                        }
                     }
+                    .padding(.horizontal, 2)
                 }
             }
 

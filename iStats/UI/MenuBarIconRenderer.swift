@@ -87,10 +87,11 @@ public struct MenuBarIconRenderer {
     private static func renderCPU(style: MetricDisplayStyle, cpu: CPUSample?, history: [Double]) -> RenderResult {
         let usage = cpu?.totalUsage ?? 0.0
         let tip = cpu != nil ? String(format: "CPU: %.1f%% (User: %.1f%%, Sys: %.1f%%)", cpu!.totalUsage, cpu!.user, cpu!.system) : "CPU: --%"
+        let valStr = cpu != nil ? String(format: "%.0f%%", usage) : "--%"
 
         switch style {
         case .gauge:
-            // Segmented Donut Pie (User vs Kernel load)
+            // Segmented Donut Pie (User vs Kernel load) with vibrant signature colors
             let img = drawCPUDonutPie(user: cpu?.user ?? usage, system: cpu?.system ?? 0.0)
             return RenderResult(image: img, toolTip: tip)
         case .bar:
@@ -98,21 +99,15 @@ public struct MenuBarIconRenderer {
             let img = drawCPUBar(perCore: cpu?.perCore, user: cpu?.user, system: cpu?.system)
             return RenderResult(image: img, toolTip: tip)
         case .sparkline:
-            // Real-Time Scrolling History Graph
+            // Real-Time Scrolling History Graph with signature blue gradient
             let img = drawCPUSparkline(history: history)
             return RenderResult(image: img, toolTip: tip)
-        case .throughput:
-            // Two-Line Stacked Text (CPU / Usage%)
-            let l1 = "CPU"
-            let l2 = cpu != nil ? String(format: "%.0f%%", usage) : "--%"
-            let img = drawStackedText(line1: l1, line2: l2)
-            return RenderResult(image: img, toolTip: tip)
-        case .text:
-            let text = cpu != nil ? String(format: "CPU %.0f%%", usage) : "CPU --%"
-            let img = drawSingleLineText(text: text, fixedWidth: 56.0)
+        case .throughput, .text:
+            // Invariant Jitter-Free Stacked Text (CPU over Usage%)
+            let img = drawCategoryStackedText(title: "CPU", value: valStr, fixedWidth: 32.0)
             return RenderResult(image: img, toolTip: tip)
         case .symbol:
-            // Activity Instrument (Donut with core dot)
+            // Activity Instrument (Tri-Segment / 3-Blade Pie)
             let img = drawCPUSymbol(usage: usage)
             return RenderResult(image: img, toolTip: tip)
         }
@@ -131,10 +126,12 @@ public struct MenuBarIconRenderer {
         if let mem = memory {
             let usedStr = Units.formatBytes(mem.used, standard: standard)
             let totalStr = Units.formatBytes(mem.total, standard: standard)
-            tip = "RAM: \(usedStr) / \(totalStr) (\(String(format: "%.1f%%", ratio))) - Pressure: \(mem.pressure.displayName)"
+            tip = "MEM: \(usedStr) / \(totalStr) (\(String(format: "%.1f%%", ratio))) - Pressure: \(mem.pressure.displayName)"
         } else {
-            tip = "RAM: --%"
+            tip = "MEM: --%"
         }
+
+        let valStr = memory != nil ? String(format: "%.0f%%", ratio) : "--%"
 
         switch style {
         case .gauge:
@@ -149,18 +146,12 @@ public struct MenuBarIconRenderer {
             // Rolling Memory History Graph
             let img = drawMemorySparkline(history: history)
             return RenderResult(image: img, toolTip: tip)
-        case .throughput:
-            // Two-Line Stacked Text (RAM / Used GB or %)
-            let l1 = "RAM"
-            let l2 = memory != nil ? (Units.formatBytes(memory!.used, standard: standard, fractionDigits: 1)) : "--"
-            let img = drawStackedText(line1: l1, line2: l2)
-            return RenderResult(image: img, toolTip: tip)
-        case .text:
-            let text = memory != nil ? String(format: "RAM %.0f%%", ratio) : "RAM --%"
-            let img = drawSingleLineText(text: text, fixedWidth: 56.0)
+        case .throughput, .text:
+            // Two-Line Jitter-Free Stacked Text (MEM / Used %)
+            let img = drawCategoryStackedText(title: "MEM", value: valStr, fixedWidth: 32.0)
             return RenderResult(image: img, toolTip: tip)
         case .symbol:
-            // Activity Instrument
+            // Activity Instrument (Tri-Segment Pie)
             let img = drawMemorySymbol(ratio: ratio, pressure: memory?.pressure)
             return RenderResult(image: img, toolTip: tip)
         }
@@ -171,10 +162,11 @@ public struct MenuBarIconRenderer {
     private static func renderGPU(style: MetricDisplayStyle, gpu: GPUSample?, history: [Double]) -> RenderResult {
         let util = gpu?.utilization ?? 0.0
         let tip = gpu != nil ? String(format: "GPU: %.1f%%", util) : "GPU: --%"
+        let valStr = gpu?.utilization != nil ? String(format: "%.0f%%", util) : "--%"
 
         switch style {
         case .gauge:
-            let img = drawCircularGauge(percentage: util, iconName: "display")
+            let img = drawGPUGauge(percentage: util)
             return RenderResult(image: img, toolTip: tip)
         case .bar:
             let img = drawGPUBar(percentage: util)
@@ -182,14 +174,8 @@ public struct MenuBarIconRenderer {
         case .sparkline:
             let img = drawGPUSparkline(history: history)
             return RenderResult(image: img, toolTip: tip)
-        case .throughput:
-            let l1 = "GPU"
-            let l2 = gpu?.utilization != nil ? String(format: "%.0f%%", util) : "--%"
-            let img = drawStackedText(line1: l1, line2: l2)
-            return RenderResult(image: img, toolTip: tip)
-        case .text:
-            let text = gpu?.utilization != nil ? String(format: "GPU %.0f%%", util) : "GPU --%"
-            let img = drawSingleLineText(text: text, fixedWidth: 56.0)
+        case .throughput, .text:
+            let img = drawCategoryStackedText(title: "GPU", value: valStr, fixedWidth: 32.0)
             return RenderResult(image: img, toolTip: tip)
         case .symbol:
             let img = drawGPUSymbol(utilization: gpu?.utilization)
@@ -209,25 +195,20 @@ public struct MenuBarIconRenderer {
         let tempC = sensor?.celsius ?? 0.0
         let pct = min(max((tempC - 30.0) / (100.0 - 30.0) * 100.0, 0.0), 100.0)
         let tip = sensor != nil ? "Thermal: \(Units.formatTemperature(tempC, unit: unit, fractionDigits: 1))" : "Thermal: --"
+        let valStr = sensor != nil ? (unit == .celsius ? String(format: "%.0f°", tempC) : String(format: "%.0f°", Units.celsiusToFahrenheit(tempC))) : (unit == .celsius ? "--°" : "--°")
 
         switch style {
         case .gauge:
-            let img = drawThermalGauge(percentage: pct)
+            let img = drawThermalGauge(percentage: pct, celsius: sensor?.celsius)
             return RenderResult(image: img, toolTip: tip)
         case .bar:
-            let img = drawThermalBar(percentage: pct)
+            let img = drawThermalBar(percentage: pct, celsius: sensor?.celsius)
             return RenderResult(image: img, toolTip: tip)
         case .sparkline:
             let img = drawThermalSparkline(history: history)
             return RenderResult(image: img, toolTip: tip)
-        case .throughput:
-            let l1 = "CPU"
-            let l2 = sensor != nil ? Units.formatTemperature(tempC, unit: unit, fractionDigits: 0) : "--"
-            let img = drawStackedText(line1: l1, line2: l2)
-            return RenderResult(image: img, toolTip: tip)
-        case .text:
-            let text = sensor != nil ? Units.formatTemperature(tempC, unit: unit, fractionDigits: 0) : (unit == .celsius ? "--°C" : "--°F")
-            let img = drawSingleLineText(text: text, fixedWidth: 42.0)
+        case .throughput, .text:
+            let img = drawCategoryStackedText(title: "CPU", value: valStr, fixedWidth: 32.0)
             return RenderResult(image: img, toolTip: tip)
         case .symbol:
             let img = drawThermalSymbol(celsius: sensor?.celsius)
@@ -251,6 +232,8 @@ public struct MenuBarIconRenderer {
             pct = min(Double(rpm) / 6000.0 * 100.0, 100.0)
         }
 
+        let fanVal = primaryFan != nil ? (rpm >= 1000 ? String(format: "%.1fk", Double(rpm)/1000.0) : "\(rpm)") : "--"
+
         switch style {
         case .gauge:
             let img = drawFanGauge(percentage: pct)
@@ -261,14 +244,8 @@ public struct MenuBarIconRenderer {
         case .sparkline:
             let img = drawFanSparkline(history: history)
             return RenderResult(image: img, toolTip: tip)
-        case .throughput:
-            let l1 = "FAN"
-            let l2 = primaryFan != nil ? (rpm >= 1000 ? String(format: "%.1fk", Double(rpm)/1000.0) : "\(rpm)") : "--"
-            let img = drawStackedText(line1: l1, line2: l2)
-            return RenderResult(image: img, toolTip: tip)
-        case .text:
-            let text = primaryFan != nil ? "\(rpm) RPM" : "-- RPM"
-            let img = drawSingleLineText(text: text, fixedWidth: 56.0)
+        case .throughput, .text:
+            let img = drawCategoryStackedText(title: "FAN", value: fanVal, fixedWidth: 32.0)
             return RenderResult(image: img, toolTip: tip)
         case .symbol:
             let img = drawFanSymbol(rpm: primaryFan?.rpm, percentage: pct)
@@ -288,17 +265,15 @@ public struct MenuBarIconRenderer {
     ) -> RenderResult {
         let inBytes = network?.totalBytesInPerSec ?? 0.0
         let outBytes = network?.totalBytesOutPerSec ?? 0.0
-        let inStr = Units.formatNetworkRate(inBytes, unit: unit, standard: standard, fractionDigits: 0)
-        let outStr = Units.formatNetworkRate(outBytes, unit: unit, standard: standard, fractionDigits: 0)
         let tip = "Network: ↓ \(Units.formatNetworkRate(inBytes, unit: unit, standard: standard, fractionDigits: 1))  ↑ \(Units.formatNetworkRate(outBytes, unit: unit, standard: standard, fractionDigits: 1))"
 
         let total = inBytes + outBytes
-        let pct = min((total / (10 * 1024 * 1024)) * 100.0, 100.0) // Scale to 10 MB/s
+        let pct = min((total / (10 * 1024 * 1024)) * 100.0, 100.0)
         let inPct = min((inBytes / (10 * 1024 * 1024)) * 100.0, 100.0)
         let outPct = min((outBytes / (10 * 1024 * 1024)) * 100.0, 100.0)
 
         switch style {
-        case .throughput:
+        case .throughput, .text:
             // Signature iStat Menus 2-Line Stacked Download (↓) & Upload (↑) Speeds
             let img = drawNetworkStackedThroughput(inBytes: inBytes, outBytes: outBytes, unit: unit, standard: standard)
             return RenderResult(image: img, toolTip: tip)
@@ -317,10 +292,6 @@ public struct MenuBarIconRenderer {
         case .gauge:
             let img = drawNetworkGauge(percentage: pct)
             return RenderResult(image: img, toolTip: tip)
-        case .text:
-            let text = network != nil ? "↓ \(inStr) ↑ \(outStr)" : "Net --"
-            let img = drawSingleLineText(text: text, fixedWidth: 84.0)
-            return RenderResult(image: img, toolTip: tip)
         }
     }
 
@@ -334,8 +305,6 @@ public struct MenuBarIconRenderer {
     ) -> RenderResult {
         let readBytes = disk?.io?.bytesReadPerSec ?? 0.0
         let writeBytes = disk?.io?.bytesWrittenPerSec ?? 0.0
-        let readStr = Units.formatDiskRate(readBytes, standard: standard, fractionDigits: 0)
-        let writeStr = Units.formatDiskRate(writeBytes, standard: standard, fractionDigits: 0)
         let tip = "Disk I/O: Read \(Units.formatDiskRate(readBytes, standard: standard, fractionDigits: 1)), Write \(Units.formatDiskRate(writeBytes, standard: standard, fractionDigits: 1))"
 
         let readPct = min((readBytes / (50 * 1024 * 1024)) * 100.0, 100.0)
@@ -348,11 +317,9 @@ public struct MenuBarIconRenderer {
             : 0.0
 
         switch style {
-        case .throughput:
+        case .throughput, .text:
             // Two-Line Stacked Read / Write Speeds
-            let l1 = "R \(readStr)"
-            let l2 = "W \(writeStr)"
-            let img = drawStackedText(line1: l1, line2: l2)
+            let img = drawDiskStackedThroughput(readBytes: readBytes, writeBytes: writeBytes, standard: standard)
             return RenderResult(image: img, toolTip: tip)
         case .symbol:
             // Dynamic Read / Write Activity LEDs
@@ -368,10 +335,6 @@ public struct MenuBarIconRenderer {
             return RenderResult(image: img, toolTip: tip)
         case .sparkline:
             let img = drawDiskSparkline(history: history)
-            return RenderResult(image: img, toolTip: tip)
-        case .text:
-            let text = disk?.io != nil ? "R: \(readStr) W: \(writeStr)" : "Disk --"
-            let img = drawSingleLineText(text: text, fixedWidth: 84.0)
             return RenderResult(image: img, toolTip: tip)
         }
     }
@@ -400,7 +363,7 @@ public struct MenuBarIconRenderer {
             // Authentic Battery Shell Instrument with Live Fill & Charging Bolt
             let img = drawBatteryInstrument(charge: power?.charge, state: power?.state, hasBattery: hasBattery)
             return RenderResult(image: img, toolTip: tip)
-        case .throughput:
+        case .throughput, .text:
             // Two-Line Stacked Battery Charge% + Time Remaining / Wattage
             let img = drawPowerStackedText(charge: power?.charge, state: power?.state, timeRemaining: power?.timeRemaining, watts: power?.powerDrawWatts)
             return RenderResult(image: img, toolTip: tip)
@@ -413,24 +376,129 @@ public struct MenuBarIconRenderer {
         case .sparkline:
             let img = drawPowerSparkline(history: history)
             return RenderResult(image: img, toolTip: tip)
-        case .text:
-            let text: String
-            if let pwr = power {
-                if !pwr.hasBattery {
-                    text = "AC"
-                } else {
-                    let bolt = (pwr.state == .charging) ? " ⚡" : ""
-                    text = String(format: "%.0f%%%@", charge, bolt)
-                }
-            } else {
-                text = "Bat --%"
-            }
-            let img = drawSingleLineText(text: text, fixedWidth: 46.0)
-            return RenderResult(image: img, toolTip: tip)
         }
     }
 
     // MARK: - Core iStat Menus Instrument Drawing Primitives
+
+    /// Helper that formats numeric values with a clean suffix symbol (%, °, k, etc.)
+    /// matching the modern elegant typography preferred by the user.
+    private static func formatCompactValueAttributedString(
+        value: String,
+        color: NSColor
+    ) -> NSAttributedString {
+        let attrString = NSMutableAttributedString()
+        let trimmed = value.trimmingCharacters(in: .whitespaces)
+        
+        let digits = String(trimmed.prefix(while: { $0.isNumber || $0 == "." || $0 == "-" }))
+        let suffix = String(trimmed.dropFirst(digits.count))
+        
+        let digitFont = NSFont.monospacedDigitSystemFont(ofSize: 11.0, weight: .medium)
+        let suffixFont = NSFont.systemFont(ofSize: 8.5, weight: .medium)
+        
+        let digitAttrs: [NSAttributedString.Key: Any] = [
+            .font: digitFont,
+            .foregroundColor: color
+        ]
+        attrString.append(NSAttributedString(string: digits.isEmpty ? trimmed : digits, attributes: digitAttrs))
+        
+        if !digits.isEmpty && !suffix.isEmpty {
+            let offset: CGFloat = suffix.contains("°") ? 1.5 : 0.5
+            let suffixAttrs: [NSAttributedString.Key: Any] = [
+                .font: suffixFont,
+                .foregroundColor: color,
+                .baselineOffset: offset
+            ]
+            attrString.append(NSAttributedString(string: suffix, attributes: suffixAttrs))
+        }
+        
+        return attrString
+    }
+
+    /// Draws clean, elegant 2-line stacked high-density typography with generous vertical spacing
+    /// and strict invariant fixed-width preventing menu bar horizontal jitter.
+    public static func drawCategoryStackedText(
+        title: String,
+        value: String,
+        fixedWidth: CGFloat = 32.0,
+        titleColor: NSColor? = nil,
+        valueColor: NSColor? = nil
+    ) -> NSImage {
+        let tColor = titleColor ?? NSColor.labelColor.withAlphaComponent(0.90)
+        let vColor = valueColor ?? NSColor.labelColor
+
+        let titleFont = NSFont.systemFont(ofSize: 8.5, weight: .medium)
+        let tAttrs: [NSAttributedString.Key: Any] = [
+            .font: titleFont,
+            .foregroundColor: tColor,
+            .kern: 0.10
+        ]
+        let titleAttrString = NSAttributedString(string: title.uppercased(), attributes: tAttrs)
+        let valueAttrString = formatCompactValueAttributedString(value: value, color: vColor)
+
+        let tSize = titleAttrString.size()
+        let vSize = valueAttrString.size()
+
+        let canvasWidth = max(fixedWidth, max(tSize.width, vSize.width) + 2.0)
+        let size = NSSize(width: canvasWidth, height: 22)
+
+        let image = NSImage(size: size, flipped: false) { bounds in
+            let tX = floor(max(0.0, (bounds.width - tSize.width) / 2.0))
+            let vX = floor(max(0.0, (bounds.width - vSize.width) / 2.0))
+
+            // Lowered vertical baselines with large 11.0pt digits and generous ~4.0pt interline gap:
+            // Value baseline sits at y = 0.52pt (digits top at 8.27pt)
+            // Title baseline sits at y = 12.29pt (title top at 18.28pt)
+            // Top margin: 3.72pt, Bottom margin: 0.52pt, Interline gap: 4.02pt
+            let vY: CGFloat = -1.8
+            let tY: CGFloat = 10.5
+
+            titleAttrString.draw(at: NSPoint(x: tX, y: tY))
+            valueAttrString.draw(at: NSPoint(x: vX, y: vY))
+            return true
+        }
+        image.isTemplate = (titleColor == nil && valueColor == nil)
+        return image
+    }
+
+    /// Draws authentic iStat Menus 3-Segment Pie / Tri-Blade Instrument (as seen in official iStat Menus).
+    public static func drawTriSegmentPie(
+        ratio: Double? = nil,
+        activeRatio: Double? = nil,
+        wiredRatio: Double? = nil,
+        compressedRatio: Double? = nil
+    ) -> NSImage {
+        let size = NSSize(width: 18, height: 18)
+        let image = NSImage(size: size, flipped: false) { bounds in
+            let center = NSPoint(x: bounds.midX, y: bounds.midY)
+            let outerRadius: CGFloat = 8.0
+            let innerRadius: CGFloat = 2.2
+            
+            // 3 segments at 90°, 210°, 330° with 12° angular gaps
+            let segmentSpan: CGFloat = 108.0 // 120 - 12 gap
+            let gap: CGFloat = 12.0
+            
+            let segments: [(start: CGFloat, color: NSColor)] = [
+                (90.0 - gap / 2.0, NSColor.labelColor),
+                (330.0 - gap / 2.0, NSColor.labelColor),
+                (210.0 - gap / 2.0, NSColor.labelColor)
+            ]
+            
+            for (startAngle, color) in segments {
+                let path = NSBezierPath()
+                let endAngle = startAngle - segmentSpan
+                path.appendArc(withCenter: center, radius: outerRadius, startAngle: startAngle, endAngle: endAngle, clockwise: true)
+                path.appendArc(withCenter: center, radius: innerRadius, startAngle: endAngle, endAngle: startAngle, clockwise: false)
+                path.close()
+                
+                color.setFill()
+                path.fill()
+            }
+            return true
+        }
+        image.isTemplate = true
+        return image
+    }
 
     /// Draws single-line tabular monospaced text right-aligned within a fixed-width template canvas.
     public static func drawSingleLineText(
@@ -456,41 +524,39 @@ public struct MenuBarIconRenderer {
         return image
     }
 
-    /// Draws authentic iStat Menus 2-line stacked high-density monospaced typography with dynamic vertical centering.
+    /// Draws authentic iStat Menus 2-line stacked typography with right-aligned tabular numbers.
     public static func drawStackedText(
         line1: String,
         line2: String,
-        minWidth: CGFloat = 0.0
+        minWidth: CGFloat = 0.0,
+        color1: NSColor? = nil,
+        color2: NSColor? = nil
     ) -> NSImage {
-        let font = NSFont.monospacedDigitSystemFont(ofSize: 9.0, weight: .bold)
+        let font = NSFont.monospacedDigitSystemFont(ofSize: 8.5, weight: .bold)
         let attrs1: [NSAttributedString.Key: Any] = [
             .font: font,
-            .foregroundColor: NSColor.labelColor
+            .foregroundColor: color1 ?? NSColor.labelColor
         ]
         let attrs2: [NSAttributedString.Key: Any] = [
             .font: font,
-            .foregroundColor: NSColor.labelColor
+            .foregroundColor: color2 ?? NSColor.labelColor
         ]
 
         let s1 = (line1 as NSString).size(withAttributes: attrs1)
         let s2 = (line2 as NSString).size(withAttributes: attrs2)
         let textWidth = max(s1.width, s2.width)
-        let canvasWidth = max(textWidth + 3.0, minWidth)
+        let canvasWidth = max(textWidth + 4.0, minWidth)
         let size = NSSize(width: canvasWidth, height: 22)
 
         let image = NSImage(size: size, flipped: false) { bounds in
-            let lineSpacing: CGFloat = -1.5
-            let totalHeight = s1.height + s2.height + lineSpacing
-            let startY = max(0.5, (bounds.height - totalHeight) / 2.0)
-
-            let p2 = NSPoint(x: bounds.maxX - s2.width - 1.0, y: startY)
-            let p1 = NSPoint(x: bounds.maxX - s1.width - 1.0, y: startY + s2.height + lineSpacing)
+            let p1 = NSPoint(x: max(1.0, bounds.width - s1.width - 2.0), y: 11.5)
+            let p2 = NSPoint(x: max(1.0, bounds.width - s2.width - 2.0), y: 2.0)
 
             (line1 as NSString).draw(at: p1, withAttributes: attrs1)
             (line2 as NSString).draw(at: p2, withAttributes: attrs2)
             return true
         }
-        image.isTemplate = true
+        image.isTemplate = (color1 == nil && color2 == nil)
         return image
     }
 
@@ -505,10 +571,23 @@ public struct MenuBarIconRenderer {
         let outStr = Units.formatNetworkRate(outBytes, unit: unit, standard: standard, fractionDigits: 0)
         let l1 = "↓ \(inStr)"
         let l2 = "↑ \(outStr)"
-        return drawStackedText(line1: l1, line2: l2, minWidth: 42.0)
+        return drawStackedText(line1: l1, line2: l2, minWidth: 44.0)
     }
 
-    /// Draws the signature iStat Menus split duplex history graph (Download above midline, Upload below midline).
+    /// Draws the signature iStat Menus 2-line stacked disk I/O throughput (`R read` over `W write`).
+    public static func drawDiskStackedThroughput(
+        readBytes: Double,
+        writeBytes: Double,
+        standard: Units.ByteUnitStandard
+    ) -> NSImage {
+        let readStr = Units.formatDiskRate(readBytes, standard: standard, fractionDigits: 0)
+        let writeStr = Units.formatDiskRate(writeBytes, standard: standard, fractionDigits: 0)
+        let l1 = "R \(readStr)"
+        let l2 = "W \(writeStr)"
+        return drawStackedText(line1: l1, line2: l2, minWidth: 44.0)
+    }
+
+    /// Draws the signature iStat Menus split duplex history graph (Download Blue above midline, Upload Purple below midline).
     public static func drawNetworkSplitDuplexGraph(
         inHistory: [Double],
         outHistory: [Double]
@@ -531,7 +610,7 @@ public struct MenuBarIconRenderer {
             let count = max(max(inHistory.count, outHistory.count), 2)
             let stepX = (bounds.width - 2.0) / CGFloat(count - 1)
 
-            // 1. Inbound (Download) - Waves scrolling above midline
+            // 1. Inbound (Download) - Waves scrolling above midline (System Blue)
             if inHistory.count >= 2 {
                 let inFill = NSBezierPath()
                 let inLine = NSBezierPath()
@@ -554,16 +633,16 @@ public struct MenuBarIconRenderer {
                 }
                 inFill.line(to: NSPoint(x: bounds.maxX - 1.0, y: midY))
                 inFill.close()
-                NSColor.labelColor.withAlphaComponent(0.25).setFill()
+                NSColor.systemBlue.withAlphaComponent(0.28).setFill()
                 inFill.fill()
 
                 inLine.lineWidth = 1.2
                 inLine.lineJoinStyle = .round
-                NSColor.labelColor.setStroke()
+                NSColor.systemBlue.setStroke()
                 inLine.stroke()
             }
 
-            // 2. Outbound (Upload) - Waves scrolling below midline
+            // 2. Outbound (Upload) - Waves scrolling below midline (System Purple)
             if outHistory.count >= 2 {
                 let outFill = NSBezierPath()
                 let outLine = NSBezierPath()
@@ -586,22 +665,22 @@ public struct MenuBarIconRenderer {
                 }
                 outFill.line(to: NSPoint(x: bounds.maxX - 1.0, y: midY))
                 outFill.close()
-                NSColor.labelColor.withAlphaComponent(0.20).setFill()
+                NSColor.systemPurple.withAlphaComponent(0.25).setFill()
                 outFill.fill()
 
                 outLine.lineWidth = 1.2
                 outLine.lineJoinStyle = .round
-                NSColor.labelColor.withAlphaComponent(0.85).setStroke()
+                NSColor.systemPurple.setStroke()
                 outLine.stroke()
             }
 
             return true
         }
-        image.isTemplate = true
+        image.isTemplate = false
         return image
     }
 
-    /// Draws authentic iStat Menus per-core CPU micro-bar cluster with invariant canvas dimensions (26x20).
+    /// Draws authentic iStat Menus per-core CPU micro-bar cluster with invariant canvas dimensions (26x20) and signature colors.
     public static func drawCPUBar(
         perCore: [Double]?,
         user: Double? = nil,
@@ -620,7 +699,7 @@ public struct MenuBarIconRenderer {
                     let x = 1.0 + CGFloat(idx) * (coreWidth + actualGap)
                     let trackRect = NSRect(x: x, y: 2.0, width: coreWidth, height: 16.0)
                     let track = NSBezierPath(roundedRect: trackRect, xRadius: 0.5, yRadius: 0.5)
-                    NSColor.secondaryLabelColor.withAlphaComponent(0.25).setFill()
+                    NSColor.secondaryLabelColor.withAlphaComponent(0.20).setFill()
                     track.fill()
 
                     let clamped = min(max(coreUsage, 0.0), 100.0)
@@ -628,7 +707,16 @@ public struct MenuBarIconRenderer {
                         let fillHeight = max(CGFloat(16.0 * (clamped / 100.0)), 1.5)
                         let fillRect = NSRect(x: x, y: 2.0, width: coreWidth, height: fillHeight)
                         let fillPath = NSBezierPath(roundedRect: fillRect, xRadius: 0.5, yRadius: 0.5)
-                        NSColor.labelColor.setFill()
+                        
+                        let color: NSColor
+                        if clamped >= 85.0 {
+                            color = NSColor.systemRed
+                        } else if clamped >= 60.0 {
+                            color = NSColor.systemOrange
+                        } else {
+                            color = NSColor.systemBlue
+                        }
+                        color.setFill()
                         fillPath.fill()
                     }
                 }
@@ -639,7 +727,7 @@ public struct MenuBarIconRenderer {
                 let barX: CGFloat = (bounds.width - barWidth) / 2.0
                 let trackRect = NSRect(x: barX, y: 2.0, width: barWidth, height: 16.0)
                 let track = NSBezierPath(roundedRect: trackRect, xRadius: 2.5, yRadius: 2.5)
-                NSColor.secondaryLabelColor.withAlphaComponent(0.25).setFill()
+                NSColor.secondaryLabelColor.withAlphaComponent(0.20).setFill()
                 track.fill()
 
                 let usr = user ?? 0.0
@@ -650,31 +738,31 @@ public struct MenuBarIconRenderer {
                     let totalHeight = max(CGFloat(16.0 * (total / 100.0)), 2.0)
                     let sysHeight = (sys / total) * totalHeight
 
-                    // Bottom system segment
+                    // Bottom system segment (Orange)
                     if sysHeight > 0 {
                         let sysRect = NSRect(x: barX, y: 2.0, width: barWidth, height: max(sysHeight, 1.5))
                         let sysPath = NSBezierPath(roundedRect: sysRect, xRadius: 2.0, yRadius: 2.0)
-                        NSColor.labelColor.withAlphaComponent(0.55).setFill()
+                        NSColor.systemOrange.setFill()
                         sysPath.fill()
                     }
 
-                    // Top user segment
+                    // Top user segment (Blue)
                     let usrHeight = totalHeight - sysHeight
                     if usrHeight > 0 {
                         let usrRect = NSRect(x: barX, y: 2.0 + sysHeight, width: barWidth, height: max(usrHeight, 1.5))
                         let usrPath = NSBezierPath(roundedRect: usrRect, xRadius: 2.0, yRadius: 2.0)
-                        NSColor.labelColor.setFill()
+                        NSColor.systemBlue.setFill()
                         usrPath.fill()
                     }
                 }
                 return true
             }
         }
-        image.isTemplate = true
+        image.isTemplate = false
         return image
     }
 
-    /// Draws authentic iStat Menus segmented CPU Donut Pie (User vs. System load).
+    /// Draws authentic iStat Menus segmented CPU Donut Pie (User vs. System load) with signature vibrant colors.
     public static func drawCPUDonutPie(user: Double, system: Double) -> NSImage {
         let size = NSSize(width: 18, height: 18)
         let image = NSImage(size: size, flipped: false) { bounds in
@@ -691,7 +779,7 @@ public struct MenuBarIconRenderer {
             let uClamped = min(max(user, 0.0), 100.0)
             let sClamped = min(max(system, 0.0), 100.0 - uClamped)
 
-            // User Space slice (Starts at 12 o'clock, sweeps clockwise)
+            // User Space slice (Starts at 12 o'clock, sweeps clockwise) - System Blue
             if uClamped > 0 {
                 let uArc = NSBezierPath()
                 let startAngle: CGFloat = 90.0
@@ -699,11 +787,11 @@ public struct MenuBarIconRenderer {
                 uArc.appendArc(withCenter: center, radius: radius, startAngle: startAngle, endAngle: endAngle, clockwise: true)
                 uArc.lineWidth = lineWidth
                 uArc.lineCapStyle = .round
-                NSColor.labelColor.setStroke()
+                NSColor.systemBlue.setStroke()
                 uArc.stroke()
             }
 
-            // System / Kernel Space slice (Continues immediately after user slice)
+            // System / Kernel Space slice (Continues immediately after user slice) - System Orange
             if sClamped > 0 {
                 let sArc = NSBezierPath()
                 let startAngle: CGFloat = 90.0 - CGFloat(360.0 * (uClamped / 100.0))
@@ -711,17 +799,23 @@ public struct MenuBarIconRenderer {
                 sArc.appendArc(withCenter: center, radius: radius, startAngle: startAngle, endAngle: endAngle, clockwise: true)
                 sArc.lineWidth = lineWidth
                 sArc.lineCapStyle = .butt
-                NSColor.labelColor.withAlphaComponent(0.55).setStroke()
+                NSColor.systemOrange.setStroke()
                 sArc.stroke()
             }
 
+            // Central Micro-Indicator Dot
+            let dotRect = NSRect(x: center.x - 1.5, y: center.y - 1.5, width: 3.0, height: 3.0)
+            let dot = NSBezierPath(ovalIn: dotRect)
+            (uClamped > 50.0 ? NSColor.systemBlue : NSColor.secondaryLabelColor.withAlphaComponent(0.40)).setFill()
+            dot.fill()
+
             return true
         }
-        image.isTemplate = true
+        image.isTemplate = false
         return image
     }
 
-    /// Draws authentic iStat Menus Memory Breakdown Donut Ring.
+    /// Draws authentic iStat Menus Memory Breakdown Donut Ring with signature colors.
     public static func drawMemoryDonutPie(sample: MemorySample?, ratio: Double) -> NSImage {
         let size = NSSize(width: 18, height: 18)
         let image = NSImage(size: size, flipped: false) { bounds in
@@ -743,35 +837,35 @@ public struct MenuBarIconRenderer {
 
                 var currentAngle: CGFloat = 90.0
 
-                // 1. Wired (Solid)
+                // 1. Wired (Red)
                 if wiredRatio > 0 {
                     let wAngle = CGFloat(360.0 * wiredRatio)
                     let wArc = NSBezierPath()
                     wArc.appendArc(withCenter: center, radius: radius, startAngle: currentAngle, endAngle: currentAngle - wAngle, clockwise: true)
                     wArc.lineWidth = lineWidth
-                    NSColor.labelColor.setStroke()
+                    NSColor.systemRed.setStroke()
                     wArc.stroke()
                     currentAngle -= wAngle
                 }
 
-                // 2. Active / App Memory (0.75 alpha)
+                // 2. Active / App Memory (Blue)
                 if activeRatio > 0 {
                     let aAngle = CGFloat(360.0 * activeRatio)
                     let aArc = NSBezierPath()
                     aArc.appendArc(withCenter: center, radius: radius, startAngle: currentAngle, endAngle: currentAngle - aAngle, clockwise: true)
                     aArc.lineWidth = lineWidth
-                    NSColor.labelColor.withAlphaComponent(0.70).setStroke()
+                    NSColor.systemBlue.setStroke()
                     aArc.stroke()
                     currentAngle -= aAngle
                 }
 
-                // 3. Compressed (0.45 alpha)
+                // 3. Compressed (Yellow)
                 if compressedRatio > 0 {
                     let cAngle = CGFloat(360.0 * compressedRatio)
                     let cArc = NSBezierPath()
                     cArc.appendArc(withCenter: center, radius: radius, startAngle: currentAngle, endAngle: currentAngle - cAngle, clockwise: true)
                     cArc.lineWidth = lineWidth
-                    NSColor.labelColor.withAlphaComponent(0.40).setStroke()
+                    NSColor.systemYellow.setStroke()
                     cArc.stroke()
                 }
             } else {
@@ -781,24 +875,24 @@ public struct MenuBarIconRenderer {
                     arc.appendArc(withCenter: center, radius: radius, startAngle: 90.0, endAngle: 90.0 - CGFloat(360.0 * (clamped / 100.0)), clockwise: true)
                     arc.lineWidth = lineWidth
                     arc.lineCapStyle = .round
-                    NSColor.labelColor.setStroke()
+                    NSColor.systemGreen.setStroke()
                     arc.stroke()
                 }
             }
 
             return true
         }
-        image.isTemplate = true
+        image.isTemplate = false
         return image
     }
 
-    /// Draws authentic iStat Menus segmented stacked memory vertical bar.
+    /// Draws authentic iStat Menus segmented stacked memory vertical bar with signature colors.
     public static func drawMemoryStackedBar(sample: MemorySample?, ratio: Double) -> NSImage {
         let size = NSSize(width: 11, height: 20)
         let image = NSImage(size: size, flipped: false) { _ in
             let trackRect = NSRect(x: 2.0, y: 2.0, width: 7.0, height: 16.0)
             let track = NSBezierPath(roundedRect: trackRect, xRadius: 2.5, yRadius: 2.5)
-            NSColor.secondaryLabelColor.withAlphaComponent(0.25).setFill()
+            NSColor.secondaryLabelColor.withAlphaComponent(0.20).setFill()
             track.fill()
 
             let totalH: CGFloat = 16.0
@@ -813,19 +907,19 @@ public struct MenuBarIconRenderer {
 
                 if wiredH > 0 {
                     let r = NSRect(x: 2.0, y: currentY, width: 7.0, height: wiredH)
-                    NSColor.labelColor.setFill()
+                    NSColor.systemRed.setFill()
                     NSBezierPath(roundedRect: r, xRadius: 1.0, yRadius: 1.0).fill()
                     currentY += wiredH
                 }
                 if activeH > 0 {
                     let r = NSRect(x: 2.0, y: currentY, width: 7.0, height: activeH)
-                    NSColor.labelColor.withAlphaComponent(0.70).setFill()
+                    NSColor.systemBlue.setFill()
                     NSBezierPath(roundedRect: r, xRadius: 1.0, yRadius: 1.0).fill()
                     currentY += activeH
                 }
                 if compH > 0 {
                     let r = NSRect(x: 2.0, y: currentY, width: 7.0, height: compH)
-                    NSColor.labelColor.withAlphaComponent(0.40).setFill()
+                    NSColor.systemYellow.setFill()
                     NSBezierPath(roundedRect: r, xRadius: 1.0, yRadius: 1.0).fill()
                 }
             } else {
@@ -833,13 +927,13 @@ public struct MenuBarIconRenderer {
                 if clamped > 0 {
                     let fillH = max(CGFloat(totalH * (clamped / 100.0)), 2.0)
                     let fillRect = NSRect(x: 2.0, y: 2.0, width: 7.0, height: fillH)
-                    NSColor.labelColor.setFill()
+                    NSColor.systemGreen.setFill()
                     NSBezierPath(roundedRect: fillRect, xRadius: 2.5, yRadius: 2.5).fill()
                 }
             }
             return true
         }
-        image.isTemplate = true
+        image.isTemplate = false
         return image
     }
 
@@ -872,10 +966,19 @@ public struct MenuBarIconRenderer {
                     let fillWidth = max(maxFillWidth * CGFloat(clamped / 100.0), 1.5)
                     let fillRect = NSRect(x: 3.0, y: 4.0, width: fillWidth, height: 8.0)
                     let fillPath = NSBezierPath(roundedRect: fillRect, xRadius: 1.2, yRadius: 1.2)
-                    NSColor.labelColor.setFill()
+                    
+                    let fillColor: NSColor
+                    if clamped <= 20.0 {
+                        fillColor = NSColor.systemRed
+                    } else if state == .charging {
+                        fillColor = NSColor.systemGreen
+                    } else {
+                        fillColor = NSColor.systemGreen
+                    }
+                    fillColor.setFill()
                     fillPath.fill()
 
-                    // Charging Lightning Bolt Overlay
+                    // Charging Lightning Bolt Overlay (Gold / Yellow)
                     if state == .charging {
                         let bolt = NSBezierPath()
                         bolt.move(to: NSPoint(x: 11.5, y: 13.0))
@@ -885,10 +988,10 @@ public struct MenuBarIconRenderer {
                         bolt.line(to: NSPoint(x: 14.0, y: 9.0))
                         bolt.line(to: NSPoint(x: 11.2, y: 9.0))
                         bolt.close()
-                        NSColor.windowBackgroundColor.setFill()
+                        NSColor.systemYellow.setFill()
                         bolt.fill()
-                        bolt.lineWidth = 0.6
-                        NSColor.labelColor.setStroke()
+                        bolt.lineWidth = 0.5
+                        NSColor.black.withAlphaComponent(0.6).setStroke()
                         bolt.stroke()
                     }
                 } else {
@@ -911,13 +1014,13 @@ public struct MenuBarIconRenderer {
 
                 let p1 = NSBezierPath(rect: NSRect(x: 17.0, y: 5.0, width: 4.0, height: 2.0))
                 let p2 = NSBezierPath(rect: NSRect(x: 17.0, y: 9.0, width: 4.0, height: 2.0))
-                NSColor.labelColor.setFill()
+                NSColor.systemGreen.setFill()
                 p1.fill()
                 p2.fill()
             }
             return true
         }
-        image.isTemplate = true
+        image.isTemplate = false
         return image
     }
 
@@ -945,17 +1048,17 @@ public struct MenuBarIconRenderer {
             l2 = "Bat"
         }
 
-        return drawStackedText(line1: l1, line2: l2)
+        return drawStackedText(line1: l1, line2: l2, minWidth: 34.0)
     }
 
-    /// Draws dynamic Dual Activity Arrows (`↓` Download and `↑` Upload).
+    /// Draws dynamic Dual Activity Arrows (`↓` Download and `↑` Upload) with signature colors.
     public static func drawNetworkActivityArrows(inBytes: Double, outBytes: Double) -> NSImage {
         let size = NSSize(width: 18, height: 18)
         let image = NSImage(size: size, flipped: false) { _ in
             let inActive = inBytes > 1024.0
             let outActive = outBytes > 1024.0
 
-            // Download Arrow (Left, pointing Down)
+            // Download Arrow (Left, pointing Down) - System Blue
             let down = NSBezierPath()
             down.move(to: NSPoint(x: 5.0, y: 15.0))
             down.line(to: NSPoint(x: 5.0, y: 4.0))
@@ -965,10 +1068,10 @@ public struct MenuBarIconRenderer {
             down.lineWidth = inActive ? 2.0 : 1.3
             down.lineCapStyle = .round
             down.lineJoinStyle = .round
-            (inActive ? NSColor.labelColor : NSColor.labelColor.withAlphaComponent(0.35)).setStroke()
+            (inActive ? NSColor.systemBlue : NSColor.secondaryLabelColor.withAlphaComponent(0.35)).setStroke()
             down.stroke()
 
-            // Upload Arrow (Right, pointing Up)
+            // Upload Arrow (Right, pointing Up) - System Purple
             let up = NSBezierPath()
             up.move(to: NSPoint(x: 13.0, y: 3.0))
             up.line(to: NSPoint(x: 13.0, y: 14.0))
@@ -978,16 +1081,16 @@ public struct MenuBarIconRenderer {
             up.lineWidth = outActive ? 2.0 : 1.3
             up.lineCapStyle = .round
             up.lineJoinStyle = .round
-            (outActive ? NSColor.labelColor : NSColor.labelColor.withAlphaComponent(0.35)).setStroke()
+            (outActive ? NSColor.systemPurple : NSColor.secondaryLabelColor.withAlphaComponent(0.35)).setStroke()
             up.stroke()
 
             return true
         }
-        image.isTemplate = true
+        image.isTemplate = false
         return image
     }
 
-    /// Draws dynamic Disk Read / Write Activity LEDs (`R` and `W`).
+    /// Draws dynamic Disk Read / Write Activity LEDs (`R` and `W`) with signature colors.
     public static func drawDiskActivityLeds(readBytes: Double, writeBytes: Double) -> NSImage {
         let size = NSSize(width: 20, height: 18)
         let image = NSImage(size: size, flipped: false) { bounds in
@@ -996,12 +1099,12 @@ public struct MenuBarIconRenderer {
 
             let font = NSFont.systemFont(ofSize: 9.5, weight: .black)
 
-            // Read badge
+            // Read badge (Blue)
             let rBadge = NSBezierPath(roundedRect: NSRect(x: 1.0, y: 2.0, width: 8.5, height: 14.0), xRadius: 2.0, yRadius: 2.0)
             if rActive {
-                NSColor.labelColor.setFill()
+                NSColor.systemBlue.setFill()
                 rBadge.fill()
-                let attrs: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: NSColor.windowBackgroundColor]
+                let attrs: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: NSColor.white]
                 ("R" as NSString).draw(at: NSPoint(x: 2.2, y: 3.0), withAttributes: attrs)
             } else {
                 NSColor.secondaryLabelColor.withAlphaComponent(0.20).setFill()
@@ -1010,12 +1113,12 @@ public struct MenuBarIconRenderer {
                 ("R" as NSString).draw(at: NSPoint(x: 2.2, y: 3.0), withAttributes: attrs)
             }
 
-            // Write badge
+            // Write badge (Red)
             let wBadge = NSBezierPath(roundedRect: NSRect(x: 10.5, y: 2.0, width: 8.5, height: 14.0), xRadius: 2.0, yRadius: 2.0)
             if wActive {
-                NSColor.labelColor.setFill()
+                NSColor.systemRed.setFill()
                 wBadge.fill()
-                let attrs: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: NSColor.windowBackgroundColor]
+                let attrs: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: NSColor.white]
                 ("W" as NSString).draw(at: NSPoint(x: 11.0, y: 3.0), withAttributes: attrs)
             } else {
                 NSColor.secondaryLabelColor.withAlphaComponent(0.20).setFill()
@@ -1026,14 +1129,14 @@ public struct MenuBarIconRenderer {
 
             return true
         }
-        image.isTemplate = true
+        image.isTemplate = false
         return image
     }
 
     // MARK: - Compatibility Drawings & Helpers
 
     public static func drawCPUSymbol(usage: Double? = nil) -> NSImage {
-        drawCPUDonutPie(user: usage ?? 20.0, system: 0.0)
+        drawTriSegmentPie(ratio: usage)
     }
 
     public static func drawCPUGauge(percentage: Double) -> NSImage {
@@ -1041,7 +1144,7 @@ public struct MenuBarIconRenderer {
     }
 
     public static func drawCPUSparkline(history: [Double]) -> NSImage {
-        drawSparkline(values: history, maxValue: 100.0)
+        drawColoredSparkline(values: history, maxValue: 100.0, strokeColor: NSColor.systemBlue, fillColor: NSColor.systemBlue.withAlphaComponent(0.25))
     }
 
     public static func drawCPUBar(percentage: Double, user: Double? = nil, system: Double? = nil) -> NSImage {
@@ -1049,7 +1152,7 @@ public struct MenuBarIconRenderer {
     }
 
     public static func drawMemorySymbol(ratio: Double? = nil, pressure: MemoryPressure? = nil) -> NSImage {
-        drawMemoryDonutPie(sample: nil, ratio: ratio ?? 40.0)
+        drawTriSegmentPie(ratio: ratio)
     }
 
     public static func drawMemoryGauge(ratio: Double) -> NSImage {
@@ -1061,42 +1164,140 @@ public struct MenuBarIconRenderer {
     }
 
     public static func drawMemorySparkline(history: [Double]) -> NSImage {
-        drawSparkline(values: history, maxValue: 100.0)
+        drawColoredSparkline(values: history, maxValue: 100.0, strokeColor: NSColor.systemGreen, fillColor: NSColor.systemGreen.withAlphaComponent(0.25))
     }
 
     public static func drawGPUSymbol(utilization: Double? = nil) -> NSImage {
-        drawCircularGauge(percentage: utilization ?? 0.0, iconName: "display")
+        drawGPUGauge(percentage: utilization ?? 0.0)
     }
 
     public static func drawGPUGauge(percentage: Double) -> NSImage {
-        drawCircularGauge(percentage: percentage, iconName: "display")
+        let size = NSSize(width: 18, height: 18)
+        let image = NSImage(size: size, flipped: false) { bounds in
+            let center = NSPoint(x: bounds.midX, y: bounds.midY)
+            let radius: CGFloat = 7.2
+            let lineWidth: CGFloat = 2.8
+
+            let track = NSBezierPath(ovalIn: bounds.insetBy(dx: 1.8, dy: 1.8))
+            track.lineWidth = lineWidth
+            NSColor.secondaryLabelColor.withAlphaComponent(0.20).setStroke()
+            track.stroke()
+
+            let clamped = min(max(percentage, 0.0), 100.0)
+            if clamped > 0 {
+                let arc = NSBezierPath()
+                arc.appendArc(withCenter: center, radius: radius, startAngle: 90.0, endAngle: 90.0 - CGFloat(360.0 * (clamped / 100.0)), clockwise: true)
+                arc.lineWidth = lineWidth
+                arc.lineCapStyle = .round
+                NSColor.systemPurple.setStroke()
+                arc.stroke()
+            }
+            return true
+        }
+        image.isTemplate = false
+        return image
     }
 
     public static func drawGPUBar(percentage: Double) -> NSImage {
-        drawBarGraph(percentage: percentage)
+        let size = NSSize(width: 11, height: 20)
+        let image = NSImage(size: size, flipped: false) { bounds in
+            let pillRect = NSRect(x: 2.0, y: 2.0, width: 7.0, height: 16.0)
+            let track = NSBezierPath(roundedRect: pillRect, xRadius: 2.5, yRadius: 2.5)
+            NSColor.secondaryLabelColor.withAlphaComponent(0.20).setFill()
+            track.fill()
+
+            let clamped = min(max(percentage, 0.0), 100.0)
+            if clamped > 0 {
+                let fillHeight = max(CGFloat(16.0 * (clamped / 100.0)), 2.0)
+                let fillRect = NSRect(x: 2.0, y: 2.0, width: 7.0, height: fillHeight)
+                let fillPath = NSBezierPath(roundedRect: fillRect, xRadius: 2.5, yRadius: 2.5)
+                NSColor.systemPurple.setFill()
+                fillPath.fill()
+            }
+            return true
+        }
+        image.isTemplate = false
+        return image
     }
 
     public static func drawGPUSparkline(history: [Double]) -> NSImage {
-        drawSparkline(values: history, maxValue: 100.0)
+        drawColoredSparkline(values: history, maxValue: 100.0, strokeColor: NSColor.systemPurple, fillColor: NSColor.systemPurple.withAlphaComponent(0.25))
+    }
+
+    private static func thermalColor(for celsius: Double) -> NSColor {
+        if celsius >= 85.0 {
+            return NSColor.systemRed
+        } else if celsius >= 70.0 {
+            return NSColor.systemOrange
+        } else if celsius >= 50.0 {
+            return NSColor.systemYellow
+        } else {
+            return NSColor.systemGreen
+        }
     }
 
     public static func drawThermalSymbol(celsius: Double? = nil) -> NSImage {
         let c = celsius ?? 45.0
         let pct = min(max((c - 30.0) / 70.0 * 100.0, 0.0), 100.0)
-        return drawThermalGauge(percentage: pct)
+        return drawThermalGauge(percentage: pct, celsius: c)
     }
 
-    public static func drawThermalGauge(percentage: Double) -> NSImage {
-        drawCircularGauge(percentage: percentage, iconName: "thermometer.medium")
+    public static func drawThermalGauge(percentage: Double, celsius: Double? = nil) -> NSImage {
+        let size = NSSize(width: 18, height: 18)
+        let image = NSImage(size: size, flipped: false) { bounds in
+            let center = NSPoint(x: bounds.midX, y: bounds.midY)
+            let radius: CGFloat = 7.2
+            let lineWidth: CGFloat = 2.8
+
+            let track = NSBezierPath(ovalIn: bounds.insetBy(dx: 1.8, dy: 1.8))
+            track.lineWidth = lineWidth
+            NSColor.secondaryLabelColor.withAlphaComponent(0.20).setStroke()
+            track.stroke()
+
+            let clamped = min(max(percentage, 0.0), 100.0)
+            if clamped > 0 {
+                let arc = NSBezierPath()
+                arc.appendArc(withCenter: center, radius: radius, startAngle: 90.0, endAngle: 90.0 - CGFloat(360.0 * (clamped / 100.0)), clockwise: true)
+                arc.lineWidth = lineWidth
+                arc.lineCapStyle = .round
+                let c = celsius ?? (30.0 + (clamped / 100.0) * 70.0)
+                thermalColor(for: c).setStroke()
+                arc.stroke()
+            }
+            return true
+        }
+        image.isTemplate = false
+        return image
     }
 
-    public static func drawThermalBar(percentage: Double) -> NSImage {
-        drawBarGraph(percentage: percentage)
+    public static func drawThermalBar(percentage: Double, celsius: Double? = nil) -> NSImage {
+        let size = NSSize(width: 11, height: 20)
+        let image = NSImage(size: size, flipped: false) { bounds in
+            let pillRect = NSRect(x: 2.0, y: 2.0, width: 7.0, height: 16.0)
+            let track = NSBezierPath(roundedRect: pillRect, xRadius: 2.5, yRadius: 2.5)
+            NSColor.secondaryLabelColor.withAlphaComponent(0.20).setFill()
+            track.fill()
+
+            let clamped = min(max(percentage, 0.0), 100.0)
+            if clamped > 0 {
+                let fillHeight = max(CGFloat(16.0 * (clamped / 100.0)), 2.0)
+                let fillRect = NSRect(x: 2.0, y: 2.0, width: 7.0, height: fillHeight)
+                let fillPath = NSBezierPath(roundedRect: fillRect, xRadius: 2.5, yRadius: 2.5)
+                let c = celsius ?? (30.0 + (clamped / 100.0) * 70.0)
+                thermalColor(for: c).setFill()
+                fillPath.fill()
+            }
+            return true
+        }
+        image.isTemplate = false
+        return image
     }
 
     public static func drawThermalSparkline(history: [Double]) -> NSImage {
         let maxVal = max(history.max() ?? 100.0, 100.0)
-        return drawSparkline(values: history, maxValue: maxVal)
+        let latest = history.last ?? 50.0
+        let col = thermalColor(for: latest)
+        return drawColoredSparkline(values: history, maxValue: maxVal, strokeColor: col, fillColor: col.withAlphaComponent(0.25))
     }
 
     public static func drawFanSymbol(rpm: Int? = nil, percentage: Double? = nil) -> NSImage {
@@ -1104,16 +1305,57 @@ public struct MenuBarIconRenderer {
     }
 
     public static func drawFanGauge(percentage: Double) -> NSImage {
-        drawCircularGauge(percentage: percentage, iconName: "fan")
+        let size = NSSize(width: 18, height: 18)
+        let image = NSImage(size: size, flipped: false) { bounds in
+            let center = NSPoint(x: bounds.midX, y: bounds.midY)
+            let radius: CGFloat = 7.2
+            let lineWidth: CGFloat = 2.8
+
+            let track = NSBezierPath(ovalIn: bounds.insetBy(dx: 1.8, dy: 1.8))
+            track.lineWidth = lineWidth
+            NSColor.secondaryLabelColor.withAlphaComponent(0.20).setStroke()
+            track.stroke()
+
+            let clamped = min(max(percentage, 0.0), 100.0)
+            if clamped > 0 {
+                let arc = NSBezierPath()
+                arc.appendArc(withCenter: center, radius: radius, startAngle: 90.0, endAngle: 90.0 - CGFloat(360.0 * (clamped / 100.0)), clockwise: true)
+                arc.lineWidth = lineWidth
+                arc.lineCapStyle = .round
+                NSColor.systemCyan.setStroke()
+                arc.stroke()
+            }
+            return true
+        }
+        image.isTemplate = false
+        return image
     }
 
     public static func drawFanBar(percentage: Double) -> NSImage {
-        drawBarGraph(percentage: percentage)
+        let size = NSSize(width: 11, height: 20)
+        let image = NSImage(size: size, flipped: false) { bounds in
+            let pillRect = NSRect(x: 2.0, y: 2.0, width: 7.0, height: 16.0)
+            let track = NSBezierPath(roundedRect: pillRect, xRadius: 2.5, yRadius: 2.5)
+            NSColor.secondaryLabelColor.withAlphaComponent(0.20).setFill()
+            track.fill()
+
+            let clamped = min(max(percentage, 0.0), 100.0)
+            if clamped > 0 {
+                let fillHeight = max(CGFloat(16.0 * (clamped / 100.0)), 2.0)
+                let fillRect = NSRect(x: 2.0, y: 2.0, width: 7.0, height: fillHeight)
+                let fillPath = NSBezierPath(roundedRect: fillRect, xRadius: 2.5, yRadius: 2.5)
+                NSColor.systemCyan.setFill()
+                fillPath.fill()
+            }
+            return true
+        }
+        image.isTemplate = false
+        return image
     }
 
     public static func drawFanSparkline(history: [Double]) -> NSImage {
         let maxVal = max(history.max() ?? 6000.0, 2000.0)
-        return drawSparkline(values: history, maxValue: maxVal)
+        return drawColoredSparkline(values: history, maxValue: maxVal, strokeColor: NSColor.systemCyan, fillColor: NSColor.systemCyan.withAlphaComponent(0.25))
     }
 
     public static func drawNetworkSymbol(inBytes: Double? = nil, outBytes: Double? = nil) -> NSImage {
@@ -1121,42 +1363,65 @@ public struct MenuBarIconRenderer {
     }
 
     public static func drawNetworkGauge(percentage: Double) -> NSImage {
-        drawCircularGauge(percentage: percentage, iconName: "network")
+        let size = NSSize(width: 18, height: 18)
+        let image = NSImage(size: size, flipped: false) { bounds in
+            let center = NSPoint(x: bounds.midX, y: bounds.midY)
+            let radius: CGFloat = 7.2
+            let lineWidth: CGFloat = 2.8
+
+            let track = NSBezierPath(ovalIn: bounds.insetBy(dx: 1.8, dy: 1.8))
+            track.lineWidth = lineWidth
+            NSColor.secondaryLabelColor.withAlphaComponent(0.20).setStroke()
+            track.stroke()
+
+            let clamped = min(max(percentage, 0.0), 100.0)
+            if clamped > 0 {
+                let arc = NSBezierPath()
+                arc.appendArc(withCenter: center, radius: radius, startAngle: 90.0, endAngle: 90.0 - CGFloat(360.0 * (clamped / 100.0)), clockwise: true)
+                arc.lineWidth = lineWidth
+                arc.lineCapStyle = .round
+                NSColor.systemTeal.setStroke()
+                arc.stroke()
+            }
+            return true
+        }
+        image.isTemplate = false
+        return image
     }
 
     public static func drawNetworkBar(inPct: Double, outPct: Double) -> NSImage {
         let size = NSSize(width: 16, height: 20)
         let image = NSImage(size: size, flipped: false) { _ in
             let inTrack = NSBezierPath(roundedRect: NSRect(x: 1.5, y: 2.0, width: 6.0, height: 16.0), xRadius: 2.5, yRadius: 2.5)
-            NSColor.secondaryLabelColor.withAlphaComponent(0.25).setFill()
+            NSColor.secondaryLabelColor.withAlphaComponent(0.20).setFill()
             inTrack.fill()
 
             let inClamped = min(max(inPct, 0.0), 100.0)
             if inClamped > 0 {
                 let inFill = NSBezierPath(roundedRect: NSRect(x: 1.5, y: 2.0, width: 6.0, height: max(16.0 * (inClamped / 100.0), 2.0)), xRadius: 2.5, yRadius: 2.5)
-                NSColor.labelColor.setFill()
+                NSColor.systemBlue.setFill()
                 inFill.fill()
             }
 
             let outTrack = NSBezierPath(roundedRect: NSRect(x: 8.5, y: 2.0, width: 6.0, height: 16.0), xRadius: 2.5, yRadius: 2.5)
-            NSColor.secondaryLabelColor.withAlphaComponent(0.25).setFill()
+            NSColor.secondaryLabelColor.withAlphaComponent(0.20).setFill()
             outTrack.fill()
 
             let outClamped = min(max(outPct, 0.0), 100.0)
             if outClamped > 0 {
                 let outFill = NSBezierPath(roundedRect: NSRect(x: 8.5, y: 2.0, width: 6.0, height: max(16.0 * (outClamped / 100.0), 2.0)), xRadius: 2.5, yRadius: 2.5)
-                NSColor.labelColor.setFill()
+                NSColor.systemPurple.setFill()
                 outFill.fill()
             }
             return true
         }
-        image.isTemplate = true
+        image.isTemplate = false
         return image
     }
 
     public static func drawNetworkSparkline(history: [Double]) -> NSImage {
         let maxVal = max(history.max() ?? 1024.0, 1024.0)
-        return drawSparkline(values: history, maxValue: maxVal)
+        return drawColoredSparkline(values: history, maxValue: maxVal, strokeColor: NSColor.systemBlue, fillColor: NSColor.systemBlue.withAlphaComponent(0.25))
     }
 
     public static func drawDiskSymbol(readBytes: Double? = nil, writeBytes: Double? = nil) -> NSImage {
@@ -1171,35 +1436,35 @@ public struct MenuBarIconRenderer {
         let size = NSSize(width: 16, height: 20)
         let image = NSImage(size: size, flipped: false) { _ in
             let readTrack = NSBezierPath(roundedRect: NSRect(x: 1.5, y: 2.0, width: 6.0, height: 16.0), xRadius: 2.5, yRadius: 2.5)
-            NSColor.secondaryLabelColor.withAlphaComponent(0.25).setFill()
+            NSColor.secondaryLabelColor.withAlphaComponent(0.20).setFill()
             readTrack.fill()
 
             let rClamped = min(max(readPct, 0.0), 100.0)
             if rClamped > 0 {
                 let rFill = NSBezierPath(roundedRect: NSRect(x: 1.5, y: 2.0, width: 6.0, height: max(16.0 * (rClamped / 100.0), 2.0)), xRadius: 2.5, yRadius: 2.5)
-                NSColor.labelColor.setFill()
+                NSColor.systemBlue.setFill()
                 rFill.fill()
             }
 
             let writeTrack = NSBezierPath(roundedRect: NSRect(x: 8.5, y: 2.0, width: 6.0, height: 16.0), xRadius: 2.5, yRadius: 2.5)
-            NSColor.secondaryLabelColor.withAlphaComponent(0.25).setFill()
+            NSColor.secondaryLabelColor.withAlphaComponent(0.20).setFill()
             writeTrack.fill()
 
             let wClamped = min(max(writePct, 0.0), 100.0)
             if wClamped > 0 {
                 let wFill = NSBezierPath(roundedRect: NSRect(x: 8.5, y: 2.0, width: 6.0, height: max(16.0 * (wClamped / 100.0), 2.0)), xRadius: 2.5, yRadius: 2.5)
-                NSColor.labelColor.setFill()
+                NSColor.systemRed.setFill()
                 wFill.fill()
             }
             return true
         }
-        image.isTemplate = true
+        image.isTemplate = false
         return image
     }
 
     public static func drawDiskSparkline(history: [Double]) -> NSImage {
         let maxVal = max(history.max() ?? 1024.0, 1024.0)
-        return drawSparkline(values: history, maxValue: maxVal)
+        return drawColoredSparkline(values: history, maxValue: maxVal, strokeColor: NSColor.systemBlue, fillColor: NSColor.systemBlue.withAlphaComponent(0.25))
     }
 
     public static func drawPowerSymbol(
@@ -1219,7 +1484,7 @@ public struct MenuBarIconRenderer {
         let image = NSImage(size: size, flipped: false) { _ in
             let trackRect = NSRect(x: 2.0, y: 2.0, width: 7.0, height: 16.0)
             let track = NSBezierPath(roundedRect: trackRect, xRadius: 2.5, yRadius: 2.5)
-            NSColor.secondaryLabelColor.withAlphaComponent(0.25).setFill()
+            NSColor.secondaryLabelColor.withAlphaComponent(0.20).setFill()
             track.fill()
 
             let clamped = min(max(percentage, 0.0), 100.0)
@@ -1227,20 +1492,20 @@ public struct MenuBarIconRenderer {
                 let fillHeight = max(CGFloat(16.0 * (clamped / 100.0)), 2.0)
                 let fillRect = NSRect(x: 2.0, y: 2.0, width: 7.0, height: fillHeight)
                 let fillPath = NSBezierPath(roundedRect: fillRect, xRadius: 2.5, yRadius: 2.5)
-                NSColor.labelColor.setFill()
+                (clamped <= 20.0 ? NSColor.systemRed : NSColor.systemGreen).setFill()
                 fillPath.fill()
             }
             return true
         }
-        image.isTemplate = true
+        image.isTemplate = false
         return image
     }
 
     public static func drawPowerSparkline(history: [Double]) -> NSImage {
-        drawSparkline(values: history, maxValue: 100.0)
+        drawColoredSparkline(values: history, maxValue: 100.0, strokeColor: NSColor.systemGreen, fillColor: NSColor.systemGreen.withAlphaComponent(0.25))
     }
 
-    /// Generic circular gauge.
+    /// Generic circular gauge template.
     public static func drawCircularGauge(
         percentage: Double,
         iconName: String? = nil
@@ -1271,13 +1536,13 @@ public struct MenuBarIconRenderer {
         return image
     }
 
-    /// Generic vertical bar graph.
+    /// Generic vertical bar graph template.
     public static func drawBarGraph(percentage: Double) -> NSImage {
         let size = NSSize(width: 11, height: 20)
         let image = NSImage(size: size, flipped: false) { bounds in
             let pillRect = NSRect(x: 2.0, y: 2.0, width: 7.0, height: 16.0)
             let track = NSBezierPath(roundedRect: pillRect, xRadius: 2.5, yRadius: 2.5)
-            NSColor.secondaryLabelColor.withAlphaComponent(0.25).setFill()
+            NSColor.secondaryLabelColor.withAlphaComponent(0.20).setFill()
             track.fill()
 
             let clamped = min(max(percentage, 0.0), 100.0)
@@ -1294,7 +1559,7 @@ public struct MenuBarIconRenderer {
         return image
     }
 
-    /// Generic history sparkline chart.
+    /// Generic history sparkline chart template.
     public static func drawSparkline(values: [Double], maxValue: Double) -> NSImage {
         let size = NSSize(width: 36, height: 16)
         let image = NSImage(size: size, flipped: false) { bounds in
@@ -1356,6 +1621,73 @@ public struct MenuBarIconRenderer {
         return image
     }
 
+    /// Draws a colored history sparkline chart with gradient area fill and glowing peak dot.
+    public static func drawColoredSparkline(
+        values: [Double],
+        maxValue: Double,
+        strokeColor: NSColor,
+        fillColor: NSColor
+    ) -> NSImage {
+        let size = NSSize(width: 36, height: 16)
+        let image = NSImage(size: size, flipped: false) { bounds in
+            guard values.count >= 2 else {
+                let path = NSBezierPath()
+                path.move(to: NSPoint(x: 1.0, y: 2.0))
+                path.line(to: NSPoint(x: bounds.maxX - 1.0, y: 2.0))
+                path.lineWidth = 1.0
+                NSColor.secondaryLabelColor.withAlphaComponent(0.35).setStroke()
+                path.stroke()
+                return true
+            }
+
+            let maxVal = max(maxValue, 1.0)
+            let innerBounds = bounds.insetBy(dx: 1.5, dy: 1.5)
+            let stepX = innerBounds.width / CGFloat(max(values.count - 1, 1))
+
+            let linePath = NSBezierPath()
+            let fillPath = NSBezierPath()
+            fillPath.move(to: NSPoint(x: innerBounds.minX, y: innerBounds.minY))
+
+            var lastPoint = NSPoint(x: innerBounds.minX, y: innerBounds.minY)
+
+            for (index, val) in values.enumerated() {
+                let clamped = min(max(val, 0.0), maxVal)
+                let y = innerBounds.minY + (innerBounds.height * CGFloat(clamped / maxVal))
+                let x = innerBounds.minX + (CGFloat(index) * stepX)
+                let pt = NSPoint(x: x, y: y)
+                lastPoint = pt
+
+                if index == 0 {
+                    linePath.move(to: pt)
+                    fillPath.line(to: pt)
+                } else {
+                    linePath.line(to: pt)
+                    fillPath.line(to: pt)
+                }
+            }
+
+            fillPath.line(to: NSPoint(x: lastPoint.x, y: innerBounds.minY))
+            fillPath.close()
+            fillColor.setFill()
+            fillPath.fill()
+
+            linePath.lineWidth = 1.4
+            linePath.lineJoinStyle = .round
+            linePath.lineCapStyle = .round
+            strokeColor.setStroke()
+            linePath.stroke()
+
+            let dotRect = NSRect(x: lastPoint.x - 1.4, y: lastPoint.y - 1.4, width: 2.8, height: 2.8)
+            let dot = NSBezierPath(ovalIn: dotRect)
+            strokeColor.setFill()
+            dot.fill()
+
+            return true
+        }
+        image.isTemplate = false
+        return image
+    }
+
     /// Loads an SF Symbol image formatted for menu bar presentation.
     public static func symbolImage(name: String) -> NSImage? {
         let config = NSImage.SymbolConfiguration(pointSize: 14.5, weight: .medium)
@@ -1366,3 +1698,4 @@ public struct MenuBarIconRenderer {
         return img
     }
 }
+

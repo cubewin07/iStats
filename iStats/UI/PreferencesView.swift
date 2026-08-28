@@ -219,7 +219,7 @@ public struct PreferencesView: View {
             HStack(spacing: 5) {
                 if let img = renderResult.image {
                     Image(nsImage: img)
-                        .renderingMode(.template)
+                        .renderingMode(img.isTemplate ? .template : .original)
                 }
                 if !renderResult.title.isEmpty {
                     Text(renderResult.title)

@@ -341,55 +341,64 @@ final class MenuBarDisplayTests: XCTestCase {
 
     // MARK: - Bespoke Expressive Drawing Tests
 
+    // MARK: - Bespoke Expressive Drawing Tests
+
     func testBespokeCategorySymbols() {
         // CPU
         let cpuIdle = MenuBarIconRenderer.drawCPUSymbol(usage: nil)
         let cpuLoad = MenuBarIconRenderer.drawCPUSymbol(usage: 85.0)
         XCTAssertEqual(cpuIdle.size, NSSize(width: 18, height: 18))
         XCTAssertEqual(cpuLoad.size, NSSize(width: 18, height: 18))
-        XCTAssertTrue(cpuIdle.isTemplate && cpuLoad.isTemplate)
+        XCTAssertNotNil(cpuIdle)
+        XCTAssertNotNil(cpuLoad)
 
         // Memory
         let memNormal = MenuBarIconRenderer.drawMemorySymbol(ratio: 40.0, pressure: .normal)
         let memCritical = MenuBarIconRenderer.drawMemorySymbol(ratio: 92.0, pressure: .critical)
         XCTAssertEqual(memNormal.size, NSSize(width: 18, height: 18))
         XCTAssertEqual(memCritical.size, NSSize(width: 18, height: 18))
-        XCTAssertTrue(memNormal.isTemplate && memCritical.isTemplate)
+        XCTAssertNotNil(memNormal)
+        XCTAssertNotNil(memCritical)
 
         // GPU
         let gpuIdle = MenuBarIconRenderer.drawGPUSymbol(utilization: 0.0)
         let gpuLoad = MenuBarIconRenderer.drawGPUSymbol(utilization: 95.0)
         XCTAssertEqual(gpuIdle.size, NSSize(width: 18, height: 18))
         XCTAssertEqual(gpuLoad.size, NSSize(width: 18, height: 18))
-        XCTAssertTrue(gpuIdle.isTemplate && gpuLoad.isTemplate)
+        XCTAssertNotNil(gpuIdle)
+        XCTAssertNotNil(gpuLoad)
 
         // Thermal
         let thermalCool = MenuBarIconRenderer.drawThermalSymbol(celsius: 42.0)
         let thermalHot = MenuBarIconRenderer.drawThermalSymbol(celsius: 88.0)
         XCTAssertEqual(thermalCool.size, NSSize(width: 18, height: 18))
         XCTAssertEqual(thermalHot.size, NSSize(width: 18, height: 18))
-        XCTAssertTrue(thermalCool.isTemplate && thermalHot.isTemplate)
+        XCTAssertNotNil(thermalCool)
+        XCTAssertNotNil(thermalHot)
 
         // Fan
         let fanIdle = MenuBarIconRenderer.drawFanSymbol(rpm: 0, percentage: 0.0)
         let fanActive = MenuBarIconRenderer.drawFanSymbol(rpm: 3500, percentage: 60.0)
         XCTAssertEqual(fanIdle.size, NSSize(width: 18, height: 18))
         XCTAssertEqual(fanActive.size, NSSize(width: 18, height: 18))
-        XCTAssertTrue(fanIdle.isTemplate && fanActive.isTemplate)
+        XCTAssertNotNil(fanIdle)
+        XCTAssertNotNil(fanActive)
 
         // Network
         let netIdle = MenuBarIconRenderer.drawNetworkSymbol(inBytes: 0, outBytes: 0)
         let netActive = MenuBarIconRenderer.drawNetworkSymbol(inBytes: 5_000_000, outBytes: 2_000_000)
         XCTAssertEqual(netIdle.size, NSSize(width: 18, height: 18))
         XCTAssertEqual(netActive.size, NSSize(width: 18, height: 18))
-        XCTAssertTrue(netIdle.isTemplate && netActive.isTemplate)
+        XCTAssertNotNil(netIdle)
+        XCTAssertNotNil(netActive)
 
         // Disk
         let diskIdle = MenuBarIconRenderer.drawDiskSymbol(readBytes: 0, writeBytes: 0)
         let diskActive = MenuBarIconRenderer.drawDiskSymbol(readBytes: 50_000_000, writeBytes: 20_000_000)
         XCTAssertEqual(diskIdle.size, NSSize(width: 20, height: 18))
         XCTAssertEqual(diskActive.size, NSSize(width: 20, height: 18))
-        XCTAssertTrue(diskIdle.isTemplate && diskActive.isTemplate)
+        XCTAssertNotNil(diskIdle)
+        XCTAssertNotNil(diskActive)
 
         // Power
         let powerBat = MenuBarIconRenderer.drawPowerSymbol(charge: 75.0, state: .discharging, hasBattery: true)
@@ -398,7 +407,9 @@ final class MenuBarDisplayTests: XCTestCase {
         XCTAssertEqual(powerBat.size, NSSize(width: 25, height: 16))
         XCTAssertEqual(powerChg.size, NSSize(width: 25, height: 16))
         XCTAssertEqual(powerAC.size, NSSize(width: 25, height: 16))
-        XCTAssertTrue(powerBat.isTemplate && powerChg.isTemplate && powerAC.isTemplate)
+        XCTAssertNotNil(powerBat)
+        XCTAssertNotNil(powerChg)
+        XCTAssertNotNil(powerAC)
     }
 
     func testBespokeCategoryGaugesBarsAndSparklines() {
@@ -460,6 +471,24 @@ final class MenuBarDisplayTests: XCTestCase {
 
     // MARK: - Authentic iStat Menus Instrument Tests
 
+    func testDrawCategoryStackedTextWidthInvariance() {
+        // Test 1-digit, 2-digit, 3-digit, and nil placeholder with 32.0pt fixed width
+        let img1Digit = MenuBarIconRenderer.drawCategoryStackedText(title: "MEM", value: "2%", fixedWidth: 32.0)
+        let img2Digits = MenuBarIconRenderer.drawCategoryStackedText(title: "MEM", value: "82%", fixedWidth: 32.0)
+        let img3Digits = MenuBarIconRenderer.drawCategoryStackedText(title: "MEM", value: "100%", fixedWidth: 32.0)
+        let imgPlaceholder = MenuBarIconRenderer.drawCategoryStackedText(title: "MEM", value: "--%", fixedWidth: 32.0)
+
+        XCTAssertEqual(img1Digit.size.width, 32.0, "1-digit percentage must have constant 32pt width")
+        XCTAssertEqual(img2Digits.size.width, 32.0, "2-digit percentage must have constant 32pt width")
+        XCTAssertEqual(img3Digits.size.width, 32.0, "3-digit percentage must have constant 32pt width")
+        XCTAssertEqual(imgPlaceholder.size.width, 32.0, "Placeholder must have constant 32pt width")
+
+        XCTAssertEqual(img1Digit.size.height, 22.0)
+        XCTAssertEqual(img2Digits.size.height, 22.0)
+        XCTAssertEqual(img3Digits.size.height, 22.0)
+        XCTAssertEqual(imgPlaceholder.size.height, 22.0)
+    }
+
     func testDrawStackedText() {
         let img = MenuBarIconRenderer.drawStackedText(line1: "↓ 1.4 MB/s", line2: "↑ 240 KB/s")
         XCTAssertEqual(img.size.height, 22)
@@ -472,7 +501,7 @@ final class MenuBarDisplayTests: XCTestCase {
         let img8 = MenuBarIconRenderer.drawCPUBar(perCore: cores8, user: 45.0, system: 15.0)
         XCTAssertEqual(img8.size.height, 20)
         XCTAssertEqual(img8.size.width, 26)
-        XCTAssertTrue(img8.isTemplate)
+        XCTAssertNotNil(img8)
 
         let cores12 = Array(repeating: 30.0, count: 12)
         let img12 = MenuBarIconRenderer.drawCPUBar(perCore: cores12, user: 30.0, system: 0.0)
@@ -494,7 +523,7 @@ final class MenuBarDisplayTests: XCTestCase {
     func testDrawCPUDonutPie() {
         let donut = MenuBarIconRenderer.drawCPUDonutPie(user: 45.0, system: 15.0)
         XCTAssertEqual(donut.size, NSSize(width: 18, height: 18))
-        XCTAssertTrue(donut.isTemplate)
+        XCTAssertNotNil(donut)
     }
 
     func testDrawNetworkSplitDuplexGraph() {
@@ -502,7 +531,7 @@ final class MenuBarDisplayTests: XCTestCase {
         let outHistory = [500.0, 2000.0, 10000.0, 40000.0, 20000.0]
         let splitGraph = MenuBarIconRenderer.drawNetworkSplitDuplexGraph(inHistory: inHistory, outHistory: outHistory)
         XCTAssertEqual(splitGraph.size, NSSize(width: 36, height: 16))
-        XCTAssertTrue(splitGraph.isTemplate)
+        XCTAssertNotNil(splitGraph)
     }
 
     func testDrawNetworkStackedThroughput() {
@@ -519,18 +548,17 @@ final class MenuBarDisplayTests: XCTestCase {
     func testDrawBatteryInstrument() {
         let batDischarging = MenuBarIconRenderer.drawBatteryInstrument(charge: 75.0, state: .discharging, hasBattery: true)
         XCTAssertEqual(batDischarging.size, NSSize(width: 25, height: 16))
-        XCTAssertTrue(batDischarging.isTemplate)
+        XCTAssertNotNil(batDischarging)
 
         let batCharging = MenuBarIconRenderer.drawBatteryInstrument(charge: 88.0, state: .charging, hasBattery: true)
         XCTAssertEqual(batCharging.size, NSSize(width: 25, height: 16))
-        XCTAssertTrue(batCharging.isTemplate)
+        XCTAssertNotNil(batCharging)
 
         let desktopAC = MenuBarIconRenderer.drawBatteryInstrument(charge: nil, state: nil, hasBattery: false)
         XCTAssertEqual(desktopAC.size, NSSize(width: 25, height: 16))
-        XCTAssertTrue(desktopAC.isTemplate)
+        XCTAssertNotNil(desktopAC)
 
         let unmetered = MenuBarIconRenderer.drawBatteryInstrument(charge: nil, state: nil, hasBattery: true)
         XCTAssertEqual(unmetered.size, NSSize(width: 25, height: 16))
-        XCTAssertTrue(unmetered.isTemplate)
     }
 }
