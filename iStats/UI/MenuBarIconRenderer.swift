@@ -1,4 +1,5 @@
 import AppKit
+import CoreText
 import SwiftUI
 import iStatsCore
 
@@ -680,86 +681,261 @@ public struct MenuBarIconRenderer {
         return image
     }
 
-    /// Draws authentic iStat Menus per-core CPU micro-bar cluster with invariant canvas dimensions (26x20) and signature colors.
+    // MARK: - Capsule Bar & Vertical Label Drawing Primitives
+
+    /// Draws category acronym letters (e.g. "SSD", "CPU", "RAM") stacked vertically one above the other
+    /// using exact CoreText vector glyphs and monospaced advance alignment for pixel-perfect vertical and horizontal alignment.
+    public static func drawVerticalCategoryText(
+        _ text: String,
+        in rect: NSRect,
+        color: NSColor = .labelColor
+    ) {
+        let chars = Array(text.uppercased())
+        guard !chars.isEmpty else { return }
+        guard let context = NSGraphicsContext.current?.cgContext else { return }
+
+        let count = CGFloat(chars.count)
+        let fontSize: CGFloat
+        if count <= 1 {
+            fontSize = 9.5
+        } else if count == 2 {
+            fontSize = 8.4
+        } else if count == 3 {
+            fontSize = 7.4
+        } else {
+            fontSize = 5.8
+        }
+
+        let font = NSFont.monospacedSystemFont(ofSize: fontSize, weight: .heavy)
+        let ctFont = font as CTFont
+
+        struct GlyphInfo {
+            let path: CGPath
+            let bounds: CGRect
+            let advance: CGSize
+        }
+
+        var glyphInfos: [GlyphInfo] = []
+        for char in chars {
+            var unichars = [UniChar](String(char).utf16)
+            var glyphs = [CGGlyph](repeating: 0, count: unichars.count)
+            if CTFontGetGlyphsForCharacters(ctFont, &unichars, &glyphs, unichars.count) {
+                let glyph = glyphs[0]
+                var advance = CGSize.zero
+                CTFontGetAdvancesForGlyphs(ctFont, .horizontal, [glyph], &advance, 1)
+
+                if let rawPath = CTFontCreatePathForGlyph(ctFont, glyph, nil) {
+                    let bounds = rawPath.boundingBoxOfPath
+                    glyphInfos.append(GlyphInfo(path: rawPath, bounds: bounds, advance: advance))
+                }
+            }
+        }
+
+        guard glyphInfos.count == chars.count else { return }
+
+        let totalInkHeight = glyphInfos.reduce(0.0) { $0 + $1.bounds.height }
+        let topPadding: CGFloat = count == 1 ? (rect.height - totalInkHeight) / 2.0 : 0.6
+        let bottomPadding: CGFloat = count == 1 ? topPadding : 0.6
+        let availableHeight = max(rect.height - topPadding - bottomPadding, 0.0)
+        let totalGaps = count > 1 ? max(availableHeight - totalInkHeight, 0.0) : 0.0
+        let gap = count > 1 ? (totalGaps / (count - 1.0)) : 0.0
+
+        var currentTopY = rect.maxY - topPadding
+
+        context.saveGState()
+        context.setFillColor(color.cgColor)
+
+        for info in glyphInfos {
+            let inkHeight = info.bounds.height
+            let targetCenterY = currentTopY - (inkHeight / 2.0)
+            let dx = rect.midX - (info.advance.width / 2.0)
+            let dy = targetCenterY - info.bounds.midY
+
+            var transform = CGAffineTransform(translationX: dx, y: dy)
+            if let transformedPath = info.path.copy(using: &transform) {
+                context.addPath(transformedPath)
+                context.fillPath()
+            }
+
+            currentTopY -= (inkHeight + gap)
+        }
+
+        context.restoreGState()
+    }
+
+    /// Draws an authentic iStat Menus high-DPI rounded capsule pill load bar with clear background track,
+    /// clipped proportional floating fill rising from bottom, and crisp prominent outer border stroke.
+    public static func drawCapsulePill(
+        in rect: NSRect,
+        percentage: Double,
+        fillColor: NSColor? = nil,
+        borderColor: NSColor? = nil,
+        trackColor: NSColor? = nil
+    ) {
+        let radius = rect.width / 2.0
+        let outerPath = NSBezierPath(roundedRect: rect, xRadius: radius, yRadius: radius)
+
+        // Background track fill - clear and visible even at 0%
+        let bg = trackColor ?? NSColor.labelColor.withAlphaComponent(0.12)
+        bg.setFill()
+        outerPath.fill()
+
+        // Outer border stroke
+        let border = borderColor ?? NSColor.labelColor.withAlphaComponent(0.50)
+        outerPath.lineWidth = 1.2
+        border.setStroke()
+        outerPath.stroke()
+
+        // Filled level inside the capsule with signature floating inner margin
+        let clamped = min(max(percentage, 0.0), 100.0)
+        if clamped > 0 {
+            let innerInset: CGFloat = 1.4
+            let innerRect = rect.insetBy(dx: innerInset, dy: innerInset)
+            let innerRadius = max(innerRect.width / 2.0, 1.0)
+            let innerClipPath = NSBezierPath(roundedRect: innerRect, xRadius: innerRadius, yRadius: innerRadius)
+
+            NSGraphicsContext.saveGraphicsState()
+            innerClipPath.addClip()
+
+            let fillHeight = max(innerRect.height * CGFloat(clamped / 100.0), 2.0)
+            let fillRect = NSRect(
+                x: innerRect.minX,
+                y: innerRect.minY,
+                width: innerRect.width,
+                height: fillHeight
+            )
+            let fill = fillColor ?? NSColor.labelColor
+            fill.setFill()
+            fillRect.fill()
+
+            NSGraphicsContext.restoreGraphicsState()
+        }
+    }
+
+    /// Draws a dual capsule load bar widget with vertical category label on the left
+    /// and dual load bars side by side on the right (e.g. SSD [Read Bar] [Write Bar] or NET [In Bar] [Out Bar]).
+    public static func drawDualCapsuleBar(
+        label: String,
+        leftPercentage: Double,
+        rightPercentage: Double,
+        leftColor: NSColor? = nil,
+        rightColor: NSColor? = nil,
+        labelColor: NSColor? = nil
+    ) -> NSImage {
+        let size = NSSize(width: 36, height: 22)
+        let image = NSImage(size: size, flipped: false) { bounds in
+            let barWidth: CGFloat = 8.5
+            let barHeight: CGFloat = 20.0
+            let barY: CGFloat = (bounds.height - barHeight) / 2.0
+
+            let textRect = NSRect(x: 2.0, y: barY, width: 9.5, height: barHeight)
+            let leftBarRect = NSRect(x: 14.5, y: barY, width: barWidth, height: barHeight)
+            let rightBarRect = NSRect(x: 25.5, y: barY, width: barWidth, height: barHeight)
+
+            drawVerticalCategoryText(label, in: textRect, color: labelColor ?? .labelColor)
+            drawCapsulePill(in: leftBarRect, percentage: leftPercentage, fillColor: leftColor)
+            drawCapsulePill(in: rightBarRect, percentage: rightPercentage, fillColor: rightColor)
+
+            return true
+        }
+        image.isTemplate = (leftColor == nil && rightColor == nil && labelColor == nil)
+        return image
+    }
+
+    /// Draws a single capsule load bar widget with a vertical category label on the left
+    /// (e.g. [RAM] [Bar], [GPU] [Bar], [BAT] [Bar]).
+    public static func drawSingleCapsuleBar(
+        label: String,
+        percentage: Double,
+        barColor: NSColor? = nil,
+        labelColor: NSColor? = nil
+    ) -> NSImage {
+        let canvasWidth: CGFloat = label.isEmpty ? 13.0 : 25.0
+        let size = NSSize(width: canvasWidth, height: 22)
+        let image = NSImage(size: size, flipped: false) { bounds in
+            let barWidth: CGFloat = 8.5
+            let barHeight: CGFloat = 20.0
+            let barY: CGFloat = (bounds.height - barHeight) / 2.0
+
+            if label.isEmpty {
+                let barRect = NSRect(x: (bounds.width - barWidth) / 2.0, y: barY, width: barWidth, height: barHeight)
+                drawCapsulePill(in: barRect, percentage: percentage, fillColor: barColor)
+            } else {
+                let textRect = NSRect(x: 2.0, y: barY, width: 9.5, height: barHeight)
+                let barRect = NSRect(x: 14.5, y: barY, width: barWidth, height: barHeight)
+
+                drawVerticalCategoryText(label, in: textRect, color: labelColor ?? .labelColor)
+                drawCapsulePill(in: barRect, percentage: percentage, fillColor: barColor)
+            }
+            return true
+        }
+        image.isTemplate = (barColor == nil && labelColor == nil)
+        return image
+    }
+
+    /// Draws per-core CPU micro-bar cluster with vertical "CPU" label on the left.
+    public static func drawCPUCoreClusterBar(
+        cores: [Double],
+        label: String = "CPU",
+        barColor: NSColor? = .systemBlue
+    ) -> NSImage {
+        let textWidth: CGFloat = 9.5
+        let gap: CGFloat = 3.0
+        let clusterWidth: CGFloat = 24.5
+        let totalWidth = 2.0 + textWidth + gap + clusterWidth + 2.0
+        let size = NSSize(width: totalWidth, height: 22)
+
+        let image = NSImage(size: size, flipped: false) { bounds in
+            let barHeight: CGFloat = 20.0
+            let barY: CGFloat = (bounds.height - barHeight) / 2.0
+
+            let textRect = NSRect(x: 2.0, y: barY, width: textWidth, height: barHeight)
+            drawVerticalCategoryText(label, in: textRect, color: .labelColor)
+
+            let n = cores.count
+            let clusterX: CGFloat = 2.0 + textWidth + gap
+            let totalGap = CGFloat(n - 1) * 0.5
+            let coreWidth = max(1.0, (clusterWidth - totalGap) / CGFloat(n))
+            let actualGap = n > 1 ? (clusterWidth - CGFloat(n) * coreWidth) / CGFloat(n - 1) : 0.0
+
+            for (idx, coreUsage) in cores.enumerated() {
+                let x = clusterX + CGFloat(idx) * (coreWidth + actualGap)
+                let trackRect = NSRect(x: x, y: barY, width: coreWidth, height: barHeight)
+                drawCapsulePill(in: trackRect, percentage: coreUsage, fillColor: barColor)
+            }
+            return true
+        }
+        image.isTemplate = (barColor == nil)
+        return image
+    }
+
+    /// Draws modern capsule load bar for CPU (with vertical "CPU" category label and signature colors).
     public static func drawCPUBar(
         perCore: [Double]?,
         user: Double? = nil,
         system: Double? = nil
     ) -> NSImage {
-        let size = NSSize(width: 26, height: 20)
-        let image = NSImage(size: size, flipped: false) { bounds in
-            if let cores = perCore, cores.count >= 2 {
-                let n = cores.count
-                let availableWidth: CGFloat = 24.0
-                let totalGap = CGFloat(n - 1) * 0.5
-                let coreWidth = max(1.0, (availableWidth - totalGap) / CGFloat(n))
-                let actualGap = n > 1 ? (availableWidth - CGFloat(n) * coreWidth) / CGFloat(n - 1) : 0.0
-
-                for (idx, coreUsage) in cores.enumerated() {
-                    let x = 1.0 + CGFloat(idx) * (coreWidth + actualGap)
-                    let trackRect = NSRect(x: x, y: 2.0, width: coreWidth, height: 16.0)
-                    let track = NSBezierPath(roundedRect: trackRect, xRadius: 0.5, yRadius: 0.5)
-                    NSColor.secondaryLabelColor.withAlphaComponent(0.20).setFill()
-                    track.fill()
-
-                    let clamped = min(max(coreUsage, 0.0), 100.0)
-                    if clamped > 0 {
-                        let fillHeight = max(CGFloat(16.0 * (clamped / 100.0)), 1.5)
-                        let fillRect = NSRect(x: x, y: 2.0, width: coreWidth, height: fillHeight)
-                        let fillPath = NSBezierPath(roundedRect: fillRect, xRadius: 0.5, yRadius: 0.5)
-                        
-                        let color: NSColor
-                        if clamped >= 85.0 {
-                            color = NSColor.systemRed
-                        } else if clamped >= 60.0 {
-                            color = NSColor.systemOrange
-                        } else {
-                            color = NSColor.systemBlue
-                        }
-                        color.setFill()
-                        fillPath.fill()
-                    }
-                }
-                return true
+        if let cores = perCore, cores.count >= 2 {
+            return drawCPUCoreClusterBar(cores: cores, label: "CPU", barColor: .systemBlue)
+        } else {
+            let usr = user ?? 0.0
+            let sys = system ?? 0.0
+            if sys > 0 {
+                return drawDualCapsuleBar(
+                    label: "CPU",
+                    leftPercentage: usr,
+                    rightPercentage: sys,
+                    leftColor: .systemBlue,
+                    rightColor: .systemOrange
+                )
             } else {
-                // Dual-tone aggregate bar centered inside 26pt canvas
-                let barWidth: CGFloat = 7.0
-                let barX: CGFloat = (bounds.width - barWidth) / 2.0
-                let trackRect = NSRect(x: barX, y: 2.0, width: barWidth, height: 16.0)
-                let track = NSBezierPath(roundedRect: trackRect, xRadius: 2.5, yRadius: 2.5)
-                NSColor.secondaryLabelColor.withAlphaComponent(0.20).setFill()
-                track.fill()
-
-                let usr = user ?? 0.0
-                let sys = system ?? 0.0
-                let total = min(max(usr + sys, 0.0), 100.0)
-
-                if total > 0 {
-                    let totalHeight = max(CGFloat(16.0 * (total / 100.0)), 2.0)
-                    let sysHeight = (sys / total) * totalHeight
-
-                    // Bottom system segment (Orange)
-                    if sysHeight > 0 {
-                        let sysRect = NSRect(x: barX, y: 2.0, width: barWidth, height: max(sysHeight, 1.5))
-                        let sysPath = NSBezierPath(roundedRect: sysRect, xRadius: 2.0, yRadius: 2.0)
-                        NSColor.systemOrange.setFill()
-                        sysPath.fill()
-                    }
-
-                    // Top user segment (Blue)
-                    let usrHeight = totalHeight - sysHeight
-                    if usrHeight > 0 {
-                        let usrRect = NSRect(x: barX, y: 2.0 + sysHeight, width: barWidth, height: max(usrHeight, 1.5))
-                        let usrPath = NSBezierPath(roundedRect: usrRect, xRadius: 2.0, yRadius: 2.0)
-                        NSColor.systemBlue.setFill()
-                        usrPath.fill()
-                    }
-                }
-                return true
+                return drawSingleCapsuleBar(
+                    label: "CPU",
+                    percentage: usr + sys,
+                    barColor: .systemBlue
+                )
             }
         }
-        image.isTemplate = false
-        return image
     }
 
     /// Draws authentic iStat Menus segmented CPU Donut Pie (User vs. System load) with signature vibrant colors.
@@ -886,55 +1062,9 @@ public struct MenuBarIconRenderer {
         return image
     }
 
-    /// Draws authentic iStat Menus segmented stacked memory vertical bar with signature colors.
+    /// Draws modern capsule load bar for Memory / RAM (with vertical "RAM" category label).
     public static func drawMemoryStackedBar(sample: MemorySample?, ratio: Double) -> NSImage {
-        let size = NSSize(width: 11, height: 20)
-        let image = NSImage(size: size, flipped: false) { _ in
-            let trackRect = NSRect(x: 2.0, y: 2.0, width: 7.0, height: 16.0)
-            let track = NSBezierPath(roundedRect: trackRect, xRadius: 2.5, yRadius: 2.5)
-            NSColor.secondaryLabelColor.withAlphaComponent(0.20).setFill()
-            track.fill()
-
-            let totalH: CGFloat = 16.0
-
-            if let mem = sample, mem.total > 0 {
-                let total = Double(mem.total)
-                let wiredH = max(CGFloat(Double(mem.wired) / total) * totalH, 0.0)
-                let activeH = max(CGFloat(Double(mem.active ?? (mem.used - mem.wired)) / total) * totalH, 0.0)
-                let compH = max(CGFloat(Double(mem.compressed) / total) * totalH, 0.0)
-
-                var currentY: CGFloat = 2.0
-
-                if wiredH > 0 {
-                    let r = NSRect(x: 2.0, y: currentY, width: 7.0, height: wiredH)
-                    NSColor.systemRed.setFill()
-                    NSBezierPath(roundedRect: r, xRadius: 1.0, yRadius: 1.0).fill()
-                    currentY += wiredH
-                }
-                if activeH > 0 {
-                    let r = NSRect(x: 2.0, y: currentY, width: 7.0, height: activeH)
-                    NSColor.systemBlue.setFill()
-                    NSBezierPath(roundedRect: r, xRadius: 1.0, yRadius: 1.0).fill()
-                    currentY += activeH
-                }
-                if compH > 0 {
-                    let r = NSRect(x: 2.0, y: currentY, width: 7.0, height: compH)
-                    NSColor.systemYellow.setFill()
-                    NSBezierPath(roundedRect: r, xRadius: 1.0, yRadius: 1.0).fill()
-                }
-            } else {
-                let clamped = min(max(ratio, 0.0), 100.0)
-                if clamped > 0 {
-                    let fillH = max(CGFloat(totalH * (clamped / 100.0)), 2.0)
-                    let fillRect = NSRect(x: 2.0, y: 2.0, width: 7.0, height: fillH)
-                    NSColor.systemGreen.setFill()
-                    NSBezierPath(roundedRect: fillRect, xRadius: 2.5, yRadius: 2.5).fill()
-                }
-            }
-            return true
-        }
-        image.isTemplate = false
-        return image
+        drawSingleCapsuleBar(label: "RAM", percentage: ratio)
     }
 
     /// Draws authentic iStat Menus horizontal Battery Instrument with live proportional level fill & charging bolt.
@@ -1160,7 +1290,7 @@ public struct MenuBarIconRenderer {
     }
 
     public static func drawMemoryBar(ratio: Double) -> NSImage {
-        drawMemoryStackedBar(sample: nil, ratio: ratio)
+        drawSingleCapsuleBar(label: "RAM", percentage: ratio, barColor: .systemGreen)
     }
 
     public static func drawMemorySparkline(history: [Double]) -> NSImage {
@@ -1199,25 +1329,7 @@ public struct MenuBarIconRenderer {
     }
 
     public static func drawGPUBar(percentage: Double) -> NSImage {
-        let size = NSSize(width: 11, height: 20)
-        let image = NSImage(size: size, flipped: false) { bounds in
-            let pillRect = NSRect(x: 2.0, y: 2.0, width: 7.0, height: 16.0)
-            let track = NSBezierPath(roundedRect: pillRect, xRadius: 2.5, yRadius: 2.5)
-            NSColor.secondaryLabelColor.withAlphaComponent(0.20).setFill()
-            track.fill()
-
-            let clamped = min(max(percentage, 0.0), 100.0)
-            if clamped > 0 {
-                let fillHeight = max(CGFloat(16.0 * (clamped / 100.0)), 2.0)
-                let fillRect = NSRect(x: 2.0, y: 2.0, width: 7.0, height: fillHeight)
-                let fillPath = NSBezierPath(roundedRect: fillRect, xRadius: 2.5, yRadius: 2.5)
-                NSColor.systemPurple.setFill()
-                fillPath.fill()
-            }
-            return true
-        }
-        image.isTemplate = false
-        return image
+        drawSingleCapsuleBar(label: "GPU", percentage: percentage, barColor: .systemPurple)
     }
 
     public static func drawGPUSparkline(history: [Double]) -> NSImage {
@@ -1271,26 +1383,9 @@ public struct MenuBarIconRenderer {
     }
 
     public static func drawThermalBar(percentage: Double, celsius: Double? = nil) -> NSImage {
-        let size = NSSize(width: 11, height: 20)
-        let image = NSImage(size: size, flipped: false) { bounds in
-            let pillRect = NSRect(x: 2.0, y: 2.0, width: 7.0, height: 16.0)
-            let track = NSBezierPath(roundedRect: pillRect, xRadius: 2.5, yRadius: 2.5)
-            NSColor.secondaryLabelColor.withAlphaComponent(0.20).setFill()
-            track.fill()
-
-            let clamped = min(max(percentage, 0.0), 100.0)
-            if clamped > 0 {
-                let fillHeight = max(CGFloat(16.0 * (clamped / 100.0)), 2.0)
-                let fillRect = NSRect(x: 2.0, y: 2.0, width: 7.0, height: fillHeight)
-                let fillPath = NSBezierPath(roundedRect: fillRect, xRadius: 2.5, yRadius: 2.5)
-                let c = celsius ?? (30.0 + (clamped / 100.0) * 70.0)
-                thermalColor(for: c).setFill()
-                fillPath.fill()
-            }
-            return true
-        }
-        image.isTemplate = false
-        return image
+        let c = celsius ?? (30.0 + (min(max(percentage, 0.0), 100.0) / 100.0) * 70.0)
+        let col = thermalColor(for: c)
+        return drawSingleCapsuleBar(label: "TMP", percentage: percentage, barColor: col)
     }
 
     public static func drawThermalSparkline(history: [Double]) -> NSImage {
@@ -1332,25 +1427,7 @@ public struct MenuBarIconRenderer {
     }
 
     public static func drawFanBar(percentage: Double) -> NSImage {
-        let size = NSSize(width: 11, height: 20)
-        let image = NSImage(size: size, flipped: false) { bounds in
-            let pillRect = NSRect(x: 2.0, y: 2.0, width: 7.0, height: 16.0)
-            let track = NSBezierPath(roundedRect: pillRect, xRadius: 2.5, yRadius: 2.5)
-            NSColor.secondaryLabelColor.withAlphaComponent(0.20).setFill()
-            track.fill()
-
-            let clamped = min(max(percentage, 0.0), 100.0)
-            if clamped > 0 {
-                let fillHeight = max(CGFloat(16.0 * (clamped / 100.0)), 2.0)
-                let fillRect = NSRect(x: 2.0, y: 2.0, width: 7.0, height: fillHeight)
-                let fillPath = NSBezierPath(roundedRect: fillRect, xRadius: 2.5, yRadius: 2.5)
-                NSColor.systemCyan.setFill()
-                fillPath.fill()
-            }
-            return true
-        }
-        image.isTemplate = false
-        return image
+        drawSingleCapsuleBar(label: "FAN", percentage: percentage, barColor: .systemCyan)
     }
 
     public static func drawFanSparkline(history: [Double]) -> NSImage {
@@ -1390,33 +1467,13 @@ public struct MenuBarIconRenderer {
     }
 
     public static func drawNetworkBar(inPct: Double, outPct: Double) -> NSImage {
-        let size = NSSize(width: 16, height: 20)
-        let image = NSImage(size: size, flipped: false) { _ in
-            let inTrack = NSBezierPath(roundedRect: NSRect(x: 1.5, y: 2.0, width: 6.0, height: 16.0), xRadius: 2.5, yRadius: 2.5)
-            NSColor.secondaryLabelColor.withAlphaComponent(0.20).setFill()
-            inTrack.fill()
-
-            let inClamped = min(max(inPct, 0.0), 100.0)
-            if inClamped > 0 {
-                let inFill = NSBezierPath(roundedRect: NSRect(x: 1.5, y: 2.0, width: 6.0, height: max(16.0 * (inClamped / 100.0), 2.0)), xRadius: 2.5, yRadius: 2.5)
-                NSColor.systemBlue.setFill()
-                inFill.fill()
-            }
-
-            let outTrack = NSBezierPath(roundedRect: NSRect(x: 8.5, y: 2.0, width: 6.0, height: 16.0), xRadius: 2.5, yRadius: 2.5)
-            NSColor.secondaryLabelColor.withAlphaComponent(0.20).setFill()
-            outTrack.fill()
-
-            let outClamped = min(max(outPct, 0.0), 100.0)
-            if outClamped > 0 {
-                let outFill = NSBezierPath(roundedRect: NSRect(x: 8.5, y: 2.0, width: 6.0, height: max(16.0 * (outClamped / 100.0), 2.0)), xRadius: 2.5, yRadius: 2.5)
-                NSColor.systemPurple.setFill()
-                outFill.fill()
-            }
-            return true
-        }
-        image.isTemplate = false
-        return image
+        drawDualCapsuleBar(
+            label: "NET",
+            leftPercentage: inPct,
+            rightPercentage: outPct,
+            leftColor: .systemTeal,
+            rightColor: .systemBlue
+        )
     }
 
     public static func drawNetworkSparkline(history: [Double]) -> NSImage {
@@ -1433,33 +1490,13 @@ public struct MenuBarIconRenderer {
     }
 
     public static func drawDiskBar(readPct: Double, writePct: Double) -> NSImage {
-        let size = NSSize(width: 16, height: 20)
-        let image = NSImage(size: size, flipped: false) { _ in
-            let readTrack = NSBezierPath(roundedRect: NSRect(x: 1.5, y: 2.0, width: 6.0, height: 16.0), xRadius: 2.5, yRadius: 2.5)
-            NSColor.secondaryLabelColor.withAlphaComponent(0.20).setFill()
-            readTrack.fill()
-
-            let rClamped = min(max(readPct, 0.0), 100.0)
-            if rClamped > 0 {
-                let rFill = NSBezierPath(roundedRect: NSRect(x: 1.5, y: 2.0, width: 6.0, height: max(16.0 * (rClamped / 100.0), 2.0)), xRadius: 2.5, yRadius: 2.5)
-                NSColor.systemBlue.setFill()
-                rFill.fill()
-            }
-
-            let writeTrack = NSBezierPath(roundedRect: NSRect(x: 8.5, y: 2.0, width: 6.0, height: 16.0), xRadius: 2.5, yRadius: 2.5)
-            NSColor.secondaryLabelColor.withAlphaComponent(0.20).setFill()
-            writeTrack.fill()
-
-            let wClamped = min(max(writePct, 0.0), 100.0)
-            if wClamped > 0 {
-                let wFill = NSBezierPath(roundedRect: NSRect(x: 8.5, y: 2.0, width: 6.0, height: max(16.0 * (wClamped / 100.0), 2.0)), xRadius: 2.5, yRadius: 2.5)
-                NSColor.systemRed.setFill()
-                wFill.fill()
-            }
-            return true
-        }
-        image.isTemplate = false
-        return image
+        drawDualCapsuleBar(
+            label: "SSD",
+            leftPercentage: readPct,
+            rightPercentage: writePct,
+            leftColor: .systemIndigo,
+            rightColor: .systemPurple
+        )
     }
 
     public static func drawDiskSparkline(history: [Double]) -> NSImage {
@@ -1480,25 +1517,9 @@ public struct MenuBarIconRenderer {
     }
 
     public static func drawPowerBar(percentage: Double, isCharging: Bool = false) -> NSImage {
-        let size = NSSize(width: 11, height: 20)
-        let image = NSImage(size: size, flipped: false) { _ in
-            let trackRect = NSRect(x: 2.0, y: 2.0, width: 7.0, height: 16.0)
-            let track = NSBezierPath(roundedRect: trackRect, xRadius: 2.5, yRadius: 2.5)
-            NSColor.secondaryLabelColor.withAlphaComponent(0.20).setFill()
-            track.fill()
-
-            let clamped = min(max(percentage, 0.0), 100.0)
-            if clamped > 0 {
-                let fillHeight = max(CGFloat(16.0 * (clamped / 100.0)), 2.0)
-                let fillRect = NSRect(x: 2.0, y: 2.0, width: 7.0, height: fillHeight)
-                let fillPath = NSBezierPath(roundedRect: fillRect, xRadius: 2.5, yRadius: 2.5)
-                (clamped <= 20.0 ? NSColor.systemRed : NSColor.systemGreen).setFill()
-                fillPath.fill()
-            }
-            return true
-        }
-        image.isTemplate = false
-        return image
+        let clamped = min(max(percentage, 0.0), 100.0)
+        let color: NSColor = clamped <= 20.0 ? NSColor.systemRed : (clamped <= 40.0 ? NSColor.systemYellow : NSColor.systemGreen)
+        return drawSingleCapsuleBar(label: "BAT", percentage: percentage, barColor: color)
     }
 
     public static func drawPowerSparkline(history: [Double]) -> NSImage {
@@ -1538,25 +1559,7 @@ public struct MenuBarIconRenderer {
 
     /// Generic vertical bar graph template.
     public static func drawBarGraph(percentage: Double) -> NSImage {
-        let size = NSSize(width: 11, height: 20)
-        let image = NSImage(size: size, flipped: false) { bounds in
-            let pillRect = NSRect(x: 2.0, y: 2.0, width: 7.0, height: 16.0)
-            let track = NSBezierPath(roundedRect: pillRect, xRadius: 2.5, yRadius: 2.5)
-            NSColor.secondaryLabelColor.withAlphaComponent(0.20).setFill()
-            track.fill()
-
-            let clamped = min(max(percentage, 0.0), 100.0)
-            if clamped > 0 {
-                let fillHeight = max(CGFloat(16.0 * (clamped / 100.0)), 2.0)
-                let fillRect = NSRect(x: 2.0, y: 2.0, width: 7.0, height: fillHeight)
-                let fillPath = NSBezierPath(roundedRect: fillRect, xRadius: 2.5, yRadius: 2.5)
-                NSColor.labelColor.setFill()
-                fillPath.fill()
-            }
-            return true
-        }
-        image.isTemplate = true
-        return image
+        drawSingleCapsuleBar(label: "", percentage: percentage)
     }
 
     /// Generic history sparkline chart template.

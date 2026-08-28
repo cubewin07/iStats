@@ -210,10 +210,10 @@ final class MenuBarDisplayTests: XCTestCase {
         XCTAssertEqual(gaugeImg.size.height, 18)
         XCTAssertTrue(gaugeImg.isTemplate)
 
-        // Bar Graph (11x20 pt)
+        // Bar Graph (13x22 pt)
         let barImg = MenuBarIconRenderer.drawBarGraph(percentage: 75.0)
-        XCTAssertEqual(barImg.size.width, 11)
-        XCTAssertEqual(barImg.size.height, 20)
+        XCTAssertEqual(barImg.size.width, 13)
+        XCTAssertEqual(barImg.size.height, 22)
         XCTAssertTrue(barImg.isTemplate)
 
         // Sparkline (36x16 pt)
@@ -499,18 +499,68 @@ final class MenuBarDisplayTests: XCTestCase {
     func testDrawCPUPerCoreBarCluster() {
         let cores8 = [10.0, 25.0, 50.0, 75.0, 20.0, 40.0, 60.0, 80.0]
         let img8 = MenuBarIconRenderer.drawCPUBar(perCore: cores8, user: 45.0, system: 15.0)
-        XCTAssertEqual(img8.size.height, 20)
-        XCTAssertEqual(img8.size.width, 26)
+        XCTAssertEqual(img8.size.height, 22)
+        XCTAssertEqual(img8.size.width, 41)
         XCTAssertNotNil(img8)
 
         let cores12 = Array(repeating: 30.0, count: 12)
         let img12 = MenuBarIconRenderer.drawCPUBar(perCore: cores12, user: 30.0, system: 0.0)
-        XCTAssertEqual(img12.size.width, 26)
-        XCTAssertEqual(img12.size.height, 20)
+        XCTAssertEqual(img12.size.width, 41)
+        XCTAssertEqual(img12.size.height, 22)
 
         let coresNil = MenuBarIconRenderer.drawCPUBar(perCore: nil, user: 40.0, system: 10.0)
-        XCTAssertEqual(coresNil.size.width, 26)
-        XCTAssertEqual(coresNil.size.height, 20)
+        XCTAssertEqual(coresNil.size.width, 36)
+        XCTAssertEqual(coresNil.size.height, 22)
+    }
+
+    func testDrawCapsuleBars() {
+        // Dual Capsule Bar (Generic / Template)
+        let genericBar = MenuBarIconRenderer.drawDualCapsuleBar(label: "SSD", leftPercentage: 90.0, rightPercentage: 30.0)
+        XCTAssertEqual(genericBar.size.width, 36)
+        XCTAssertEqual(genericBar.size.height, 22)
+        XCTAssertTrue(genericBar.isTemplate)
+
+        // Dual Capsule Bar (NET - Teal/Blue Colored)
+        let netBar = MenuBarIconRenderer.drawNetworkBar(inPct: 50.0, outPct: 20.0)
+        XCTAssertEqual(netBar.size.width, 36)
+        XCTAssertEqual(netBar.size.height, 22)
+        XCTAssertFalse(netBar.isTemplate)
+
+        // Dual Capsule Bar (SSD - Indigo/Purple Colored)
+        let ssdBar = MenuBarIconRenderer.drawDiskBar(readPct: 75.0, writePct: 25.0)
+        XCTAssertEqual(ssdBar.size.width, 36)
+        XCTAssertEqual(ssdBar.size.height, 22)
+        XCTAssertFalse(ssdBar.isTemplate)
+
+        // Single Capsule Bar (RAM - Green Colored)
+        let ramBar = MenuBarIconRenderer.drawMemoryBar(ratio: 65.0)
+        XCTAssertEqual(ramBar.size.width, 25)
+        XCTAssertEqual(ramBar.size.height, 22)
+        XCTAssertFalse(ramBar.isTemplate)
+
+        // Single Capsule Bar (GPU - Purple Colored)
+        let gpuBar = MenuBarIconRenderer.drawGPUBar(percentage: 45.0)
+        XCTAssertEqual(gpuBar.size.width, 25)
+        XCTAssertEqual(gpuBar.size.height, 22)
+        XCTAssertFalse(gpuBar.isTemplate)
+
+        // Single Capsule Bar (TMP - Thermal Colored)
+        let tmpBar = MenuBarIconRenderer.drawThermalBar(percentage: 55.0)
+        XCTAssertEqual(tmpBar.size.width, 25)
+        XCTAssertEqual(tmpBar.size.height, 22)
+        XCTAssertFalse(tmpBar.isTemplate)
+
+        // Single Capsule Bar (FAN - Cyan Colored)
+        let fanBar = MenuBarIconRenderer.drawFanBar(percentage: 40.0)
+        XCTAssertEqual(fanBar.size.width, 25)
+        XCTAssertEqual(fanBar.size.height, 22)
+        XCTAssertFalse(fanBar.isTemplate)
+
+        // Single Capsule Bar (BAT - Battery Colored)
+        let batBar = MenuBarIconRenderer.drawPowerBar(percentage: 85.0)
+        XCTAssertEqual(batBar.size.width, 25)
+        XCTAssertEqual(batBar.size.height, 22)
+        XCTAssertFalse(batBar.isTemplate)
     }
 
     func testDrawSingleLineText() {
