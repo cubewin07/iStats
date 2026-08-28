@@ -42,31 +42,45 @@ public enum MetricDisplayStyle: String, CaseIterable, Identifiable, Codable, Sen
 }
 
 /// A user-configured metric item/widget to be displayed in the macOS menu bar.
-/// Multiple items can exist for the same `MetricCategory` (Requirement ADR 0007).
-public struct MenuBarItemConfig: Identifiable, Codable, Equatable, Sendable {
-    public var id: UUID
+/// Identified deterministically by composite `category.style` key.
+public struct MenuBarItemConfig: Identifiable, Codable, Hashable, Equatable, Sendable {
     public var category: MetricCategory
     public var style: MetricDisplayStyle
-    public var isEnabled: Bool
+
+    public var id: String {
+        "\(category.rawValue).\(style.rawValue)"
+    }
 
     public init(
-        id: UUID = UUID(),
         category: MetricCategory,
-        style: MetricDisplayStyle,
-        isEnabled: Bool = true
+        style: MetricDisplayStyle
     ) {
-        self.id = id
         self.category = category
         self.style = style
-        self.isEnabled = isEnabled
+    }
+
+    /// All possible widget configurations supported by the system.
+    public static var allAvailableItems: [MenuBarItemConfig] {
+        MetricCategory.allCases.flatMap { category in
+            MetricDisplayStyle.supportedStyles(for: category).map { style in
+                MenuBarItemConfig(category: category, style: style)
+            }
+        }
+    }
+
+    /// All supported widget configurations for a specific metric category.
+    public static func allStyles(for category: MetricCategory) -> [MenuBarItemConfig] {
+        MetricDisplayStyle.supportedStyles(for: category).map { style in
+            MenuBarItemConfig(category: category, style: style)
+        }
     }
 
     /// Sensible default starter widgets for the app.
     public static func defaultConfigs() -> [MenuBarItemConfig] {
         [
-            MenuBarItemConfig(id: UUID(uuidString: "00000000-0000-0000-0000-000000000001")!, category: .cpu, style: .gauge),
-            MenuBarItemConfig(id: UUID(uuidString: "00000000-0000-0000-0000-000000000002")!, category: .memory, style: .gauge),
-            MenuBarItemConfig(id: UUID(uuidString: "00000000-0000-0000-0000-000000000003")!, category: .network, style: .throughput)
+            MenuBarItemConfig(category: .cpu, style: .gauge),
+            MenuBarItemConfig(category: .memory, style: .gauge),
+            MenuBarItemConfig(category: .network, style: .throughput)
         ]
     }
 }

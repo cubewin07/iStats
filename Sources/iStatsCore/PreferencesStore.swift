@@ -237,37 +237,43 @@ public final class PreferencesStore: ObservableObject, @unchecked Sendable {
     }
 
     // MARK: - Menu Bar Item Management (ADR 0007)
-
-    /// Returns all active menu bar items whose parent category is currently enabled.
-    public var activeMenuBarItems: [MenuBarItemConfig] {
-        menuBarItems.filter { $0.isEnabled && isCategoryEnabled($0.category) }
+    
+    /// Returns whether a specific menu bar widget (category + style) is enabled.
+    public func isItemEnabled(category: MetricCategory, style: MetricDisplayStyle) -> Bool {
+        menuBarItems.contains { $0.category == category && $0.style == style }
     }
 
-    /// Returns all configured items for a specific category.
-    public func items(for category: MetricCategory) -> [MenuBarItemConfig] {
-        menuBarItems.filter { $0.category == category }
+    /// Returns whether a specific menu bar config is enabled.
+    public func isItemEnabled(_ item: MenuBarItemConfig) -> Bool {
+        menuBarItems.contains { $0.category == item.category && $0.style == item.style }
     }
 
-    /// Adds a new menu bar widget item configuration.
-    public func addMenuBarItem(_ item: MenuBarItemConfig) {
-        menuBarItems.append(item)
-    }
-
-    /// Removes a menu bar item by its unique ID.
-    public func removeMenuBarItem(id: UUID) {
-        menuBarItems.removeAll { $0.id == id }
-    }
-
-    /// Toggles the enabled state of a specific menu bar item.
-    public func toggleMenuBarItem(id: UUID) {
-        if let index = menuBarItems.firstIndex(where: { $0.id == id }) {
-            menuBarItems[index].isEnabled.toggle()
+    /// Sets the enablement status of a specific menu bar widget.
+    public func setItemEnabled(category: MetricCategory, style: MetricDisplayStyle, isEnabled: Bool) {
+        let config = MenuBarItemConfig(category: category, style: style)
+        if isEnabled {
+            if !menuBarItems.contains(where: { $0.category == category && $0.style == style }) {
+                menuBarItems.append(config)
+            }
+        } else {
+            menuBarItems.removeAll { $0.category == category && $0.style == style }
         }
     }
 
-    /// Removes all menu bar items associated with a given category.
-    public func removeAllItems(for category: MetricCategory) {
-        menuBarItems.removeAll { $0.category == category }
+    /// Toggles the enablement status of a specific menu bar widget.
+    public func toggleItem(category: MetricCategory, style: MetricDisplayStyle) {
+        let currentlyEnabled = isItemEnabled(category: category, style: style)
+        setItemEnabled(category: category, style: style, isEnabled: !currentlyEnabled)
+    }
+
+    /// Returns all active menu bar items whose parent category is currently enabled.
+    public var activeMenuBarItems: [MenuBarItemConfig] {
+        menuBarItems.filter { isCategoryEnabled($0.category) }
+    }
+
+    /// Returns all enabled items for a specific category.
+    public func items(for category: MetricCategory) -> [MenuBarItemConfig] {
+        menuBarItems.filter { $0.category == category }
     }
 
     /// Resets all preferences back to factory defaults.

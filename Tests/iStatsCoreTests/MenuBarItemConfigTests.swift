@@ -2,32 +2,44 @@ import XCTest
 @testable import iStatsCore
 
 final class MenuBarItemConfigTests: XCTestCase {
-    func testInitializationAndDefaults() {
-        let id = UUID()
-        let config = MenuBarItemConfig(id: id, category: .cpu, style: .gauge, isEnabled: true)
+    func testInitializationAndDeterministicIDs() {
+        let config = MenuBarItemConfig(category: .cpu, style: .gauge)
 
-        XCTAssertEqual(config.id, id)
+        XCTAssertEqual(config.id, "cpu.gauge")
         XCTAssertEqual(config.category, .cpu)
         XCTAssertEqual(config.style, .gauge)
-        XCTAssertTrue(config.isEnabled)
     }
 
     func testCodableRoundTrip() throws {
-        let original = MenuBarItemConfig(category: .memory, style: .sparkline, isEnabled: false)
+        let original = MenuBarItemConfig(category: .memory, style: .sparkline)
         let data = try JSONEncoder().encode(original)
         let decoded = try JSONDecoder().decode(MenuBarItemConfig.self, from: data)
 
         XCTAssertEqual(original, decoded)
+        XCTAssertEqual(decoded.id, "memory.sparkline")
         XCTAssertEqual(decoded.category, .memory)
         XCTAssertEqual(decoded.style, .sparkline)
-        XCTAssertFalse(decoded.isEnabled)
     }
 
     func testDefaultConfigs() {
         let defaults = MenuBarItemConfig.defaultConfigs()
         XCTAssertFalse(defaults.isEmpty)
-        XCTAssertTrue(defaults.contains(where: { $0.category == .cpu }))
-        XCTAssertTrue(defaults.contains(where: { $0.category == .memory }))
+        XCTAssertTrue(defaults.contains(where: { $0.category == .cpu && $0.style == .gauge }))
+        XCTAssertTrue(defaults.contains(where: { $0.category == .memory && $0.style == .gauge }))
+        XCTAssertTrue(defaults.contains(where: { $0.category == .network && $0.style == .throughput }))
+    }
+
+    func testAllAvailableItemsAndStyles() {
+        let allItems = MenuBarItemConfig.allAvailableItems
+        XCTAssertFalse(allItems.isEmpty)
+
+        let cpuStyles = MenuBarItemConfig.allStyles(for: .cpu)
+        XCTAssertTrue(cpuStyles.contains(where: { $0.style == .gauge }))
+        XCTAssertTrue(cpuStyles.contains(where: { $0.style == .sparkline }))
+        XCTAssertTrue(cpuStyles.contains(where: { $0.style == .bar }))
+
+        let netStyles = MenuBarItemConfig.allStyles(for: .network)
+        XCTAssertTrue(netStyles.contains(where: { $0.style == .throughput }))
     }
 
     func testSupportedStylesForCategories() {
@@ -47,41 +59,28 @@ final class MenuBarItemConfigTests: XCTestCase {
 
         // Initial default items
         XCTAssertFalse(store.menuBarItems.isEmpty)
+        XCTAssertTrue(store.isItemEnabled(category: .cpu, style: .gauge))
 
-        // Add item
-        let newItem = MenuBarItemConfig(category: .gpu, style: .bar)
-        store.addMenuBarItem(newItem)
-        XCTAssertTrue(store.menuBarItems.contains(where: { $0.id == newItem.id }))
-        XCTAssertTrue(store.items(for: .gpu).contains(where: { $0.id == newItem.id }))
+        // Set item enabled / disabled
+        store.setItemEnabled(category: .gpu, style: .bar, isEnabled: true)
+        XCTAssertTrue(store.isItemEnabled(category: .gpu, style: .bar))
+        XCTAssertTrue(store.items(for: .gpu).contains(where: { $0.style == .bar }))
 
         // Toggle item
-        store.toggleMenuBarItem(id: newItem.id)
-        XCTAssertFalse(store.menuBarItems.first(where: { $0.id == newItem.id })!.isEnabled)
+        store.toggleItem(category: .gpu, style: .bar)
+        XCTAssertFalse(store.isItemEnabled(category: .gpu, style: .bar))
 
         // Active items filter (category enabled + item enabled)
-        XCTAssertFalse(store.activeMenuBarItems.contains(where: { $0.id == newItem.id }))
-
-        // Enable item again
-        store.toggleMenuBarItem(id: newItem.id)
-        XCTAssertTrue(store.activeMenuBarItems.contains(where: { $0.id == newItem.id }))
+        store.setItemEnabled(category: .gpu, style: .bar, isEnabled: true)
+        XCTAssertTrue(store.activeMenuBarItems.contains(where: { $0.category == .gpu && $0.style == .bar }))
 
         // Disable parent category -> item excluded from activeMenuBarItems
         store.setCategory(.gpu, isEnabled: false)
-        XCTAssertFalse(store.activeMenuBarItems.contains(where: { $0.id == newItem.id }))
+        XCTAssertFalse(store.activeMenuBarItems.contains(where: { $0.category == .gpu && $0.style == .bar }))
 
-        // Remove item
-        store.removeMenuBarItem(id: newItem.id)
-        XCTAssertFalse(store.menuBarItems.contains(where: { $0.id == newItem.id }))
-
-        // Remove all items for category
-        let cpuItem1 = MenuBarItemConfig(category: .cpu, style: .gauge)
-        let cpuItem2 = MenuBarItemConfig(category: .cpu, style: .text)
-        store.addMenuBarItem(cpuItem1)
-        store.addMenuBarItem(cpuItem2)
-        XCTAssertEqual(store.items(for: .cpu).count, 2 + (store.menuBarItems.filter({ $0.category == .cpu }).count - 2))
-
-        store.removeAllItems(for: .cpu)
-        XCTAssertTrue(store.items(for: .cpu).isEmpty)
+        // Remove item by setting isEnabled = false
+        store.setItemEnabled(category: .gpu, style: .bar, isEnabled: false)
+        XCTAssertFalse(store.isItemEnabled(category: .gpu, style: .bar))
 
         // Reset to defaults
         store.resetToDefaults()

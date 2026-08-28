@@ -5,11 +5,16 @@ import iStatsCore
 /// per-category menu bar widgets, display units, and system behavior (Requirements 11.1-11.4, ADR 0007).
 public struct PreferencesView: View {
     @ObservedObject public var store: PreferencesStore
+    @ObservedObject public var coordinator: MetricsCoordinator
 
     private let presetIntervals: [TimeInterval] = [0.5, 1.0, 2.0, 5.0, 10.0, 30.0, 60.0]
 
-    public init(store: PreferencesStore = .shared) {
+    public init(
+        store: PreferencesStore = .shared,
+        coordinator: MetricsCoordinator = .shared
+    ) {
         self.store = store
+        self.coordinator = coordinator
     }
 
     public var body: some View {
@@ -153,7 +158,7 @@ public struct PreferencesView: View {
             Section {
                 List {
                     ForEach(MetricCategory.allCases, id: \.self) { category in
-                        VStack(alignment: .leading, spacing: 8) {
+                        VStack(alignment: .leading, spacing: 10) {
                             // Category Row & Master Toggle
                             HStack(spacing: 12) {
                                 Image(systemName: iconName(for: category))
@@ -171,26 +176,6 @@ public struct PreferencesView: View {
 
                                 Spacer()
 
-                                // Add Widget Menu
-                                Menu {
-                                    ForEach(MetricDisplayStyle.supportedStyles(for: category)) { style in
-                                        Button(action: {
-                                            let newConfig = MenuBarItemConfig(category: category, style: style)
-                                            store.addMenuBarItem(newConfig)
-                                            if !store.isCategoryEnabled(category) {
-                                                store.setCategory(category, isEnabled: true)
-                                            }
-                                        }) {
-                                            Label(style.displayName, systemImage: "plus.circle")
-                                        }
-                                    }
-                                } label: {
-                                    Image(systemName: "plus")
-                                        .font(.caption)
-                                }
-                                .menuStyle(.borderlessButton)
-                                .frame(width: 24)
-
                                 Toggle("", isOn: Binding(
                                     get: { store.isCategoryEnabled(category) },
                                     set: { store.setCategory(category, isEnabled: $0) }
@@ -198,59 +183,75 @@ public struct PreferencesView: View {
                                 .labelsHidden()
                             }
 
-                            // Active Configured Widgets for this Category
-                            let items = store.items(for: category)
-                            if !items.isEmpty && store.isCategoryEnabled(category) {
-                                VStack(spacing: 6) {
-                                    ForEach(items) { item in
-                                        HStack(spacing: 8) {
-                                            Image(systemName: styleIcon(for: item.style))
-                                                .font(.caption)
-                                                .foregroundColor(.secondary)
-
-                                            Text(item.style.displayName)
-                                                .font(.caption)
-
-                                            Spacer()
-
-                                            Toggle("", isOn: Binding(
-                                                get: { item.isEnabled },
-                                                set: { _ in store.toggleMenuBarItem(id: item.id) }
-                                            ))
-                                            .toggleStyle(.switch)
-                                            .controlSize(.mini)
-                                            .labelsHidden()
-
-                                            Button(action: {
-                                                store.removeMenuBarItem(id: item.id)
-                                            }) {
-                                                Image(systemName: "trash")
-                                                    .font(.caption2)
-                                                    .foregroundColor(.red)
-                                            }
-                                            .buttonStyle(.borderless)
-                                        }
-                                        .padding(.horizontal, 10)
-                                        .padding(.vertical, 4)
-                                        .background(Color.secondary.opacity(0.08))
-                                        .cornerRadius(6)
+                            // Available Widget Styles with Live Previews
+                            if store.isCategoryEnabled(category) {
+                                VStack(spacing: 8) {
+                                    ForEach(MetricDisplayStyle.supportedStyles(for: category)) { style in
+                                        widgetStyleRow(category: category, style: style)
                                     }
                                 }
                                 .padding(.leading, 36)
                             }
                         }
-                        .padding(.vertical, 4)
+                        .padding(.vertical, 6)
                     }
                 }
             } header: {
                 Text("Customizable Menu Bar Icons & Widgets")
             } footer: {
-                Text("Each category can have multiple icons (gauges, graphs, text). Clicking any icon opens that category's dedicated popover.")
+                Text("Live previews reflect real-time telemetry. Toggle any widget style to show it in your macOS menu bar. Clicking any item opens its popover.")
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
         }
         .formStyle(.grouped)
+    }
+
+    private func widgetStyleRow(category: MetricCategory, style: MetricDisplayStyle) -> some View {
+        let renderResult = MenuBarIconRenderer.render(
+            config: MenuBarItemConfig(category: category, style: style),
+            coordinator: coordinator,
+            preferences: store
+        )
+
+        return HStack(spacing: 12) {
+            // Live Preview Badge
+            HStack(spacing: 5) {
+                if let img = renderResult.image {
+                    Image(nsImage: img)
+                        .renderingMode(.template)
+                }
+                if !renderResult.title.isEmpty {
+                    Text(renderResult.title)
+                        .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                }
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .frame(minWidth: 48, minHeight: 22)
+            .background(Color.secondary.opacity(0.12))
+            .clipShape(RoundedRectangle(cornerRadius: 6))
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(style.displayName)
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+            }
+
+            Spacer()
+
+            Toggle("", isOn: Binding(
+                get: { store.isItemEnabled(category: category, style: style) },
+                set: { store.setItemEnabled(category: category, style: style, isEnabled: $0) }
+            ))
+            .toggleStyle(.switch)
+            .controlSize(.small)
+            .labelsHidden()
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 5)
+        .background(Color.secondary.opacity(0.05))
+        .cornerRadius(8)
     }
 
     // MARK: - Units Tab

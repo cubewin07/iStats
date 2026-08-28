@@ -261,8 +261,8 @@ final class MenuBarDisplayTests: XCTestCase {
         XCTAssertNotNil(controller.statusItems[item2.id])
 
         // Add a 3rd item for CPU (text)
+        prefs.setItemEnabled(category: .cpu, style: .text, isEnabled: true)
         let item3 = MenuBarItemConfig(category: .cpu, style: .text)
-        prefs.addMenuBarItem(item3)
         controller.syncStatusItems()
 
         XCTAssertEqual(controller.statusItems.count, 3)

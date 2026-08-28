@@ -5,8 +5,8 @@ import iStatsCore
 
 @MainActor
 public final class MenuBarController: NSObject {
-    /// Active status items in the macOS menu bar, mapped by item configuration UUID (ADR 0007).
-    public private(set) var statusItems: [UUID: NSStatusItem] = [:]
+    /// Active status items in the macOS menu bar, mapped by item configuration ID (ADR 0007).
+    public private(set) var statusItems: [String: NSStatusItem] = [:]
 
     public let popover: NSPopover
     public let preferences: PreferencesStore
@@ -53,7 +53,7 @@ public final class MenuBarController: NSObject {
             if let button = item.button {
                 button.target = self
                 button.action = #selector(statusItemClicked(_:))
-                button.identifier = NSUserInterfaceItemIdentifier(config.id.uuidString)
+                button.identifier = NSUserInterfaceItemIdentifier(config.id)
             }
             statusItems[config.id] = item
         }
@@ -173,17 +173,18 @@ public final class MenuBarController: NSObject {
 
     @objc public func statusItemClicked(_ sender: AnyObject?) {
         guard let button = sender as? NSStatusBarButton,
-              let rawId = button.identifier?.rawValue,
-              let uuid = UUID(uuidString: rawId),
-              let config = preferences.menuBarItems.first(where: { $0.id == uuid })
+              let rawId = button.identifier?.rawValue
         else {
             return
         }
 
+        let categoryRaw = rawId.components(separatedBy: ".").first ?? rawId
+        guard let category = MetricCategory(rawValue: categoryRaw) else { return }
+
         if popover.isShown && currentlyShownButton == button {
             hidePopover()
         } else {
-            showPopover(for: config.category, relativeTo: button)
+            showPopover(for: category, relativeTo: button)
         }
     }
 
