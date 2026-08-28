@@ -20,5 +20,10 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         // Install the menu bar item and detail popover.
         menuBarController = MenuBarController()
     }
+
+    public func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        PreferencesWindowController.shared.showPreferences()
+        return true
+    }
 }
 

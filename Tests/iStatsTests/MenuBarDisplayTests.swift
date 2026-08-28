@@ -291,6 +291,42 @@ final class MenuBarDisplayTests: XCTestCase {
         defaults.removePersistentDomain(forName: suiteName)
     }
 
+    func testFallbackStatusItemWhenAllItemsDisabled() {
+        let suiteName = "iStats.test.fallback.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        let prefs = PreferencesStore(userDefaults: defaults)
+        let scheduler = SampleScheduler()
+        let store = MetricsStore()
+        let coord = MetricsCoordinator(scheduler: scheduler, store: store, preferencesStore: prefs)
+
+        // Clear all items
+        prefs.menuBarItems = []
+
+        let controller = MenuBarController(preferences: prefs, coordinator: coord)
+
+        // Fallback status item should be installed
+        XCTAssertEqual(controller.statusItems.count, 1)
+        XCTAssertNotNil(controller.statusItems[MenuBarController.fallbackStatusItemId])
+
+        let fallbackItem = controller.statusItems[MenuBarController.fallbackStatusItemId]
+        XCTAssertEqual(fallbackItem?.button?.identifier?.rawValue, MenuBarController.fallbackStatusItemId)
+
+        // Now add an item back
+        prefs.menuBarItems = [MenuBarItemConfig(category: .cpu, style: .text)]
+        controller.syncStatusItems()
+
+        // Fallback item should be removed and replaced with CPU item
+        XCTAssertEqual(controller.statusItems.count, 1)
+        XCTAssertNil(controller.statusItems[MenuBarController.fallbackStatusItemId])
+        XCTAssertNotNil(controller.statusItems["cpu.text"])
+
+        // Clean up
+        for (_, item) in controller.statusItems {
+            NSStatusBar.system.removeStatusItem(item)
+        }
+        defaults.removePersistentDomain(forName: suiteName)
+    }
+
     func testCategoryDetailPopoverViewInstantiation() {
         for category in MetricCategory.allCases {
             let view = CategoryDetailPopoverView(

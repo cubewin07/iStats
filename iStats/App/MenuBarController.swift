@@ -34,12 +34,44 @@ public final class MenuBarController: NSObject {
         popover.animates = true
     }
 
+    /// Identifier for the fallback status item displayed when all menu items are disabled.
+    public static let fallbackStatusItemId = "app.istats.fallback"
+
     // MARK: - Status Item Lifecycle & Synchronization (ADR 0007)
 
     /// Synchronizes active NSStatusItems with the current preferences (activeMenuBarItems).
     public func syncStatusItems() {
         let activeConfigs = preferences.activeMenuBarItems
         let activeIds = Set(activeConfigs.map(\.id))
+
+        if activeConfigs.isEmpty {
+            // Remove any leftover category status items
+            for (id, item) in statusItems where id != Self.fallbackStatusItemId {
+                NSStatusBar.system.removeStatusItem(item)
+                statusItems.removeValue(forKey: id)
+            }
+
+            // Install or keep fallback status item with iStats app icon so user is never orphaned
+            if statusItems[Self.fallbackStatusItemId] == nil {
+                let fallbackItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+                if let button = fallbackItem.button {
+                    button.image = NSImage(systemSymbolName: "gauge.with.dots.needle.bottom.50percent", accessibilityDescription: "iStats")
+                    button.title = ""
+                    button.toolTip = "iStats (All menu items disabled - Click for settings)"
+                    button.target = self
+                    button.action = #selector(statusItemClicked(_:))
+                    button.sendAction(on: [.leftMouseUp, .rightMouseUp])
+                    button.identifier = NSUserInterfaceItemIdentifier(Self.fallbackStatusItemId)
+                }
+                statusItems[Self.fallbackStatusItemId] = fallbackItem
+            }
+            return
+        }
+
+        // Active items exist: clean up fallback item if present
+        if let fallbackItem = statusItems.removeValue(forKey: Self.fallbackStatusItemId) {
+            NSStatusBar.system.removeStatusItem(fallbackItem)
+        }
 
         // 1. Remove status items for items/categories that have been disabled or deleted
         for (id, item) in statusItems where !activeIds.contains(id) {
@@ -187,6 +219,15 @@ public final class MenuBarController: NSObject {
             return
         }
 
+        if rawId == Self.fallbackStatusItemId {
+            if popover.isShown && currentlyShownButton == button {
+                hidePopover()
+            } else {
+                showUniversalPopover(relativeTo: button)
+            }
+            return
+        }
+
         let categoryRaw = rawId.components(separatedBy: ".").first ?? rawId
         guard let category = MetricCategory(rawValue: categoryRaw) else { return }
 
@@ -240,6 +281,19 @@ public final class MenuBarController: NSObject {
         popover.contentViewController = NSHostingController(
             rootView: CategoryDetailPopoverView(
                 category: category,
+                coordinator: coordinator,
+                preferences: preferences
+            )
+        )
+        currentlyShownButton = button
+        popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+        popover.contentViewController?.view.window?.makeKey()
+    }
+
+    /// Shows the universal popover displaying all metrics or app overview.
+    public func showUniversalPopover(relativeTo button: NSStatusBarButton) {
+        popover.contentViewController = NSHostingController(
+            rootView: DetailPopoverView(
                 coordinator: coordinator,
                 preferences: preferences
             )
