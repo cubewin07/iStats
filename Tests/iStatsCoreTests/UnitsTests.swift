@@ -74,6 +74,19 @@ final class UnitsTests: XCTestCase {
         XCTAssertEqual(Units.formatDiskRate(100_000_000, standard: .si), "100.00 MB/s")
     }
 
+    func testFormatCompactRate() {
+        XCTAssertEqual(Units.formatCompactRate(0, unit: .bytesPerSecond, standard: .iec), "0 B/s")
+        XCTAssertEqual(Units.formatCompactRate(512, unit: .bytesPerSecond, standard: .iec), "512 B/s")
+        XCTAssertEqual(Units.formatCompactRate(1024 * 13, unit: .bytesPerSecond, standard: .iec), "13 KiB/s")
+        XCTAssertEqual(Units.formatCompactRate(1000 * 13, unit: .bytesPerSecond, standard: .si), "13 KB/s")
+        XCTAssertEqual(Units.formatCompactRate(1024 * 1024 * 1.6, unit: .bytesPerSecond, standard: .iec), "1.6 MiB/s")
+        XCTAssertEqual(Units.formatCompactRate(1000 * 1000 * 1.6, unit: .bytesPerSecond, standard: .si), "1.6 MB/s")
+        XCTAssertEqual(Units.formatCompactRate(1024 * 1024 * 125, unit: .bytesPerSecond, standard: .iec), "125 MiB/s")
+        XCTAssertEqual(Units.formatCompactRate(1024 * 1024 * 1024 * 2.4, unit: .bytesPerSecond, standard: .iec), "2.4 GiB/s")
+        XCTAssertEqual(Units.formatCompactRate(-10, unit: .bytesPerSecond), "0 B/s")
+        XCTAssertEqual(Units.formatCompactRate(.nan, unit: .bytesPerSecond), "0 B/s")
+    }
+
     func testFormatTemperatureCelsius() {
         XCTAssertEqual(Units.formatTemperature(42.5, unit: .celsius), "42.5 °C")
         XCTAssertEqual(Units.formatTemperature(0.0, unit: .celsius, fractionDigits: 0), "0 °C")

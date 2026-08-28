@@ -177,6 +177,35 @@ public enum Units {
         formatNetworkRate(bytesPerSec, unit: .bytesPerSecond, standard: standard, fractionDigits: fractionDigits)
     }
 
+    /// Format a transfer rate compactly for menu bar items, e.g. "13 KB/s", "1.6 MB/s", "0 B/s".
+    /// Values < 10 with non-zero magnitude use 1 decimal place (e.g. "1.6 MB/s"), while values >= 10 use 0 decimal places (e.g. "13 KB/s").
+    public static func formatCompactRate(
+        _ bytesPerSec: Double,
+        unit: NetworkUnit = .bytesPerSecond,
+        standard: ByteUnitStandard = .iec
+    ) -> String {
+        guard bytesPerSec.isFinite && !bytesPerSec.isNaN && bytesPerSec >= 0 else {
+            return unit == .bytesPerSecond ? "0 B/s" : "0 bps"
+        }
+        let base: Double = (unit == .bytesPerSecond && standard == .si) || unit == .bitsPerSecond ? 1000.0 : 1024.0
+        let effectiveVal = unit == .bitsPerSecond ? bytesPerSecToBitsPerSec(bytesPerSec) : bytesPerSec
+        var value = max(0.0, effectiveVal)
+        var index = 0
+        let suffixes = unit == .bitsPerSecond ? bitPerSecSuffixes : (standard == .si ? bytePerSecSiSuffixes : bytePerSecIecSuffixes)
+        while value >= base && index < suffixes.count - 1 {
+            value /= base
+            index += 1
+        }
+        if index == 0 {
+            return "\(Int(value)) \(suffixes[0])"
+        }
+        if value < 10.0 {
+            return String(format: "%.1f %@", value, suffixes[index])
+        } else {
+            return String(format: "%.0f %@", value, suffixes[index])
+        }
+    }
+
     // MARK: Frequency
 
     private static let hzSuffixes = ["Hz", "kHz", "MHz", "GHz", "THz"]

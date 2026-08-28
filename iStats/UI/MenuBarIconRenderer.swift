@@ -525,54 +525,142 @@ public struct MenuBarIconRenderer {
         return image
     }
 
-    /// Draws authentic iStat Menus 2-line stacked typography with right-aligned tabular numbers.
-    public static func drawStackedText(
-        line1: String,
-        line2: String,
-        minWidth: CGFloat = 0.0,
+    /// Helper that extracts a leading icon/prefix (e.g. "↑", "↓", "R", "W", "▲", "▼") from a stacked text line.
+    private static func splitPrefixAndValue(_ text: String) -> (prefix: String, value: String) {
+        let trimmed = text.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty else { return ("", "") }
+
+        let parts = trimmed.split(separator: " ", maxSplits: 1, omittingEmptySubsequences: true)
+        if parts.count == 2 {
+            let first = String(parts[0])
+            let rest = String(parts[1])
+            if first.count <= 4 && !first.allSatisfy({ $0.isNumber }) {
+                return (first, rest)
+            }
+        }
+        return ("", trimmed)
+    }
+
+    /// Draws authentic iStat Menus 2-line stacked typography with left-aligned prefix icons/labels
+    /// (e.g. `↑`/`↓`, `R`/`W`) in a left column and right-aligned tabular numeric metrics in a right column
+    /// within a fixed invariant width canvas that prevents menu bar horizontal jitter.
+    public static func drawStackedTwoLineText(
+        prefix1: String,
+        value1: String,
+        prefix2: String,
+        value2: String,
+        minWidth: CGFloat = 60.0,
         color1: NSColor? = nil,
-        color2: NSColor? = nil
+        color2: NSColor? = nil,
+        prefixColor1: NSColor? = nil,
+        prefixColor2: NSColor? = nil
     ) -> NSImage {
-        let font = NSFont.monospacedDigitSystemFont(ofSize: 8.5, weight: .bold)
-        let attrs1: [NSAttributedString.Key: Any] = [
-            .font: font,
+        let pFont = NSFont.systemFont(ofSize: 8.5, weight: .bold)
+        let vFont = NSFont.monospacedDigitSystemFont(ofSize: 8.5, weight: .bold)
+
+        let pAttrs1: [NSAttributedString.Key: Any] = [
+            .font: pFont,
+            .foregroundColor: prefixColor1 ?? color1 ?? NSColor.labelColor
+        ]
+        let pAttrs2: [NSAttributedString.Key: Any] = [
+            .font: pFont,
+            .foregroundColor: prefixColor2 ?? color2 ?? NSColor.labelColor
+        ]
+        let vAttrs1: [NSAttributedString.Key: Any] = [
+            .font: vFont,
             .foregroundColor: color1 ?? NSColor.labelColor
         ]
-        let attrs2: [NSAttributedString.Key: Any] = [
-            .font: font,
+        let vAttrs2: [NSAttributedString.Key: Any] = [
+            .font: vFont,
             .foregroundColor: color2 ?? NSColor.labelColor
         ]
 
-        let s1 = (line1 as NSString).size(withAttributes: attrs1)
-        let s2 = (line2 as NSString).size(withAttributes: attrs2)
-        let textWidth = max(s1.width, s2.width)
-        let canvasWidth = max(textWidth + 4.0, minWidth)
+        let sp1 = (prefix1 as NSString).size(withAttributes: pAttrs1)
+        let sp2 = (prefix2 as NSString).size(withAttributes: pAttrs2)
+        let sv1 = (value1 as NSString).size(withAttributes: vAttrs1)
+        let sv2 = (value2 as NSString).size(withAttributes: vAttrs2)
+
+        let hasPrefix = !prefix1.isEmpty || !prefix2.isEmpty
+        let maxPrefixWidth = hasPrefix ? max(sp1.width, sp2.width) : 0.0
+        let maxValWidth = max(sv1.width, sv2.width)
+
+        let leftPadding: CGFloat = 2.0
+        let rightPadding: CGFloat = 2.0
+        let prefixGap: CGFloat = hasPrefix ? 2.0 : 0.0
+
+        let neededWidth = leftPadding + maxPrefixWidth + prefixGap + maxValWidth + rightPadding
+        let canvasWidth = max(minWidth, ceil(neededWidth))
         let size = NSSize(width: canvasWidth, height: 22)
 
         let image = NSImage(size: size, flipped: false) { bounds in
-            let p1 = NSPoint(x: max(1.0, bounds.width - s1.width - 2.0), y: 11.5)
-            let p2 = NSPoint(x: max(1.0, bounds.width - s2.width - 2.0), y: 2.0)
+            let y1: CGFloat = 11.5
+            let y2: CGFloat = 2.0
 
-            (line1 as NSString).draw(at: p1, withAttributes: attrs1)
-            (line2 as NSString).draw(at: p2, withAttributes: attrs2)
+            if hasPrefix {
+                // Left-align prefixes starting at leftPadding
+                if !prefix1.isEmpty {
+                    (prefix1 as NSString).draw(at: NSPoint(x: leftPadding, y: y1), withAttributes: pAttrs1)
+                }
+                if !prefix2.isEmpty {
+                    (prefix2 as NSString).draw(at: NSPoint(x: leftPadding, y: y2), withAttributes: pAttrs2)
+                }
+
+                // Right-align values ending at bounds.maxX - rightPadding
+                let vX1 = bounds.maxX - rightPadding - sv1.width
+                let vX2 = bounds.maxX - rightPadding - sv2.width
+                (value1 as NSString).draw(at: NSPoint(x: max(leftPadding + maxPrefixWidth + 1.0, vX1), y: y1), withAttributes: vAttrs1)
+                (value2 as NSString).draw(at: NSPoint(x: max(leftPadding + maxPrefixWidth + 1.0, vX2), y: y2), withAttributes: vAttrs2)
+            } else {
+                // Centered if no prefixes (e.g. Battery percentage + time)
+                let vX1 = floor((bounds.width - sv1.width) / 2.0)
+                let vX2 = floor((bounds.width - sv2.width) / 2.0)
+                (value1 as NSString).draw(at: NSPoint(x: max(leftPadding, vX1), y: y1), withAttributes: vAttrs1)
+                (value2 as NSString).draw(at: NSPoint(x: max(leftPadding, vX2), y: y2), withAttributes: vAttrs2)
+            }
+
             return true
         }
-        image.isTemplate = (color1 == nil && color2 == nil)
+        image.isTemplate = (color1 == nil && color2 == nil && prefixColor1 == nil && prefixColor2 == nil)
         return image
     }
 
-    /// Draws the signature iStat Menus 2-line stacked network bandwidth throughput (`↓ In` over `↑ Out`).
+    /// Draws authentic iStat Menus 2-line stacked typography with left-aligned icons and right-aligned metrics.
+    public static func drawStackedText(
+        line1: String,
+        line2: String,
+        minWidth: CGFloat = 60.0,
+        color1: NSColor? = nil,
+        color2: NSColor? = nil
+    ) -> NSImage {
+        let (p1, v1) = splitPrefixAndValue(line1)
+        let (p2, v2) = splitPrefixAndValue(line2)
+        return drawStackedTwoLineText(
+            prefix1: p1,
+            value1: v1,
+            prefix2: p2,
+            value2: v2,
+            minWidth: minWidth,
+            color1: color1,
+            color2: color2
+        )
+    }
+
+    /// Draws the signature iStat Menus 2-line stacked network bandwidth throughput (`↑ Out` over `↓ In`).
     public static func drawNetworkStackedThroughput(
         inBytes: Double,
         outBytes: Double,
         unit: Units.NetworkUnit,
         standard: Units.ByteUnitStandard
     ) -> NSImage {
-        let inStr = Units.formatNetworkRate(inBytes, unit: unit, standard: standard, fractionDigits: 0)
-        let outStr = Units.formatNetworkRate(outBytes, unit: unit, standard: standard, fractionDigits: 0)
-        let l1 = "↓ \(inStr)"
-        let l2 = "↑ \(outStr)"
-        return drawStackedText(line1: l1, line2: l2, minWidth: 44.0)
+        let outStr = Units.formatCompactRate(outBytes, unit: unit, standard: standard)
+        let inStr = Units.formatCompactRate(inBytes, unit: unit, standard: standard)
+        return drawStackedTwoLineText(
+            prefix1: "↑",
+            value1: outStr,
+            prefix2: "↓",
+            value2: inStr,
+            minWidth: 60.0
+        )
     }
 
     /// Draws the signature iStat Menus 2-line stacked disk I/O throughput (`R read` over `W write`).
@@ -581,11 +669,15 @@ public struct MenuBarIconRenderer {
         writeBytes: Double,
         standard: Units.ByteUnitStandard
     ) -> NSImage {
-        let readStr = Units.formatDiskRate(readBytes, standard: standard, fractionDigits: 0)
-        let writeStr = Units.formatDiskRate(writeBytes, standard: standard, fractionDigits: 0)
-        let l1 = "R \(readStr)"
-        let l2 = "W \(writeStr)"
-        return drawStackedText(line1: l1, line2: l2, minWidth: 44.0)
+        let readStr = Units.formatCompactRate(readBytes, unit: .bytesPerSecond, standard: standard)
+        let writeStr = Units.formatCompactRate(writeBytes, unit: .bytesPerSecond, standard: standard)
+        return drawStackedTwoLineText(
+            prefix1: "R",
+            value1: readStr,
+            prefix2: "W",
+            value2: writeStr,
+            minWidth: 60.0
+        )
     }
 
     /// Draws the signature iStat Menus split duplex history graph (Download Blue above midline, Upload Purple below midline).

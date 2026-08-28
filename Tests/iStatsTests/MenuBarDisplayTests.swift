@@ -490,10 +490,44 @@ final class MenuBarDisplayTests: XCTestCase {
     }
 
     func testDrawStackedText() {
-        let img = MenuBarIconRenderer.drawStackedText(line1: "↓ 1.4 MB/s", line2: "↑ 240 KB/s")
+        let img = MenuBarIconRenderer.drawStackedText(line1: "↑ 13 KB/s", line2: "↓ 1.6 MB/s")
         XCTAssertEqual(img.size.height, 22)
-        XCTAssertGreaterThanOrEqual(img.size.width, 30)
+        XCTAssertEqual(img.size.width, 60.0)
         XCTAssertTrue(img.isTemplate)
+    }
+
+    func testDrawStackedTwoLineText() {
+        let img = MenuBarIconRenderer.drawStackedTwoLineText(
+            prefix1: "↑",
+            value1: "13 KB/s",
+            prefix2: "↓",
+            value2: "1.6 MB/s",
+            minWidth: 60.0
+        )
+        XCTAssertEqual(img.size.height, 22)
+        XCTAssertEqual(img.size.width, 60.0)
+        XCTAssertTrue(img.isTemplate)
+
+        // Disk throughput
+        let diskImg = MenuBarIconRenderer.drawDiskStackedThroughput(
+            readBytes: 1024 * 1024 * 1.2,
+            writeBytes: 1024 * 450,
+            standard: .iec
+        )
+        XCTAssertEqual(diskImg.size.height, 22)
+        XCTAssertEqual(diskImg.size.width, 60.0)
+        XCTAssertTrue(diskImg.isTemplate)
+    }
+
+    func testStackedThroughputWidthInvariance() {
+        // Test varying rates: zero, small, medium, large
+        let netZero = MenuBarIconRenderer.drawNetworkStackedThroughput(inBytes: 0, outBytes: 0, unit: .bytesPerSecond, standard: .iec)
+        let netSmall = MenuBarIconRenderer.drawNetworkStackedThroughput(inBytes: 1024 * 13, outBytes: 1024 * 1024 * 1.6, unit: .bytesPerSecond, standard: .iec)
+        let netMedium = MenuBarIconRenderer.drawNetworkStackedThroughput(inBytes: 1024 * 1024 * 50, outBytes: 1024 * 1024 * 125, unit: .bytesPerSecond, standard: .iec)
+
+        XCTAssertEqual(netZero.size.width, 60.0, "Zero network rate must maintain 60pt invariant width")
+        XCTAssertEqual(netSmall.size.width, 60.0, "Small network rate must maintain 60pt invariant width")
+        XCTAssertEqual(netMedium.size.width, 60.0, "Medium network rate must maintain 60pt invariant width")
     }
 
     func testDrawCPUPerCoreBarCluster() {
