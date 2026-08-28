@@ -2,7 +2,7 @@ import SwiftUI
 import iStatsCore
 
 /// A comprehensive CPU metrics card view displaying aggregate utilization, live rolling history graph,
-/// user/system/idle breakdown, load average, clock frequency, and per-core distribution
+/// user/system/idle breakdown, load average, clock frequency, system uptime, and per-core distribution
 /// (Requirements 10.1, 10.2, 10.3).
 public struct CPUSummaryView: View {
     public let sample: CPUSample?
@@ -18,34 +18,54 @@ public struct CPUSummaryView: View {
         history.map { $0.value.totalUsage }
     }
 
+    private var uptimeString: String {
+        Units.formatUptime(ProcessInfo.processInfo.systemUptime)
+    }
+
     public var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            // Header: Icon, Category Name, Aggregate Percentage
-            HStack {
-                Label {
-                    Text("CPU")
-                        .font(.headline)
-                        .fontWeight(.semibold)
-                } icon: {
-                    Image(systemName: "cpu")
-                        .foregroundColor(.blue)
+            // Hero Metric Row: Icon, Title, Aggregate Percentage & Chips
+            HStack(alignment: .center, spacing: 8) {
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Total Utilization")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundColor(.secondary)
+
+                    if let sample = sample {
+                        HStack(alignment: .firstTextBaseline, spacing: 4) {
+                            Text(String(format: "%.1f", sample.totalUsage))
+                                .font(.system(size: 24, weight: .bold, design: .rounded))
+                                .foregroundColor(usageColor(for: sample.totalUsage))
+
+                            Text("%")
+                                .font(.system(size: 14, weight: .bold, design: .rounded))
+                                .foregroundColor(usageColor(for: sample.totalUsage))
+                        }
+                    } else {
+                        Text("Sampling...")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(.secondary)
+                    }
                 }
 
                 Spacer()
 
                 if let sample = sample {
-                    Text(String(format: "%.1f%%", sample.totalUsage))
-                        .font(.system(.body, design: .monospaced))
-                        .fontWeight(.bold)
-                        .foregroundColor(usageColor(for: sample.totalUsage))
-                } else {
-                    Text("Sampling...")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
+                    // Mini breakdown pills
+                    VStack(alignment: .trailing, spacing: 3) {
+                        breakdownChip(label: "User", value: String(format: "%.1f%%", sample.user), color: .blue)
+                        breakdownChip(label: "Sys", value: String(format: "%.1f%%", sample.system), color: .orange)
+                        breakdownChip(label: "Idle", value: String(format: "%.1f%%", sample.idle), color: .secondary)
+                    }
                 }
             }
 
-            // Rolling Short-Term History Graph (Requirement 10.2)
+            // Usage Breakdown Bar
+            if let sample = sample {
+                breakdownBar(sample: sample)
+            }
+
+            // Rolling 60s History Graph
             VStack(alignment: .leading, spacing: 4) {
                 RollingGraphView(
                     values: historyPercentages,
@@ -53,61 +73,48 @@ public struct CPUSummaryView: View {
                     maxValue: 100.0,
                     tintColor: .blue,
                     capacity: 60,
-                    height: 48,
+                    height: 44,
                     showGrid: true
                 )
 
                 HStack {
-                    Text("60s history")
-                        .font(.system(size: 9))
+                    Text("60s CPU Activity")
+                        .font(.system(size: 9, weight: .medium))
                         .foregroundColor(.secondary)
                     Spacer()
                     if let sample = sample {
-                        Text(String(format: "Peak: %.1f%%", historyPercentages.max() ?? sample.totalUsage))
-                            .font(.system(size: 9, design: .monospaced))
+                        let peak = historyPercentages.max() ?? sample.totalUsage
+                        Text(String(format: "Peak: %.1f%%", peak))
+                            .font(.system(size: 9, weight: .semibold, design: .monospaced))
                             .foregroundColor(.secondary)
                     }
                 }
             }
 
             if let sample = sample {
-                // Usage Breakdown Bar
-                breakdownBar(sample: sample)
+                // System Telemetry Tiles (Load Avg, Frequency / Model, Uptime)
+                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 6) {
+                    telemetryCard(
+                        title: "Load Avg",
+                        value: sample.loadAverage != nil ? String(format: "%.2f", sample.loadAverage!.oneMinute) : "N/A",
+                        detail: sample.loadAverage != nil ? String(format: "5m: %.2f", sample.loadAverage!.fiveMinute) : nil,
+                        icon: "gauge.medium"
+                    )
 
-                // Breakdown Labels (User, System, Idle)
-                HStack(spacing: 8) {
-                    metricBadge(title: "User", value: String(format: "%.1f%%", sample.user), color: .blue)
-                    metricBadge(title: "System", value: String(format: "%.1f%%", sample.system), color: .orange)
-                    metricBadge(title: "Idle", value: String(format: "%.1f%%", sample.idle), color: .secondary)
+                    telemetryCard(
+                        title: "Clock",
+                        value: sample.frequencyHz != nil ? Units.formatFrequencyHz(sample.frequencyHz!, fractionDigits: 1) : "Dynamic",
+                        detail: sample.frequencyHz != nil ? nil : "Apple Silicon",
+                        icon: "bolt.badge.clock"
+                    )
+
+                    telemetryCard(
+                        title: "Uptime",
+                        value: uptimeString,
+                        detail: nil,
+                        icon: "clock.arrow.circlepath"
+                    )
                 }
-
-                // Load Average & Frequency Info
-                HStack(spacing: 12) {
-                    if let load = sample.loadAverage {
-                        VStack(alignment: .leading, spacing: 1) {
-                            Text("Load Avg:")
-                                .font(.system(size: 10))
-                                .foregroundColor(.secondary)
-                            Text(String(format: "%.2f  %.2f  %.2f", load.oneMinute, load.fiveMinute, load.fifteenMinute))
-                                .font(.system(size: 10, design: .monospaced))
-                                .fontWeight(.medium)
-                        }
-                    }
-
-                    Spacer()
-
-                    if let freq = sample.frequencyHz {
-                        VStack(alignment: .trailing, spacing: 1) {
-                            Text("Clock:")
-                                .font(.system(size: 10))
-                                .foregroundColor(.secondary)
-                            Text(Units.formatFrequencyHz(freq))
-                                .font(.system(size: 10, design: .monospaced))
-                                .fontWeight(.medium)
-                        }
-                    }
-                }
-                .padding(.top, 2)
 
                 // Per-Core Utilization Section
                 if !sample.perCore.isEmpty {
@@ -115,14 +122,14 @@ public struct CPUSummaryView: View {
                 }
             }
         }
-        .padding(12)
+        .padding(11)
         .background(
             RoundedRectangle(cornerRadius: 10)
                 .fill(Color(nsColor: .controlBackgroundColor).opacity(0.5))
         )
         .overlay(
             RoundedRectangle(cornerRadius: 10)
-                .strokeBorder(Color.secondary.opacity(0.12), lineWidth: 1)
+                .strokeBorder(Color.primary.opacity(0.08), lineWidth: 0.75)
         )
     }
 
@@ -135,20 +142,72 @@ public struct CPUSummaryView: View {
             let sysWidth = max(0, width * CGFloat(sample.system / 100.0))
             let idleWidth = max(0, width - userWidth - sysWidth)
 
-            HStack(spacing: 1) {
-                Rectangle()
+            HStack(spacing: 1.5) {
+                RoundedRectangle(cornerRadius: 2)
                     .fill(Color.blue)
-                    .frame(width: userWidth)
-                Rectangle()
+                    .frame(width: max(0, userWidth - 1))
+
+                RoundedRectangle(cornerRadius: 2)
                     .fill(Color.orange)
-                    .frame(width: sysWidth)
-                Rectangle()
-                    .fill(Color.secondary.opacity(0.25))
-                    .frame(width: idleWidth)
+                    .frame(width: max(0, sysWidth - 1))
+
+                RoundedRectangle(cornerRadius: 2)
+                    .fill(Color.secondary.opacity(0.2))
+                    .frame(width: max(0, idleWidth))
             }
             .clipShape(RoundedRectangle(cornerRadius: 3))
         }
-        .frame(height: 6)
+        .frame(height: 5)
+    }
+
+    private func breakdownChip(label: String, value: String, color: Color) -> some View {
+        HStack(spacing: 3) {
+            Circle()
+                .fill(color)
+                .frame(width: 5, height: 5)
+
+            Text(label)
+                .font(.system(size: 9, weight: .medium))
+                .foregroundColor(.secondary)
+
+            Text(value)
+                .font(.system(size: 9, weight: .semibold, design: .monospaced))
+                .foregroundColor(.primary)
+        }
+    }
+
+    // MARK: - Telemetry Card Tile
+
+    private func telemetryCard(title: String, value: String, detail: String?, icon: String) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(spacing: 3) {
+                Image(systemName: icon)
+                    .font(.system(size: 8))
+                    .foregroundColor(.secondary)
+                Text(title)
+                    .font(.system(size: 9, weight: .medium))
+                    .foregroundColor(.secondary)
+            }
+
+            Text(value)
+                .font(.system(size: 11, weight: .bold, design: .monospaced))
+                .foregroundColor(.primary)
+                .lineLimit(1)
+
+            if let detail = detail {
+                Text(detail)
+                    .font(.system(size: 8))
+                    .foregroundColor(.secondary)
+                    .lineLimit(1)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 6)
+        .padding(.vertical, 5)
+        .background(
+            RoundedRectangle(cornerRadius: 6)
+                .fill(Color.secondary.opacity(0.06))
+        )
     }
 
     // MARK: - Per-Core Section
@@ -162,7 +221,7 @@ public struct CPUSummaryView: View {
             }) {
                 HStack {
                     Text("Cores (\(perCore.count))")
-                        .font(.system(size: 11, weight: .semibold))
+                        .font(.system(size: 10, weight: .bold))
                         .foregroundColor(.primary)
                     Spacer()
                     Image(systemName: isPerCoreExpanded ? "chevron.up" : "chevron.down")
@@ -183,43 +242,38 @@ public struct CPUSummaryView: View {
                         let coreUsage = perCore[index]
                         HStack(spacing: 4) {
                             Text(String(format: "C%d", index))
-                                .font(.system(size: 9, design: .monospaced))
+                                .font(.system(size: 9, weight: .semibold, design: .monospaced))
                                 .foregroundColor(.secondary)
                                 .frame(width: 22, alignment: .leading)
 
-                            ProgressView(value: min(max(coreUsage, 0), 100), total: 100)
-                                .progressViewStyle(.linear)
-                                .tint(usageColor(for: coreUsage))
+                            GeometryReader { geo in
+                                ZStack(alignment: .leading) {
+                                    Capsule()
+                                        .fill(Color.secondary.opacity(0.15))
+                                        .frame(height: 4)
+
+                                    Capsule()
+                                        .fill(usageColor(for: coreUsage))
+                                        .frame(width: max(2, geo.size.width * CGFloat(min(max(coreUsage, 0), 100) / 100.0)), height: 4)
+                                }
+                            }
+                            .frame(height: 4)
 
                             Text(String(format: "%2.0f%%", coreUsage))
-                                .font(.system(size: 9, design: .monospaced))
+                                .font(.system(size: 9, weight: .medium, design: .monospaced))
                                 .foregroundColor(.secondary)
                                 .frame(width: 26, alignment: .trailing)
                         }
+                        .padding(.vertical, 1)
                     }
                 }
                 .transition(.opacity)
             }
         }
-        .padding(.top, 4)
+        .padding(.top, 2)
     }
 
-    // MARK: - Subcomponents & Helpers
-
-    private func metricBadge(title: String, value: String, color: Color) -> some View {
-        HStack(spacing: 4) {
-            Circle()
-                .fill(color)
-                .frame(width: 6, height: 6)
-            Text("\(title):")
-                .font(.system(size: 10))
-                .foregroundColor(.secondary)
-            Text(value)
-                .font(.system(size: 10, design: .monospaced))
-                .fontWeight(.medium)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
+    // MARK: - Helpers
 
     private func usageColor(for usage: Double) -> Color {
         if usage >= 85.0 {
@@ -231,3 +285,4 @@ public struct CPUSummaryView: View {
         }
     }
 }
+

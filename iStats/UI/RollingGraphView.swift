@@ -31,12 +31,12 @@ public struct RollingGraphView: View {
 
     public var body: some View {
         ZStack {
-            // Background container & subtle grid
-            RoundedRectangle(cornerRadius: 6)
-                .fill(Color(nsColor: .controlBackgroundColor).opacity(0.6))
+            // Background container with dark glass styling
+            RoundedRectangle(cornerRadius: 8)
+                .fill(Color(nsColor: .controlBackgroundColor).opacity(0.55))
                 .overlay(
-                    RoundedRectangle(cornerRadius: 6)
-                        .strokeBorder(Color.secondary.opacity(0.15), lineWidth: 1)
+                    RoundedRectangle(cornerRadius: 8)
+                        .strokeBorder(Color.primary.opacity(0.08), lineWidth: 0.75)
                 )
 
             if showGrid {
@@ -50,11 +50,15 @@ public struct RollingGraphView: View {
                 let points = calculatePoints(width: width, height: h)
 
                 if points.count >= 2 {
-                    // Filled Area
+                    // Filled Area with glowing vertical gradient
                     fillPath(points: points, height: h)
                         .fill(
                             LinearGradient(
-                                colors: [tintColor.opacity(0.35), tintColor.opacity(0.02)],
+                                colors: [
+                                    tintColor.opacity(0.38),
+                                    tintColor.opacity(0.12),
+                                    tintColor.opacity(0.01)
+                                ],
                                 startPoint: .top,
                                 endPoint: .bottom
                             )
@@ -62,25 +66,37 @@ public struct RollingGraphView: View {
 
                     // Line Stroke
                     strokePath(points: points)
-                        .stroke(tintColor, style: StrokeStyle(lineWidth: 1.5, lineCap: .round, lineJoin: .round))
+                        .stroke(
+                            LinearGradient(
+                                colors: [tintColor.opacity(0.85), tintColor],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            ),
+                            style: StrokeStyle(lineWidth: 1.5, lineCap: .round, lineJoin: .round)
+                        )
 
-                    // Latest Value Dot
+                    // Latest Value Dot & Glow Ring
                     if let last = points.last {
-                        Circle()
-                            .fill(tintColor)
-                            .frame(width: 4, height: 4)
-                            .position(last)
+                        ZStack {
+                            Circle()
+                                .stroke(tintColor.opacity(0.4), lineWidth: 2)
+                                .frame(width: 7, height: 7)
+                            Circle()
+                                .fill(tintColor)
+                                .frame(width: 3.5, height: 3.5)
+                        }
+                        .position(last)
                     }
                 } else {
                     // Baseline placeholder
                     Path { path in
-                        path.move(to: CGPoint(x: 0, y: h - 2))
-                        path.addLine(to: CGPoint(x: width, y: h - 2))
+                        path.move(to: CGPoint(x: 4, y: h - 3))
+                        path.addLine(to: CGPoint(x: width - 4, y: h - 3))
                     }
-                    .stroke(Color.secondary.opacity(0.2), style: StrokeStyle(lineWidth: 1, dash: [3, 3]))
+                    .stroke(Color.secondary.opacity(0.18), style: StrokeStyle(lineWidth: 1, dash: [3, 3]))
                 }
             }
-            .padding(2)
+            .padding(3)
         }
         .frame(height: height)
         .clipped()
@@ -90,13 +106,14 @@ public struct RollingGraphView: View {
 
     private var gridLines: some View {
         VStack(spacing: 0) {
-            Divider().opacity(0.08)
-            Spacer()
-            Divider().opacity(0.12)
+            Divider().opacity(0.06)
             Spacer()
             Divider().opacity(0.08)
+            Spacer()
+            Divider().opacity(0.06)
         }
-        .padding(.horizontal, 4)
+        .padding(.horizontal, 6)
+        .padding(.vertical, 4)
     }
 
     // MARK: - Point Math
@@ -149,3 +166,4 @@ public struct RollingGraphView: View {
         return path
     }
 }
+

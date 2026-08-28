@@ -226,10 +226,21 @@ public struct DetailPopoverView: View {
 
             // Footer / Actions
             HStack {
-                Text(statusFooterText)
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
+                Button(action: {
+                    NSWorkspace.shared.open(URL(fileURLWithPath: "/System/Applications/Utilities/Activity Monitor.app"))
+                }) {
+                    HStack(spacing: 3) {
+                        Image(systemName: "chart.xyaxis.line")
+                            .font(.system(size: 9))
+                        Text("Activity Monitor")
+                            .font(.system(size: 10))
+                    }
+                }
+                .buttonStyle(.plain)
+                .foregroundColor(.accentColor)
+
                 Spacer()
+
                 Button("Preferences...") {
                     PreferencesWindowController.shared.showPreferences()
                 }

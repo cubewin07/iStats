@@ -222,7 +222,27 @@ public enum Units {
         }
         return nil
     }
+
+    // MARK: - System Uptime
+
+    /// Format an uptime interval in seconds into a human-readable string (e.g. "3d 14h 22m", "5h 12m", "42m").
+    public static func formatUptime(_ interval: TimeInterval) -> String {
+        guard interval > 0 && interval.isFinite else { return "0m" }
+        let totalSeconds = Int(interval)
+        let days = totalSeconds / 86400
+        let hours = (totalSeconds % 86400) / 3600
+        let minutes = (totalSeconds % 3600) / 60
+
+        if days > 0 {
+            return "\(days)d \(hours)h \(minutes)m"
+        } else if hours > 0 {
+            return "\(hours)h \(minutes)m"
+        } else {
+            return "\(max(1, minutes))m"
+        }
+    }
 }
+
 
 
 

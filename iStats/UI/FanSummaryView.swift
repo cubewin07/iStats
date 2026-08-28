@@ -36,188 +36,159 @@ public struct FanSummaryView: View {
 
     public var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            // Header: Category Icon, Title, Fan Count Badge
-            HStack {
-                Label {
-                    Text("Fans & Cooling")
-                        .font(.headline)
-                        .fontWeight(.semibold)
-                } icon: {
-                    Image(systemName: "fanblades")
-                        .foregroundColor(headerColor)
-                }
-
-                Spacer()
-
-                if let sample = sample {
-                    if sample.fans.isEmpty {
-                        HStack(spacing: 4) {
-                            Image(systemName: "leaf.fill")
-                                .font(.system(size: 9))
-                                .foregroundColor(.green)
-                            Text("Fanless")
-                                .font(.system(size: 11, weight: .semibold))
-                                .foregroundColor(.green)
-                        }
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(Color.green.opacity(0.12))
-                        .cornerRadius(4)
-                    } else {
-                        HStack(spacing: 6) {
-                            HStack(spacing: 3) {
-                                Image(systemName: "checkmark.shield")
-                                    .font(.system(size: 9))
-                                    .foregroundColor(.cyan)
-                                Text(FanControlPolicy.statusLabel)
-                                    .font(.system(size: 10, weight: .medium))
-                                    .foregroundColor(.secondary)
-                            }
-                            .padding(.horizontal, 5)
-                            .padding(.vertical, 2)
-                            .background(Color.cyan.opacity(0.08))
-                            .cornerRadius(4)
-
-                            Text("\(sample.fans.count) \(sample.fans.count == 1 ? "Fan" : "Fans")")
-                                .font(.system(size: 11, weight: .semibold))
-                                .foregroundColor(.secondary)
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 2)
-                                .background(Color.secondary.opacity(0.12))
-                                .cornerRadius(4)
-                        }
-                    }
-                } else {
-                    Text("Sampling...")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                }
-            }
-
             if let sample = sample {
                 if !sample.fans.isEmpty {
-                    // Primary Metric Row
-                    HStack(alignment: .firstTextBaseline) {
-                        if let primary = primaryFan {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(primary.name)
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                                Text(Units.formatRPM(primary.rpm))
-                                    .font(.system(size: 22, weight: .bold, design: .rounded))
-                                    .foregroundColor(rpmColor(primary))
+                    // Hero Fan Cooling Card
+                    HStack(alignment: .center, spacing: 8) {
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(primaryFan?.name ?? "Cooling Fans")
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundColor(.secondary)
+
+                            if let primary = primaryFan {
+                                HStack(alignment: .firstTextBaseline, spacing: 4) {
+                                    Text("\(primary.rpm)")
+                                        .font(.system(size: 24, weight: .bold, design: .rounded))
+                                        .foregroundColor(rpmColor(primary))
+
+                                    Text("RPM")
+                                        .font(.system(size: 13, weight: .bold, design: .rounded))
+                                        .foregroundColor(rpmColor(primary))
+                                }
                             }
                         }
 
                         Spacer()
 
-                        if sample.fans.count > 1, let maxVal = maxRPM {
-                            VStack(alignment: .trailing, spacing: 2) {
-                                Text("Peak Fan")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                                Text(Units.formatRPM(maxVal))
-                                    .font(.system(size: 14, weight: .semibold, design: .monospaced))
+                        VStack(alignment: .trailing, spacing: 3) {
+                            HStack(spacing: 4) {
+                                Image(systemName: "checkmark.shield.fill")
+                                    .font(.system(size: 8))
+                                    .foregroundColor(.cyan)
+                                Text("Auto (Firmware)")
+                                    .font(.system(size: 9.5, weight: .bold))
+                                    .foregroundColor(.cyan)
+                            }
+                            .padding(.horizontal, 7)
+                            .padding(.vertical, 2.5)
+                            .background(Color.cyan.opacity(0.12))
+                            .clipShape(Capsule())
+
+                            if sample.fans.count > 1, let maxVal = maxRPM {
+                                Text("Peak: \(Units.formatRPM(maxVal))")
+                                    .font(.system(size: 9.5, weight: .medium, design: .monospaced))
                                     .foregroundColor(.secondary)
                             }
                         }
                     }
 
-                    // Rolling RPM Graph (Requirements 10.2, 10.3)
+                    // Rolling 60s RPM History Graph
                     if !historyRPMs.isEmpty && historyRPMs.contains(where: { $0 > 0 }) {
                         VStack(alignment: .leading, spacing: 4) {
+                            RollingGraphView(
+                                values: historyRPMs,
+                                minValue: 0.0,
+                                maxValue: Double(sample.fans.compactMap(\.maxRPM).max() ?? 6000),
+                                tintColor: headerColor,
+                                capacity: 60,
+                                height: 44,
+                                showGrid: true
+                            )
+
                             HStack {
-                                Text("Speed History")
-                                    .font(.caption)
+                                Text("60s Fan Speed History")
+                                    .font(.system(size: 9, weight: .medium))
                                     .foregroundColor(.secondary)
                                 Spacer()
                                 if let cur = primaryFan?.rpm ?? maxRPM {
-                                    Text(Units.formatRPM(cur))
-                                        .font(.caption)
+                                    Text("Current: \(Units.formatRPM(cur))")
+                                        .font(.system(size: 9, weight: .semibold, design: .monospaced))
                                         .foregroundColor(.secondary)
                                 }
                             }
-
-                            RollingGraphView(
-                                values: historyRPMs,
-                                maxValue: Double(sample.fans.compactMap(\.maxRPM).max() ?? 6000),
-                                tintColor: headerColor,
-                                height: 38
-                            )
                         }
                     }
 
-                    Divider()
-
-                    // Per-Fan Rows with RPM and Speed Range Bounds (Requirements 4.1, 4.2)
-                    VStack(spacing: 8) {
+                    // Per-Fan Breakdown Cards
+                    VStack(spacing: 5) {
                         ForEach(sample.fans, id: \.name) { fan in
-                            fanRow(fan)
+                            fanCard(fan)
                         }
                     }
 
-                    // Explanatory Note on Automatic System Firmware Control (Requirements 4.3, 4.4, ADR 0004)
+                    // Firmware Policy Footnote
                     HStack(alignment: .top, spacing: 5) {
                         Image(systemName: "info.circle")
-                            .font(.system(size: 10))
+                            .font(.system(size: 9))
                             .foregroundColor(.secondary)
                             .padding(.top, 1)
                         Text(FanControlPolicy.readOnlyExplanation)
-                            .font(.system(size: 10))
+                            .font(.system(size: 9))
                             .foregroundColor(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
                     }
-                    .padding(.top, 2)
+                    .padding(.top, 1)
                 } else {
-                    // Fanless System View (Requirement 4.4, ADR 0003)
-                    HStack(spacing: 10) {
-                        Image(systemName: "wind")
+                    // Passive Cooling Card (e.g. MacBook Air)
+                    HStack(spacing: 8) {
+                        Image(systemName: "leaf.fill")
                             .font(.system(size: 16))
                             .foregroundColor(.green)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Passive Cooling")
-                                .font(.system(size: 12, weight: .semibold))
+
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text("Passive Cooling Architecture")
+                                .font(.system(size: 11, weight: .bold))
                                 .foregroundColor(.primary)
-                            Text("This Mac has no internal cooling fans.")
-                                .font(.caption)
+                            Text("This Mac operates silently with no internal fans.")
+                                .font(.system(size: 9))
                                 .foregroundColor(.secondary)
                         }
+
+                        Spacer()
                     }
-                    .padding(.vertical, 4)
+                    .padding(8)
+                    .background(
+                        RoundedRectangle(cornerRadius: 7)
+                            .fill(Color.secondary.opacity(0.06))
+                    )
                 }
             } else {
                 Text("Waiting for fan telemetry...")
                     .font(.caption)
                     .foregroundColor(.secondary)
                     .frame(maxWidth: .infinity, alignment: .center)
-                    .padding(.vertical, 4)
+                    .padding(.vertical, 6)
             }
         }
-        .padding(12)
+        .padding(11)
         .background(
             RoundedRectangle(cornerRadius: 10)
                 .fill(Color(nsColor: .controlBackgroundColor).opacity(0.5))
         )
         .overlay(
             RoundedRectangle(cornerRadius: 10)
-                .stroke(Color.secondary.opacity(0.15), lineWidth: 1)
+                .strokeBorder(Color.primary.opacity(0.08), lineWidth: 0.75)
         )
     }
 
-    // MARK: - Fan Row
+    // MARK: - Fan Card
 
-    private func fanRow(_ fan: FanReading) -> some View {
+    private func fanCard(_ fan: FanReading) -> some View {
         VStack(alignment: .leading, spacing: 3) {
-            HStack(spacing: 8) {
+            HStack(spacing: 6) {
+                Image(systemName: "fanblades")
+                    .font(.system(size: 10))
+                    .foregroundColor(rpmColor(fan))
+
                 Text(fan.name)
-                    .font(.system(size: 12, weight: .medium))
+                    .font(.system(size: 10.5, weight: .semibold))
                     .foregroundColor(.primary)
                     .lineLimit(1)
 
                 Spacer()
 
                 Text(Units.formatRPM(fan.rpm))
-                    .font(.system(size: 12, weight: .bold, design: .monospaced))
+                    .font(.system(size: 11, weight: .bold, design: .monospaced))
                     .foregroundColor(rpmColor(fan))
             }
 
@@ -225,11 +196,17 @@ public struct FanSummaryView: View {
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
                     Capsule()
-                        .fill(Color.secondary.opacity(0.15))
+                        .fill(Color.secondary.opacity(0.18))
                         .frame(height: 4)
 
                     Capsule()
-                        .fill(rpmColor(fan))
+                        .fill(
+                            LinearGradient(
+                                colors: [Color.cyan.opacity(0.8), rpmColor(fan)],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
                         .frame(width: max(2, min(geo.size.width, geo.size.width * CGFloat(fanFraction(fan)))), height: 4)
                 }
             }
@@ -237,12 +214,16 @@ public struct FanSummaryView: View {
 
             // Bounds / Limits
             if let boundsStr = Units.formatFanBounds(min: fan.minRPM, max: fan.maxRPM) {
-                Text("Range: \(boundsStr)")
-                    .font(.system(size: 10))
+                Text("Hardware limits: \(boundsStr)")
+                    .font(.system(size: 8.5))
                     .foregroundColor(.secondary)
             }
         }
-        .padding(.vertical, 2)
+        .padding(6)
+        .background(
+            RoundedRectangle(cornerRadius: 6)
+                .fill(Color.secondary.opacity(0.05))
+        )
     }
 
     // MARK: - Helpers
@@ -279,3 +260,4 @@ public struct FanSummaryView: View {
         }
     }
 }
+

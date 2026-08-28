@@ -48,183 +48,170 @@ public struct ThermalSummaryView: View {
 
     public var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            // Header: Category Icon, Title, Thermal Pressure Badge
-            HStack {
-                Label {
-                    Text("Thermals")
-                        .font(.headline)
-                        .fontWeight(.semibold)
-                } icon: {
-                    Image(systemName: "thermometer.medium")
-                        .foregroundColor(headerColor)
-                }
+            // Hero Temperature Card
+            if let sample = sample, !sample.sensors.isEmpty {
+                HStack(alignment: .center, spacing: 8) {
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(primarySensor?.name ?? "Primary SoC Sensor")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundColor(.secondary)
 
-                Spacer()
-
-                if let sample = sample {
-                    if let pressure = sample.pressure {
-                        HStack(spacing: 4) {
-                            Circle()
-                                .fill(pressureColor(pressure))
-                                .frame(width: 8, height: 8)
-                            Text(pressure.displayName)
-                                .font(.system(size: 11, weight: .semibold))
-                                .foregroundColor(pressureColor(pressure))
-                        }
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(pressureColor(pressure).opacity(0.12))
-                        .cornerRadius(4)
-                    }
-                } else {
-                    Text("Sampling...")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                }
-            }
-
-            if let sample = sample {
-                if !sample.sensors.isEmpty {
-                    // Primary Metric Row: Featured Sensor & Max
-                    HStack(alignment: .firstTextBaseline) {
                         if let primary = primarySensor {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(primary.name)
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                                Text(Units.formatTemperature(primary.celsius, unit: temperatureUnit))
-                                    .font(.system(size: 22, weight: .bold, design: .rounded))
-                                    .foregroundColor(temperatureColor(primary.celsius))
-                            }
+                            Text(Units.formatTemperature(primary.celsius, unit: temperatureUnit))
+                                .font(.system(size: 24, weight: .bold, design: .rounded))
+                                .foregroundColor(temperatureColor(primary.celsius))
                         }
+                    }
 
-                        Spacer()
+                    Spacer()
+
+                    VStack(alignment: .trailing, spacing: 3) {
+                        if let pressure = sample.pressure {
+                            HStack(spacing: 4) {
+                                Circle()
+                                    .fill(pressureColor(pressure))
+                                    .frame(width: 5, height: 5)
+                                Text("Thermal: \(pressure.displayName)")
+                                    .font(.system(size: 10, weight: .bold))
+                                    .foregroundColor(pressureColor(pressure))
+                            }
+                            .padding(.horizontal, 7)
+                            .padding(.vertical, 2.5)
+                            .background(pressureColor(pressure).opacity(0.12))
+                            .clipShape(Capsule())
+                        }
 
                         if let maxTemp = maxTemperature {
-                            VStack(alignment: .trailing, spacing: 2) {
-                                Text("Peak Sensor")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                                Text(Units.formatTemperature(maxTemp, unit: temperatureUnit))
-                                    .font(.system(size: 14, weight: .semibold, design: .monospaced))
-                                    .foregroundColor(temperatureColor(maxTemp))
-                            }
+                            Text("Peak: \(Units.formatTemperature(maxTemp, unit: temperatureUnit, fractionDigits: 1))")
+                                .font(.system(size: 9.5, weight: .medium, design: .monospaced))
+                                .foregroundColor(.secondary)
                         }
                     }
-
-                    // Rolling Temperature Graph (Requirements 10.2, 10.3)
-                    if !historyTemperatures.isEmpty {
-                        VStack(alignment: .leading, spacing: 4) {
-                            HStack {
-                                Text("Temperature History")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                                Spacer()
-                                if let cur = primarySensor?.celsius ?? maxTemperature {
-                                    Text(Units.formatTemperature(cur, unit: temperatureUnit))
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
-                                }
-                            }
-
-                            RollingGraphView(
-                                values: historyTemperatures,
-                                maxValue: 105.0,
-                                tintColor: headerColor,
-                                height: 38
-                            )
-                        }
-                    }
-
-                    Divider()
-
-                    // Expandable Per-Sensor List (Requirement 3.1, 3.2)
-                    VStack(alignment: .leading, spacing: 6) {
-                        Button(action: {
-                            withAnimation(.easeInOut(duration: 0.2)) {
-                                isSensorsExpanded.toggle()
-                            }
-                        }) {
-                            HStack {
-                                Text("Sensors (\(sample.sensors.count))")
-                                    .font(.system(size: 11, weight: .semibold))
-                                    .foregroundColor(.secondary)
-                                Spacer()
-                                Image(systemName: isSensorsExpanded ? "chevron.up" : "chevron.down")
-                                    .font(.system(size: 10, weight: .semibold))
-                                    .foregroundColor(.secondary)
-                            }
-                        }
-                        .buttonStyle(.plain)
-
-                        if isSensorsExpanded {
-                            VStack(spacing: 5) {
-                                ForEach(sample.sensors, id: \.name) { sensor in
-                                    sensorRow(sensor)
-                                }
-                            }
-                        }
-                    }
-                } else {
-                    // Degraded State: Pressure available but no specific sensors (Requirement 3.3)
-                    HStack(spacing: 8) {
-                        Image(systemName: "info.circle")
-                            .foregroundColor(.secondary)
-                        Text("Hardware temperature sensors unavailable. System thermal pressure monitored above.")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                    .padding(.vertical, 4)
                 }
+
+                // Rolling 60s Temperature History Graph
+                if !historyTemperatures.isEmpty {
+                    VStack(alignment: .leading, spacing: 4) {
+                        RollingGraphView(
+                            values: historyTemperatures,
+                            minValue: 20.0,
+                            maxValue: max(100.0, (maxTemperature ?? 80.0) + 10.0),
+                            tintColor: headerColor,
+                            capacity: 60,
+                            height: 44,
+                            showGrid: true
+                        )
+
+                        HStack {
+                            Text("60s Temperature History")
+                                .font(.system(size: 9, weight: .medium))
+                                .foregroundColor(.secondary)
+                            Spacer()
+                            if let cur = primarySensor?.celsius ?? maxTemperature {
+                                Text("Current: \(Units.formatTemperature(cur, unit: temperatureUnit, fractionDigits: 1))")
+                                    .font(.system(size: 9, weight: .semibold, design: .monospaced))
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                    }
+                }
+
+                // Expandable Per-Sensor List
+                sensorsSection(sensors: sample.sensors)
+            } else if let sample = sample, sample.sensors.isEmpty {
+                HStack(spacing: 8) {
+                    Image(systemName: "info.circle")
+                        .foregroundColor(.secondary)
+                    Text("Hardware temperature sensors unavailable. System thermal pressure monitored above.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                .padding(.vertical, 6)
             } else {
                 Text("Waiting for thermal telemetry...")
                     .font(.caption)
                     .foregroundColor(.secondary)
                     .frame(maxWidth: .infinity, alignment: .center)
-                    .padding(.vertical, 4)
+                    .padding(.vertical, 6)
             }
         }
-        .padding(12)
+        .padding(11)
         .background(
             RoundedRectangle(cornerRadius: 10)
                 .fill(Color(nsColor: .controlBackgroundColor).opacity(0.5))
         )
         .overlay(
             RoundedRectangle(cornerRadius: 10)
-                .stroke(Color.secondary.opacity(0.15), lineWidth: 1)
+                .strokeBorder(Color.primary.opacity(0.08), lineWidth: 0.75)
         )
     }
 
-    // MARK: - Sensor Row
+    // MARK: - Sensors Section
+
+    private func sensorsSection(sensors: [SensorReading]) -> some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Button(action: {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    isSensorsExpanded.toggle()
+                }
+            }) {
+                HStack {
+                    Text("All Sensors (\(sensors.count))")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundColor(.primary)
+                    Spacer()
+                    Image(systemName: isSensorsExpanded ? "chevron.up" : "chevron.down")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundColor(.secondary)
+                }
+            }
+            .buttonStyle(.plain)
+
+            if isSensorsExpanded {
+                VStack(spacing: 4) {
+                    ForEach(sensors, id: \.name) { sensor in
+                        sensorRow(sensor)
+                    }
+                }
+                .transition(.opacity)
+            }
+        }
+        .padding(.top, 2)
+    }
 
     private func sensorRow(_ sensor: SensorReading) -> some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 6) {
             Text(sensor.name)
-                .font(.system(size: 11))
+                .font(.system(size: 10, weight: .medium))
                 .foregroundColor(.primary)
                 .lineLimit(1)
                 .frame(maxWidth: .infinity, alignment: .leading)
 
-            // Mini bar indicator (0°C to 100°C)
+            // Mini horizontal thermal gauge bar (20°C to 100°C)
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
                     Capsule()
-                        .fill(Color.secondary.opacity(0.15))
+                        .fill(Color.secondary.opacity(0.18))
                         .frame(height: 4)
 
                     Capsule()
                         .fill(temperatureColor(sensor.celsius))
-                        .frame(width: max(2, min(geo.size.width, geo.size.width * CGFloat(sensor.celsius / 100.0))), height: 4)
+                        .frame(width: max(2, min(geo.size.width, geo.size.width * CGFloat(min(max(sensor.celsius, 0), 100) / 100.0))), height: 4)
                 }
             }
-            .frame(width: 45, height: 4)
+            .frame(width: 50, height: 4)
 
-            Text(Units.formatTemperature(sensor.celsius, unit: temperatureUnit))
-                .font(.system(size: 11, weight: .medium, design: .monospaced))
+            Text(Units.formatTemperature(sensor.celsius, unit: temperatureUnit, fractionDigits: 1))
+                .font(.system(size: 10, weight: .semibold, design: .monospaced))
                 .foregroundColor(.secondary)
-                .frame(width: 65, alignment: .trailing)
+                .frame(width: 60, alignment: .trailing)
         }
-        .padding(.vertical, 1)
+        .padding(.vertical, 2.5)
+        .padding(.horizontal, 6)
+        .background(
+            RoundedRectangle(cornerRadius: 5)
+                .fill(Color.secondary.opacity(0.05))
+        )
     }
 
     // MARK: - Helpers
@@ -257,3 +244,4 @@ public struct ThermalSummaryView: View {
         }
     }
 }
+

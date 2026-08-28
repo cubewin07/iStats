@@ -107,5 +107,17 @@ final class UnitsTests: XCTestCase {
         XCTAssertEqual(Units.formatFanBounds(min: nil, max: 6000), "Max: 6,000 RPM")
         XCTAssertNil(Units.formatFanBounds(min: nil, max: nil))
     }
+
+    func testFormatUptime() {
+        XCTAssertEqual(Units.formatUptime(0), "0m")
+        XCTAssertEqual(Units.formatUptime(45), "1m")
+        XCTAssertEqual(Units.formatUptime(120), "2m")
+        XCTAssertEqual(Units.formatUptime(3600), "1h 0m")
+        XCTAssertEqual(Units.formatUptime(3600 * 3 + 60 * 25), "3h 25m")
+        XCTAssertEqual(Units.formatUptime(86400 * 2 + 3600 * 5 + 60 * 12), "2d 5h 12m")
+        XCTAssertEqual(Units.formatUptime(-100), "0m")
+        XCTAssertEqual(Units.formatUptime(.nan), "0m")
+    }
 }
+
 
