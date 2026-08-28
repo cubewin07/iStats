@@ -7,7 +7,7 @@ import iStatsCore
 public struct CPUSummaryView: View {
     public let sample: CPUSample?
     public let history: [Sample<CPUSample>]
-    @State private var isPerCoreExpanded: Bool = false
+    @State private var isPerCoreExpanded: Bool = true
 
     public init(sample: CPUSample? = nil, history: [Sample<CPUSample>] = []) {
         self.sample = sample

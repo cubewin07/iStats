@@ -90,12 +90,9 @@ public struct CategoryDetailPopoverView: View {
 
             Divider()
 
-            // Category-Specific Metric Content (bounded scroll body)
-            ScrollView(.vertical, showsIndicators: false) {
-                categoryContent
-                    .frame(maxWidth: .infinity)
-            }
-            .frame(maxHeight: 520)
+            // Category-Specific Metric Content
+            categoryContent
+                .frame(maxWidth: .infinity)
 
             Divider()
 

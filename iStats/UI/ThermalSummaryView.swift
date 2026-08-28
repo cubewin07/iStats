@@ -9,7 +9,7 @@ public struct ThermalSummaryView: View {
     public let history: [Sample<ThermalSample>]
     public let temperatureUnit: Units.TemperatureUnit
 
-    @State private var isSensorsExpanded: Bool = false
+    @State private var isSensorsExpanded: Bool = true
 
     public init(
         sample: ThermalSample? = nil,
