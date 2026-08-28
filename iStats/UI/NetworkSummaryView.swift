@@ -9,7 +9,7 @@ public struct NetworkSummaryView: View {
     public let networkUnit: Units.NetworkUnit
     public let byteStandard: Units.ByteUnitStandard
 
-    @State private var isInterfacesExpanded: Bool = true
+    @State private var isInterfacesExpanded: Bool = false
 
     public init(
         sample: NetworkSample? = nil,

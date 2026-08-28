@@ -90,9 +90,12 @@ public struct CategoryDetailPopoverView: View {
 
             Divider()
 
-            // Category-Specific Metric Content
-            categoryContent
-                .frame(maxWidth: .infinity)
+            // Category-Specific Metric Content (bounded scroll body)
+            ScrollView(.vertical, showsIndicators: false) {
+                categoryContent
+                    .frame(maxWidth: .infinity)
+            }
+            .frame(maxHeight: 520)
 
             Divider()
 
@@ -111,17 +114,10 @@ public struct CategoryDetailPopoverView: View {
                 Button(action: {
                     PreferencesWindowController.shared.showPreferences()
                 }) {
-                    Image(systemName: "gearshape")
-                        .help("Preferences")
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-
-                Button(action: {
-                    NSApplication.shared.terminate(nil)
-                }) {
-                    Image(systemName: "power")
-                        .help("Quit iStats")
+                    HStack(spacing: 4) {
+                        Image(systemName: "gearshape")
+                        Text("Preferences...")
+                    }
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.small)

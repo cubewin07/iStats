@@ -7,7 +7,7 @@ import iStatsCore
 public struct CPUSummaryView: View {
     public let sample: CPUSample?
     public let history: [Sample<CPUSample>]
-    @State private var isPerCoreExpanded: Bool = true
+    @State private var isPerCoreExpanded: Bool = false
 
     public init(sample: CPUSample? = nil, history: [Sample<CPUSample>] = []) {
         self.sample = sample
@@ -217,61 +217,81 @@ public struct CPUSummaryView: View {
         let hasEandP = (sample.efficiencyCoreCount ?? 0) > 0 && (sample.performanceCoreCount ?? 0) > 0
 
         return VStack(alignment: .leading, spacing: 8) {
-            // Row of Circular Ring Gauges
-            if perCore.count <= 12 {
-                HStack(spacing: 5) {
-                    ForEach(0..<perCore.count, id: \.self) { index in
-                        CoreRingGauge(
-                            usage: perCore[index],
-                            coreType: sample.coreType(at: index),
-                            index: index
-                        )
-                    }
+            Button(action: {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    isPerCoreExpanded.toggle()
                 }
-                .frame(maxWidth: .infinity, alignment: .center)
-            } else {
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 17, maximum: 22), spacing: 5)], spacing: 6) {
-                    ForEach(0..<perCore.count, id: \.self) { index in
-                        CoreRingGauge(
-                            usage: perCore[index],
-                            coreType: sample.coreType(at: index),
-                            index: index
-                        )
-                    }
+            }) {
+                HStack {
+                    Text("Per-Core Breakdown (\(perCore.count) Cores)")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundColor(.primary)
+                    Spacer()
+                    Image(systemName: isPerCoreExpanded ? "chevron.up" : "chevron.down")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundColor(.secondary)
                 }
-                .frame(maxWidth: .infinity, alignment: .center)
             }
+            .buttonStyle(.plain)
 
-            // Cluster Utilization Rows
-            VStack(spacing: 5) {
-                if hasEandP {
-                    if let eUsage = sample.efficiencyUsage {
-                        coreClusterRow(
-                            title: "Efficiency Cores",
-                            value: String(format: "%.0f%%", eUsage),
-                            color: Color(red: 0.98, green: 0.28, blue: 0.60)
-                        )
+            if isPerCoreExpanded {
+                // Row of Circular Ring Gauges
+                if perCore.count <= 12 {
+                    HStack(spacing: 5) {
+                        ForEach(0..<perCore.count, id: \.self) { index in
+                            CoreRingGauge(
+                                usage: perCore[index],
+                                coreType: sample.coreType(at: index),
+                                index: index
+                            )
+                        }
                     }
-                    if let pUsage = sample.performanceUsage {
+                    .frame(maxWidth: .infinity, alignment: .center)
+                } else {
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 17, maximum: 22), spacing: 5)], spacing: 6) {
+                        ForEach(0..<perCore.count, id: \.self) { index in
+                            CoreRingGauge(
+                                usage: perCore[index],
+                                coreType: sample.coreType(at: index),
+                                index: index
+                            )
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .center)
+                }
+
+                // Cluster Utilization Rows
+                VStack(spacing: 5) {
+                    if hasEandP {
+                        if let eUsage = sample.efficiencyUsage {
+                            coreClusterRow(
+                                title: "Efficiency Cores",
+                                value: String(format: "%.0f%%", eUsage),
+                                color: Color(red: 0.98, green: 0.28, blue: 0.60)
+                            )
+                        }
+                        if let pUsage = sample.performanceUsage {
+                            coreClusterRow(
+                                title: "Performance Cores",
+                                value: String(format: "%.0f%%", pUsage),
+                                color: Color(red: 0.08, green: 0.52, blue: 1.0)
+                            )
+                        }
+                    } else if let pUsage = sample.performanceUsage {
                         coreClusterRow(
                             title: "Performance Cores",
                             value: String(format: "%.0f%%", pUsage),
                             color: Color(red: 0.08, green: 0.52, blue: 1.0)
                         )
+                    } else {
+                        coreClusterRow(
+                            title: "Cores (\(perCore.count))",
+                            value: String(format: "%.0f%%", sample.totalUsage),
+                            color: Color(red: 0.08, green: 0.52, blue: 1.0)
+                        )
                     }
-                } else if let pUsage = sample.performanceUsage {
-                    coreClusterRow(
-                        title: "Performance Cores",
-                        value: String(format: "%.0f%%", pUsage),
-                        color: Color(red: 0.08, green: 0.52, blue: 1.0)
-                    )
-                } else {
-                    coreClusterRow(
-                        title: "Cores (\(perCore.count))",
-                        value: String(format: "%.0f%%", sample.totalUsage),
-                        color: Color(red: 0.08, green: 0.52, blue: 1.0)
-                    )
                 }
+                .transition(.opacity)
             }
         }
         .padding(.horizontal, 8)

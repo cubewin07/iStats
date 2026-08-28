@@ -8,7 +8,7 @@ public struct DiskSummaryView: View {
     public let history: [Sample<DiskSample>]
     public let byteStandard: Units.ByteUnitStandard
 
-    @State private var isVolumesExpanded: Bool = true
+    @State private var isVolumesExpanded: Bool = false
 
     public init(
         sample: DiskSample? = nil,
