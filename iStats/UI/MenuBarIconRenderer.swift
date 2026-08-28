@@ -456,13 +456,13 @@ public struct MenuBarIconRenderer {
         return image
     }
 
-    /// Draws authentic iStat Menus 2-line stacked high-density monospaced typography (9.5 pt).
+    /// Draws authentic iStat Menus 2-line stacked high-density monospaced typography with dynamic vertical centering.
     public static func drawStackedText(
         line1: String,
         line2: String,
         minWidth: CGFloat = 0.0
     ) -> NSImage {
-        let font = NSFont.monospacedDigitSystemFont(ofSize: 9.5, weight: .bold)
+        let font = NSFont.monospacedDigitSystemFont(ofSize: 9.0, weight: .bold)
         let attrs1: [NSAttributedString.Key: Any] = [
             .font: font,
             .foregroundColor: NSColor.labelColor
@@ -479,8 +479,12 @@ public struct MenuBarIconRenderer {
         let size = NSSize(width: canvasWidth, height: 22)
 
         let image = NSImage(size: size, flipped: false) { bounds in
-            let p1 = NSPoint(x: bounds.maxX - s1.width - 1.0, y: 11.0)
-            let p2 = NSPoint(x: bounds.maxX - s2.width - 1.0, y: 1.0)
+            let lineSpacing: CGFloat = -1.5
+            let totalHeight = s1.height + s2.height + lineSpacing
+            let startY = max(0.5, (bounds.height - totalHeight) / 2.0)
+
+            let p2 = NSPoint(x: bounds.maxX - s2.width - 1.0, y: startY)
+            let p1 = NSPoint(x: bounds.maxX - s1.width - 1.0, y: startY + s2.height + lineSpacing)
 
             (line1 as NSString).draw(at: p1, withAttributes: attrs1)
             (line2 as NSString).draw(at: p2, withAttributes: attrs2)
