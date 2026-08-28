@@ -76,8 +76,97 @@ public extension ThermalInfoProvider {
 
 // MARK: - Host Thermal Info Provider
 
-/// Darwin AppleSMC, IOHID, and ProcessInfo implementation of `ThermalInfoProvider`.
+/// Darwin IOHIDEventSystem, AppleSMC, and ProcessInfo implementation of `ThermalInfoProvider`.
 public struct HostThermalInfoProvider: ThermalInfoProvider {
+
+    // MARK: - IOHID Dynamic Function Bindings (Apple Silicon & Modern macOS)
+
+    private struct IOHIDBindings: @unchecked Sendable {
+        typealias EventSystemClientCreate = @convention(c) (CFAllocator?) -> Unmanaged<AnyObject>?
+        typealias EventSystemClientSetMatching = @convention(c) (AnyObject, CFDictionary) -> Void
+        typealias EventSystemClientCopyServices = @convention(c) (AnyObject) -> Unmanaged<CFArray>?
+        typealias ServiceClientCopyProperty = @convention(c) (AnyObject, CFString) -> Unmanaged<CFTypeRef>?
+        typealias ServiceClientCopyEvent = @convention(c) (AnyObject, Int64, Int32, Int64) -> Unmanaged<AnyObject>?
+        typealias EventGetFloatValue = @convention(c) (AnyObject, Int32) -> Double
+
+        let clientCreate: EventSystemClientCreate
+        let clientSetMatching: EventSystemClientSetMatching
+        let clientCopyServices: EventSystemClientCopyServices
+        let serviceClientCopyProperty: ServiceClientCopyProperty
+        let serviceClientCopyEvent: ServiceClientCopyEvent
+        let eventGetFloatValue: EventGetFloatValue
+
+        static let shared: IOHIDBindings? = {
+            guard let handle = dlopen("/System/Library/Frameworks/IOKit.framework/IOKit", RTLD_LAZY) else {
+                return nil
+            }
+            guard let createSym = dlsym(handle, "IOHIDEventSystemClientCreate"),
+                  let setMatchingSym = dlsym(handle, "IOHIDEventSystemClientSetMatching"),
+                  let copyServicesSym = dlsym(handle, "IOHIDEventSystemClientCopyServices"),
+                  let copyPropertySym = dlsym(handle, "IOHIDServiceClientCopyProperty"),
+                  let copyEventSym = dlsym(handle, "IOHIDServiceClientCopyEvent"),
+                  let getFloatValueSym = dlsym(handle, "IOHIDEventGetFloatValue") else {
+                return nil
+            }
+            return IOHIDBindings(
+                clientCreate: unsafeBitCast(createSym, to: EventSystemClientCreate.self),
+                clientSetMatching: unsafeBitCast(setMatchingSym, to: EventSystemClientSetMatching.self),
+                clientCopyServices: unsafeBitCast(copyServicesSym, to: EventSystemClientCopyServices.self),
+                serviceClientCopyProperty: unsafeBitCast(copyPropertySym, to: ServiceClientCopyProperty.self),
+                serviceClientCopyEvent: unsafeBitCast(copyEventSym, to: ServiceClientCopyEvent.self),
+                eventGetFloatValue: unsafeBitCast(getFloatValueSym, to: EventGetFloatValue.self)
+            )
+        }()
+    }
+
+    private final class IOHIDClientHolder: @unchecked Sendable {
+        static let shared = IOHIDClientHolder()
+        let client: AnyObject?
+        private let lock = NSLock()
+        private var cachedServices: [(service: AnyObject, product: String)]?
+
+        init() {
+            guard let bindings = IOHIDBindings.shared else {
+                self.client = nil
+                return
+            }
+            if let c = bindings.clientCreate(kCFAllocatorDefault)?.takeRetainedValue() {
+                let matching: [String: Any] = [
+                    "PrimaryUsagePage": 0xff00,
+                    "PrimaryUsage": 5
+                ]
+                bindings.clientSetMatching(c, matching as CFDictionary)
+                self.client = c
+            } else {
+                self.client = nil
+            }
+        }
+
+        func activeServices(bindings: IOHIDBindings) -> [(service: AnyObject, product: String)] {
+            lock.lock()
+            defer { lock.unlock() }
+
+            if let cached = cachedServices {
+                return cached
+            }
+
+            guard let client = client,
+                  let allServices = bindings.clientCopyServices(client)?.takeRetainedValue() as? [AnyObject] else {
+                return []
+            }
+
+            var matchingServices: [(service: AnyObject, product: String)] = []
+            for service in allServices {
+                let product = (bindings.serviceClientCopyProperty(service, "Product" as CFString)?.takeRetainedValue() as? String) ?? ""
+                if product.hasPrefix("PMU tdie") || product == "PMU tcal" || product.hasPrefix("NAND") || product == "gas gauge battery" {
+                    matchingServices.append((service: service, product: product))
+                }
+            }
+
+            cachedServices = matchingServices
+            return matchingServices
+        }
+    }
 
     /// Sensor definition describing an SMC key and its canonical human-readable label.
     private struct SMCSensorDescriptor {
@@ -85,30 +174,23 @@ public struct HostThermalInfoProvider: ThermalInfoProvider {
         let label: String
     }
 
-    /// Known thermal sensor keys on Apple Silicon and Intel Macs (ADR 0003).
+    /// Verified thermal sensor keys on Apple Silicon and Intel Macs (ADR 0003).
+    /// Note: 'Tp01', 'Tp05', 'Tp09' etc. are omitted as they are power limit targets (Watts), not temperature.
     private static let candidateSensors: [SMCSensorDescriptor] = [
-        // CPU & SoC Package
-        SMCSensorDescriptor(key: "Tp0T", label: "CPU Package"),
-        SMCSensorDescriptor(key: "Tp01", label: "CPU Core 1"),
-        SMCSensorDescriptor(key: "Tp05", label: "CPU Core 2"),
-        SMCSensorDescriptor(key: "Tp09", label: "CPU Core 3"),
-        SMCSensorDescriptor(key: "Tp0k", label: "CPU Core 4"),
-        SMCSensorDescriptor(key: "TC0P", label: "CPU Proximity"),
-        SMCSensorDescriptor(key: "TC0D", label: "CPU Die"),
-        SMCSensorDescriptor(key: "TC0E", label: "CPU Core E"),
-        SMCSensorDescriptor(key: "TC0F", label: "CPU Core F"),
-
         // Efficiency Cores (Apple Silicon)
-        SMCSensorDescriptor(key: "Te05", label: "Efficiency Cores"),
-        SMCSensorDescriptor(key: "Te0S", label: "Efficiency Cores Cluster"),
+        SMCSensorDescriptor(key: "Te05", label: "Efficiency Cores Cluster"),
+        SMCSensorDescriptor(key: "Te0S", label: "Efficiency Cores Die"),
 
         // GPU Clusters
         SMCSensorDescriptor(key: "Tg05", label: "GPU Cluster 1"),
         SMCSensorDescriptor(key: "Tg0S", label: "GPU Cluster 2"),
+        SMCSensorDescriptor(key: "Tg1V", label: "GPU Cluster 3"),
         SMCSensorDescriptor(key: "TG0P", label: "GPU Proximity"),
         SMCSensorDescriptor(key: "TG0D", label: "GPU Die"),
 
-        // Memory & Chipset
+        // Memory, Chipset & SoC
+        SMCSensorDescriptor(key: "TfC0", label: "SoC Core Cluster A"),
+        SMCSensorDescriptor(key: "TfC1", label: "SoC Core Cluster B"),
         SMCSensorDescriptor(key: "TCHP", label: "Chipset / SoC"),
         SMCSensorDescriptor(key: "TCMb", label: "Memory Module A"),
         SMCSensorDescriptor(key: "TCMz", label: "Memory Module B"),
@@ -119,19 +201,18 @@ public struct HostThermalInfoProvider: ThermalInfoProvider {
         SMCSensorDescriptor(key: "TB1T", label: "Battery (Sensor 2)"),
         SMCSensorDescriptor(key: "TB2T", label: "Battery (Sensor 3)"),
 
-        // Die Array (Apple Silicon)
-        SMCSensorDescriptor(key: "TD00", label: "Die Array 0"),
-        SMCSensorDescriptor(key: "TD01", label: "Die Array 1"),
-        SMCSensorDescriptor(key: "TD02", label: "Die Array 2"),
-        SMCSensorDescriptor(key: "TD03", label: "Die Array 3"),
-        SMCSensorDescriptor(key: "TD04", label: "Die Array 4"),
-        SMCSensorDescriptor(key: "TD05", label: "Die Array 5"),
-        SMCSensorDescriptor(key: "TD06", label: "Die Array 6"),
-        SMCSensorDescriptor(key: "TD07", label: "Die Array 7"),
-
-        // Heatsink & System
+        // Proximity & Enclosure
+        SMCSensorDescriptor(key: "Ts0P", label: "Palm Rest Proximity"),
+        SMCSensorDescriptor(key: "Ts1P", label: "Trackpad Proximity"),
+        SMCSensorDescriptor(key: "TaLP", label: "Air Intake Left"),
+        SMCSensorDescriptor(key: "TaRP", label: "Air Intake Right"),
         SMCSensorDescriptor(key: "Th0H", label: "Heatsink"),
-        SMCSensorDescriptor(key: "Ts0P", label: "System Proximity")
+
+        // Intel Legacy CPU Sensors (Fallbacks)
+        SMCSensorDescriptor(key: "TC0P", label: "CPU Proximity"),
+        SMCSensorDescriptor(key: "TC0D", label: "CPU Die"),
+        SMCSensorDescriptor(key: "TC0E", label: "CPU Core E"),
+        SMCSensorDescriptor(key: "TC0F", label: "CPU Core F")
     ]
 
     public init() {}
@@ -139,18 +220,32 @@ public struct HostThermalInfoProvider: ThermalInfoProvider {
     public func thermalSensors() throws -> [SensorReading] {
         var readings: [SensorReading] = []
 
-        // 1. Read sensors via AppleSMC
+        // 1. Read high-resolution per-core and SoC thermals via IOHID (Apple Silicon / modern macOS)
+        if let hidReadings = readIOHIDThermals(), !hidReadings.isEmpty {
+            readings.append(contentsOf: hidReadings)
+        }
+
+        // 2. Read auxiliary sensors via AppleSMC
         if let smcReadings = readAppleSMCThermals(), !smcReadings.isEmpty {
-            readings.append(contentsOf: smcReadings)
+            let existingNames = Set(readings.map(\.name))
+            for reading in smcReadings where !existingNames.contains(reading.name) {
+                readings.append(reading)
+            }
         }
 
         // Return discovered sensors if available
         if !readings.isEmpty {
+            // If CPU Package is not explicitly present, synthesize it from the max CPU Core
+            if !readings.contains(where: { $0.name == "CPU Package" }) {
+                let cpuCores = readings.filter { $0.name.hasPrefix("CPU Core") }
+                if let maxCore = cpuCores.max(by: { $0.celsius < $1.celsius }) {
+                    readings.insert(SensorReading(name: "CPU Package", celsius: maxCore.celsius), at: 0)
+                }
+            }
             return readings
         }
 
-        // If no sensors were accessible via SMC, check if system thermal pressure is available
-        // If even thermal pressure is unavailable, throw unsupported to degrade gracefully (ADR 0003, Req 3.3).
+        // If no sensors were accessible via IOHID or SMC, check if system thermal pressure is available
         let pressure = try? thermalPressure()
         if pressure == nil && readings.isEmpty {
             throw SamplerError.unsupported("No thermal sensors or thermal pressure available on this system")
@@ -175,6 +270,95 @@ public struct HostThermalInfoProvider: ThermalInfoProvider {
         }
     }
 
+    // MARK: - IOHID Reader (Apple Silicon Per-Core & SoC Thermals)
+
+    private func readIOHIDThermals() -> [SensorReading]? {
+        guard let bindings = IOHIDBindings.shared else { return nil }
+        let services = IOHIDClientHolder.shared.activeServices(bindings: bindings)
+        guard !services.isEmpty else { return nil }
+
+        let kIOHIDEventTypeTemperature: Int64 = 15
+        let IOHIDEventFieldBase: Int32 = 15 << 16
+
+        var coreReadings: [Int: [Double]] = [:]
+        var namedReadings: [String: Double] = [:]
+
+        for item in services {
+            let service = item.service
+            let product = item.product
+
+            if let event = bindings.serviceClientCopyEvent(service, kIOHIDEventTypeTemperature, 0, 0)?.takeRetainedValue() {
+                let temp = bindings.eventGetFloatValue(event, IOHIDEventFieldBase)
+                guard temp > 0.0 && temp < 150.0 else { continue }
+
+                if product.hasPrefix("PMU tdie") {
+                    let numStr = product.replacingOccurrences(of: "PMU tdie", with: "")
+                    if let coreNum = Int(numStr) {
+                        coreReadings[coreNum, default: []].append(temp)
+                    }
+                } else if product == "PMU tcal" {
+                    namedReadings["CPU Package"] = temp
+                } else if product.hasPrefix("NAND") {
+                    namedReadings["Storage Flash (NAND)"] = temp
+                } else if product == "gas gauge battery" {
+                    namedReadings["Battery"] = temp
+                }
+            }
+        }
+
+        var results: [SensorReading] = []
+
+        if let pkgTemp = namedReadings["CPU Package"] {
+            results.append(SensorReading(name: "CPU Package", celsius: pkgTemp))
+        }
+
+        for coreIndex in coreReadings.keys.sorted() {
+            let temps = coreReadings[coreIndex]!
+            let avgTemp = temps.reduce(0.0, +) / Double(temps.count)
+            results.append(SensorReading(name: "CPU Core \(coreIndex)", celsius: avgTemp))
+        }
+
+        if let nandTemp = namedReadings["Storage Flash (NAND)"] {
+            results.append(SensorReading(name: "Storage Flash (NAND)", celsius: nandTemp))
+        }
+
+        if let battTemp = namedReadings["Battery"] {
+            results.append(SensorReading(name: "Battery", celsius: battTemp))
+        }
+
+        return results.isEmpty ? nil : results
+    }
+
+    // MARK: - SMC Sensor Discovery Cache
+
+    private final class SMCSensorCache: @unchecked Sendable {
+        static let shared = SMCSensorCache()
+        private let lock = NSLock()
+        private var activeSensors: [SMCSensorDescriptor]?
+
+        func getOrDiscoverSensors(
+            connection: io_connect_t,
+            candidates: [SMCSensorDescriptor],
+            reader: (String, io_connect_t) -> Double?
+        ) -> [SMCSensorDescriptor] {
+            lock.lock()
+            defer { lock.unlock() }
+
+            if let cached = activeSensors {
+                return cached
+            }
+
+            var discovered: [SMCSensorDescriptor] = []
+            for descriptor in candidates {
+                if let temp = reader(descriptor.key, connection), temp > 0.0 && temp < 150.0 {
+                    discovered.append(descriptor)
+                }
+            }
+            activeSensors = discovered
+            return discovered
+        }
+    }
+
     // MARK: - AppleSMC Reader
 
     private func readAppleSMCThermals() -> [SensorReading]? {
@@ -191,8 +375,14 @@ public struct HostThermalInfoProvider: ThermalInfoProvider {
         }
         defer { IOServiceClose(conn) }
 
+        let activeDescriptors = SMCSensorCache.shared.getOrDiscoverSensors(
+            connection: conn,
+            candidates: Self.candidateSensors,
+            reader: { key, c in self.readSMCKeyTemperature(keyStr: key, connection: c) }
+        )
+
         var results: [SensorReading] = []
-        for descriptor in Self.candidateSensors {
+        for descriptor in activeDescriptors {
             if let temp = readSMCKeyTemperature(keyStr: descriptor.key, connection: conn) {
                 // Filter to physically plausible operating temperatures (0°C to 150°C)
                 if temp > 0.0 && temp < 150.0 {

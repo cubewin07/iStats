@@ -122,11 +122,15 @@ final class PerformancePassTests: XCTestCase {
 
         let iterations = 10
         var totalDuration: TimeInterval = 0.0
+        var samplerDurations: [String: TimeInterval] = [:]
 
         for _ in 0..<iterations {
             let start = CFAbsoluteTimeGetCurrent()
             for sampler in samplers {
-                _ = try? await sampler.sample()
+                let sStart = CFAbsoluteTimeGetCurrent()
+                _ = try? sampler.sample()
+                let sElapsed = CFAbsoluteTimeGetCurrent() - sStart
+                samplerDurations[String(describing: type(of: sampler)), default: 0.0] += sElapsed
             }
             let elapsed = CFAbsoluteTimeGetCurrent() - start
             totalDuration += elapsed
@@ -134,6 +138,10 @@ final class PerformancePassTests: XCTestCase {
 
         let averagePassDurationMs = (totalDuration / Double(iterations)) * 1000.0
         print("Performance Benchmark: Average pass duration across all 8 samplers = \(String(format: "%.2f", averagePassDurationMs)) ms")
+        for (name, dur) in samplerDurations {
+            let avgMs = (dur / Double(iterations)) * 1000.0
+            print("  - \(name): \(String(format: "%.2f", avgMs)) ms")
+        }
 
         // In macOS on modern hardware, all 8 samplers execute within single-digit to low double-digit ms.
         // At a 2.0s refresh interval, an execution of 10ms accounts for ~0.5% duty cycle.
