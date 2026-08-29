@@ -230,11 +230,13 @@ public struct MenuBarIconRenderer {
     }
 
     private static func renderFan(style: MetricDisplayStyle, fan: FanSample?, history: [Double]) -> RenderResult {
-        let primaryFan = fan?.fans.first
+        let fans = fan?.fans ?? []
+        let primaryFan = fans.max(by: { fanPercentage(for: $0) < fanPercentage(for: $1) }) ?? fans.first
         let rpm = primaryFan?.rpm ?? 0
         let tip: String
         if let f = primaryFan {
-            tip = "Fans: \(rpm) RPM (\(f.name))"
+            let desc = fans.count > 1 ? fans.map { "\($0.name): \($0.rpm) RPM" }.joined(separator: ", ") : "\(f.name): \(rpm) RPM"
+            tip = "Fans: \(desc)"
         } else if fan?.isFanless == true {
             tip = "Fans: Fanless System"
         } else {

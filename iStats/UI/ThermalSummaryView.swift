@@ -1,15 +1,16 @@
 import SwiftUI
 import iStatsCore
 
-/// A detailed Thermal metrics view displaying live temperatures across CPU, GPU, memory,
-/// battery, and chipset sensors, system thermal pressure, rolling history graphs, and
-/// configurable °C/°F temperature unit formatting (Requirements 3.1, 3.2, 3.3, 3.4, 11.3).
+/// A Thermal metrics card view:
+/// 1. Enlarged 4-Zone Mac Heat Map Silhouette (CPU, GPU, RAM, SSD)
+/// 2. High-Contrast Peak Sensor Card (Hottest component readout)
+/// 3. 60-sample temperature sparkline & collapsible diagnostics (Sensors list).
 public struct ThermalSummaryView: View {
     public let sample: ThermalSample?
     public let history: [Sample<ThermalSample>]
     public let temperatureUnit: Units.TemperatureUnit
 
-    @State private var isSensorsExpanded: Bool = true
+    @State private var isSensorsExpanded: Bool = false
 
     public init(
         sample: ThermalSample? = nil,
@@ -21,121 +22,135 @@ public struct ThermalSummaryView: View {
         self.temperatureUnit = temperatureUnit
     }
 
-    /// Primary temperature sensor to feature (e.g. CPU Package or first available).
-    private var primarySensor: SensorReading? {
-        guard let sample = sample, !sample.sensors.isEmpty else { return nil }
-        if let pkg = sample.sensors.first(where: { $0.name.contains("Package") || $0.name.contains("SoC") || $0.name.contains("CPU") }) {
-            return pkg
-        }
-        return sample.sensors.first
+    private var verdict: MetricVerdict {
+        VerdictEvaluator.evaluateThermal(sample, unit: temperatureUnit)
     }
 
-    /// Maximum temperature across current sensors.
-    private var maxTemperature: Double? {
-        sample?.sensors.map(\.celsius).max()
+    private var maxSensor: SensorReading? {
+        sample?.sensors.max(by: { $0.celsius < $1.celsius })
     }
 
-    /// History values of the primary or max temperature in Celsius for graph rendering.
     private var historyTemperatures: [Double] {
         history.compactMap { hist in
             let sensors = hist.value.sensors
-            if let pkg = sensors.first(where: { $0.name.contains("Package") || $0.name.contains("SoC") || $0.name.contains("CPU") }) {
-                return pkg.celsius
-            }
             return sensors.map(\.celsius).max()
         }
     }
 
+    private var peakColor: Color {
+        guard let maxS = maxSensor else { return .secondary }
+        if maxS.celsius >= 95.0 { return .red }
+        if maxS.celsius >= 80.0 { return .orange }
+        if maxS.celsius >= 68.0 { return .yellow }
+        return .teal
+    }
+
     public var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            // Hero Temperature Card
-            if let sample = sample, !sample.sensors.isEmpty {
-                HStack(alignment: .center, spacing: 8) {
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text(primarySensor?.name ?? "Primary SoC Sensor")
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundColor(.secondary)
+            // MARK: - Hero Row: Enlarged 4-Zone Heat Map + High-Contrast Peak Sensor Card
+            HStack(alignment: .center, spacing: 10) {
+                // Live 4-Zone Mac Silhouette Heat Map (CPU, GPU, RAM, SSD)
+                ThermalHeatMapIllustrationView(
+                    sample: sample,
+                    temperatureUnit: temperatureUnit,
+                    size: CGSize(width: 148, height: 86)
+                )
 
-                        if let primary = primarySensor {
-                            Text(Units.formatTemperature(primary.celsius, unit: temperatureUnit))
+                // High-Contrast Peak Thermal Sensor Card
+                if let maxS = maxSensor {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(
+                                LinearGradient(
+                                    colors: [
+                                        peakColor.opacity(0.20),
+                                        peakColor.opacity(0.08)
+                                    ],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .strokeBorder(peakColor.opacity(0.45), lineWidth: 1)
+                            )
+
+                        VStack(alignment: .leading, spacing: 3) {
+                            HStack(spacing: 3.5) {
+                                Image(systemName: "flame.fill")
+                                    .font(.system(size: 9, weight: .bold))
+                                    .foregroundColor(peakColor)
+
+                                Text("PEAK SENSOR")
+                                    .font(.system(size: 8.5, weight: .bold, design: .monospaced))
+                                    .foregroundColor(peakColor)
+                            }
+
+                            Text(Units.formatTemperature(maxS.celsius, unit: temperatureUnit, fractionDigits: 0))
                                 .font(.system(size: 26, weight: .bold, design: .rounded))
-                                .foregroundColor(temperatureColor(primary.celsius))
+                                .foregroundColor(peakColor)
+
+                            Text(cleanSensorName(maxS.name))
+                                .font(.system(size: 11, weight: .bold))
+                                .foregroundColor(.primary)
+                                .lineLimit(1)
+
+                            Text("Hottest Component")
+                                .font(.system(size: 8.5, weight: .medium))
+                                .foregroundColor(.secondary)
                         }
+                        .padding(8)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
+                    .frame(height: 86)
+                } else {
+                    Text("Monitoring thermals...")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(.secondary)
+                }
+            }
+
+            // MARK: - 60-Sample Temperature Sparkline
+            VStack(alignment: .leading, spacing: 4) {
+                RollingGraphView(
+                    values: historyTemperatures,
+                    minValue: 20.0,
+                    maxValue: max(100.0, (historyTemperatures.max() ?? 80.0) + 5.0),
+                    tintColor: verdict.level.color,
+                    capacity: 60,
+                    height: 44,
+                    showGrid: true
+                )
+
+                HStack {
+                    Text("last 2 min (peak history)")
+                        .font(.system(size: 9, weight: .medium))
+                        .foregroundColor(.secondary)
 
                     Spacer()
 
-                    VStack(alignment: .trailing, spacing: 3) {
-                        if let pressure = sample.pressure {
-                            HStack(spacing: 4) {
-                                Circle()
-                                    .fill(pressureColor(pressure))
-                                    .frame(width: 5, height: 5)
-                                Text("Thermal: \(pressure.displayName)")
-                                    .font(.system(size: 10, weight: .bold))
-                                    .foregroundColor(pressureColor(pressure))
-                            }
-                            .padding(.horizontal, 7)
-                            .padding(.vertical, 2.5)
-                            .background(pressureColor(pressure).opacity(0.12))
-                            .clipShape(Capsule())
-                        }
-
-                        if let maxTemp = maxTemperature {
-                            Text("Peak: \(Units.formatTemperature(maxTemp, unit: temperatureUnit, fractionDigits: 1))")
-                                .font(.system(size: 9.5, weight: .medium, design: .monospaced))
-                                .foregroundColor(.secondary)
-                        }
+                    if let maxHist = historyTemperatures.max() {
+                        Text("peak \(Units.formatTemperature(maxHist, unit: temperatureUnit, fractionDigits: 0))")
+                            .font(.system(size: 9, weight: .bold, design: .monospaced))
+                            .foregroundColor(.secondary)
                     }
                 }
+                .padding(.horizontal, 2)
+            }
 
-                // Rolling 60s Temperature History Graph
-                if !historyTemperatures.isEmpty {
-                    VStack(alignment: .leading, spacing: 4) {
-                        RollingGraphView(
-                            values: historyTemperatures,
-                            minValue: 20.0,
-                            maxValue: max(100.0, (historyTemperatures.max() ?? maxTemperature ?? 80.0) + 5.0),
-                            tintColor: headerColor,
-                            capacity: 60,
-                            height: 44,
-                            showGrid: true
-                        )
-
-                        HStack {
-                            Text("Temperature History")
-                                .font(.system(size: 9, weight: .medium))
-                                .foregroundColor(.secondary)
-                            Spacer()
-                            if let cur = primarySensor?.celsius ?? maxTemperature {
-                                Text("Current: \(Units.formatTemperature(cur, unit: temperatureUnit, fractionDigits: 1))")
-                                    .font(.system(size: 9, weight: .semibold, design: .monospaced))
-                                    .foregroundColor(.secondary)
-                            }
-                        }
-                    }
+            // MARK: - Collapsible Diagnostics (33 Individual Sensor Keys)
+            if let sample = sample, !sample.sensors.isEmpty {
+                CollapsibleSection(
+                    title: "Sensors",
+                    count: sample.sensors.count,
+                    isExpanded: $isSensorsExpanded
+                ) {
+                    sensorsList(sample: sample)
                 }
-
-                // Expandable Per-Sensor List
-                sensorsSection(sensors: sample.sensors)
-            } else if let sample = sample, sample.sensors.isEmpty {
-                HStack(spacing: 8) {
-                    Image(systemName: "info.circle")
-                        .foregroundColor(.secondary)
-                    Text("Hardware temperature sensors unavailable. System thermal pressure monitored above.")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-                .padding(.vertical, 6)
-            } else {
-                Text("Waiting for thermal telemetry...")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .padding(.vertical, 6)
+                .padding(.horizontal, 4)
             }
         }
-        .padding(11)
+        .padding(10)
         .background(
             RoundedRectangle(cornerRadius: 10)
                 .fill(Color(nsColor: .controlBackgroundColor).opacity(0.5))
@@ -146,102 +161,45 @@ public struct ThermalSummaryView: View {
         )
     }
 
-    // MARK: - Sensors Section
+    // MARK: - Sensors List
 
-    private func sensorsSection(sensors: [SensorReading]) -> some View {
-        VStack(alignment: .leading, spacing: 5) {
-            Button(action: {
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    isSensorsExpanded.toggle()
-                }
-            }) {
+    @ViewBuilder
+    private func sensorsList(sample: ThermalSample) -> some View {
+        VStack(spacing: 3) {
+            ForEach(sample.sensors.sorted(by: { $0.celsius > $1.celsius }), id: \.name) { sensor in
                 HStack {
-                    Text("All Sensors (\(sensors.count))")
-                        .font(.system(size: 10, weight: .bold))
+                    Text(cleanSensorName(sensor.name))
+                        .font(.system(size: 9.5, weight: .medium))
                         .foregroundColor(.primary)
+                        .lineLimit(1)
+
                     Spacer()
-                    Image(systemName: isSensorsExpanded ? "chevron.up" : "chevron.down")
-                        .font(.system(size: 9, weight: .bold))
-                        .foregroundColor(.secondary)
-                }
-            }
-            .buttonStyle(.plain)
 
-            if isSensorsExpanded {
-                VStack(spacing: 4) {
-                    ForEach(sensors, id: \.name) { sensor in
-                        sensorRow(sensor)
-                    }
+                    Text(Units.formatTemperature(sensor.celsius, unit: temperatureUnit, fractionDigits: 1))
+                        .font(.system(size: 9.5, weight: .semibold, design: .monospaced))
+                        .foregroundColor(sensorColor(sensor.celsius))
                 }
-                .transition(.opacity)
+                .padding(.vertical, 1.5)
+                .padding(.horizontal, 6)
+                .background(
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(Color.secondary.opacity(0.04))
+                )
             }
         }
-        .padding(.top, 2)
+        .padding(.top, 4)
     }
 
-    private func sensorRow(_ sensor: SensorReading) -> some View {
-        HStack(spacing: 6) {
-            Text(sensor.name)
-                .font(.system(size: 11, weight: .medium))
-                .foregroundColor(.primary)
-                .lineLimit(1)
-                .frame(maxWidth: .infinity, alignment: .leading)
-
-            // Mini horizontal thermal gauge bar (20°C to 100°C)
-            GeometryReader { geo in
-                ZStack(alignment: .leading) {
-                    Capsule()
-                        .fill(Color.secondary.opacity(0.18))
-                        .frame(height: 4.5)
-
-                    Capsule()
-                        .fill(temperatureColor(sensor.celsius))
-                        .frame(width: max(2, min(geo.size.width, geo.size.width * CGFloat(min(max(sensor.celsius, 0), 100) / 100.0))), height: 4.5)
-                }
-            }
-            .frame(width: 55, height: 4.5)
-
-            Text(Units.formatTemperature(sensor.celsius, unit: temperatureUnit, fractionDigits: 1))
-                .font(.system(size: 11, weight: .semibold, design: .monospaced))
-                .foregroundColor(.secondary)
-                .frame(width: 64, alignment: .trailing)
-        }
-        .padding(.vertical, 3.0)
-        .padding(.horizontal, 6)
-        .background(
-            RoundedRectangle(cornerRadius: 5)
-                .fill(Color.secondary.opacity(0.05))
-        )
+    private func cleanSensorName(_ raw: String) -> String {
+        raw.replacingOccurrences(of: "Thermal Sensor", with: "")
+            .replacingOccurrences(of: "Die Temperature", with: "")
+            .trimmingCharacters(in: .whitespaces)
     }
 
-    // MARK: - Helpers
-
-    private var headerColor: Color {
-        if let maxT = maxTemperature {
-            return temperatureColor(maxT)
-        }
-        return .orange
-    }
-
-    private func pressureColor(_ pressure: ThermalPressure) -> Color {
-        switch pressure {
-        case .nominal: return .green
-        case .fair: return .yellow
-        case .serious: return .orange
-        case .critical: return .red
-        }
-    }
-
-    private func temperatureColor(_ celsius: Double) -> Color {
-        if celsius >= 90.0 {
-            return .red
-        } else if celsius >= 75.0 {
-            return .orange
-        } else if celsius >= 55.0 {
-            return .yellow
-        } else {
-            return .green
-        }
+    private func sensorColor(_ celsius: Double) -> Color {
+        if celsius >= 95.0 { return .red }
+        if celsius >= 82.0 { return .orange }
+        if celsius >= 68.0 { return .yellow }
+        return .primary
     }
 }
-
