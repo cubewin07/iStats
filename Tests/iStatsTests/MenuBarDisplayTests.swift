@@ -724,6 +724,66 @@ final class MenuBarDisplayTests: XCTestCase {
         defaults.removePersistentDomain(forName: suiteName)
     }
 
+    func testComponentSpecificThermalRendering() {
+        let suiteName = "test.istats.thermal.components.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        let prefs = PreferencesStore(userDefaults: defaults)
+        let coord = MetricsCoordinator(preferencesStore: prefs)
+
+        let thermalSample = ThermalSample(
+            sensors: [
+                SensorReading(name: "CPU Package", celsius: 52.0),
+                SensorReading(name: "GPU Cluster 1", celsius: 65.0),
+                SensorReading(name: "Memory Module A", celsius: 48.0),
+                SensorReading(name: "Storage Flash (NAND)", celsius: 41.0),
+                SensorReading(name: "Battery (Sensor 1)", celsius: 33.0),
+                SensorReading(name: "SoC Peak Die", celsius: 72.0)
+            ],
+            pressure: .nominal
+        )
+        coord.handleReading(.thermal(Sample(value: thermalSample)))
+
+        // 1. CPU Temp
+        let cpuRes = MenuBarIconRenderer.render(config: MenuBarItemConfig(category: .thermal, style: .cpuTemp), coordinator: coord, preferences: prefs)
+        XCTAssertNotNil(cpuRes.image)
+        XCTAssertTrue(cpuRes.toolTip.contains("52.0 °C") && cpuRes.toolTip.contains("CPU Package"))
+        XCTAssertEqual(cpuRes.accessibilityLabel, "CPU temperature 52 °C")
+
+        // 2. GPU Temp
+        let gpuRes = MenuBarIconRenderer.render(config: MenuBarItemConfig(category: .thermal, style: .gpuTemp), coordinator: coord, preferences: prefs)
+        XCTAssertNotNil(gpuRes.image)
+        XCTAssertTrue(gpuRes.toolTip.contains("65.0 °C") && gpuRes.toolTip.contains("GPU Cluster 1"))
+        XCTAssertEqual(gpuRes.accessibilityLabel, "GPU temperature 65 °C")
+
+        // 3. Memory Temp
+        let memRes = MenuBarIconRenderer.render(config: MenuBarItemConfig(category: .thermal, style: .memoryTemp), coordinator: coord, preferences: prefs)
+        XCTAssertNotNil(memRes.image)
+        XCTAssertTrue(memRes.toolTip.contains("48.0 °C") && memRes.toolTip.contains("Memory Module A"))
+        XCTAssertEqual(memRes.accessibilityLabel, "Memory temperature 48 °C")
+
+        // 4. Storage Temp
+        let ssdRes = MenuBarIconRenderer.render(config: MenuBarItemConfig(category: .thermal, style: .storageTemp), coordinator: coord, preferences: prefs)
+        XCTAssertNotNil(ssdRes.image)
+        XCTAssertTrue(ssdRes.toolTip.contains("41.0 °C") && ssdRes.toolTip.contains("Storage Flash (NAND)"))
+        XCTAssertEqual(ssdRes.accessibilityLabel, "Storage temperature 41 °C")
+
+        // 5. Battery Temp
+        let batRes = MenuBarIconRenderer.render(config: MenuBarItemConfig(category: .thermal, style: .batteryTemp), coordinator: coord, preferences: prefs)
+        XCTAssertNotNil(batRes.image)
+        XCTAssertTrue(batRes.toolTip.contains("33.0 °C") && batRes.toolTip.contains("Battery (Sensor 1)"))
+        XCTAssertEqual(batRes.accessibilityLabel, "Battery temperature 33 °C")
+
+        // 6. Graceful degradation when sensor missing
+        let emptySample = ThermalSample(sensors: [], pressure: .nominal)
+        coord.handleReading(.thermal(Sample(value: emptySample)))
+        let emptyRes = MenuBarIconRenderer.render(config: MenuBarItemConfig(category: .thermal, style: .gpuTemp), coordinator: coord, preferences: prefs)
+        XCTAssertNotNil(emptyRes.image)
+        XCTAssertEqual(emptyRes.toolTip, "GPU Thermal: --")
+        XCTAssertEqual(emptyRes.accessibilityLabel, "GPU thermal unavailable")
+
+        defaults.removePersistentDomain(forName: suiteName)
+    }
+
     func testPowerBudgetTextRendering() {
         let suiteName = "test.istats.power.budget.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!

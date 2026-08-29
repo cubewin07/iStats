@@ -8,6 +8,11 @@ public enum MetricDisplayStyle: String, CaseIterable, Identifiable, Codable, Sen
     case gauge
     case sparkline
     case symbol
+    case cpuTemp = "cpuTemp"
+    case gpuTemp = "gpuTemp"
+    case memoryTemp = "memoryTemp"
+    case storageTemp = "storageTemp"
+    case batteryTemp = "batteryTemp"
 
     public var id: String { rawValue }
 
@@ -65,8 +70,12 @@ public enum MetricDisplayStyle: String, CaseIterable, Identifiable, Codable, Sen
 
         // Thermal
         case (.thermal, .text): return "Peak °C"
+        case (.thermal, .cpuTemp): return "CPU °C"
+        case (.thermal, .gpuTemp): return "GPU °C"
+        case (.thermal, .memoryTemp): return "Memory °C"
+        case (.thermal, .storageTemp): return "SSD °C"
+        case (.thermal, .batteryTemp): return "Battery °C"
         case (.thermal, .gauge): return "Temp Ring"
-        case (.thermal, .bar): return "Temp Bar"
         case (.thermal, .sparkline): return "Peak History"
 
         // Fans
@@ -116,6 +125,11 @@ public enum MetricDisplayStyle: String, CaseIterable, Identifiable, Codable, Sen
         case .gauge: return "Gauge / Donut"
         case .sparkline: return "History Graph"
         case .symbol: return "Activity Instrument"
+        case .cpuTemp: return "CPU Temperature"
+        case .gpuTemp: return "GPU Temperature"
+        case .memoryTemp: return "Memory Temperature"
+        case .storageTemp: return "SSD Temperature"
+        case .batteryTemp: return "Battery Temperature"
         }
     }
 
@@ -129,7 +143,9 @@ public enum MetricDisplayStyle: String, CaseIterable, Identifiable, Codable, Sen
         case .gpu:
             return [.text, .gauge, .bar, .sparkline, .symbol]
         case .thermal:
-            return [.text, .gauge, .bar, .sparkline]
+            return hasBattery
+                ? [.text, .cpuTemp, .gpuTemp, .memoryTemp, .storageTemp, .batteryTemp, .gauge, .sparkline]
+                : [.text, .cpuTemp, .gpuTemp, .memoryTemp, .storageTemp, .gauge, .sparkline]
         case .fan:
             return [.text, .throughput, .gauge, .bar, .sparkline, .symbol]
         case .network:

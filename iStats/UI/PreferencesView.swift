@@ -359,6 +359,11 @@ public struct PreferencesView: View {
         case .sparkline: return "chart.xyaxis.line"
         case .text: return "textformat.123"
         case .throughput: return "arrow.up.arrow.down"
+        case .cpuTemp: return "cpu"
+        case .gpuTemp: return "display"
+        case .memoryTemp: return "memorychip"
+        case .storageTemp: return "internaldrive"
+        case .batteryTemp: return "bolt.fill"
         }
     }
 

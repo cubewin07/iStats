@@ -207,37 +207,83 @@ public struct MenuBarIconRenderer {
 
     // MARK: - 4. Thermal Rendering
 
+    private static func findThermalSensor(
+        in thermal: ThermalSample?,
+        matching keywords: [String]
+    ) -> SensorReading? {
+        guard let sensors = thermal?.sensors, !sensors.isEmpty else { return nil }
+        let matches = sensors.filter { sensor in
+            keywords.contains { kw in sensor.name.localizedCaseInsensitiveContains(kw) }
+        }
+        return matches.max(by: { $0.celsius < $1.celsius })
+    }
+
     private static func renderThermal(
         style: MetricDisplayStyle,
         thermal: ThermalSample?,
         history: [Double],
         unit: Units.TemperatureUnit
     ) -> RenderResult {
-        // Peak (hottest) sensor selection across all available hardware sensors
-        let sensor = thermal?.sensors.max(by: { $0.celsius < $1.celsius }) ?? thermal?.sensors.first
+        let sensor: SensorReading?
+        let title: String
+        let componentLabel: String
+
+        switch style {
+        case .cpuTemp:
+            sensor = findThermalSensor(in: thermal, matching: ["CPU", "Efficiency Cores", "Package"])
+            title = "CPU"
+            componentLabel = "CPU"
+        case .gpuTemp:
+            sensor = findThermalSensor(in: thermal, matching: ["GPU"])
+            title = "GPU"
+            componentLabel = "GPU"
+        case .memoryTemp:
+            sensor = findThermalSensor(in: thermal, matching: ["Memory", "RAM"])
+            title = "MEM"
+            componentLabel = "Memory"
+        case .storageTemp:
+            sensor = findThermalSensor(in: thermal, matching: ["Flash", "NAND", "SSD", "Storage", "Disk"])
+            title = "SSD"
+            componentLabel = "Storage"
+        case .batteryTemp:
+            sensor = findThermalSensor(in: thermal, matching: ["Battery"])
+            title = "BAT"
+            componentLabel = "Battery"
+        case .text, .gauge, .bar, .sparkline, .symbol, .throughput:
+            sensor = thermal?.sensors.max(by: { $0.celsius < $1.celsius }) ?? thermal?.sensors.first
+            title = "TMP"
+            componentLabel = "Peak"
+        }
+
         let tempC = sensor?.celsius ?? 0.0
         let pct = min(max((tempC - 30.0) / (100.0 - 30.0) * 100.0, 0.0), 100.0)
         let formattedTemp = Units.formatTemperature(tempC, unit: unit, fractionDigits: 0)
-        let tip = sensor != nil ? "Thermal: \(Units.formatTemperature(tempC, unit: unit, fractionDigits: 1)) (Peak: \(sensor!.name))" : "Thermal: --"
+        let formattedPreciseTemp = Units.formatTemperature(tempC, unit: unit, fractionDigits: 1)
+
+        let tip = sensor != nil
+            ? "\(componentLabel) Thermal: \(formattedPreciseTemp) (\(sensor!.name))"
+            : "\(componentLabel) Thermal: --"
         let valStr = sensor != nil ? formattedTemp : "--°"
-        let a11y = sensor != nil ? "Peak temperature \(formattedTemp)" : "Thermal unavailable"
+        let a11y = sensor != nil
+            ? "\(componentLabel) temperature \(formattedTemp)"
+            : "\(componentLabel) thermal unavailable"
 
         switch style {
         case .gauge:
             let img = drawThermalGauge(percentage: pct, celsius: tempC)
             return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y)
-        case .bar:
-            let img = drawThermalBar(percentage: pct, celsius: tempC)
-            return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y)
         case .sparkline:
             let img = drawThermalSparkline(history: history)
             return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y)
-        case .text:
-            // Title must be "TMP", never "CPU", with hottest sensor temperature
-            let img = drawCategoryStackedText(title: "TMP", value: valStr, fixedWidth: 32.0)
+        case .bar:
+            // Legacy fallback if requested directly
+            let img = drawThermalBar(percentage: pct, celsius: tempC)
+            return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y)
+        case .cpuTemp, .gpuTemp, .memoryTemp, .storageTemp, .batteryTemp, .text:
+            let img = drawCategoryStackedText(title: title, value: valStr, fixedWidth: 32.0)
             return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y)
         default:
-            let img = drawCategoryStackedText(title: "TMP", value: valStr, fixedWidth: 32.0)
+            let img = drawCategoryStackedText(title: title, value: valStr, fixedWidth: 32.0)
             return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y)
         }
     }
@@ -295,6 +341,9 @@ public struct MenuBarIconRenderer {
         case .symbol:
             // 4-blade cooling turbine with speed-based opacity
             let img = drawFanBlades(percentage: pct, rpm: primaryFan?.rpm)
+            return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y)
+        default:
+            let img = drawCategoryStackedText(title: "FAN", value: valStr, fixedWidth: 32.0)
             return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y)
         }
     }
@@ -399,7 +448,7 @@ public struct MenuBarIconRenderer {
                 tip = String(format: "Battery: %.0f%%%@", charge, stateStr)
                 a11y = String(format: "Battery %.0f percent%@", charge, pwr.state == .charging ? ", charging" : "")
             } else {
-                let wattsStr = pwr.powerDrawWatts != nil ? String(format: " (%.1f W)", pwr.powerDrawWatts!) : ""
+                let wattsStr = power?.powerDrawWatts != nil ? String(format: " (%.1f W)", power!.powerDrawWatts!) : ""
                 tip = "Power: Connected to AC\(wattsStr)"
                 a11y = "Connected to AC power"
             }
@@ -433,6 +482,9 @@ public struct MenuBarIconRenderer {
         case .sparkline:
             // Live Power Draw Watts History with decay-max scaling
             let img = drawPowerSparkline(history: history)
+            return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y)
+        default:
+            let img = drawBatteryInstrument(charge: power?.charge, state: power?.state, hasBattery: hasBattery)
             return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y)
         }
     }

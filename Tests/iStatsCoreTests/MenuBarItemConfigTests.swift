@@ -76,9 +76,13 @@ final class MenuBarItemConfigTests: XCTestCase {
         let gpuStyles = MetricDisplayStyle.supportedStyles(for: .gpu)
         XCTAssertEqual(gpuStyles, [.text, .gauge, .bar, .sparkline, .symbol])
 
-        // Thermal: [.text, .gauge, .bar, .sparkline]
-        let thermalStyles = MetricDisplayStyle.supportedStyles(for: .thermal)
-        XCTAssertEqual(thermalStyles, [.text, .gauge, .bar, .sparkline])
+        // Thermal: [.text, .cpuTemp, .gpuTemp, .memoryTemp, .storageTemp, .batteryTemp, .gauge, .sparkline]
+        let thermalStyles = MetricDisplayStyle.supportedStyles(for: .thermal, hasBattery: true)
+        XCTAssertEqual(thermalStyles, [.text, .cpuTemp, .gpuTemp, .memoryTemp, .storageTemp, .batteryTemp, .gauge, .sparkline])
+
+        let thermalDesktopStyles = MetricDisplayStyle.supportedStyles(for: .thermal, hasBattery: false)
+        XCTAssertEqual(thermalDesktopStyles, [.text, .cpuTemp, .gpuTemp, .memoryTemp, .storageTemp, .gauge, .sparkline])
+        XCTAssertFalse(thermalStyles.contains(.bar))
 
         // Fans: [.text, .throughput, .gauge, .bar, .sparkline, .symbol]
         let fanStyles = MetricDisplayStyle.supportedStyles(for: .fan)
@@ -107,6 +111,13 @@ final class MenuBarItemConfigTests: XCTestCase {
         XCTAssertEqual(MetricDisplayStyle.bar.displayName(for: .memory), "Allocation")
         XCTAssertEqual(MetricDisplayStyle.symbol.displayName(for: .gpu), "GPU Die")
         XCTAssertEqual(MetricDisplayStyle.text.displayName(for: .thermal), "Peak °C")
+        XCTAssertEqual(MetricDisplayStyle.cpuTemp.displayName(for: .thermal), "CPU °C")
+        XCTAssertEqual(MetricDisplayStyle.gpuTemp.displayName(for: .thermal), "GPU °C")
+        XCTAssertEqual(MetricDisplayStyle.memoryTemp.displayName(for: .thermal), "Memory °C")
+        XCTAssertEqual(MetricDisplayStyle.storageTemp.displayName(for: .thermal), "SSD °C")
+        XCTAssertEqual(MetricDisplayStyle.batteryTemp.displayName(for: .thermal), "Battery °C")
+        XCTAssertEqual(MetricDisplayStyle.gauge.displayName(for: .thermal), "Temp Ring")
+        XCTAssertEqual(MetricDisplayStyle.sparkline.displayName(for: .thermal), "Peak History")
         XCTAssertEqual(MetricDisplayStyle.gauge.displayName(for: .fan), "Tachometer")
         XCTAssertEqual(MetricDisplayStyle.symbol.displayName(for: .fan), "Blades")
         XCTAssertEqual(MetricDisplayStyle.throughput.displayName(for: .network), "Up / Down")
