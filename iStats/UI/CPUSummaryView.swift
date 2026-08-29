@@ -1,418 +1,344 @@
 import SwiftUI
 import iStatsCore
 
-/// A comprehensive CPU metrics card view displaying aggregate utilization, live rolling history graph,
-/// user/system/idle breakdown, load average, clock frequency, system uptime, and per-core distribution
-/// (Requirements 10.1, 10.2, 10.3).
+/// Authentic iStat Menus style CPU view featuring:
+/// 1. Stacked vertical bar history chart (User in Blue + System in Magenta/Pink)
+/// 2. Per-core circular ring gauge cluster (E-cores in Pink, P-cores in Blue) with cluster averages
+/// 3. Collapsible high-readability diagnostics (Enhanced Load Average and System Uptime cards).
 public struct CPUSummaryView: View {
     public let sample: CPUSample?
     public let history: [Sample<CPUSample>]
-    @State private var isPerCoreExpanded: Bool = true
+    @State private var isDetailsExpanded: Bool = false
 
     public init(sample: CPUSample? = nil, history: [Sample<CPUSample>] = []) {
         self.sample = sample
         self.history = history
     }
 
-    private var historyPercentages: [Double] {
-        history.map { $0.value.totalUsage }
+    private var verdict: MetricVerdict {
+        VerdictEvaluator.evaluateCPU(sample)
     }
 
     private var uptimeString: String {
         Units.formatUptime(ProcessInfo.processInfo.systemUptime)
     }
 
+    // Colors matching authentic iStat Menus
+    private let userColor = Color(red: 0.05, green: 0.55, blue: 1.0)       // Vivid Blue
+    private let systemColor = Color(red: 0.96, green: 0.28, blue: 0.58)    // Vivid Magenta / Pink
+
     public var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            // Hero Metric Row: Icon, Title, Aggregate Percentage & Chips
-            HStack(alignment: .center, spacing: 8) {
-                VStack(alignment: .leading, spacing: 1) {
-                    Text("Total Utilization")
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundColor(.secondary)
+        VStack(spacing: 8) {
+            // MARK: - Top Card: Stacked History Graph & User/System Legend
+            VStack(alignment: .leading, spacing: 8) {
+                // Header inside the card: "CPU" and Clock / Load
+                HStack(alignment: .firstTextBaseline) {
+                    Text("CPU")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundColor(userColor)
 
-                    if let sample = sample {
-                        HStack(alignment: .firstTextBaseline, spacing: 4) {
-                            Text(String(format: "%.1f", sample.totalUsage))
-                                .font(.system(size: 24, weight: .bold, design: .rounded))
-                                .foregroundColor(usageColor(for: sample.totalUsage))
-
-                            Text("%")
-                                .font(.system(size: 14, weight: .bold, design: .rounded))
-                                .foregroundColor(usageColor(for: sample.totalUsage))
-                        }
-                    } else {
-                        Text("Sampling...")
-                            .font(.system(size: 14, weight: .medium))
-                            .foregroundColor(.secondary)
-                    }
-                }
-
-                Spacer()
-
-                if let sample = sample {
-                    // Mini breakdown pills
-                    VStack(alignment: .trailing, spacing: 3) {
-                        breakdownChip(label: "User", value: String(format: "%.1f%%", sample.user), color: .blue)
-                        breakdownChip(label: "Sys", value: String(format: "%.1f%%", sample.system), color: .orange)
-                        breakdownChip(label: "Idle", value: String(format: "%.1f%%", sample.idle), color: .secondary)
-                    }
-                }
-            }
-
-            // Usage Breakdown Bar
-            if let sample = sample {
-                breakdownBar(sample: sample)
-            }
-
-            // Rolling 60s History Graph
-            VStack(alignment: .leading, spacing: 5) {
-                HStack(spacing: 4) {
-                    Image(systemName: "chart.xyaxis.line")
-                        .font(.system(size: 9, weight: .bold))
-                        .foregroundColor(.blue)
-                    Text("CPU Utilization History (60s)")
-                        .font(.system(size: 9.5, weight: .semibold))
-                        .foregroundColor(.primary)
                     Spacer()
+
                     if let sample = sample {
-                        let peak = historyPercentages.max() ?? sample.totalUsage
-                        Text(String(format: "Peak: %.1f%%", peak))
-                            .font(.system(size: 9, weight: .bold, design: .monospaced))
-                            .foregroundColor(.secondary)
+                        HStack(spacing: 4) {
+                            if let freq = sample.frequencyHz, freq > 0 {
+                                Text(Units.formatFrequencyHz(freq, fractionDigits: 2))
+                                    .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                                    .foregroundColor(.secondary)
+                            } else if let load = sample.loadAverage {
+                                Text(String(format: "Load: %.2f", load.oneMinute))
+                                    .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                                    .foregroundColor(.secondary)
+                            }
+                        }
                     }
                 }
 
-                RollingGraphView(
-                    values: historyPercentages,
-                    minValue: 0.0,
-                    maxValue: 100.0,
-                    tintColor: .blue,
-                    capacity: 60,
-                    height: 46,
-                    showGrid: true
-                )
+                // Authentic iStat Menus Stacked History Bar Graph
+                stackedHistoryGraph
+                    .frame(height: 58)
 
+                // User / System Breakdown Legend Row
                 if let sample = sample {
-                    HStack(spacing: 10) {
-                        HStack(spacing: 3) {
-                            Circle().fill(Color.blue).frame(width: 4.5, height: 4.5)
-                            Text("User: \(String(format: "%.1f%%", sample.user))")
-                                .font(.system(size: 8.5, weight: .medium))
+                    HStack {
+                        // User %
+                        HStack(spacing: 4) {
+                            Circle().fill(userColor).frame(width: 6, height: 6)
+                            Text("User")
+                                .font(.system(size: 10, weight: .medium))
                                 .foregroundColor(.secondary)
-                        }
-
-                        HStack(spacing: 3) {
-                            Circle().fill(Color.orange).frame(width: 4.5, height: 4.5)
-                            Text("Sys: \(String(format: "%.1f%%", sample.system))")
-                                .font(.system(size: 8.5, weight: .medium))
-                                .foregroundColor(.secondary)
+                            Text(String(format: "%.0f%%", sample.user))
+                                .font(.system(size: 11, weight: .bold, design: .monospaced))
+                                .foregroundColor(.primary)
                         }
 
                         Spacer()
 
-                        if let load = sample.loadAverage {
-                            Text("Load: \(String(format: "%.2f", load.oneMinute))")
-                                .font(.system(size: 8.5, weight: .semibold, design: .monospaced))
+                        // System %
+                        HStack(spacing: 4) {
+                            Circle().fill(systemColor).frame(width: 6, height: 6)
+                            Text("System")
+                                .font(.system(size: 10, weight: .medium))
+                                .foregroundColor(.secondary)
+                            Text(String(format: "%.0f%%", sample.system))
+                                .font(.system(size: 11, weight: .bold, design: .monospaced))
+                                .foregroundColor(.primary)
+                        }
+
+                        Spacer()
+
+                        // Total Usage
+                        HStack(spacing: 2) {
+                            Text(String(format: "%.0f%%", sample.totalUsage))
+                                .font(.system(size: 11, weight: .bold, design: .monospaced))
+                                .foregroundColor(.primary)
+                            Text("Total")
+                                .font(.system(size: 9.5, weight: .medium))
                                 .foregroundColor(.secondary)
                         }
                     }
-                    .padding(.horizontal, 2)
                 }
             }
+            .padding(10)
+            .background(
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(Color(nsColor: .controlBackgroundColor).opacity(0.5))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 10)
+                    .strokeBorder(Color.primary.opacity(0.08), lineWidth: 0.75)
+            )
 
+            // MARK: - Middle Card: Per-Core Circular Rings Cluster
+            if let sample = sample, !sample.perCore.isEmpty {
+                VStack(alignment: .leading, spacing: 8) {
+                    // Row of circular donut rings
+                    coreRingsCluster(sample: sample)
+
+                    // Cluster Averages Legend (E-cores vs P-cores)
+                    if let eAvg = sample.efficiencyUsage, let pAvg = sample.performanceUsage {
+                        VStack(spacing: 4) {
+                            HStack {
+                                HStack(spacing: 4) {
+                                    Circle().fill(systemColor).frame(width: 6, height: 6)
+                                    Text("Efficiency Cores")
+                                        .font(.system(size: 10, weight: .medium))
+                                        .foregroundColor(.secondary)
+                                }
+                                Spacer()
+                                Text(String(format: "%.0f%%", eAvg))
+                                    .font(.system(size: 11, weight: .bold, design: .monospaced))
+                                    .foregroundColor(.primary)
+                            }
+
+                            HStack {
+                                HStack(spacing: 4) {
+                                    Circle().fill(userColor).frame(width: 6, height: 6)
+                                    Text("Performance Cores")
+                                        .font(.system(size: 10, weight: .medium))
+                                        .foregroundColor(.secondary)
+                                }
+                                Spacer()
+                                Text(String(format: "%.0f%%", pAvg))
+                                    .font(.system(size: 11, weight: .bold, design: .monospaced))
+                                    .foregroundColor(.primary)
+                            }
+                        }
+                    }
+                }
+                .padding(10)
+                .background(
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(Color(nsColor: .controlBackgroundColor).opacity(0.5))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10)
+                        .strokeBorder(Color.primary.opacity(0.08), lineWidth: 0.75)
+                )
+            }
+
+            // MARK: - Collapsible Diagnostics (Enhanced Readability Cards)
             if let sample = sample {
-                // System Telemetry Tiles (Load Avg, Frequency / Model, Uptime)
-                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 6) {
-                    telemetryCard(
-                        title: "Load Avg",
-                        value: sample.loadAverage != nil ? String(format: "%.2f", sample.loadAverage!.oneMinute) : "N/A",
-                        detail: sample.loadAverage != nil ? String(format: "5m: %.2f", sample.loadAverage!.fiveMinute) : nil,
-                        icon: "gauge.medium"
-                    )
-
-                    telemetryCard(
-                        title: "Clock",
-                        value: sample.frequencyHz != nil ? Units.formatFrequencyHz(sample.frequencyHz!, fractionDigits: 1) : "—",
-                        detail: sample.frequencyHz != nil ? nil : "Dynamic",
-                        icon: "bolt.badge.clock"
-                    )
-
-                    telemetryCard(
-                        title: "Uptime",
-                        value: uptimeString,
-                        detail: nil,
-                        icon: "clock.arrow.circlepath"
-                    )
+                CollapsibleSection(
+                    title: "More details",
+                    count: nil,
+                    isExpanded: $isDetailsExpanded
+                ) {
+                    diagnosticsContent(sample: sample)
                 }
-
-                // Per-Core Utilization Section (Real iStat Rings & Cluster Breakdown)
-                if !sample.perCore.isEmpty {
-                    perCoreSection(sample: sample)
-                }
+                .padding(.horizontal, 4)
             }
         }
-        .padding(11)
-        .background(
-            RoundedRectangle(cornerRadius: 10)
-                .fill(Color(nsColor: .controlBackgroundColor).opacity(0.5))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 10)
-                .strokeBorder(Color.primary.opacity(0.08), lineWidth: 0.75)
-        )
     }
 
-    // MARK: - Breakdown Bar
+    // MARK: - Stacked Vertical Bar History Graph
 
-    private func breakdownBar(sample: CPUSample) -> some View {
+    private var stackedHistoryGraph: some View {
         GeometryReader { geo in
             let width = geo.size.width
-            let userWidth = max(0, width * CGFloat(sample.user / 100.0))
-            let sysWidth = max(0, width * CGFloat(sample.system / 100.0))
-            let idleWidth = max(0, width - userWidth - sysWidth)
+            let height = geo.size.height
+            let capacity = 60
+            let barWidth = max(2.0, (width - CGFloat(capacity - 1) * 1.5) / CGFloat(capacity))
+            let samples = history.suffix(capacity)
 
-            HStack(spacing: 1.5) {
-                RoundedRectangle(cornerRadius: 2)
-                    .fill(Color.blue)
-                    .frame(width: max(0, userWidth - 1))
+            ZStack(alignment: .bottomLeading) {
+                // Background well
+                RoundedRectangle(cornerRadius: 4)
+                    .fill(Color.primary.opacity(0.03))
 
-                RoundedRectangle(cornerRadius: 2)
-                    .fill(Color.orange)
-                    .frame(width: max(0, sysWidth - 1))
+                // Render vertical bars
+                HStack(alignment: .bottom, spacing: 1.5) {
+                    // Prepend empty space if history not filled yet
+                    if samples.count < capacity {
+                        Spacer(minLength: 0)
+                    }
 
-                RoundedRectangle(cornerRadius: 2)
-                    .fill(Color.secondary.opacity(0.2))
-                    .frame(width: max(0, idleWidth))
-            }
-            .clipShape(RoundedRectangle(cornerRadius: 3))
-        }
-        .frame(height: 5)
-    }
+                    ForEach(Array(samples.enumerated()), id: \.offset) { _, sampleItem in
+                        let s = sampleItem.value
+                        let userHeight = height * CGFloat(min(max(s.user / 100.0, 0.0), 1.0))
+                        let sysHeight = height * CGFloat(min(max(s.system / 100.0, 0.0), 1.0))
 
-    private func breakdownChip(label: String, value: String, color: Color) -> some View {
-        HStack(spacing: 3) {
-            Circle()
-                .fill(color)
-                .frame(width: 5, height: 5)
+                        VStack(spacing: 0) {
+                            // System (Pink/Magenta) top segment
+                            Rectangle()
+                                .fill(systemColor)
+                                .frame(height: sysHeight)
 
-            Text(label)
-                .font(.system(size: 9, weight: .medium))
-                .foregroundColor(.secondary)
-
-            Text(value)
-                .font(.system(size: 9, weight: .semibold, design: .monospaced))
-                .foregroundColor(.primary)
-        }
-    }
-
-    // MARK: - Telemetry Card Tile
-
-    private func telemetryCard(title: String, value: String, detail: String?, icon: String) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            HStack(spacing: 3) {
-                Image(systemName: icon)
-                    .font(.system(size: 8))
-                    .foregroundColor(.secondary)
-                Text(title)
-                    .font(.system(size: 9, weight: .medium))
-                    .foregroundColor(.secondary)
-            }
-
-            Text(value)
-                .font(.system(size: 11, weight: .bold, design: .monospaced))
-                .foregroundColor(.primary)
-                .lineLimit(1)
-
-            if let detail = detail {
-                Text(detail)
-                    .font(.system(size: 8))
-                    .foregroundColor(.secondary)
-                    .lineLimit(1)
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 6)
-        .padding(.vertical, 5)
-        .background(
-            RoundedRectangle(cornerRadius: 6)
-                .fill(Color.secondary.opacity(0.06))
-        )
-    }
-
-    // MARK: - Per-Core Section (Real iStat Style)
-
-    private func perCoreSection(sample: CPUSample) -> some View {
-        let perCore = sample.perCore
-        let hasEandP = (sample.efficiencyCoreCount ?? 0) > 0 && (sample.performanceCoreCount ?? 0) > 0
-
-        return VStack(alignment: .leading, spacing: 8) {
-            Button(action: {
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    isPerCoreExpanded.toggle()
+                            // User (Blue) bottom segment
+                            Rectangle()
+                                .fill(userColor)
+                                .frame(height: userHeight)
+                        }
+                        .frame(width: barWidth)
+                        .clipShape(RoundedRectangle(cornerRadius: 1))
+                    }
                 }
-            }) {
-                HStack {
-                    Text("Per-Core Breakdown (\(perCore.count) Cores)")
-                        .font(.system(size: 10, weight: .bold))
+            }
+        }
+    }
+
+    // MARK: - Per-Core Donut Rings Cluster
+
+    private func coreRingsCluster(sample: CPUSample) -> some View {
+        let eCount = sample.efficiencyCoreCount ?? 0
+        let count = sample.perCore.count
+        let ringSize: CGFloat = count > 16 ? 16 : (count > 10 ? 18 : 22)
+
+        return HStack(spacing: count > 12 ? 3 : 5) {
+            ForEach(0..<count, id: \.self) { index in
+                let usage = sample.perCore[index]
+                let isE = index < eCount
+                let ringColor = isE ? systemColor : userColor
+
+                ZStack {
+                    // Background ring track
+                    Circle()
+                        .stroke(Color.secondary.opacity(0.2), lineWidth: ringSize * 0.2)
+
+                    // Active load arc
+                    Circle()
+                        .trim(from: 0.0, to: CGFloat(min(max(usage / 100.0, 0.0), 1.0)))
+                        .stroke(
+                            ringColor,
+                            style: StrokeStyle(lineWidth: ringSize * 0.2, lineCap: .round)
+                        )
+                        .rotationEffect(.degrees(-90))
+                }
+                .frame(width: ringSize, height: ringSize)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .center)
+        .padding(.vertical, 2)
+    }
+
+    // MARK: - Enhanced Diagnostics Cards
+
+    @ViewBuilder
+    private func diagnosticsContent(sample: CPUSample) -> some View {
+        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 6) {
+            // Enhanced Load Average Card
+            VStack(alignment: .leading, spacing: 5) {
+                HStack(spacing: 4) {
+                    Image(systemName: "gauge.medium")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundColor(userColor)
+                    Text("Load Average")
+                        .font(.system(size: 9.5, weight: .bold))
                         .foregroundColor(.primary)
-                    Spacer()
-                    Image(systemName: isPerCoreExpanded ? "chevron.up" : "chevron.down")
-                        .font(.system(size: 9, weight: .bold))
+                }
+
+                if let load = sample.loadAverage {
+                    HStack(spacing: 8) {
+                        loadColumn(label: "1m", value: String(format: "%.2f", load.oneMinute))
+                        loadColumn(label: "5m", value: String(format: "%.2f", load.fiveMinute))
+                        loadColumn(label: "15m", value: String(format: "%.2f", load.fifteenMinute))
+                    }
+                    .padding(.top, 1)
+                } else {
+                    Text("N/A")
+                        .font(.system(size: 11, weight: .semibold, design: .monospaced))
                         .foregroundColor(.secondary)
                 }
             }
-            .buttonStyle(.plain)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(8)
+            .background(
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(Color.secondary.opacity(0.06))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .strokeBorder(Color.primary.opacity(0.06), lineWidth: 0.5)
+            )
 
-            if isPerCoreExpanded {
-                // Row of Circular Ring Gauges
-                if perCore.count <= 12 {
-                    HStack(spacing: 5) {
-                        ForEach(0..<perCore.count, id: \.self) { index in
-                            CoreRingGauge(
-                                usage: perCore[index],
-                                coreType: sample.coreType(at: index),
-                                index: index
-                            )
-                        }
-                    }
-                    .frame(maxWidth: .infinity, alignment: .center)
-                } else {
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 17, maximum: 22), spacing: 5)], spacing: 6) {
-                        ForEach(0..<perCore.count, id: \.self) { index in
-                            CoreRingGauge(
-                                usage: perCore[index],
-                                coreType: sample.coreType(at: index),
-                                index: index
-                            )
-                        }
-                    }
-                    .frame(maxWidth: .infinity, alignment: .center)
+            // Enhanced System Uptime Card
+            VStack(alignment: .leading, spacing: 5) {
+                HStack(spacing: 4) {
+                    Image(systemName: "clock.arrow.circlepath")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundColor(.green)
+                    Text("System Uptime")
+                        .font(.system(size: 9.5, weight: .bold))
+                        .foregroundColor(.primary)
                 }
 
-                // Cluster Utilization Rows
-                VStack(spacing: 5) {
-                    if hasEandP {
-                        if let eUsage = sample.efficiencyUsage {
-                            coreClusterRow(
-                                title: "Efficiency Cores",
-                                value: String(format: "%.0f%%", eUsage),
-                                color: Color(red: 0.98, green: 0.28, blue: 0.60)
-                            )
-                        }
-                        if let pUsage = sample.performanceUsage {
-                            coreClusterRow(
-                                title: "Performance Cores",
-                                value: String(format: "%.0f%%", pUsage),
-                                color: Color(red: 0.08, green: 0.52, blue: 1.0)
-                            )
-                        }
-                    } else if let pUsage = sample.performanceUsage {
-                        coreClusterRow(
-                            title: "Performance Cores",
-                            value: String(format: "%.0f%%", pUsage),
-                            color: Color(red: 0.08, green: 0.52, blue: 1.0)
-                        )
-                    } else {
-                        coreClusterRow(
-                            title: "Cores (\(perCore.count))",
-                            value: String(format: "%.0f%%", sample.totalUsage),
-                            color: Color(red: 0.08, green: 0.52, blue: 1.0)
-                        )
-                    }
+                Text(uptimeString)
+                    .font(.system(size: 12.5, weight: .bold, design: .monospaced))
+                    .foregroundColor(.primary)
+                    .padding(.top, 1)
+                    .lineLimit(1)
+
+                HStack(spacing: 3) {
+                    Circle()
+                        .fill(Color.green)
+                        .frame(width: 4, height: 4)
+                    Text("Running")
+                        .font(.system(size: 8.5, weight: .medium))
+                        .foregroundColor(.secondary)
                 }
-                .transition(.opacity)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(8)
+            .background(
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(Color.secondary.opacity(0.06))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .strokeBorder(Color.primary.opacity(0.06), lineWidth: 0.5)
+            )
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 8)
-        .background(
-            RoundedRectangle(cornerRadius: 7)
-                .fill(Color.secondary.opacity(0.06))
-        )
+        .padding(.top, 2)
     }
 
-    private func coreClusterRow(title: String, value: String, color: Color) -> some View {
-        HStack(spacing: 6) {
-            Circle()
-                .fill(color)
-                .frame(width: 7, height: 7)
-
-            Text(title)
-                .font(.system(size: 11, weight: .medium))
+    private func loadColumn(label: String, value: String) -> some View {
+        VStack(alignment: .leading, spacing: 1) {
+            Text(label)
+                .font(.system(size: 8, weight: .medium))
                 .foregroundColor(.secondary)
-
-            Spacer()
-
             Text(value)
-                .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                .font(.system(size: 11, weight: .bold, design: .monospaced))
                 .foregroundColor(.primary)
         }
     }
-
-    // MARK: - Helpers
-
-    private func usageColor(for usage: Double) -> Color {
-        if usage >= 85.0 {
-            return .red
-        } else if usage >= 60.0 {
-            return .orange
-        } else {
-            return .blue
-        }
-    }
 }
-
-/// A circular progress ring gauge for an individual CPU core.
-struct CoreRingGauge: View {
-    let usage: Double
-    let coreType: CPUCoreType
-    let index: Int
-
-    private var coreColor: Color {
-        switch coreType {
-        case .efficiency:
-            return Color(red: 0.98, green: 0.28, blue: 0.60)
-        case .performance:
-            return Color(red: 0.08, green: 0.52, blue: 1.0)
-        case .standard:
-            return Color(red: 0.08, green: 0.52, blue: 1.0)
-        }
-    }
-
-    private var label: String {
-        let typeName: String
-        switch coreType {
-        case .efficiency: typeName = "Efficiency"
-        case .performance: typeName = "Performance"
-        case .standard: typeName = "Standard"
-        }
-        return "Core \(index + 1) (\(typeName)): \(String(format: "%.0f%%", usage))"
-    }
-
-    var body: some View {
-        let clamped = max(0.0, min(100.0, usage))
-        let fraction = CGFloat(clamped / 100.0)
-
-        ZStack {
-            // Background Track
-            Circle()
-                .stroke(
-                    coreColor.opacity(0.18),
-                    style: StrokeStyle(lineWidth: 2.5)
-                )
-
-            // Progress Arc
-            Circle()
-                .trim(from: 0.0, to: fraction)
-                .stroke(
-                    coreColor,
-                    style: StrokeStyle(lineWidth: 2.5, lineCap: .round)
-                )
-                .rotationEffect(.degrees(-90))
-        }
-        .frame(width: 17, height: 17)
-        .help(label)
-    }
-}
-

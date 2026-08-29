@@ -1,7 +1,7 @@
 import SwiftUI
 import iStatsCore
 
-/// Visual badge component displaying the current memory pressure level with distinct color-coding.
+/// Visual badge component displaying the current memory pressure level with semantic status color.
 public struct MemoryPressureBadgeView: View {
     public let pressure: MemoryPressure
 
@@ -17,19 +17,11 @@ public struct MemoryPressureBadgeView: View {
         }
     }
 
-    private var badgeIcon: String {
-        switch pressure {
-        case .normal: return "checkmark.circle.fill"
-        case .warning: return "exclamationmark.triangle.fill"
-        case .critical: return "exclamationmark.octagon.fill"
-        }
-    }
-
     public var body: some View {
         HStack(spacing: 4) {
-            Image(systemName: badgeIcon)
-                .font(.system(size: 9, weight: .bold))
-                .foregroundColor(badgeColor)
+            Circle()
+                .fill(badgeColor)
+                .frame(width: 5.5, height: 5.5)
 
             Text(pressure.displayName)
                 .font(.system(size: 10, weight: .bold))
@@ -37,18 +29,12 @@ public struct MemoryPressureBadgeView: View {
         }
         .padding(.horizontal, 7)
         .padding(.vertical, 2.5)
-        .background(
-            Capsule()
-                .fill(badgeColor.opacity(0.14))
-        )
-        .overlay(
-            Capsule()
-                .stroke(badgeColor.opacity(0.35), lineWidth: 0.75)
-        )
+        .background(badgeColor.opacity(0.12))
+        .clipShape(Capsule())
     }
 }
 
-/// Prominent alert banner surfaced when memory pressure reaches warning or critical state (Requirement 2.4).
+/// Alert banner surfaced when memory pressure reaches warning or critical state.
 public struct MemoryPressureAlertBanner: View {
     public let pressure: MemoryPressure
 
@@ -60,43 +46,48 @@ public struct MemoryPressureAlertBanner: View {
         if pressure.isElevated {
             HStack(alignment: .top, spacing: 8) {
                 Image(systemName: pressure == .critical ? "exclamationmark.octagon.fill" : "exclamationmark.triangle.fill")
-                    .font(.system(size: 14, weight: .bold))
+                    .font(.system(size: 13, weight: .bold))
                     .foregroundColor(pressure == .critical ? .red : .orange)
                     .padding(.top, 1)
 
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(pressure == .critical ? "Critical Memory Pressure" : "Memory Pressure Warning")
-                        .font(.system(size: 11, weight: .bold))
+                VStack(alignment: .leading, spacing: 1.5) {
+                    Text(pressure == .critical ? "Memory Critical" : "Memory Pressure Warning")
+                        .font(.system(size: 10.5, weight: .bold))
                         .foregroundColor(pressure == .critical ? .red : .orange)
 
                     Text(pressure == .critical
-                         ? "System memory is exhausted. Performance may be severely degraded."
-                         : "System memory is under heavy pressure. Compression and swapping active.")
-                        .font(.system(size: 10))
+                         ? "The Mac is out of usable memory. Close some apps."
+                         : "macOS is reclaiming memory. Apps may feel slower.")
+                        .font(.system(size: 9.5))
                         .foregroundColor(.primary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
                 Spacer(minLength: 0)
             }
-            .padding(8)
+            .padding(7)
             .background(
-                RoundedRectangle(cornerRadius: 7)
+                RoundedRectangle(cornerRadius: 6)
                     .fill(pressure == .critical ? Color.red.opacity(0.12) : Color.orange.opacity(0.12))
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 7)
+                RoundedRectangle(cornerRadius: 6)
                     .stroke(pressure == .critical ? Color.red.opacity(0.35) : Color.orange.opacity(0.35), lineWidth: 0.75)
             )
         }
     }
 }
 
-/// Memory statistics summary section for the detail popover.
+/// A clean Memory metrics view with horizontal segmented composition bar:
+/// 1. Memory pressure hero & Allocation totals (Used of Total)
+/// 2. Full-width horizontal multi-segment composition bar (Apps, Wired, Compressed, Cached, Free) + Chips
+/// 3. 60-sample memory rolling graph & collapsible diagnostics.
 public struct MemorySummaryView: View {
     public let sample: MemorySample?
     public let history: [Sample<MemorySample>]
     public let byteStandard: Units.ByteUnitStandard
+
+    @State private var isDetailsExpanded: Bool = false
 
     public init(
         sample: MemorySample?,
@@ -114,243 +105,241 @@ public struct MemorySummaryView: View {
         }
     }
 
+    private var verdict: MetricVerdict {
+        VerdictEvaluator.evaluateMemory(sample, standard: byteStandard)
+    }
+
+    // Segment Colors
+    private let appColor = Color.blue
+    private let wiredColor = Color.purple
+    private let compressedColor = Color.orange
+    private let cachedColor = Color.teal
+    private let freeColor = Color.secondary.opacity(0.2)
+
     public var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            // Hero Metric Row: Used RAM, Total RAM, Percentage, Pressure Badge
-            HStack(alignment: .center, spacing: 8) {
-                VStack(alignment: .leading, spacing: 1) {
-                    Text("Memory Usage")
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundColor(.secondary)
-
+        VStack(spacing: 8) {
+            // MARK: - Main Memory Card: Pressure Hero, Horizontal Bar & Chips
+            VStack(alignment: .leading, spacing: 8) {
+                // Header Row: Pressure Status & Used/Total
+                HStack(alignment: .firstTextBaseline) {
                     if let sample = sample {
-                        HStack(alignment: .firstTextBaseline, spacing: 4) {
-                            Text(Units.formatBytes(sample.used, standard: byteStandard, fractionDigits: 1))
-                                .font(.system(size: 22, weight: .bold, design: .rounded))
-                                .foregroundColor(pressureTextColor(sample.pressure))
+                        HStack(spacing: 5) {
+                            Circle()
+                                .fill(verdict.level.color)
+                                .frame(width: 7, height: 7)
 
-                            Text("of \(Units.formatBytes(sample.total, standard: byteStandard, fractionDigits: 0))")
-                                .font(.system(size: 12, weight: .semibold, design: .rounded))
-                                .foregroundColor(.secondary)
+                            Text("Pressure \(sample.pressure.displayName)")
+                                .font(.system(size: 14, weight: .bold, design: .rounded))
+                                .foregroundColor(verdict.level.color)
                         }
+
+                        Spacer()
+
+                        let usedRatio = sample.total > 0 ? (Double(sample.used) / Double(sample.total)) * 100.0 : 0.0
+                        Text("\(Units.formatBytes(sample.used, standard: byteStandard)) of \(Units.formatBytes(sample.total, standard: byteStandard, fractionDigits: 0)) (\(String(format: "%.0f%%", usedRatio)))")
+                            .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                            .foregroundColor(.secondary)
                     } else {
-                        Text("Sampling...")
-                            .font(.system(size: 14, weight: .medium))
+                        Text("Sampling Memory...")
+                            .font(.system(size: 13, weight: .medium))
                             .foregroundColor(.secondary)
                     }
                 }
 
-                Spacer()
-
+                // Alert banner if elevated
                 if let sample = sample {
-                    VStack(alignment: .trailing, spacing: 3) {
-                        MemoryPressureBadgeView(pressure: sample.pressure)
+                    MemoryPressureAlertBanner(pressure: sample.pressure)
+                }
 
-                        let usedRatio = sample.total > 0 ? (Double(sample.used) / Double(sample.total)) * 100.0 : 0.0
-                        Text(String(format: "%.1f%%", usedRatio))
-                            .font(.system(size: 11, weight: .bold, design: .monospaced))
-                            .foregroundColor(.primary)
+                // Horizontal Segmented Memory Composition Bar
+                if let sample = sample, sample.total > 0 {
+                    horizontalCompositionBar(sample: sample)
+                        .frame(height: 10)
+
+                    // Horizontal Legend Chips Row
+                    horizontalLegendRow(sample: sample)
+                }
+
+                // Swap Active Note (if swap used > 0)
+                if let sample = sample, sample.swapUsed > 0 {
+                    HStack(spacing: 4) {
+                        Image(systemName: "arrow.triangle.swap")
+                            .font(.system(size: 8.5))
+                            .foregroundColor(.orange)
+                        Text("Using disk as extra memory (\(Units.formatBytes(sample.swapUsed, standard: byteStandard)))")
+                            .font(.system(size: 9.5, weight: .medium))
+                            .foregroundColor(.orange)
                     }
+                    .padding(.top, 1)
                 }
             }
+            .padding(10)
+            .background(
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(Color(nsColor: .controlBackgroundColor).opacity(0.5))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 10)
+                    .strokeBorder(Color.primary.opacity(0.08), lineWidth: 0.75)
+            )
 
-            if let sample = sample {
-                // Elevated alert banner if needed
-                MemoryPressureAlertBanner(pressure: sample.pressure)
-
-                // Memory Composition Multi-Segment Bar
-                memoryCompositionBar(sample: sample)
-
-                // Composition Chips Row
-                HStack(spacing: 8) {
-                    compositionChip(label: "App", color: .blue)
-                    compositionChip(label: "Wired", color: .purple)
-                    compositionChip(label: "Compressed", color: .orange)
-                    compositionChip(label: "Cached", color: .teal)
-                    compositionChip(label: "Free", color: .secondary.opacity(0.4))
-                }
-            }
-
-            // Rolling 60s Memory History Graph
+            // MARK: - 60-Sample Memory History Graph
             VStack(alignment: .leading, spacing: 4) {
                 RollingGraphView(
                     values: historyPercentages,
                     minValue: 0.0,
                     maxValue: 100.0,
-                    tintColor: graphTintColor(for: sample?.pressure ?? .normal),
+                    tintColor: verdict.level.color,
                     capacity: 60,
                     height: 44,
                     showGrid: true
                 )
 
                 HStack {
-                    Text("Memory History")
+                    Text("last 2 min")
                         .font(.system(size: 9, weight: .medium))
                         .foregroundColor(.secondary)
+
                     Spacer()
+
                     if let sample = sample {
                         let usedRatio = sample.total > 0 ? (Double(sample.used) / Double(sample.total)) * 100.0 : 0.0
-                        Text(String(format: "Peak: %.1f%%", historyPercentages.max() ?? usedRatio))
-                            .font(.system(size: 9, weight: .semibold, design: .monospaced))
+                        Text(String(format: "peak %.0f%% allocated", historyPercentages.max() ?? usedRatio))
+                            .font(.system(size: 9, weight: .bold, design: .monospaced))
                             .foregroundColor(.secondary)
                     }
                 }
+                .padding(.horizontal, 2)
             }
+            .padding(10)
+            .background(
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(Color(nsColor: .controlBackgroundColor).opacity(0.5))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 10)
+                    .strokeBorder(Color.primary.opacity(0.08), lineWidth: 0.75)
+            )
 
+            // MARK: - Collapsible Diagnostics
             if let sample = sample {
-                // Breakdown Tiles Grid (App Memory, Wired, Compressed, Cached, Swap Used, Free)
-                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 6) {
-                    telemetryTile(
-                        label: "App Memory",
-                        value: Units.formatBytes(sample.appMemory ?? (sample.used >= (sample.wired + sample.compressed) ? sample.used - sample.wired - sample.compressed : sample.used), standard: byteStandard),
-                        color: .blue
-                    )
-
-                    telemetryTile(
-                        label: "Wired Memory",
-                        value: Units.formatBytes(sample.wired, standard: byteStandard),
-                        color: .purple
-                    )
-
-                    telemetryTile(
-                        label: "Compressed",
-                        value: Units.formatBytes(sample.compressed, standard: byteStandard),
-                        color: .orange
-                    )
-
-                    telemetryTile(
-                        label: "Cached Files",
-                        value: Units.formatBytes(sample.cached, standard: byteStandard),
-                        color: .teal
-                    )
-
-                    telemetryTile(
-                        label: "Swap Used",
-                        value: Units.formatBytes(sample.swapUsed, standard: byteStandard),
-                        color: sample.swapUsed > 0 ? .orange : .secondary
-                    )
-
-                    telemetryTile(
-                        label: "Free Memory",
-                        value: Units.formatBytes(sample.free, standard: byteStandard),
-                        color: .green
-                    )
+                CollapsibleSection(
+                    title: "More details",
+                    count: nil,
+                    isExpanded: $isDetailsExpanded
+                ) {
+                    diagnosticsContent(sample: sample)
                 }
-            } else {
-                Text("Waiting for memory sample...")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .padding(.vertical, 6)
+                .padding(.horizontal, 4)
             }
         }
-        .padding(11)
-        .background(
-            RoundedRectangle(cornerRadius: 10)
-                .fill(Color(nsColor: .controlBackgroundColor).opacity(0.5))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 10)
-                .strokeBorder(Color.primary.opacity(0.08), lineWidth: 0.75)
-        )
     }
 
-    // MARK: - Composition Bar
+    // MARK: - Horizontal Multi-Segment Composition Bar
 
-    private func memoryCompositionBar(sample: MemorySample) -> some View {
+    private func horizontalCompositionBar(sample: MemorySample) -> some View {
         GeometryReader { geo in
-            let appBytes = Double(sample.appMemory ?? (sample.used >= (sample.wired + sample.compressed) ? sample.used - sample.wired - sample.compressed : sample.used))
-            let wiredBytes = Double(sample.wired)
-            let compressedBytes = Double(sample.compressed)
-            let cachedBytes = Double(sample.cached)
-            let freeBytes = Double(sample.free)
-            let sum = max(1.0, appBytes + wiredBytes + compressedBytes + cachedBytes + freeBytes)
+            let total = Double(sample.total)
+            let app = Double(sample.appMemory ?? (sample.used >= (sample.wired + sample.compressed) ? sample.used - sample.wired - sample.compressed : sample.used))
+            let wired = Double(sample.wired)
+            let compressed = Double(sample.compressed)
+            let cached = Double(sample.cached)
+            let free = Double(sample.free)
 
+            let sum = max(total, app + wired + compressed + cached + free)
             let w = geo.size.width
-            let appW = max(0, w * CGFloat(appBytes / sum))
-            let wiredW = max(0, w * CGFloat(wiredBytes / sum))
-            let compW = max(0, w * CGFloat(compressedBytes / sum))
-            let cachedW = max(0, w * CGFloat(cachedBytes / sum))
+
+            let appW = max(0, w * CGFloat(app / sum))
+            let wiredW = max(0, w * CGFloat(wired / sum))
+            let compW = max(0, w * CGFloat(compressed / sum))
+            let cachedW = max(0, w * CGFloat(cached / sum))
             let freeW = max(0, w - appW - wiredW - compW - cachedW)
 
             HStack(spacing: 1.5) {
+                // Apps (Blue)
                 RoundedRectangle(cornerRadius: 2)
-                    .fill(Color.blue)
+                    .fill(appColor)
                     .frame(width: max(0, appW - 1))
 
+                // Wired (Purple)
                 RoundedRectangle(cornerRadius: 2)
-                    .fill(Color.purple)
+                    .fill(wiredColor)
                     .frame(width: max(0, wiredW - 1))
 
+                // Compressed (Orange)
                 RoundedRectangle(cornerRadius: 2)
-                    .fill(Color.orange)
+                    .fill(compressedColor)
                     .frame(width: max(0, compW - 1))
 
+                // Cached (Teal)
                 RoundedRectangle(cornerRadius: 2)
-                    .fill(Color.teal)
+                    .fill(cachedColor)
                     .frame(width: max(0, cachedW - 1))
 
+                // Free (Empty well)
                 RoundedRectangle(cornerRadius: 2)
-                    .fill(Color.secondary.opacity(0.25))
+                    .fill(freeColor)
                     .frame(width: max(0, freeW))
             }
             .clipShape(RoundedRectangle(cornerRadius: 3))
         }
-        .frame(height: 6)
     }
 
-    private func compositionChip(label: String, color: Color) -> some View {
+    // MARK: - Horizontal Legend Chips Row
+
+    private func horizontalLegendRow(sample: MemorySample) -> some View {
+        HStack(spacing: 8) {
+            chip(label: "Apps", color: appColor)
+            chip(label: "Wired", color: wiredColor)
+            chip(label: "Compressed", color: compressedColor)
+            chip(label: "Cached", color: cachedColor)
+            chip(label: "Free", color: freeColor)
+        }
+    }
+
+    private func chip(label: String, color: Color) -> some View {
         HStack(spacing: 3) {
-            Circle()
+            RoundedRectangle(cornerRadius: 1.5)
                 .fill(color)
-                .frame(width: 5, height: 5)
+                .frame(width: 6, height: 6)
+
             Text(label)
-                .font(.system(size: 8.5, weight: .medium))
+                .font(.system(size: 9, weight: .medium))
                 .foregroundColor(.secondary)
         }
     }
 
-    // MARK: - Telemetry Tile
+    // MARK: - Diagnostics Content
 
-    private func telemetryTile(label: String, value: String, color: Color) -> some View {
-        HStack {
-            HStack(spacing: 4) {
-                Circle()
-                    .fill(color)
-                    .frame(width: 5, height: 5)
-                Text(label)
-                    .font(.system(size: 10, weight: .medium))
+    @ViewBuilder
+    private func diagnosticsContent(sample: MemorySample) -> some View {
+        let appMem = sample.appMemory ?? (sample.used >= (sample.wired + sample.compressed) ? sample.used - sample.wired - sample.compressed : sample.used)
+
+        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 5) {
+            breakdownCard(title: "Apps", value: Units.formatBytes(appMem, standard: byteStandard), color: appColor)
+            breakdownCard(title: "System (Wired)", value: Units.formatBytes(sample.wired, standard: byteStandard), color: wiredColor)
+            breakdownCard(title: "Compressed", value: Units.formatBytes(sample.compressed, standard: byteStandard), color: compressedColor)
+            breakdownCard(title: "Cached (Reusable)", value: Units.formatBytes(sample.cached, standard: byteStandard), color: cachedColor)
+            breakdownCard(title: "Swap Used", value: Units.formatBytes(sample.swapUsed, standard: byteStandard), color: sample.swapUsed > 0 ? .orange : .secondary)
+            breakdownCard(title: "Free Memory", value: Units.formatBytes(sample.free, standard: byteStandard), color: .green)
+        }
+        .padding(.top, 4)
+    }
+
+    private func breakdownCard(title: String, value: String, color: Color) -> some View {
+        HStack(spacing: 5) {
+            Circle().fill(color).frame(width: 4.5, height: 4.5)
+            VStack(alignment: .leading, spacing: 0.5) {
+                Text(title)
+                    .font(.system(size: 8, weight: .medium))
                     .foregroundColor(.secondary)
+                Text(value)
+                    .font(.system(size: 9.5, weight: .bold, design: .monospaced))
+                    .foregroundColor(.primary)
             }
             Spacer()
-            Text(value)
-                .font(.system(size: 10, weight: .bold, design: .monospaced))
-                .foregroundColor(.primary)
         }
-        .padding(.horizontal, 7)
-        .padding(.vertical, 5)
-        .background(
-            RoundedRectangle(cornerRadius: 6)
-                .fill(Color.secondary.opacity(0.06))
-        )
-    }
-
-    // MARK: - Helpers
-
-    private func graphTintColor(for pressure: MemoryPressure) -> Color {
-        switch pressure {
-        case .critical: return .red
-        case .warning: return .orange
-        case .normal: return .green
-        }
-    }
-
-    private func pressureTextColor(_ pressure: MemoryPressure) -> Color {
-        switch pressure {
-        case .critical: return .red
-        case .warning: return .orange
-        case .normal: return .primary
-        }
+        .padding(5)
+        .background(RoundedRectangle(cornerRadius: 6).fill(Color.secondary.opacity(0.05)))
     }
 }
-
