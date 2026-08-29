@@ -1,14 +1,15 @@
 import SwiftUI
 import iStatsCore
 
-/// A comprehensive Battery and Power metrics view displaying live charge capacity, charging state,
-/// time remaining, health (cycle count, condition, capacity), instantaneous power draw, adapter wattage,
-/// and graceful handling of machines with no internal battery (Requirements 8.1, 8.2, 8.3, 8.4, 10.1).
+/// A Battery & Power metrics card view:
+/// 1. Filling Battery Glyph + Power Budget Bar (draw vs adapter watts)
+/// 2. Battery percentage & charging hero with prominent font + time remaining
+/// 3. 60-sample wattage sparkline & collapsible health wear diagnostics.
 public struct PowerSummaryView: View {
     public let sample: PowerSample?
     public let history: [Sample<PowerSample>]
 
-    @State private var isHealthExpanded: Bool = true
+    @State private var isHealthExpanded: Bool = false
 
     public init(
         sample: PowerSample? = nil,
@@ -18,39 +19,59 @@ public struct PowerSummaryView: View {
         self.history = history
     }
 
-    /// History values of instantaneous power draw in Watts.
+    private var verdict: MetricVerdict {
+        VerdictEvaluator.evaluatePower(sample)
+    }
+
     private var historyPowerDraw: [Double] {
         history.compactMap { $0.value.powerDrawWatts }
     }
 
-    private var currentPowerDraw: Double {
-        sample?.powerDrawWatts ?? 0.0
-    }
-
     private var peakPowerDraw: Double {
         let maxHist = historyPowerDraw.max() ?? 0.0
-        return max(maxHist, currentPowerDraw, 1.0)
+        let cur = sample?.powerDrawWatts ?? 0.0
+        return max(maxHist, cur, 30.0)
     }
 
     public var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            if let sample = sample {
-                if sample.hasBattery {
-                    // Battery Present View
-                    batteryPresentSection(sample: sample)
-                } else {
-                    // Desktop Mac / AC-only View
-                    noBatterySection(sample: sample)
+            // MARK: - Hero Row: Battery Glyph + Battery & Charging Metrics
+            HStack(alignment: .center, spacing: 14) {
+                // Live Battery Glyph Illustration
+                PowerBudgetIllustrationView(
+                    sample: sample,
+                    peakDraw: peakPowerDraw,
+                    size: CGSize(width: 54, height: 64)
+                )
+
+                // High-Readability Power Metrics
+                powerHeroMetrics
+                Spacer(minLength: 0)
+            }
+
+            // MARK: - Power Budget Bar (Draw vs Adapter / Soft Peak)
+            if let sample = sample, let draw = sample.powerDrawWatts {
+                powerBudgetBar(sample: sample, draw: draw)
+            }
+
+            // MARK: - 60-Sample Power Draw History Sparkline (if draw exposed)
+            if !historyPowerDraw.isEmpty {
+                powerSparkline
+            }
+
+            // MARK: - Collapsible Diagnostics (Battery Health, Cycles, Condition)
+            if let sample = sample, sample.hasBattery {
+                CollapsibleSection(
+                    title: "Battery Health",
+                    count: nil,
+                    isExpanded: $isHealthExpanded
+                ) {
+                    diagnosticsContent(sample: sample)
                 }
-            } else {
-                Text("Waiting for power telemetry...")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .padding(.vertical, 6)
+                .padding(.horizontal, 4)
             }
         }
-        .padding(11)
+        .padding(10)
         .background(
             RoundedRectangle(cornerRadius: 10)
                 .fill(Color(nsColor: .controlBackgroundColor).opacity(0.5))
@@ -61,350 +82,185 @@ public struct PowerSummaryView: View {
         )
     }
 
-    // MARK: - Battery Present Section
+    // MARK: - Power Hero Metrics
 
-    private func batteryPresentSection(sample: PowerSample) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            // Hero Battery Card
-            HStack(alignment: .center, spacing: 8) {
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(powerSourceLabel(sample: sample))
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundColor(.secondary)
-
-                    if let charge = sample.charge {
-                        HStack(alignment: .firstTextBaseline, spacing: 4) {
-                            Text(String(format: "%.0f", charge))
-                                .font(.system(size: 24, weight: .bold, design: .rounded))
-                                .foregroundColor(chargeColor(for: charge, state: sample.state))
-
-                            Text("%")
-                                .font(.system(size: 14, weight: .bold, design: .rounded))
-                                .foregroundColor(chargeColor(for: charge, state: sample.state))
-
-                            if sample.state == .charging {
-                                Image(systemName: "bolt.fill")
-                                    .font(.system(size: 12, weight: .bold))
-                                    .foregroundColor(.green)
-                            }
+    @ViewBuilder
+    private var powerHeroMetrics: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            if let sample = sample {
+                if sample.hasBattery {
+                    // Large Battery Charge %
+                    HStack(alignment: .firstTextBaseline, spacing: 4) {
+                        if let charge = sample.charge {
+                            Text(String(format: "%.0f%%", charge))
+                                .font(.system(size: 26, weight: .bold, design: .rounded))
+                                .foregroundColor(.primary)
                         }
-                    }
-                }
 
-                Spacer()
+                        Text(sample.state == .charging ? "Charging" : (sample.state == .acConnected ? "AC Connected" : "On Battery"))
+                            .font(.system(size: 12, weight: .semibold, design: .rounded))
+                            .foregroundColor(sample.state == .charging ? .green : .secondary)
 
-                VStack(alignment: .trailing, spacing: 3) {
-                    if let state = sample.state {
-                        HStack(spacing: 4) {
-                            Circle()
-                                .fill(chargeColor(for: sample.charge, state: state))
-                                .frame(width: 5, height: 5)
-                            Text(stateDisplayName(state))
+                        if sample.state == .charging {
+                            Image(systemName: "bolt.fill")
                                 .font(.system(size: 10, weight: .bold))
-                                .foregroundColor(chargeColor(for: sample.charge, state: state))
+                                .foregroundColor(.green)
                         }
-                        .padding(.horizontal, 7)
-                        .padding(.vertical, 2.5)
-                        .background(chargeColor(for: sample.charge, state: state).opacity(0.12))
-                        .clipShape(Capsule())
                     }
 
-                    if let time = sample.timeRemaining {
-                        Text(formatTimeRemaining(time, state: sample.state))
-                            .font(.system(size: 9.5, weight: .medium))
+                    // Time Remaining or State Details
+                    if let timeRemaining = sample.timeRemaining {
+                        Text(formatDuration(timeRemaining) + (sample.state == .charging ? " to full" : " remaining"))
+                            .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                            .foregroundColor(.secondary)
+                    } else if sample.state == .acConnected {
+                        Text("Fully charged / On AC power")
+                            .font(.system(size: 10.5, weight: .medium))
+                            .foregroundColor(.secondary)
+                    }
+
+                    // Instantaneous Power Draw
+                    if let draw = sample.powerDrawWatts {
+                        Text(String(format: "Power Draw: %.1f W", draw))
+                            .font(.system(size: 9.5, weight: .medium, design: .monospaced))
+                            .foregroundColor(.secondary.opacity(0.85))
+                    }
+                } else {
+                    Text("On AC Power")
+                        .font(.system(size: 22, weight: .bold, design: .rounded))
+                        .foregroundColor(.green)
+
+                    if let draw = sample.powerDrawWatts {
+                        Text(String(format: "System Draw: %.1f W", draw))
+                            .font(.system(size: 11, weight: .semibold, design: .monospaced))
                             .foregroundColor(.secondary)
                     }
                 }
-            }
-
-            // Charge Level Gauge Bar
-            if let charge = sample.charge {
-                let ratio = min(1.0, max(0.0, charge / 100.0))
-                GeometryReader { geo in
-                    ZStack(alignment: .leading) {
-                        RoundedRectangle(cornerRadius: 3)
-                            .fill(Color.secondary.opacity(0.18))
-                            .frame(height: 6)
-
-                        RoundedRectangle(cornerRadius: 3)
-                            .fill(
-                                LinearGradient(
-                                    colors: [chargeColor(for: charge, state: sample.state).opacity(0.8), chargeColor(for: charge, state: sample.state)],
-                                    startPoint: .leading,
-                                    endPoint: .trailing
-                                )
-                            )
-                            .frame(width: max(0, geo.size.width * CGFloat(ratio)), height: 6)
-                    }
-                }
-                .frame(height: 6)
-            }
-
-            // Power Draw Rolling Graph
-            if !historyPowerDraw.isEmpty || sample.powerDrawWatts != nil {
-                powerDrawGraphSection()
-            }
-
-            // Power Draw & Adapter Wattage Tiles
-            HStack(spacing: 8) {
-                if let draw = sample.powerDrawWatts {
-                    telemetryTile(
-                        title: "Power Draw",
-                        value: String(format: "%.1f W", draw),
-                        color: .orange,
-                        icon: "bolt.fill"
-                    )
-                }
-
-                if let adapter = sample.adapterWatts {
-                    telemetryTile(
-                        title: "Power Adapter",
-                        value: String(format: "%.0f W", adapter),
-                        color: .green,
-                        icon: "powerplug.fill"
-                    )
-                }
-            }
-
-            // Battery Health & Longevity Section
-            if hasHealthMetrics(sample) {
-                batteryHealthSection(sample: sample)
+            } else {
+                Text("Sampling power telemetry...")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundColor(.secondary)
             }
         }
     }
 
-    // MARK: - No Battery Section (Desktop Mac)
+    // MARK: - Power Sparkline
 
-    private func noBatterySection(sample: PowerSample) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 8) {
-                Image(systemName: "powerplug.fill")
-                    .font(.system(size: 16))
-                    .foregroundColor(.green)
-
-                VStack(alignment: .leading, spacing: 1) {
-                    Text("Desktop Mac (AC Powered)")
-                        .font(.system(size: 11, weight: .bold))
-                        .foregroundColor(.primary)
-                    Text("Connected to power supply. No internal battery present.")
-                        .font(.system(size: 9))
-                        .foregroundColor(.secondary)
-                }
-
-                Spacer()
-            }
-            .padding(8)
-            .background(
-                RoundedRectangle(cornerRadius: 7)
-                    .fill(Color.secondary.opacity(0.06))
-            )
-
-            // Wattage tiles if available
-            HStack(spacing: 8) {
-                if let draw = sample.powerDrawWatts {
-                    telemetryTile(
-                        title: "System Power Draw",
-                        value: String(format: "%.1f W", draw),
-                        color: .orange,
-                        icon: "bolt.fill"
-                    )
-                }
-
-                if let adapter = sample.adapterWatts {
-                    telemetryTile(
-                        title: "Power Supply",
-                        value: String(format: "%.0f W", adapter),
-                        color: .green,
-                        icon: "powerplug.fill"
-                    )
-                }
-            }
-
-            if historyPowerDraw.count >= 2 {
-                powerDrawGraphSection()
-            }
-        }
-    }
-
-    // MARK: - Power Draw Graph Section
-
-    private func powerDrawGraphSection() -> some View {
+    private var powerSparkline: some View {
         VStack(alignment: .leading, spacing: 4) {
             RollingGraphView(
                 values: historyPowerDraw,
                 minValue: 0.0,
-                maxValue: peakPowerDraw,
-                tintColor: .orange,
+                maxValue: max(peakPowerDraw * 1.1, 20.0),
+                tintColor: .green,
                 capacity: 60,
                 height: 44,
                 showGrid: true
             )
 
             HStack {
-                Text("Power Draw History")
+                Text("last 2 min (draw)")
                     .font(.system(size: 9, weight: .medium))
                     .foregroundColor(.secondary)
+
                 Spacer()
-                Text(String(format: "Peak: %.1f W", peakPowerDraw))
-                    .font(.system(size: 9, weight: .semibold, design: .monospaced))
+
+                Text(String(format: "peak %.1f W", peakPowerDraw))
+                    .font(.system(size: 9, weight: .bold, design: .monospaced))
                     .foregroundColor(.secondary)
             }
+            .padding(.horizontal, 2)
         }
     }
 
-    // MARK: - Battery Health Section
+    // MARK: - Power Budget Bar
 
-    private func batteryHealthSection(sample: PowerSample) -> some View {
-        VStack(alignment: .leading, spacing: 5) {
-            Button(action: {
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    isHealthExpanded.toggle()
+    private func powerBudgetBar(sample: PowerSample, draw: Double) -> some View {
+        let adapterWatts = sample.adapterWatts ?? 0
+        let ceiling = adapterWatts > 0 ? Double(adapterWatts) : max(peakPowerDraw, 30.0)
+        let ratio = min(max(draw / ceiling, 0.0), 1.0)
+
+        return VStack(alignment: .leading, spacing: 3) {
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(Color.secondary.opacity(0.15))
+
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(ratio > 0.85 ? Color.orange : Color.green)
+                        .frame(width: max(0, geo.size.width * CGFloat(ratio)))
                 }
-            }) {
-                HStack {
-                    Text("Battery Health & Capacity")
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundColor(.primary)
-                    Spacer()
-                    if let condition = sample.condition {
-                        Text(condition)
-                            .font(.system(size: 9.5, weight: .bold))
-                            .foregroundColor(condition == "Normal" ? .green : .red)
-                    }
-                    Image(systemName: isHealthExpanded ? "chevron.up" : "chevron.down")
-                        .font(.system(size: 9, weight: .bold))
+            }
+            .frame(height: 5)
+
+            HStack {
+                Text(String(format: "Draw %.1f W", draw))
+                    .font(.system(size: 8.5, weight: .semibold, design: .monospaced))
+                    .foregroundColor(.secondary)
+
+                Spacer()
+
+                if adapterWatts > 0 {
+                    Text(String(format: "Adapter %d W", adapterWatts))
+                        .font(.system(size: 8.5, weight: .semibold, design: .monospaced))
                         .foregroundColor(.secondary)
                 }
             }
-            .buttonStyle(.plain)
+        }
+    }
 
-            if isHealthExpanded {
-                VStack(spacing: 5) {
-                    if let curMax = sample.currentMaxCapacity, let design = sample.designCapacity, design > 0 {
-                        let healthPercent = (Double(curMax) / Double(design)) * 100.0
-                        healthRow(
-                            title: "Maximum Capacity",
-                            value: String(format: "%.1f%% (%d / %d mAh)", healthPercent, curMax, design),
-                            valueColor: healthPercent >= 80 ? .green : .orange
-                        )
-                    } else if let curMax = sample.currentMaxCapacity {
-                        healthRow(title: "Maximum Capacity", value: "\(curMax) mAh")
-                    }
+    // MARK: - Diagnostics Content
 
-                    if let cycles = sample.cycleCount {
-                        healthRow(title: "Cycle Count", value: "\(cycles) cycles")
-                    }
+    @ViewBuilder
+    private func diagnosticsContent(sample: PowerSample) -> some View {
+        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 5) {
+            if let maxCap = sample.currentMaxCapacity, let desCap = sample.designCapacity, desCap > 0 {
+                let healthPct = min(Double(maxCap) / Double(desCap) * 100.0, 100.0)
+                healthTile(label: "Maximum Capacity", value: String(format: "%.0f%%", healthPct), icon: "heart.fill", color: .green)
+            }
 
-                    if let condition = sample.condition {
-                        healthRow(title: "Condition", value: condition, valueColor: condition == "Normal" ? .green : .red)
-                    }
-                }
-                .padding(7)
-                .background(
-                    RoundedRectangle(cornerRadius: 6)
-                        .fill(Color.secondary.opacity(0.06))
-                )
-                .transition(.opacity)
+            if let cycles = sample.cycleCount {
+                healthTile(label: "Cycle Count", value: "\(cycles) Cycles", icon: "arrow.triangle.2.circlepath", color: .blue)
+            }
+
+            if let condition = sample.condition {
+                healthTile(label: "Condition", value: condition, icon: "checkmark.seal.fill", color: .green)
+            }
+
+            if let adapter = sample.adapterWatts {
+                healthTile(label: "Power Source", value: "\(adapter)W Adapter", icon: "powerplug.fill", color: .secondary)
             }
         }
-        .padding(.top, 2)
+        .padding(.top, 4)
     }
 
-    private func healthRow(title: String, value: String, valueColor: Color = .primary) -> some View {
-        HStack {
-            Text(title)
-                .font(.system(size: 9.5))
-                .foregroundColor(.secondary)
-            Spacer()
-            Text(value)
-                .font(.system(size: 10, weight: .semibold, design: .monospaced))
-                .foregroundColor(valueColor)
-        }
-    }
-
-    private func telemetryTile(title: String, value: String, color: Color, icon: String) -> some View {
-        HStack(spacing: 6) {
+    private func healthTile(label: String, value: String, icon: String, color: Color) -> some View {
+        HStack(spacing: 5) {
             Image(systemName: icon)
-                .font(.system(size: 10))
+                .font(.system(size: 8.5))
                 .foregroundColor(color)
-
-            VStack(alignment: .leading, spacing: 1) {
-                Text(title)
-                    .font(.system(size: 8.5))
+            VStack(alignment: .leading, spacing: 0.5) {
+                Text(label)
+                    .font(.system(size: 8, weight: .medium))
                     .foregroundColor(.secondary)
-
                 Text(value)
-                    .font(.system(size: 11, weight: .bold, design: .monospaced))
+                    .font(.system(size: 9.5, weight: .bold, design: .monospaced))
                     .foregroundColor(.primary)
             }
-
-            Spacer(minLength: 0)
+            Spacer()
         }
-        .padding(.horizontal, 7)
-        .padding(.vertical, 5)
-        .background(
-            RoundedRectangle(cornerRadius: 6)
-                .fill(Color.secondary.opacity(0.06))
-        )
-        .frame(maxWidth: .infinity)
+        .padding(5)
+        .background(RoundedRectangle(cornerRadius: 6).fill(Color.secondary.opacity(0.05)))
     }
 
-    // MARK: - Helpers
-
-    private func powerSourceLabel(sample: PowerSample) -> String {
-        if sample.state == .charging || sample.state == .acConnected || sample.state == .charged {
-            if let watts = sample.adapterWatts {
-                return "Power Adapter (\(Int(watts))W)"
-            }
-            return "Power Adapter Connected"
-        }
-        return "Battery Power"
-    }
-
-    private func chargeColor(for charge: Double?, state: BatteryState?) -> Color {
-        guard let charge = charge else { return .green }
-        if state == .charging {
-            return .green
-        }
-        if charge <= 10.0 {
-            return .red
-        } else if charge <= 20.0 {
-            return .orange
+    private func formatDuration(_ seconds: TimeInterval) -> String {
+        let totalSeconds = Int(seconds)
+        let hours = totalSeconds / 3600
+        let minutes = (totalSeconds % 3600) / 60
+        if hours > 0 {
+            return "\(hours)h \(minutes)m"
         } else {
-            return .green
+            return "\(max(1, minutes))m"
         }
-    }
-
-    private func stateDisplayName(_ state: BatteryState) -> String {
-        switch state {
-        case .charging: return "Charging"
-        case .discharging: return "Discharging"
-        case .charged: return "Fully Charged"
-        case .acConnected: return "AC Power"
-        case .unknown: return "Unknown"
-        }
-    }
-
-    private func formatTimeRemaining(_ seconds: TimeInterval, state: BatteryState?) -> String {
-        let totalMinutes = Int(seconds) / 60
-        let timeStr: String
-        if totalMinutes < 60 {
-            timeStr = "\(totalMinutes)m"
-        } else {
-            let hours = totalMinutes / 60
-            let minutes = totalMinutes % 60
-            timeStr = minutes == 0 ? "\(hours)h" : "\(hours)h \(minutes)m"
-        }
-
-        if state == .charging {
-            return "\(timeStr) until full"
-        } else {
-            return "\(timeStr) remaining"
-        }
-    }
-
-    private func hasHealthMetrics(_ sample: PowerSample) -> Bool {
-        sample.cycleCount != nil || sample.condition != nil || sample.currentMaxCapacity != nil || sample.designCapacity != nil
     }
 }
-

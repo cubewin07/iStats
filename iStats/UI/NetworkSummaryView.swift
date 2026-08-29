@@ -1,8 +1,10 @@
 import SwiftUI
 import iStatsCore
 
-/// A comprehensive Network metrics view displaying aggregate throughput, live rolling history graph,
-/// session cumulative transfer totals, and per-interface bandwidth breakdown (Requirements 6.1-6.4, 10.1, 11.3).
+/// A Network metrics card view:
+/// 1. Dynamic Dual Flow Pipes Illustration (Down in Teal, Up in Blue)
+/// 2. Side-by-side prominent Dual Hero Down/Up Rates + Dual-trace sparkline
+/// 3. Session cumulative transfer totals + Collapsible interface diagnostics.
 public struct NetworkSummaryView: View {
     public let sample: NetworkSample?
     public let history: [Sample<NetworkSample>]
@@ -23,103 +25,136 @@ public struct NetworkSummaryView: View {
         self.byteStandard = byteStandard
     }
 
-    /// History values converted according to current network unit preference.
-    private var historyRates: [Double] {
+    private var verdict: MetricVerdict {
+        VerdictEvaluator.evaluateNetwork(sample, unit: networkUnit, standard: byteStandard)
+    }
+
+    private var historyInRates: [Double] {
         history.map { s in
-            let totalBytesPerSec = s.value.totalBytesInPerSec + s.value.totalBytesOutPerSec
-            return networkUnit == .bitsPerSecond ? Units.bytesPerSecToBitsPerSec(totalBytesPerSec) : totalBytesPerSec
+            let bytes = s.value.totalBytesInPerSec
+            return networkUnit == .bitsPerSecond ? Units.bytesPerSecToBitsPerSec(bytes) : bytes
         }
     }
 
-    private var currentTotalRate: Double {
-        guard let sample = sample else { return 0.0 }
-        let total = sample.totalBytesInPerSec + sample.totalBytesOutPerSec
-        return networkUnit == .bitsPerSecond ? Units.bytesPerSecToBitsPerSec(total) : total
-    }
-
-    private var peakRate: Double {
-        let maxHist = historyRates.max() ?? 0.0
-        return max(maxHist, currentTotalRate, 1.0)
+    private var historyOutRates: [Double] {
+        history.map { s in
+            let bytes = s.value.totalBytesOutPerSec
+            return networkUnit == .bitsPerSecond ? Units.bytesPerSecToBitsPerSec(bytes) : bytes
+        }
     }
 
     public var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            // Dual Hero Speed Cards (Download & Upload)
-            HStack(spacing: 8) {
-                // Download Speed Card
-                speedCard(
-                    title: "Download",
-                    rateString: sample != nil ? Units.formatNetworkRate(sample!.totalBytesInPerSec, unit: networkUnit, standard: byteStandard, fractionDigits: 1) : "—",
-                    icon: "arrow.down.circle.fill",
-                    color: .teal
-                )
+            // MARK: - Hero Row: Dynamic Pipes + Dual Hero Rates (Down / Up)
+            HStack(alignment: .center, spacing: 14) {
+                // Live Dynamic Flow Pipes Illustration
+                NetworkPipesIllustrationView(sample: sample, size: CGSize(width: 42, height: 64))
 
-                // Upload Speed Card
-                speedCard(
-                    title: "Upload",
-                    rateString: sample != nil ? Units.formatNetworkRate(sample!.totalBytesOutPerSec, unit: networkUnit, standard: byteStandard, fractionDigits: 1) : "—",
-                    icon: "arrow.up.circle.fill",
-                    color: .blue
-                )
-            }
+                // Dual Hero Rates Side-by-Side
+                VStack(alignment: .leading, spacing: 3) {
+                    if let sample = sample {
+                        HStack(spacing: 14) {
+                            // Download
+                            VStack(alignment: .leading, spacing: 1) {
+                                HStack(spacing: 3) {
+                                    Image(systemName: "arrow.down")
+                                        .font(.system(size: 8.5, weight: .bold))
+                                        .foregroundColor(.teal)
+                                    Text("Download")
+                                        .font(.system(size: 9, weight: .semibold))
+                                        .foregroundColor(.secondary)
+                                }
+                                Text(Units.formatNetworkRate(sample.totalBytesInPerSec, unit: networkUnit, standard: byteStandard, fractionDigits: 1))
+                                    .font(.system(size: 15, weight: .bold, design: .monospaced))
+                                    .foregroundColor(.primary)
+                            }
 
-            // Rolling 60s Throughput Graph
-            VStack(alignment: .leading, spacing: 4) {
-                RollingGraphView(
-                    values: historyRates,
-                    minValue: 0.0,
-                    maxValue: peakRate,
-                    tintColor: .teal,
-                    capacity: 60,
-                    height: 44,
-                    showGrid: true
-                )
+                            // Upload
+                            VStack(alignment: .leading, spacing: 1) {
+                                HStack(spacing: 3) {
+                                    Image(systemName: "arrow.up")
+                                        .font(.system(size: 8.5, weight: .bold))
+                                        .foregroundColor(.blue)
+                                    Text("Upload")
+                                        .font(.system(size: 9, weight: .semibold))
+                                        .foregroundColor(.secondary)
+                                }
+                                Text(Units.formatNetworkRate(sample.totalBytesOutPerSec, unit: networkUnit, standard: byteStandard, fractionDigits: 1))
+                                    .font(.system(size: 15, weight: .bold, design: .monospaced))
+                                    .foregroundColor(.primary)
+                            }
+                        }
 
-                HStack {
-                    Text("Network Traffic History")
-                        .font(.system(size: 9, weight: .medium))
-                        .foregroundColor(.secondary)
-                    Spacer()
-                    if sample != nil {
-                        let peakBytesPerSec = networkUnit == .bitsPerSecond ? (peakRate / 8.0) : peakRate
-                        Text("Peak: \(Units.formatNetworkRate(peakBytesPerSec, unit: networkUnit, standard: byteStandard, fractionDigits: 1))")
-                            .font(.system(size: 9, weight: .semibold, design: .monospaced))
+                        // Session totals
+                        Text("Session: \(Units.formatBytes(sample.totalBytesIn, standard: byteStandard)) in · \(Units.formatBytes(sample.totalBytesOut, standard: byteStandard)) out")
+                            .font(.system(size: 9.5, weight: .medium, design: .monospaced))
+                            .foregroundColor(.secondary)
+                            .padding(.top, 2)
+                    } else {
+                        Text("Sampling network...")
+                            .font(.system(size: 13, weight: .medium))
                             .foregroundColor(.secondary)
                     }
                 }
+
+                Spacer(minLength: 0)
             }
 
-            if let sample = sample {
-                // Session Cumulative Transfer Totals (Session In / Out)
-                HStack(spacing: 8) {
-                    sessionDataTile(
-                        title: "Session Downloaded",
-                        value: Units.formatBytes(sample.totalBytesIn, standard: byteStandard, fractionDigits: 2),
-                        icon: "arrow.down.to.line.compact",
-                        color: .teal
-                    )
+            // MARK: - Dual-Trace Rolling Sparkline (Down in Teal, Up in Blue)
+            VStack(alignment: .leading, spacing: 4) {
+                DualTraceRollingGraphView(
+                    primaryValues: historyInRates,
+                    secondaryValues: historyOutRates,
+                    primaryColor: .teal,
+                    secondaryColor: .blue,
+                    primaryLabel: "In",
+                    secondaryLabel: "Out",
+                    height: 44,
+                    capacity: 60
+                )
 
-                    sessionDataTile(
-                        title: "Session Uploaded",
-                        value: Units.formatBytes(sample.totalBytesOut, standard: byteStandard, fractionDigits: 2),
-                        icon: "arrow.up.to.line.compact",
-                        color: .blue
-                    )
-                }
+                HStack {
+                    HStack(spacing: 8) {
+                        HStack(spacing: 3) {
+                            Circle().fill(Color.teal).frame(width: 5, height: 5)
+                            Text("In")
+                                .font(.system(size: 9, weight: .medium))
+                                .foregroundColor(.secondary)
+                        }
+                        HStack(spacing: 3) {
+                            Circle().fill(Color.blue).frame(width: 5, height: 5)
+                            Text("Out")
+                                .font(.system(size: 9, weight: .medium))
+                                .foregroundColor(.secondary)
+                        }
+                    }
 
-                // Per-Interface Breakdown
-                if !sample.interfaces.isEmpty {
-                    interfacesSection(interfaces: sample.interfaces)
+                    Spacer()
+
+                    let peakIn = historyInRates.max() ?? 0
+                    let peakOut = historyOutRates.max() ?? 0
+                    let peak = max(peakIn, peakOut)
+                    Text("peak " + Units.formatNetworkRate(peak, unit: networkUnit, standard: byteStandard, fractionDigits: 1))
+                        .font(.system(size: 9, weight: .bold, design: .monospaced))
+                        .foregroundColor(.secondary)
                 }
-            } else {
-                Text("Waiting for network telemetry...")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .padding(.vertical, 6)
+                .padding(.horizontal, 2)
+            }
+
+            // MARK: - Collapsible Diagnostics (Friendly Interface List)
+            if let sample = sample, !sample.interfaces.isEmpty {
+                let activeInterfaces = sample.interfaces.filter { $0.bytesInPerSec > 0 || $0.bytesOutPerSec > 0 || $0.totalBytesIn > 0 }
+                CollapsibleSection(
+                    title: "Interfaces",
+                    count: activeInterfaces.count,
+                    isExpanded: $isInterfacesExpanded
+                ) {
+                    interfacesList(interfaces: activeInterfaces)
+                }
+                .padding(.horizontal, 4)
             }
         }
-        .padding(11)
+        .padding(10)
         .background(
             RoundedRectangle(cornerRadius: 10)
                 .fill(Color(nsColor: .controlBackgroundColor).opacity(0.5))
@@ -130,151 +165,56 @@ public struct NetworkSummaryView: View {
         )
     }
 
-    // MARK: - Speed Card
+    // MARK: - Interface Diagnostics List
 
-    private func speedCard(title: String, rateString: String, icon: String, color: Color) -> some View {
-        HStack(spacing: 7) {
-            Image(systemName: icon)
-                .font(.system(size: 16, weight: .bold))
-                .foregroundColor(color)
-
-            VStack(alignment: .leading, spacing: 1) {
-                Text(title)
-                    .font(.system(size: 9, weight: .medium))
-                    .foregroundColor(.secondary)
-
-                Text(rateString)
-                    .font(.system(size: 13, weight: .bold, design: .monospaced))
-                    .foregroundColor(.primary)
-                    .lineLimit(1)
-            }
-
-            Spacer(minLength: 0)
-        }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 6)
-        .background(
-            RoundedRectangle(cornerRadius: 8)
-                .fill(color.opacity(0.08))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 8)
-                .strokeBorder(color.opacity(0.2), lineWidth: 0.75)
-        )
-        .frame(maxWidth: .infinity)
-    }
-
-    // MARK: - Session Data Tile
-
-    private func sessionDataTile(title: String, value: String, icon: String, color: Color) -> some View {
-        HStack(spacing: 5) {
-            Image(systemName: icon)
-                .font(.system(size: 9))
-                .foregroundColor(color)
-
-            VStack(alignment: .leading, spacing: 1) {
-                Text(title)
-                    .font(.system(size: 8.5))
-                    .foregroundColor(.secondary)
-
-                Text(value)
-                    .font(.system(size: 10.5, weight: .bold, design: .monospaced))
-                    .foregroundColor(.primary)
-            }
-
-            Spacer(minLength: 0)
-        }
-        .padding(.horizontal, 7)
-        .padding(.vertical, 4)
-        .background(
-            RoundedRectangle(cornerRadius: 6)
-                .fill(Color.secondary.opacity(0.06))
-        )
-        .frame(maxWidth: .infinity)
-    }
-
-    // MARK: - Per-Interface Section
-
-    private func interfacesSection(interfaces: [InterfaceThroughput]) -> some View {
-        VStack(alignment: .leading, spacing: 5) {
-            Button(action: {
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    isInterfacesExpanded.toggle()
-                }
-            }) {
+    @ViewBuilder
+    private func interfacesList(interfaces: [InterfaceThroughput]) -> some View {
+        VStack(spacing: 3) {
+            ForEach(interfaces, id: \.interfaceName) { iface in
                 HStack {
-                    Text("Active Interfaces (\(interfaces.count))")
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundColor(.primary)
+                    HStack(spacing: 4) {
+                        Circle()
+                            .fill(Color.teal)
+                            .frame(width: 4.5, height: 4.5)
+
+                        Text(friendlyInterfaceName(iface.interfaceName))
+                            .font(.system(size: 9.5, weight: .medium))
+                            .foregroundColor(.primary)
+
+                        Text("(\(iface.interfaceName))")
+                            .font(.system(size: 8, weight: .regular, design: .monospaced))
+                            .foregroundColor(.secondary)
+                    }
+
                     Spacer()
-                    Image(systemName: isInterfacesExpanded ? "chevron.up" : "chevron.down")
-                        .font(.system(size: 9, weight: .bold))
-                        .foregroundColor(.secondary)
-                }
-            }
-            .buttonStyle(.plain)
 
-            if isInterfacesExpanded {
-                VStack(spacing: 4) {
-                    ForEach(interfaces, id: \.interfaceName) { iface in
-                        HStack {
-                            HStack(spacing: 5) {
-                                Image(systemName: interfaceIcon(for: iface.interfaceName))
-                                    .font(.system(size: 9))
-                                    .foregroundColor(.secondary)
+                    HStack(spacing: 6) {
+                        Text("↓ " + Units.formatNetworkRate(iface.bytesInPerSec, unit: networkUnit, standard: byteStandard, fractionDigits: 0))
+                            .font(.system(size: 8.5, weight: .semibold, design: .monospaced))
+                            .foregroundColor(.teal)
 
-                                Text(iface.interfaceName)
-                                    .font(.system(size: 10, weight: .bold, design: .monospaced))
-                                    .foregroundColor(.primary)
-                            }
-                            .frame(width: 55, alignment: .leading)
-
-                            Spacer()
-
-                            HStack(spacing: 8) {
-                                HStack(spacing: 2) {
-                                    Image(systemName: "arrow.down")
-                                        .font(.system(size: 8, weight: .bold))
-                                        .foregroundColor(.teal)
-                                    Text(Units.formatNetworkRate(iface.bytesInPerSec, unit: networkUnit, standard: byteStandard, fractionDigits: 1))
-                                        .font(.system(size: 9, weight: .medium, design: .monospaced))
-                                        .foregroundColor(.secondary)
-                                }
-
-                                HStack(spacing: 2) {
-                                    Image(systemName: "arrow.up")
-                                        .font(.system(size: 8, weight: .bold))
-                                        .foregroundColor(.blue)
-                                    Text(Units.formatNetworkRate(iface.bytesOutPerSec, unit: networkUnit, standard: byteStandard, fractionDigits: 1))
-                                        .font(.system(size: 9, weight: .medium, design: .monospaced))
-                                        .foregroundColor(.secondary)
-                                }
-                            }
-                        }
-                        .padding(.vertical, 3)
-                        .padding(.horizontal, 6)
-                        .background(
-                            RoundedRectangle(cornerRadius: 5)
-                                .fill(Color.secondary.opacity(0.05))
-                        )
+                        Text("↑ " + Units.formatNetworkRate(iface.bytesOutPerSec, unit: networkUnit, standard: byteStandard, fractionDigits: 0))
+                            .font(.system(size: 8.5, weight: .semibold, design: .monospaced))
+                            .foregroundColor(.blue)
                     }
                 }
-                .transition(.opacity)
+                .padding(.vertical, 1.5)
+                .padding(.horizontal, 6)
+                .background(
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(Color.secondary.opacity(0.04))
+                )
             }
         }
-        .padding(.top, 2)
+        .padding(.top, 4)
     }
 
-    private func interfaceIcon(for name: String) -> String {
-        if name.hasPrefix("en0") || name.hasPrefix("en1") {
-            return "wifi"
-        } else if name.hasPrefix("pdp_ip") || name.hasPrefix("cellular") {
-            return "antenna.radiowaves.left.and.right"
-        } else if name.hasPrefix("bridge") || name.hasPrefix("vlan") {
-            return "network"
-        } else {
-            return "cable.connector"
-        }
+    private func friendlyInterfaceName(_ raw: String) -> String {
+        if raw == "en0" { return "Wi-Fi" }
+        if raw == "en1" { return "Ethernet" }
+        if raw.hasPrefix("utun") { return "VPN" }
+        if raw.hasPrefix("bridge") { return "Thunderbolt Bridge" }
+        if raw.hasPrefix("pdp_ip") { return "Cellular" }
+        return raw
     }
 }
-

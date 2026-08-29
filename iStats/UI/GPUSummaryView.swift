@@ -1,14 +1,17 @@
 import SwiftUI
 import iStatsCore
 
-/// A detailed GPU metrics card view displaying live core utilization, rolling history graphs,
-/// memory consumption (VRAM / unified memory), GPU temperature, and power draw
-/// (Requirements 5.1, 5.2, 5.3, 10.1, 10.2).
+/// A GPU metrics card view:
+/// 1. Filling GPU Die Illustration + 3-pill stats row (VRAM, Temp, Watts)
+/// 2. Core utilization hero with prominent font
+/// 3. 60-sample utilization sparkline & collapsible diagnostics.
 public struct GPUSummaryView: View {
     public let sample: GPUSample?
     public let history: [Sample<GPUSample>]
     public let temperatureUnit: Units.TemperatureUnit
     public let byteStandard: Units.ByteUnitStandard
+
+    @State private var isDetailsExpanded: Bool = false
 
     public init(
         sample: GPUSample? = nil,
@@ -22,166 +25,113 @@ public struct GPUSummaryView: View {
         self.byteStandard = byteStandard
     }
 
+    private var verdict: MetricVerdict {
+        VerdictEvaluator.evaluateGPU(sample)
+    }
+
     private var historyPercentages: [Double] {
         history.compactMap { $0.value.utilization }
     }
 
-    private var hasAnyMetrics: Bool {
-        guard let s = sample else { return false }
-        return s.utilization != nil || s.memoryUsed != nil || s.tempCelsius != nil || s.powerWatts != nil
-    }
-
     public var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            // Hero Metric Row: Core Utilization % and Status Badge
-            HStack(alignment: .center, spacing: 8) {
-                VStack(alignment: .leading, spacing: 1) {
-                    Text("GPU Core Activity")
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundColor(.secondary)
+            // MARK: - Hero Row: GPU Die + Utilization & Stat Tags
+            HStack(alignment: .center, spacing: 14) {
+                // Live Filling GPU Die Illustration
+                GPUDieIllustrationView(
+                    sample: sample,
+                    temperatureUnit: temperatureUnit,
+                    byteStandard: byteStandard,
+                    size: 68,
+                    showPills: false
+                )
 
-                    if let sample = sample, let util = sample.utilization {
-                        HStack(alignment: .firstTextBaseline, spacing: 4) {
-                            Text(String(format: "%.1f", util))
-                                .font(.system(size: 24, weight: .bold, design: .rounded))
-                                .foregroundColor(usageColor(for: util))
+                // High-Readability GPU Metrics
+                VStack(alignment: .leading, spacing: 3) {
+                    if let sample = sample {
+                        if let util = sample.utilization {
+                            // Large Utilization Hero
+                            HStack(alignment: .firstTextBaseline, spacing: 4) {
+                                Text(String(format: "%.0f%%", util))
+                                    .font(.system(size: 26, weight: .bold, design: .rounded))
+                                    .foregroundColor(.primary)
 
-                            Text("%")
-                                .font(.system(size: 14, weight: .bold, design: .rounded))
-                                .foregroundColor(usageColor(for: util))
+                                Text("Core Load")
+                                    .font(.system(size: 11, weight: .semibold))
+                                    .foregroundColor(.secondary)
+                            }
+                        } else {
+                            Text("Graphics Active")
+                                .font(.system(size: 18, weight: .bold, design: .rounded))
+                                .foregroundColor(.purple)
                         }
-                    } else if sample != nil {
-                        Text("Active")
-                            .font(.system(size: 16, weight: .bold, design: .rounded))
-                            .foregroundColor(.purple)
+
+                        // 3 Compact Captions (VRAM, Temp, Watts)
+                        HStack(spacing: 5) {
+                            if let mem = sample.memoryUsed {
+                                statTag(icon: "memorychip", text: Units.formatBytes(mem, standard: byteStandard, fractionDigits: 1))
+                            }
+                            if let temp = sample.tempCelsius {
+                                statTag(icon: "thermometer.medium", text: Units.formatTemperature(temp, unit: temperatureUnit, fractionDigits: 0))
+                            }
+                            if let watts = sample.powerWatts {
+                                statTag(icon: "bolt.fill", text: String(format: "%.0f W", watts))
+                            }
+                        }
+                        .padding(.top, 2)
                     } else {
-                        Text("Sampling...")
-                            .font(.system(size: 14, weight: .medium))
+                        Text("Sampling graphics telemetry...")
+                            .font(.system(size: 13, weight: .medium))
                             .foregroundColor(.secondary)
                     }
                 }
 
-                Spacer()
+                Spacer(minLength: 0)
+            }
 
-                if let sample = sample {
-                    VStack(alignment: .trailing, spacing: 3) {
-                        HStack(spacing: 4) {
-                            Circle()
-                                .fill(Color.purple)
-                                .frame(width: 6, height: 6)
-                            Text("Renderer")
-                                .font(.system(size: 10, weight: .semibold))
-                                .foregroundColor(.purple)
-                        }
-                        .padding(.horizontal, 7)
-                        .padding(.vertical, 2.5)
-                        .background(Color.purple.opacity(0.12))
-                        .clipShape(Capsule())
+            // MARK: - 60-Sample GPU History Sparkline (if utilization available)
+            if !historyPercentages.isEmpty {
+                VStack(alignment: .leading, spacing: 4) {
+                    RollingGraphView(
+                        values: historyPercentages,
+                        minValue: 0.0,
+                        maxValue: 100.0,
+                        tintColor: .purple,
+                        capacity: 60,
+                        height: 44,
+                        showGrid: true
+                    )
 
-                        if let util = sample.utilization {
-                            Text(util > 5.0 ? "Under Load" : "Idle")
-                                .font(.system(size: 9, weight: .medium))
+                    HStack {
+                        Text("last 2 min")
+                            .font(.system(size: 9, weight: .medium))
+                            .foregroundColor(.secondary)
+
+                        Spacer()
+
+                        if let maxHist = historyPercentages.max() {
+                            Text(String(format: "peak %.0f%%", maxHist))
+                                .font(.system(size: 9, weight: .bold, design: .monospaced))
                                 .foregroundColor(.secondary)
                         }
                     }
+                    .padding(.horizontal, 2)
                 }
             }
 
-            if hasAnyMetrics {
-                // Utilization Progress Bar
-                if let util = sample?.utilization {
-                    GeometryReader { geo in
-                        ZStack(alignment: .leading) {
-                            RoundedRectangle(cornerRadius: 3)
-                                .fill(Color.secondary.opacity(0.2))
-                                .frame(height: 5)
-
-                            RoundedRectangle(cornerRadius: 3)
-                                .fill(
-                                    LinearGradient(
-                                        colors: [Color.purple.opacity(0.8), usageColor(for: util)],
-                                        startPoint: .leading,
-                                        endPoint: .trailing
-                                    )
-                                )
-                                .frame(width: max(0, geo.size.width * CGFloat(util / 100.0)), height: 5)
-                        }
-                    }
-                    .frame(height: 5)
+            // MARK: - Collapsible Diagnostics (Unified Memory & Power)
+            if let sample = sample {
+                CollapsibleSection(
+                    title: "Details",
+                    count: nil,
+                    isExpanded: $isDetailsExpanded
+                ) {
+                    diagnosticsContent(sample: sample)
                 }
-
-                // Rolling 60s GPU Activity Graph
-                if !historyPercentages.isEmpty {
-                    VStack(alignment: .leading, spacing: 4) {
-                        RollingGraphView(
-                            values: historyPercentages,
-                            minValue: 0.0,
-                            maxValue: 100.0,
-                            tintColor: .purple,
-                            capacity: 60,
-                            height: 44,
-                            showGrid: true
-                        )
-
-                        HStack {
-                            Text("GPU Activity History")
-                                .font(.system(size: 9, weight: .medium))
-                                .foregroundColor(.secondary)
-                            Spacer()
-                            if let maxVal = historyPercentages.max() {
-                                Text(String(format: "Peak: %.1f%%", maxVal))
-                                    .font(.system(size: 9, weight: .semibold, design: .monospaced))
-                                    .foregroundColor(.secondary)
-                            }
-                        }
-                    }
-                }
-
-                // Key Telemetry Row (VRAM, Temperature, Power Draw)
-                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 6) {
-                    telemetryCard(
-                        title: "Memory Used",
-                        value: sample?.memoryUsed != nil ? Units.formatBytes(sample!.memoryUsed!, standard: byteStandard, fractionDigits: 1) : "—",
-                        color: .purple,
-                        icon: "memorychip"
-                    )
-
-                    telemetryCard(
-                        title: "Temperature",
-                        value: sample?.tempCelsius != nil ? Units.formatTemperature(sample!.tempCelsius!, unit: temperatureUnit, fractionDigits: 0) : "—",
-                        color: sample?.tempCelsius != nil ? tempColor(sample!.tempCelsius!) : .secondary,
-                        icon: "thermometer.medium"
-                    )
-
-                    telemetryCard(
-                        title: "Power Draw",
-                        value: sample?.powerWatts != nil ? String(format: "%.1f W", sample!.powerWatts!) : "—",
-                        color: sample?.powerWatts != nil ? .orange : .secondary,
-                        icon: "bolt.fill"
-                    )
-                }
-            } else if sample == nil {
-                HStack(spacing: 6) {
-                    ProgressView()
-                        .scaleEffect(0.7)
-                    Text("Reading GPU statistics...")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-                .padding(.vertical, 6)
-            } else {
-                HStack(spacing: 6) {
-                    Image(systemName: "exclamationmark.triangle")
-                        .foregroundColor(.secondary)
-                        .font(.caption)
-                    Text("GPU performance metrics unavailable on this hardware.")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-                .padding(.vertical, 6)
+                .padding(.horizontal, 4)
             }
         }
-        .padding(11)
+        .padding(10)
         .background(
             RoundedRectangle(cornerRadius: 10)
                 .fill(Color(nsColor: .controlBackgroundColor).opacity(0.5))
@@ -192,55 +142,59 @@ public struct GPUSummaryView: View {
         )
     }
 
-    // MARK: - Telemetry Card
+    // MARK: - Stat Tag
 
-    private func telemetryCard(title: String, value: String, color: Color, icon: String) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            HStack(spacing: 3) {
-                Image(systemName: icon)
-                    .font(.system(size: 8))
-                    .foregroundColor(color)
-                Text(title)
-                    .font(.system(size: 9, weight: .medium))
-                    .foregroundColor(.secondary)
-            }
-
-            Text(value)
-                .font(.system(size: 11, weight: .bold, design: .monospaced))
+    private func statTag(icon: String, text: String) -> some View {
+        HStack(spacing: 3) {
+            Image(systemName: icon)
+                .font(.system(size: 8))
+                .foregroundColor(.purple)
+            Text(text)
+                .font(.system(size: 9.5, weight: .bold, design: .monospaced))
                 .foregroundColor(.primary)
-                .lineLimit(1)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 6)
-        .padding(.vertical, 5)
+        .padding(.horizontal, 5)
+        .padding(.vertical, 2)
         .background(
-            RoundedRectangle(cornerRadius: 6)
-                .fill(Color.secondary.opacity(0.06))
+            RoundedRectangle(cornerRadius: 4)
+                .fill(Color.purple.opacity(0.10))
         )
     }
 
-    // MARK: - Color Helpers
+    // MARK: - Diagnostics Content
 
-    private func usageColor(for percentage: Double) -> Color {
-        switch percentage {
-        case ..<50.0:
-            return .purple
-        case 50.0..<80.0:
-            return .orange
-        default:
-            return .red
+    @ViewBuilder
+    private func diagnosticsContent(sample: GPUSample) -> some View {
+        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 5) {
+            if let mem = sample.memoryUsed {
+                tile(label: "VRAM Used", value: Units.formatBytes(mem, standard: byteStandard), icon: "memorychip")
+            }
+            if let temp = sample.tempCelsius {
+                tile(label: "GPU Temp", value: Units.formatTemperature(temp, unit: temperatureUnit, fractionDigits: 1), icon: "thermometer.medium")
+            }
+            if let watts = sample.powerWatts {
+                tile(label: "Power Draw", value: String(format: "%.1f W", watts), icon: "bolt.fill")
+            }
         }
+        .padding(.top, 4)
     }
 
-    private func tempColor(_ celsius: Double) -> Color {
-        switch celsius {
-        case ..<60.0:
-            return .green
-        case 60.0..<80.0:
-            return .orange
-        default:
-            return .red
+    private func tile(label: String, value: String, icon: String) -> some View {
+        HStack(spacing: 5) {
+            Image(systemName: icon)
+                .font(.system(size: 8.5))
+                .foregroundColor(.purple)
+            VStack(alignment: .leading, spacing: 0.5) {
+                Text(label)
+                    .font(.system(size: 8, weight: .medium))
+                    .foregroundColor(.secondary)
+                Text(value)
+                    .font(.system(size: 9.5, weight: .bold, design: .monospaced))
+                    .foregroundColor(.primary)
+            }
+            Spacer()
         }
+        .padding(5)
+        .background(RoundedRectangle(cornerRadius: 6).fill(Color.secondary.opacity(0.05)))
     }
 }
-

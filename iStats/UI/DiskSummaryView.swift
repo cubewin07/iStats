@@ -1,8 +1,10 @@
 import SwiftUI
 import iStatsCore
 
-/// A comprehensive Disk metrics view displaying mounted volume storage capacities, usage gauges,
-/// and live I/O throughput rates with rolling history graph (Requirements 7.1-7.3, 10.1, 11.3).
+/// A Disk metrics card view:
+/// 1. Boot volume Storage Reservoir Tank + Large free space hero
+/// 2. Live Read/Write speed cards + 60-sample I/O sparkline
+/// 3. Collapsible diagnostics (IOPS, additional mounted backup/external volumes).
 public struct DiskSummaryView: View {
     public let sample: DiskSample?
     public let history: [Sample<DiskSample>]
@@ -20,7 +22,14 @@ public struct DiskSummaryView: View {
         self.byteStandard = byteStandard
     }
 
-    /// History values of combined read + write I/O throughput.
+    private var verdict: MetricVerdict {
+        VerdictEvaluator.evaluateDisk(sample, standard: byteStandard)
+    }
+
+    private var bootVolume: VolumeCapacity? {
+        sample?.volumes.first(where: { $0.mountPoint == "/" }) ?? sample?.volumes.first
+    }
+
     private var historyIORates: [Double] {
         history.map { s in
             if let io = s.value.io {
@@ -30,74 +39,105 @@ public struct DiskSummaryView: View {
         }
     }
 
-    private var currentIORate: Double {
-        guard let io = sample?.io else { return 0.0 }
-        return io.bytesReadPerSec + io.bytesWrittenPerSec
-    }
-
     private var peakIORate: Double {
         let maxHist = historyIORates.max() ?? 0.0
-        return max(maxHist, currentIORate, 1.0)
+        let cur = (sample?.io?.bytesReadPerSec ?? 0) + (sample?.io?.bytesWrittenPerSec ?? 0)
+        return max(maxHist, cur, 1.0)
     }
 
     public var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            // Dual Hero I/O Cards (Read & Write)
-            if let sample = sample, let io = sample.io {
-                HStack(spacing: 8) {
-                    ioCard(
-                        title: "Disk Read",
-                        rateString: Units.formatDiskRate(io.bytesReadPerSec, standard: byteStandard, fractionDigits: 1),
-                        iops: io.readOpsPerSec,
-                        icon: "arrow.down.circle.fill",
-                        color: .indigo
-                    )
+            // MARK: - Boot Volume Capacity Hero
+            HStack(alignment: .center, spacing: 14) {
+                // Live Storage Tank Illustration
+                DiskStorageTankIllustrationView(
+                    sample: sample,
+                    byteStandard: byteStandard,
+                    width: 38,
+                    height: 64
+                )
 
-                    ioCard(
-                        title: "Disk Write",
-                        rateString: Units.formatDiskRate(io.bytesWrittenPerSec, standard: byteStandard, fractionDigits: 1),
-                        iops: io.writeOpsPerSec,
-                        icon: "arrow.up.circle.fill",
-                        color: .purple
-                    )
+                // High-Readability Capacity Metrics
+                VStack(alignment: .leading, spacing: 3) {
+                    if let vol = bootVolume {
+                        // Large Free Space Hero
+                        HStack(alignment: .firstTextBaseline, spacing: 4) {
+                            Text(Units.formatBytes(vol.free, standard: byteStandard, fractionDigits: 0))
+                                .font(.system(size: 26, weight: .bold, design: .rounded))
+                                .foregroundColor(.primary)
+
+                            Text("free")
+                                .font(.system(size: 14, weight: .semibold, design: .rounded))
+                                .foregroundColor(.secondary)
+                        }
+
+                        // Used of Total & Used %
+                        let usedPct = vol.total > 0 ? (Double(vol.used) / Double(vol.total)) * 100.0 : 0.0
+                        Text("Used \(Units.formatBytes(vol.used, standard: byteStandard, fractionDigits: 0)) of \(Units.formatBytes(vol.total, standard: byteStandard, fractionDigits: 0)) (\(String(format: "%.0f%%", usedPct)))")
+                            .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                            .foregroundColor(.secondary)
+
+                        // Volume Name & Mount
+                        Text("\(vol.name) · \(vol.mountPoint)")
+                            .font(.system(size: 9.5, weight: .medium))
+                            .foregroundColor(.secondary.opacity(0.85))
+                    } else {
+                        Text("Sampling storage...")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundColor(.secondary)
+                    }
                 }
 
-                // Rolling 60s Disk I/O Graph
+                Spacer(minLength: 0)
+            }
+
+            // MARK: - Live I/O Activity Cards (Read & Write)
+            if let io = sample?.io {
+                HStack(spacing: 8) {
+                    ioRateCard(title: "Read", rate: io.bytesReadPerSec, icon: "arrow.down", color: .indigo)
+                    ioRateCard(title: "Write", rate: io.bytesWrittenPerSec, icon: "arrow.up", color: .purple)
+                }
+
+                // 60-Sample I/O Sparkline
                 VStack(alignment: .leading, spacing: 4) {
                     RollingGraphView(
                         values: historyIORates,
                         minValue: 0.0,
-                        maxValue: peakIORate,
+                        maxValue: peakIORate * 1.1,
                         tintColor: .indigo,
                         capacity: 60,
-                        height: 44,
+                        height: 38,
                         showGrid: true
                     )
 
                     HStack {
-                        Text("Disk I/O History")
+                        Text("last 2 min (I/O)")
                             .font(.system(size: 9, weight: .medium))
                             .foregroundColor(.secondary)
+
                         Spacer()
-                        Text("Peak: \(Units.formatDiskRate(peakIORate, standard: byteStandard, fractionDigits: 1))")
-                            .font(.system(size: 9, weight: .semibold, design: .monospaced))
+
+                        Text("peak \(Units.formatBytes(UInt64(max(0, peakIORate)), standard: byteStandard))/s")
+                            .font(.system(size: 9, weight: .bold, design: .monospaced))
                             .foregroundColor(.secondary)
                     }
+                    .padding(.horizontal, 2)
                 }
             }
 
-            // Mounted Volumes Section
+            // MARK: - Collapsible Diagnostics (All Mounted Volumes & IOPS)
             if let sample = sample, !sample.volumes.isEmpty {
-                volumesSection(volumes: sample.volumes)
-            } else if sample == nil {
-                Text("Waiting for disk telemetry...")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .padding(.vertical, 6)
+                CollapsibleSection(
+                    title: "Volumes",
+                    count: sample.volumes.count,
+                    isExpanded: $isVolumesExpanded
+                ) {
+                    diagnosticsContent(sample: sample)
+                }
+                .padding(.horizontal, 4)
             }
         }
-        .padding(11)
+        .padding(10)
         .background(
             RoundedRectangle(cornerRadius: 10)
                 .fill(Color(nsColor: .controlBackgroundColor).opacity(0.5))
@@ -108,170 +148,92 @@ public struct DiskSummaryView: View {
         )
     }
 
-    // MARK: - I/O Card
+    // MARK: - I/O Rate Card
 
-    private func ioCard(title: String, rateString: String, iops: Double, icon: String, color: Color) -> some View {
-        HStack(spacing: 7) {
+    private func ioRateCard(title: String, rate: Double, icon: String, color: Color) -> some View {
+        HStack(spacing: 6) {
             Image(systemName: icon)
-                .font(.system(size: 16, weight: .bold))
+                .font(.system(size: 9, weight: .bold))
                 .foregroundColor(color)
 
-            VStack(alignment: .leading, spacing: 1) {
+            VStack(alignment: .leading, spacing: 0.5) {
                 Text(title)
-                    .font(.system(size: 9, weight: .medium))
+                    .font(.system(size: 8.5, weight: .medium))
                     .foregroundColor(.secondary)
 
-                Text(rateString)
-                    .font(.system(size: 13, weight: .bold, design: .monospaced))
+                Text(Units.formatBytes(UInt64(max(0, rate)), standard: byteStandard, fractionDigits: 1) + "/s")
+                    .font(.system(size: 11, weight: .bold, design: .monospaced))
                     .foregroundColor(.primary)
                     .lineLimit(1)
-
-                Text(String(format: "%.0f IOPS", iops))
-                    .font(.system(size: 8.5, weight: .medium, design: .monospaced))
-                    .foregroundColor(.secondary)
             }
 
             Spacer(minLength: 0)
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 5)
+        .padding(6)
         .background(
-            RoundedRectangle(cornerRadius: 8)
-                .fill(color.opacity(0.08))
+            RoundedRectangle(cornerRadius: 6)
+                .fill(Color.secondary.opacity(0.05))
         )
-        .overlay(
-            RoundedRectangle(cornerRadius: 8)
-                .strokeBorder(color.opacity(0.2), lineWidth: 0.75)
-        )
-        .frame(maxWidth: .infinity)
     }
 
-    // MARK: - Mounted Volumes Section
+    // MARK: - Diagnostics Content
 
-    private func volumesSection(volumes: [VolumeCapacity]) -> some View {
-        VStack(alignment: .leading, spacing: 5) {
-            Button(action: {
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    isVolumesExpanded.toggle()
-                }
-            }) {
+    @ViewBuilder
+    private func diagnosticsContent(sample: DiskSample) -> some View {
+        VStack(spacing: 4) {
+            // IOPS Read / Write
+            if let io = sample.io {
                 HStack {
-                    Text("Mounted Volumes (\(volumes.count))")
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundColor(.primary)
-                    Spacer()
-                    Image(systemName: isVolumesExpanded ? "chevron.up" : "chevron.down")
-                        .font(.system(size: 9, weight: .bold))
+                    Text("I/O Operations")
+                        .font(.system(size: 9.5, weight: .medium))
                         .foregroundColor(.secondary)
-                }
-            }
-            .buttonStyle(.plain)
 
-            if isVolumesExpanded {
-                VStack(spacing: 6) {
-                    ForEach(volumes, id: \.mountPoint) { volume in
-                        volumeRow(volume: volume)
+                    Spacer()
+
+                    Text(String(format: "Read: %.0f IOPS · Write: %.0f IOPS", io.readOpsPerSec, io.writeOpsPerSec))
+                        .font(.system(size: 9.5, weight: .semibold, design: .monospaced))
+                        .foregroundColor(.primary)
+                }
+                .padding(.vertical, 2)
+                .padding(.horizontal, 6)
+                .background(RoundedRectangle(cornerRadius: 4).fill(Color.secondary.opacity(0.04)))
+            }
+
+            // All Mounted Volumes
+            ForEach(sample.volumes, id: \.mountPoint) { vol in
+                HStack {
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(vol.name)
+                            .font(.system(size: 9.5, weight: .medium))
+                            .foregroundColor(.primary)
+                            .lineLimit(1)
+
+                        Text(vol.mountPoint)
+                            .font(.system(size: 8, weight: .regular, design: .monospaced))
+                            .foregroundColor(.secondary)
+                    }
+
+                    Spacer()
+
+                    let usedPct = vol.total > 0 ? (Double(vol.used) / Double(vol.total)) * 100.0 : 0.0
+                    VStack(alignment: .trailing, spacing: 1) {
+                        Text("\(Units.formatBytes(vol.free, standard: byteStandard)) free")
+                            .font(.system(size: 9.5, weight: .semibold, design: .monospaced))
+                            .foregroundColor(.primary)
+
+                        Text("of \(Units.formatBytes(vol.total, standard: byteStandard)) (\(String(format: "%.0f%%", usedPct)))")
+                            .font(.system(size: 8, weight: .regular))
+                            .foregroundColor(.secondary)
                     }
                 }
-                .transition(.opacity)
+                .padding(.vertical, 2)
+                .padding(.horizontal, 6)
+                .background(
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(Color.secondary.opacity(0.04))
+                )
             }
         }
-        .padding(.top, 2)
-    }
-
-    private func volumeRow(volume: VolumeCapacity) -> some View {
-        let usedRatio = volume.total > 0 ? min(1.0, Double(volume.used) / Double(volume.total)) : 0.0
-
-        return VStack(alignment: .leading, spacing: 3) {
-            HStack(spacing: 5) {
-                Image(systemName: volumeIcon(for: volume.mountPoint))
-                    .font(.system(size: 11))
-                    .foregroundColor(.indigo)
-
-                VStack(alignment: .leading, spacing: 0) {
-                    Text(volume.name)
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundColor(.primary)
-                        .lineLimit(1)
-
-                    Text(volume.mountPoint)
-                        .font(.system(size: 8.5))
-                        .foregroundColor(.secondary)
-                        .lineLimit(1)
-                }
-
-                Spacer()
-
-                VStack(alignment: .trailing, spacing: 0) {
-                    Text(String(format: "%.1f%%", usedRatio * 100.0))
-                        .font(.system(size: 11, weight: .bold, design: .monospaced))
-                        .foregroundColor(gaugeColor(ratio: usedRatio))
-
-                    Text("\(Units.formatBytes(volume.free, standard: byteStandard, fractionDigits: 1)) free")
-                        .font(.system(size: 8.5))
-                        .foregroundColor(.secondary)
-                }
-            }
-
-            // Capacity Progress Bar
-            GeometryReader { geo in
-                ZStack(alignment: .leading) {
-                    RoundedRectangle(cornerRadius: 2.5)
-                        .fill(Color.secondary.opacity(0.18))
-                        .frame(height: 5)
-
-                    RoundedRectangle(cornerRadius: 2.5)
-                        .fill(
-                            LinearGradient(
-                                colors: [Color.indigo.opacity(0.8), gaugeColor(ratio: usedRatio)],
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            )
-                        )
-                        .frame(width: max(0, geo.size.width * CGFloat(usedRatio)), height: 5)
-                }
-            }
-            .frame(height: 5)
-
-            HStack {
-                Text("\(Units.formatBytes(volume.used, standard: byteStandard, fractionDigits: 1)) used")
-                    .font(.system(size: 8.5))
-                    .foregroundColor(.secondary)
-
-                Spacer()
-
-                Text("\(Units.formatBytes(volume.total, standard: byteStandard, fractionDigits: 1)) total")
-                    .font(.system(size: 8.5))
-                    .foregroundColor(.secondary)
-            }
-        }
-        .padding(7)
-        .background(
-            RoundedRectangle(cornerRadius: 7)
-                .fill(Color.secondary.opacity(0.06))
-        )
-    }
-
-    // MARK: - Helpers
-
-    private func gaugeColor(ratio: Double) -> Color {
-        if ratio >= 0.95 {
-            return .red
-        } else if ratio >= 0.85 {
-            return .orange
-        } else {
-            return .indigo
-        }
-    }
-
-    private func volumeIcon(for mountPoint: String) -> String {
-        if mountPoint == "/" || mountPoint.contains("Data") {
-            return "internaldrive.fill"
-        } else if mountPoint.hasPrefix("/Volumes") {
-            return "externaldrive.fill"
-        } else {
-            return "folder.fill"
-        }
+        .padding(.top, 4)
     }
 }
-
