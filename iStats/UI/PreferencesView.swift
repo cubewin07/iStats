@@ -185,8 +185,9 @@ public struct PreferencesView: View {
 
                             // Available Widget Styles with Live Previews
                             if store.isCategoryEnabled(category) {
+                                let hasBattery = coordinator.latestPower?.value.hasBattery ?? true
                                 VStack(spacing: 8) {
-                                    ForEach(MetricDisplayStyle.supportedStyles(for: category)) { style in
+                                    ForEach(MetricDisplayStyle.supportedStyles(for: category, hasBattery: hasBattery)) { style in
                                         widgetStyleRow(category: category, style: style)
                                     }
                                 }
@@ -233,7 +234,7 @@ public struct PreferencesView: View {
             .clipShape(RoundedRectangle(cornerRadius: 6))
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(style.displayName)
+                Text(style.displayName(for: category))
                     .font(.subheadline)
                     .fontWeight(.medium)
             }
@@ -358,8 +359,6 @@ public struct PreferencesView: View {
         case .sparkline: return "chart.xyaxis.line"
         case .text: return "textformat.123"
         case .throughput: return "arrow.up.arrow.down"
-        case .tachometer: return "speedometer"
-        case .blades: return "fanblades"
         }
     }
 

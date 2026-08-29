@@ -200,7 +200,20 @@ public final class PreferencesStore: ObservableObject, @unchecked Sendable {
         // Load modular menuBarItems (ADR 0007)
         if let data = userDefaults.data(forKey: Keys.menuBarItems),
            let items = try? JSONDecoder().decode([MenuBarItemConfig].self, from: data) {
-            self.menuBarItems = items
+            // Deduplicate items resulting from migration (e.g. if tachometer & gauge both present)
+            // and filter out styles that are no longer supported for that category.
+            var seen = Set<String>()
+            var sanitized: [MenuBarItemConfig] = []
+            for item in items {
+                let supported = MetricDisplayStyle.supportedStyles(for: item.category)
+                if supported.contains(item.style) {
+                    if !seen.contains(item.id) {
+                        seen.insert(item.id)
+                        sanitized.append(item)
+                    }
+                }
+            }
+            self.menuBarItems = sanitized.isEmpty ? MenuBarItemConfig.defaultConfigs() : sanitized
         } else {
             self.menuBarItems = MenuBarItemConfig.defaultConfigs()
         }

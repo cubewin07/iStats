@@ -11,15 +11,22 @@ public struct MenuBarIconRenderer {
         public let image: NSImage?
         public let title: String
         public let toolTip: String
+        public let accessibilityLabel: String
 
-        public init(image: NSImage? = nil, title: String = "", toolTip: String = "") {
+        public init(
+            image: NSImage? = nil,
+            title: String = "",
+            toolTip: String = "",
+            accessibilityLabel: String = ""
+        ) {
             self.image = image
             self.title = title
             self.toolTip = toolTip
+            self.accessibilityLabel = accessibilityLabel.isEmpty ? toolTip : accessibilityLabel
         }
     }
 
-    /// Primary entry point: renders image, title, and tooltip for a given menu bar item configuration.
+    /// Primary entry point: renders image, title, tooltip, and accessibility label for a given menu bar item configuration.
     public static func render(
         config: MenuBarItemConfig,
         coordinator: MetricsCoordinator,
@@ -48,7 +55,9 @@ public struct MenuBarIconRenderer {
 
         case .thermal:
             let thermal = coordinator.latestThermal?.value
-            let history = coordinator.thermalHistory.compactMap { $0.value.sensors.first?.celsius }
+            let history = coordinator.thermalHistory.compactMap { sample in
+                sample.value.sensors.map(\.celsius).max()
+            }
             return renderThermal(style: config.style, thermal: thermal, history: history, unit: preferences.temperatureUnit)
 
         case .fan:
@@ -78,7 +87,7 @@ public struct MenuBarIconRenderer {
 
         case .power:
             let power = coordinator.latestPower?.value
-            let history = coordinator.powerHistory.compactMap { $0.value.charge }
+            let history = coordinator.powerHistory.compactMap { $0.value.powerDrawWatts }
             return renderPower(style: config.style, power: power, history: history)
         }
     }
@@ -89,28 +98,28 @@ public struct MenuBarIconRenderer {
         let usage = cpu?.totalUsage ?? 0.0
         let tip = cpu != nil ? String(format: "CPU: %.1f%% (User: %.1f%%, Sys: %.1f%%)", cpu!.totalUsage, cpu!.user, cpu!.system) : "CPU: --%"
         let valStr = cpu != nil ? String(format: "%.0f%%", usage) : "--%"
+        let a11y = cpu != nil ? String(format: "CPU load %.0f percent", usage) : "CPU load unavailable"
 
         switch style {
-        case .gauge, .tachometer:
+        case .gauge:
             // Segmented Donut Pie (User vs Kernel load) with vibrant signature colors
             let img = drawCPUDonutPie(user: cpu?.user ?? usage, system: cpu?.system ?? 0.0)
-            return RenderResult(image: img, toolTip: tip)
+            return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y)
         case .bar:
             // Live Per-Core Micro-Bar Cluster (or stacked bar)
             let img = drawCPUBar(perCore: cpu?.perCore, user: cpu?.user, system: cpu?.system)
-            return RenderResult(image: img, toolTip: tip)
+            return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y)
         case .sparkline:
             // Real-Time Scrolling History Graph with signature blue gradient
             let img = drawCPUSparkline(history: history)
-            return RenderResult(image: img, toolTip: tip)
-        case .throughput, .text:
+            return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y)
+        case .text:
             // Invariant Jitter-Free Stacked Text (CPU over Usage%)
             let img = drawCategoryStackedText(title: "CPU", value: valStr, fixedWidth: 32.0)
-            return RenderResult(image: img, toolTip: tip)
-        case .symbol, .blades:
-            // Activity Instrument (Tri-Segment / 3-Blade Pie)
-            let img = drawCPUSymbol(usage: usage)
-            return RenderResult(image: img, toolTip: tip)
+            return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y)
+        default:
+            let img = drawCategoryStackedText(title: "CPU", value: valStr, fixedWidth: 32.0)
+            return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y)
         }
     }
 
@@ -124,37 +133,43 @@ public struct MenuBarIconRenderer {
         standard: Units.ByteUnitStandard
     ) -> RenderResult {
         let tip: String
+        let a11y: String
         if let mem = memory {
             let usedStr = Units.formatBytes(mem.used, standard: standard)
             let totalStr = Units.formatBytes(mem.total, standard: standard)
             tip = "MEM: \(usedStr) / \(totalStr) (\(String(format: "%.1f%%", ratio))) - Pressure: \(mem.pressure.displayName)"
+            a11y = String(format: "Memory pressure %@, %@ used of %@", mem.pressure.displayName, usedStr, totalStr)
         } else {
             tip = "MEM: --%"
+            a11y = "Memory telemetry unavailable"
         }
 
         let valStr = memory != nil ? String(format: "%.0f%%", ratio) : "--%"
 
         switch style {
-        case .gauge, .tachometer:
+        case .gauge:
             // Memory Breakdown Donut Ring (Wired / Active / Compressed / Free)
             let img = drawMemoryDonutPie(sample: memory, ratio: ratio)
-            return RenderResult(image: img, toolTip: tip)
+            return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y)
         case .bar:
-            // Segmented Stacked Memory Bar
+            // Segmented Allocation Memory Bar (Apps, Wired, Compressed, Cached)
             let img = drawMemoryStackedBar(sample: memory, ratio: ratio)
-            return RenderResult(image: img, toolTip: tip)
+            return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y)
         case .sparkline:
-            // Rolling Memory History Graph
-            let img = drawMemorySparkline(history: history)
-            return RenderResult(image: img, toolTip: tip)
-        case .throughput, .text:
+            // Rolling Memory History Graph with pressure tint
+            let img = drawMemorySparkline(history: history, pressure: memory?.pressure)
+            return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y)
+        case .symbol:
+            // Dedicated 3-state Pressure Badge / Pill (OK / WARN / CRIT)
+            let img = drawMemoryPressureBadge(pressure: memory?.pressure)
+            return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y)
+        case .text:
             // Two-Line Jitter-Free Stacked Text (MEM / Used %)
             let img = drawCategoryStackedText(title: "MEM", value: valStr, fixedWidth: 32.0)
-            return RenderResult(image: img, toolTip: tip)
-        case .symbol, .blades:
-            // Activity Instrument (Tri-Segment Pie)
-            let img = drawMemorySymbol(ratio: ratio, pressure: memory?.pressure)
-            return RenderResult(image: img, toolTip: tip)
+            return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y)
+        default:
+            let img = drawCategoryStackedText(title: "MEM", value: valStr, fixedWidth: 32.0)
+            return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y)
         }
     }
 
@@ -164,23 +179,29 @@ public struct MenuBarIconRenderer {
         let util = gpu?.utilization ?? 0.0
         let tip = gpu != nil ? String(format: "GPU: %.1f%%", util) : "GPU: --%"
         let valStr = gpu?.utilization != nil ? String(format: "%.0f%%", util) : "--%"
+        let a11y = gpu?.utilization != nil ? String(format: "GPU utilization %.0f percent", util) : "GPU utilization unavailable"
 
         switch style {
-        case .gauge, .tachometer:
-            let img = drawGPUGauge(percentage: util)
-            return RenderResult(image: img, toolTip: tip)
+        case .gauge:
+            // Util ring tinted by GPU temperature stops
+            let img = drawGPUGauge(percentage: util, tempCelsius: gpu?.tempCelsius)
+            return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y)
         case .bar:
             let img = drawGPUBar(percentage: util)
-            return RenderResult(image: img, toolTip: tip)
+            return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y)
         case .sparkline:
             let img = drawGPUSparkline(history: history)
-            return RenderResult(image: img, toolTip: tip)
-        case .throughput, .text:
+            return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y)
+        case .symbol:
+            // Mini GPU-die glyph (fill = util, color = temp)
+            let img = drawGPUDieSymbol(utilization: gpu?.utilization, tempCelsius: gpu?.tempCelsius)
+            return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y)
+        case .text:
             let img = drawCategoryStackedText(title: "GPU", value: valStr, fixedWidth: 32.0)
-            return RenderResult(image: img, toolTip: tip)
-        case .symbol, .blades:
-            let img = drawGPUSymbol(utilization: gpu?.utilization)
-            return RenderResult(image: img, toolTip: tip)
+            return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y)
+        default:
+            let img = drawCategoryStackedText(title: "GPU", value: valStr, fixedWidth: 32.0)
+            return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y)
         }
     }
 
@@ -192,28 +213,32 @@ public struct MenuBarIconRenderer {
         history: [Double],
         unit: Units.TemperatureUnit
     ) -> RenderResult {
-        let sensor = thermal?.sensors.first(where: { $0.name.contains("Package") || $0.name.contains("CPU") || $0.name.contains("SoC") }) ?? thermal?.sensors.first
+        // Peak (hottest) sensor selection across all available hardware sensors
+        let sensor = thermal?.sensors.max(by: { $0.celsius < $1.celsius }) ?? thermal?.sensors.first
         let tempC = sensor?.celsius ?? 0.0
         let pct = min(max((tempC - 30.0) / (100.0 - 30.0) * 100.0, 0.0), 100.0)
-        let tip = sensor != nil ? "Thermal: \(Units.formatTemperature(tempC, unit: unit, fractionDigits: 1))" : "Thermal: --"
-        let valStr = sensor != nil ? (unit == .celsius ? String(format: "%.0f°", tempC) : String(format: "%.0f°", Units.celsiusToFahrenheit(tempC))) : (unit == .celsius ? "--°" : "--°")
+        let formattedTemp = Units.formatTemperature(tempC, unit: unit, fractionDigits: 0)
+        let tip = sensor != nil ? "Thermal: \(Units.formatTemperature(tempC, unit: unit, fractionDigits: 1)) (Peak: \(sensor!.name))" : "Thermal: --"
+        let valStr = sensor != nil ? formattedTemp : "--°"
+        let a11y = sensor != nil ? "Peak temperature \(formattedTemp)" : "Thermal unavailable"
 
         switch style {
-        case .gauge, .tachometer:
-            let img = drawThermalGauge(percentage: pct, celsius: sensor?.celsius)
-            return RenderResult(image: img, toolTip: tip)
+        case .gauge:
+            let img = drawThermalGauge(percentage: pct, celsius: tempC)
+            return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y)
         case .bar:
-            let img = drawThermalBar(percentage: pct, celsius: sensor?.celsius)
-            return RenderResult(image: img, toolTip: tip)
+            let img = drawThermalBar(percentage: pct, celsius: tempC)
+            return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y)
         case .sparkline:
             let img = drawThermalSparkline(history: history)
-            return RenderResult(image: img, toolTip: tip)
-        case .throughput, .text:
-            let img = drawCategoryStackedText(title: "CPU", value: valStr, fixedWidth: 32.0)
-            return RenderResult(image: img, toolTip: tip)
-        case .symbol, .blades:
-            let img = drawThermalSymbol(celsius: sensor?.celsius)
-            return RenderResult(image: img, toolTip: tip)
+            return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y)
+        case .text:
+            // Title must be "TMP", never "CPU", with hottest sensor temperature
+            let img = drawCategoryStackedText(title: "TMP", value: valStr, fixedWidth: 32.0)
+            return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y)
+        default:
+            let img = drawCategoryStackedText(title: "TMP", value: valStr, fixedWidth: 32.0)
+            return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y)
         }
     }
 
@@ -234,13 +259,17 @@ public struct MenuBarIconRenderer {
         let primaryFan = fans.max(by: { fanPercentage(for: $0) < fanPercentage(for: $1) }) ?? fans.first
         let rpm = primaryFan?.rpm ?? 0
         let tip: String
+        let a11y: String
         if let f = primaryFan {
             let desc = fans.count > 1 ? fans.map { "\($0.name): \($0.rpm) RPM" }.joined(separator: ", ") : "\(f.name): \(rpm) RPM"
             tip = "Fans: \(desc)"
+            a11y = "Fans running at \(rpm) RPM"
         } else if fan?.isFanless == true {
             tip = "Fans: Fanless System"
+            a11y = "Fanless system"
         } else {
             tip = "Fans: -- RPM"
+            a11y = "Fans unavailable"
         }
 
         let pct: Double = primaryFan != nil ? fanPercentage(for: primaryFan!) : 0.0
@@ -248,26 +277,25 @@ public struct MenuBarIconRenderer {
 
         switch style {
         case .gauge:
-            let img = drawFanGauge(percentage: pct)
-            return RenderResult(image: img, toolTip: tip)
+            // 240° tachometer with ticks + needle
+            let img = drawFanTachometer(percentage: pct, rpm: primaryFan?.rpm)
+            return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y)
         case .bar:
             let img = drawFanBar(fan: fan, primaryPct: pct)
-            return RenderResult(image: img, toolTip: tip)
+            return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y)
         case .sparkline:
             let img = drawFanSparkline(history: history)
-            return RenderResult(image: img, toolTip: tip)
+            return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y)
         case .text:
             let img = drawCategoryStackedText(title: "FAN", value: valStr, fixedWidth: 32.0)
-            return RenderResult(image: img, toolTip: tip)
+            return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y)
         case .throughput:
             let img = drawFanStackedThroughput(fan: fan, primaryPct: pct)
-            return RenderResult(image: img, toolTip: tip)
-        case .tachometer:
-            let img = drawFanTachometer(percentage: pct, rpm: primaryFan?.rpm)
-            return RenderResult(image: img, toolTip: tip)
-        case .blades, .symbol:
+            return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y)
+        case .symbol:
+            // 4-blade cooling turbine with speed-based opacity
             let img = drawFanBlades(percentage: pct, rpm: primaryFan?.rpm)
-            return RenderResult(image: img, toolTip: tip)
+            return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y)
         }
     }
 
@@ -283,33 +311,31 @@ public struct MenuBarIconRenderer {
     ) -> RenderResult {
         let inBytes = network?.totalBytesInPerSec ?? 0.0
         let outBytes = network?.totalBytesOutPerSec ?? 0.0
-        let tip = "Network: ↓ \(Units.formatNetworkRate(inBytes, unit: unit, standard: standard, fractionDigits: 1))  ↑ \(Units.formatNetworkRate(outBytes, unit: unit, standard: standard, fractionDigits: 1))"
-
-        let total = inBytes + outBytes
-        let pct = min((total / (10 * 1024 * 1024)) * 100.0, 100.0)
-        let inPct = min((inBytes / (10 * 1024 * 1024)) * 100.0, 100.0)
-        let outPct = min((outBytes / (10 * 1024 * 1024)) * 100.0, 100.0)
+        let inFormatted = Units.formatNetworkRate(inBytes, unit: unit, standard: standard, fractionDigits: 1)
+        let outFormatted = Units.formatNetworkRate(outBytes, unit: unit, standard: standard, fractionDigits: 1)
+        let tip = "Network: ↓ \(inFormatted)  ↑ \(outFormatted)"
+        let a11y = "Network download \(inFormatted), upload \(outFormatted)"
 
         switch style {
-        case .throughput, .text:
+        case .throughput:
             // Signature iStat Menus 2-Line Stacked Download (↓) & Upload (↑) Speeds
             let img = drawNetworkStackedThroughput(inBytes: inBytes, outBytes: outBytes, unit: unit, standard: standard)
-            return RenderResult(image: img, toolTip: tip)
+            return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y)
         case .sparkline:
-            // Signature iStat Menus Split Duplex Graph (Download top half, Upload bottom half)
+            // Split Duplex Graph with decay-max scaling
             let img = drawNetworkSplitDuplexGraph(inHistory: inHistory, outHistory: outHistory)
-            return RenderResult(image: img, toolTip: tip)
-        case .symbol, .blades:
+            return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y)
+        case .symbol:
             // Dynamic Dual Activity Arrows
             let img = drawNetworkActivityArrows(inBytes: inBytes, outBytes: outBytes)
-            return RenderResult(image: img, toolTip: tip)
+            return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y)
         case .bar:
-            // Dual In/Out Saturation Bars
-            let img = drawNetworkBar(inPct: inPct, outPct: outPct)
-            return RenderResult(image: img, toolTip: tip)
-        case .gauge, .tachometer:
-            let img = drawNetworkGauge(percentage: pct)
-            return RenderResult(image: img, toolTip: tip)
+            // Dual In/Out Saturation Bars with decay-max scaling
+            let img = drawNetworkBar(inBytes: inBytes, outBytes: outBytes, inHistory: inHistory, outHistory: outHistory)
+            return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y)
+        default:
+            let img = drawNetworkStackedThroughput(inBytes: inBytes, outBytes: outBytes, unit: unit, standard: standard)
+            return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y)
         }
     }
 
@@ -323,10 +349,10 @@ public struct MenuBarIconRenderer {
     ) -> RenderResult {
         let readBytes = disk?.io?.bytesReadPerSec ?? 0.0
         let writeBytes = disk?.io?.bytesWrittenPerSec ?? 0.0
-        let tip = "Disk I/O: Read \(Units.formatDiskRate(readBytes, standard: standard, fractionDigits: 1)), Write \(Units.formatDiskRate(writeBytes, standard: standard, fractionDigits: 1))"
-
-        let readPct = min((readBytes / (50 * 1024 * 1024)) * 100.0, 100.0)
-        let writePct = min((writeBytes / (50 * 1024 * 1024)) * 100.0, 100.0)
+        let rStr = Units.formatDiskRate(readBytes, standard: standard, fractionDigits: 1)
+        let wStr = Units.formatDiskRate(writeBytes, standard: standard, fractionDigits: 1)
+        let tip = "Disk I/O: Read \(rStr), Write \(wStr)"
+        let a11y = "Disk read \(rStr), write \(wStr)"
 
         // Volume capacity ratio
         let primaryVol = disk?.volumes.first(where: { $0.mountPoint == "/" }) ?? disk?.volumes.first
@@ -335,25 +361,29 @@ public struct MenuBarIconRenderer {
             : 0.0
 
         switch style {
-        case .throughput, .text:
+        case .throughput:
             // Two-Line Stacked Read / Write Speeds
             let img = drawDiskStackedThroughput(readBytes: readBytes, writeBytes: writeBytes, standard: standard)
-            return RenderResult(image: img, toolTip: tip)
-        case .symbol, .blades:
+            return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y)
+        case .symbol:
             // Dynamic Read / Write Activity LEDs
             let img = drawDiskActivityLeds(readBytes: readBytes, writeBytes: writeBytes)
-            return RenderResult(image: img, toolTip: tip)
-        case .gauge, .tachometer:
-            // Volume Capacity Donut Pie
-            let img = drawCircularGauge(percentage: volRatio, iconName: "internaldrive")
-            return RenderResult(image: img, toolTip: tip)
+            return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y)
+        case .gauge:
+            // Volume Capacity Donut Ring (Boot volume used %)
+            let img = drawDiskGauge(percentage: volRatio)
+            return RenderResult(image: img, toolTip: tip, accessibilityLabel: String(format: "Storage %.0f percent full", volRatio))
         case .bar:
-            // Dual Read / Write Activity Bars
-            let img = drawDiskBar(readPct: readPct, writePct: writePct)
-            return RenderResult(image: img, toolTip: tip)
+            // "SSD" + Boot Volume Used-% Capsule Bar
+            let img = drawDiskBar(percentage: volRatio)
+            return RenderResult(image: img, toolTip: tip, accessibilityLabel: String(format: "Storage %.0f percent full", volRatio))
         case .sparkline:
+            // Combined I/O History with decay-max scaling
             let img = drawDiskSparkline(history: history)
-            return RenderResult(image: img, toolTip: tip)
+            return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y)
+        default:
+            let img = drawDiskStackedThroughput(readBytes: readBytes, writeBytes: writeBytes, standard: standard)
+            return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y)
         }
     }
 
@@ -362,38 +392,48 @@ public struct MenuBarIconRenderer {
     private static func renderPower(style: MetricDisplayStyle, power: PowerSample?, history: [Double]) -> RenderResult {
         let charge = power?.charge ?? 0.0
         let tip: String
+        let a11y: String
         if let pwr = power {
             if pwr.hasBattery {
                 let stateStr = pwr.state == .charging ? " (Charging)" : ""
                 tip = String(format: "Battery: %.0f%%%@", charge, stateStr)
+                a11y = String(format: "Battery %.0f percent%@", charge, pwr.state == .charging ? ", charging" : "")
             } else {
-                tip = "Power: Connected to AC"
+                let wattsStr = pwr.powerDrawWatts != nil ? String(format: " (%.1f W)", pwr.powerDrawWatts!) : ""
+                tip = "Power: Connected to AC\(wattsStr)"
+                a11y = "Connected to AC power"
             }
         } else {
             tip = "Battery: --%"
+            a11y = "Power unavailable"
         }
 
         let isCharging = power?.state == .charging
         let hasBattery = power?.hasBattery ?? true
 
         switch style {
-        case .symbol, .blades:
+        case .symbol:
             // Authentic Battery Shell Instrument with Live Fill & Charging Bolt
             let img = drawBatteryInstrument(charge: power?.charge, state: power?.state, hasBattery: hasBattery)
-            return RenderResult(image: img, toolTip: tip)
-        case .throughput, .text:
+            return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y)
+        case .text:
             // Two-Line Stacked Battery Charge% + Time Remaining / Wattage
             let img = drawPowerStackedText(charge: power?.charge, state: power?.state, timeRemaining: power?.timeRemaining, watts: power?.powerDrawWatts)
-            return RenderResult(image: img, toolTip: tip)
-        case .gauge, .tachometer:
+            return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y)
+        case .throughput:
+            // Live Power Budget (Draw W over Adapter W)
+            let img = drawPowerBudgetText(drawWatts: power?.powerDrawWatts, adapterWatts: power?.adapterWatts)
+            return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y)
+        case .gauge:
             let img = drawPowerGauge(percentage: charge, isCharging: isCharging)
-            return RenderResult(image: img, toolTip: tip)
+            return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y)
         case .bar:
             let img = drawPowerBar(percentage: charge, isCharging: isCharging)
-            return RenderResult(image: img, toolTip: tip)
+            return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y)
         case .sparkline:
+            // Live Power Draw Watts History with decay-max scaling
             let img = drawPowerSparkline(history: history)
-            return RenderResult(image: img, toolTip: tip)
+            return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y)
         }
     }
 
@@ -1171,9 +1211,86 @@ public struct MenuBarIconRenderer {
         return image
     }
 
-    /// Draws modern capsule load bar for Memory / RAM (with vertical "RAM" category label).
+    /// Draws authentic segmented Memory allocation bar (Apps/Active: Blue, Wired: Red, Compressed: Gold, Cached: Gray)
+    /// with vertical "RAM" category label on the left.
     public static func drawMemoryStackedBar(sample: MemorySample?, ratio: Double) -> NSImage {
-        drawSingleCapsuleBar(label: "RAM", percentage: ratio)
+        let textWidth: CGFloat = 9.5
+        let barWidth: CGFloat = 8.5
+        let barHeight: CGFloat = 20.0
+        let canvasWidth: CGFloat = 25.0
+        let size = NSSize(width: canvasWidth, height: 22)
+
+        let image = NSImage(size: size, flipped: false) { bounds in
+            let barY: CGFloat = (bounds.height - barHeight) / 2.0
+            let textRect = NSRect(x: 2.0, y: barY, width: textWidth, height: barHeight)
+            let barRect = NSRect(x: 14.5, y: barY, width: barWidth, height: barHeight)
+
+            drawVerticalCategoryText("RAM", in: textRect, color: .labelColor)
+
+            let radius = barRect.width / 2.0
+            let outerPath = NSBezierPath(roundedRect: barRect, xRadius: radius, yRadius: radius)
+            let bg = NSColor.labelColor.withAlphaComponent(0.12)
+            bg.setFill()
+            outerPath.fill()
+
+            outerPath.lineWidth = 1.2
+            NSColor.labelColor.withAlphaComponent(0.50).setStroke()
+            outerPath.stroke()
+
+            let innerInset: CGFloat = 1.4
+            let innerRect = barRect.insetBy(dx: innerInset, dy: innerInset)
+            let innerRadius = max(innerRect.width / 2.0, 1.0)
+            let innerClipPath = NSBezierPath(roundedRect: innerRect, xRadius: innerRadius, yRadius: innerRadius)
+
+            NSGraphicsContext.saveGraphicsState()
+            innerClipPath.addClip()
+
+            if let mem = sample, mem.total > 0 {
+                let total = Double(mem.total)
+                // Color tokens:
+                // Active/Apps: blue, Wired: red, Compressed: gold (0.85, 0.65, 0.10), Cached: gray
+                let activeBytes = Double(mem.appMemory ?? mem.active ?? (mem.used - min(mem.used, mem.wired + mem.compressed)))
+                let wiredBytes = Double(mem.wired)
+                let compBytes = Double(mem.compressed)
+                let cachedBytes = Double(mem.cached)
+
+                let segments: [(bytes: Double, color: NSColor)] = [
+                    (activeBytes, NSColor.systemBlue),
+                    (wiredBytes, NSColor.systemRed),
+                    (compBytes, NSColor(srgbRed: 0.85, green: 0.65, blue: 0.10, alpha: 1.0)),
+                    (cachedBytes, NSColor.secondaryLabelColor.withAlphaComponent(0.50))
+                ]
+
+                var currentY = innerRect.minY
+                let gap: CGFloat = 0.5
+
+                for seg in segments where seg.bytes > 0 {
+                    let segH = max(innerRect.height * CGFloat(seg.bytes / total), 1.0)
+                    let segRect = NSRect(
+                        x: innerRect.minX,
+                        y: currentY,
+                        width: innerRect.width,
+                        height: max(segH - gap, 0.5)
+                    )
+                    seg.color.setFill()
+                    segRect.fill()
+                    currentY += segH
+                }
+            } else {
+                let clamped = min(max(ratio, 0.0), 100.0)
+                if clamped > 0 {
+                    let fillHeight = max(innerRect.height * CGFloat(clamped / 100.0), 2.0)
+                    let fillRect = NSRect(x: innerRect.minX, y: innerRect.minY, width: innerRect.width, height: fillHeight)
+                    NSColor.systemGreen.setFill()
+                    fillRect.fill()
+                }
+            }
+
+            NSGraphicsContext.restoreGraphicsState()
+            return true
+        }
+        image.isTemplate = false
+        return image
     }
 
     /// Draws authentic iStat Menus horizontal Battery Instrument with live proportional level fill & charging bolt.
@@ -1372,7 +1489,14 @@ public struct MenuBarIconRenderer {
         return image
     }
 
-    // MARK: - Compatibility Drawings & Helpers
+    // MARK: - Compatibility Drawings, Rationalized Instruments & Decay-Max Scaler
+
+    /// Computes the dynamic scaling ceiling for unbounded series with a minimum floor.
+    /// Uses peak value in recent window with decay-max protection against flattening spikes.
+    public static func computeDecayMax(values: [Double], floor: Double) -> Double {
+        let peak = values.max() ?? floor
+        return max(peak, floor)
+    }
 
     public static func drawCPUSymbol(usage: Double? = nil) -> NSImage {
         drawTriSegmentPie(ratio: usage)
@@ -1391,7 +1515,52 @@ public struct MenuBarIconRenderer {
     }
 
     public static func drawMemorySymbol(ratio: Double? = nil, pressure: MemoryPressure? = nil) -> NSImage {
-        drawTriSegmentPie(ratio: ratio)
+        drawMemoryPressureBadge(pressure: pressure)
+    }
+
+    /// Draws dedicated 3-state Memory Pressure Pill/Badge (OK / WARN / CRIT) with high-DPI micro-indicators.
+    public static func drawMemoryPressureBadge(pressure: MemoryPressure?) -> NSImage {
+        let size = NSSize(width: 18, height: 18)
+        let image = NSImage(size: size, flipped: false) { bounds in
+            let center = NSPoint(x: bounds.midX, y: bounds.midY)
+            let p = pressure ?? .normal
+
+            // Outer capsule pill container (14w x 16h)
+            let pillRect = NSRect(x: center.x - 7.0, y: center.y - 8.0, width: 14.0, height: 16.0)
+            let pill = NSBezierPath(roundedRect: pillRect, xRadius: 3.5, yRadius: 3.5)
+            NSColor.labelColor.withAlphaComponent(0.15).setStroke()
+            pill.lineWidth = 1.0
+            pill.stroke()
+
+            // 3 horizontal stepped bars rising from bottom to top
+            let barW: CGFloat = 8.5
+            let barH: CGFloat = 2.8
+            let barX: CGFloat = center.x - barW / 2.0
+
+            let levels: [(y: CGFloat, active: Bool)] = [
+                (center.y - 5.5, true),
+                (center.y - 1.4, p == .warning || p == .critical),
+                (center.y + 2.7, p == .critical)
+            ]
+
+            let fillCol: NSColor = (p == .critical) ? NSColor.systemRed : ((p == .warning) ? NSColor.systemYellow : NSColor.systemGreen)
+
+            for lvl in levels {
+                let rect = NSRect(x: barX, y: lvl.y, width: barW, height: barH)
+                let bPath = NSBezierPath(roundedRect: rect, xRadius: 1.0, yRadius: 1.0)
+                if lvl.active {
+                    fillCol.setFill()
+                    bPath.fill()
+                } else {
+                    NSColor.secondaryLabelColor.withAlphaComponent(0.20).setFill()
+                    bPath.fill()
+                }
+            }
+
+            return true
+        }
+        image.isTemplate = false
+        return image
     }
 
     public static func drawMemoryGauge(ratio: Double) -> NSImage {
@@ -1402,15 +1571,99 @@ public struct MenuBarIconRenderer {
         drawSingleCapsuleBar(label: "RAM", percentage: ratio, barColor: .systemGreen)
     }
 
-    public static func drawMemorySparkline(history: [Double]) -> NSImage {
-        drawColoredSparkline(values: history, maxValue: 100.0, strokeColor: NSColor.systemGreen, fillColor: NSColor.systemGreen.withAlphaComponent(0.25))
+    public static func drawMemorySparkline(history: [Double], pressure: MemoryPressure? = nil) -> NSImage {
+        let p = pressure ?? .normal
+        let col: NSColor = (p == .critical) ? .systemRed : ((p == .warning) ? .systemYellow : .systemGreen)
+        return drawColoredSparkline(values: history, maxValue: 100.0, strokeColor: col, fillColor: col.withAlphaComponent(0.25))
     }
 
-    public static func drawGPUSymbol(utilization: Double? = nil) -> NSImage {
-        drawGPUGauge(percentage: utilization ?? 0.0)
+    public static func drawGPUSymbol(utilization: Double? = nil, tempCelsius: Double? = nil) -> NSImage {
+        drawGPUDieSymbol(utilization: utilization, tempCelsius: tempCelsius)
     }
 
-    public static func drawGPUGauge(percentage: Double) -> NSImage {
+    /// Draws authentic mini GPU silicon die glyph with load fill level, temperature-tinted hue, and package outline.
+    public static func drawGPUDieSymbol(utilization: Double? = nil, tempCelsius: Double? = nil) -> NSImage {
+        let size = NSSize(width: 18, height: 18)
+        let image = NSImage(size: size, flipped: false) { bounds in
+            let center = NSPoint(x: bounds.midX, y: bounds.midY)
+            let util = min(max(utilization ?? 0.0, 0.0), 100.0)
+
+            // 1. Silicon Package Frame (14×14 pt rounded square)
+            let frameRect = NSRect(x: center.x - 7.0, y: center.y - 7.0, width: 14.0, height: 14.0)
+            let framePath = NSBezierPath(roundedRect: frameRect, xRadius: 2.5, yRadius: 2.5)
+
+            // Package substrate background
+            NSColor.labelColor.withAlphaComponent(0.08).setFill()
+            framePath.fill()
+
+            // Substrate border
+            framePath.lineWidth = 1.0
+            NSColor.labelColor.withAlphaComponent(0.40).setStroke()
+            framePath.stroke()
+
+            // 2. Micro Chip Perimeter Pins (Left & Right notch ticks)
+            let pinLength: CGFloat = 1.0
+            let pinColor = NSColor.secondaryLabelColor.withAlphaComponent(0.50)
+            pinColor.setStroke()
+
+            for py in [center.y - 3.5, center.y + 3.5] {
+                let lPin = NSBezierPath()
+                lPin.move(to: NSPoint(x: frameRect.minX - pinLength, y: py))
+                lPin.line(to: NSPoint(x: frameRect.minX, y: py))
+                lPin.lineWidth = 0.8
+                lPin.stroke()
+
+                let rPin = NSBezierPath()
+                rPin.move(to: NSPoint(x: frameRect.maxX, y: py))
+                rPin.line(to: NSPoint(x: frameRect.maxX + pinLength, y: py))
+                rPin.lineWidth = 0.8
+                rPin.stroke()
+            }
+
+            // 3. Inner Silicon Die Cavity (10×10 pt)
+            let dieRect = NSRect(x: center.x - 5.0, y: center.y - 5.0, width: 10.0, height: 10.0)
+            let dieClip = NSBezierPath(roundedRect: dieRect, xRadius: 1.5, yRadius: 1.5)
+
+            NSGraphicsContext.saveGraphicsState()
+            dieClip.addClip()
+
+            // Unfilled die base
+            NSColor.labelColor.withAlphaComponent(0.12).setFill()
+            dieClip.fill()
+
+            // Active core utilization fill from bottom up
+            let col = (tempCelsius != nil) ? thermalColor(for: tempCelsius!) : NSColor.systemPurple
+            if util > 0 {
+                let fillH = max(dieRect.height * CGFloat(util / 100.0), 1.5)
+                let fillRect = NSRect(x: dieRect.minX, y: dieRect.minY, width: dieRect.width, height: fillH)
+                col.setFill()
+                fillRect.fill()
+            }
+
+            // Micro-grid silicon lattice lines
+            let gridPath = NSBezierPath()
+            gridPath.move(to: NSPoint(x: center.x, y: dieRect.minY))
+            gridPath.line(to: NSPoint(x: center.x, y: dieRect.maxY))
+            gridPath.move(to: NSPoint(x: dieRect.minX, y: center.y))
+            gridPath.line(to: NSPoint(x: dieRect.maxX, y: center.y))
+            gridPath.lineWidth = 0.5
+            NSColor.labelColor.withAlphaComponent(0.25).setStroke()
+            gridPath.stroke()
+
+            NSGraphicsContext.restoreGraphicsState()
+
+            // Die cavity border
+            dieClip.lineWidth = 0.8
+            col.withAlphaComponent(0.60).setStroke()
+            dieClip.stroke()
+
+            return true
+        }
+        image.isTemplate = false
+        return image
+    }
+
+    public static func drawGPUGauge(percentage: Double, tempCelsius: Double? = nil) -> NSImage {
         let size = NSSize(width: 18, height: 18)
         let image = NSImage(size: size, flipped: false) { bounds in
             let center = NSPoint(x: bounds.midX, y: bounds.midY)
@@ -1428,7 +1681,9 @@ public struct MenuBarIconRenderer {
                 arc.appendArc(withCenter: center, radius: radius, startAngle: 90.0, endAngle: 90.0 - CGFloat(360.0 * (clamped / 100.0)), clockwise: true)
                 arc.lineWidth = lineWidth
                 arc.lineCapStyle = .round
-                NSColor.systemPurple.setStroke()
+
+                let strokeColor = (tempCelsius != nil) ? thermalColor(for: tempCelsius!) : NSColor.systemPurple
+                strokeColor.setStroke()
                 arc.stroke()
             }
             return true
@@ -1445,7 +1700,7 @@ public struct MenuBarIconRenderer {
         drawColoredSparkline(values: history, maxValue: 100.0, strokeColor: NSColor.systemPurple, fillColor: NSColor.systemPurple.withAlphaComponent(0.25))
     }
 
-    private static func thermalColor(for celsius: Double) -> NSColor {
+    public static func thermalColor(for celsius: Double) -> NSColor {
         if celsius >= 85.0 {
             return NSColor.systemRed
         } else if celsius >= 70.0 {
@@ -1509,30 +1764,7 @@ public struct MenuBarIconRenderer {
     }
 
     public static func drawFanGauge(percentage: Double) -> NSImage {
-        let size = NSSize(width: 18, height: 18)
-        let image = NSImage(size: size, flipped: false) { bounds in
-            let center = NSPoint(x: bounds.midX, y: bounds.midY)
-            let radius: CGFloat = 7.2
-            let lineWidth: CGFloat = 2.8
-
-            let track = NSBezierPath(ovalIn: bounds.insetBy(dx: 1.8, dy: 1.8))
-            track.lineWidth = lineWidth
-            NSColor.secondaryLabelColor.withAlphaComponent(0.20).setStroke()
-            track.stroke()
-
-            let clamped = min(max(percentage, 0.0), 100.0)
-            if clamped > 0 {
-                let arc = NSBezierPath()
-                arc.appendArc(withCenter: center, radius: radius, startAngle: 90.0, endAngle: 90.0 - CGFloat(360.0 * (clamped / 100.0)), clockwise: true)
-                arc.lineWidth = lineWidth
-                arc.lineCapStyle = .round
-                NSColor.systemCyan.setStroke()
-                arc.stroke()
-            }
-            return true
-        }
-        image.isTemplate = false
-        return image
+        drawFanTachometer(percentage: percentage)
     }
 
     public static func drawFanBar(fan: FanSample?, primaryPct: Double? = nil) -> NSImage {
@@ -1763,31 +1995,23 @@ public struct MenuBarIconRenderer {
         drawNetworkActivityArrows(inBytes: inBytes ?? 0.0, outBytes: outBytes ?? 0.0)
     }
 
-    public static func drawNetworkGauge(percentage: Double) -> NSImage {
-        let size = NSSize(width: 18, height: 18)
-        let image = NSImage(size: size, flipped: false) { bounds in
-            let center = NSPoint(x: bounds.midX, y: bounds.midY)
-            let radius: CGFloat = 7.2
-            let lineWidth: CGFloat = 2.8
-
-            let track = NSBezierPath(ovalIn: bounds.insetBy(dx: 1.8, dy: 1.8))
-            track.lineWidth = lineWidth
-            NSColor.secondaryLabelColor.withAlphaComponent(0.20).setStroke()
-            track.stroke()
-
-            let clamped = min(max(percentage, 0.0), 100.0)
-            if clamped > 0 {
-                let arc = NSBezierPath()
-                arc.appendArc(withCenter: center, radius: radius, startAngle: 90.0, endAngle: 90.0 - CGFloat(360.0 * (clamped / 100.0)), clockwise: true)
-                arc.lineWidth = lineWidth
-                arc.lineCapStyle = .round
-                NSColor.systemTeal.setStroke()
-                arc.stroke()
-            }
-            return true
-        }
-        image.isTemplate = false
-        return image
+    public static func drawNetworkBar(
+        inBytes: Double,
+        outBytes: Double,
+        inHistory: [Double],
+        outHistory: [Double]
+    ) -> NSImage {
+        let inMax = computeDecayMax(values: inHistory, floor: 1024.0 * 1024.0)
+        let outMax = computeDecayMax(values: outHistory, floor: 1024.0 * 1024.0)
+        let inPct = min(max((inBytes / inMax) * 100.0, 0.0), 100.0)
+        let outPct = min(max((outBytes / outMax) * 100.0, 0.0), 100.0)
+        return drawDualCapsuleBar(
+            label: "NET",
+            leftPercentage: inPct,
+            rightPercentage: outPct,
+            leftColor: .systemTeal,
+            rightColor: .systemPurple
+        )
     }
 
     public static func drawNetworkBar(inPct: Double, outPct: Double) -> NSImage {
@@ -1796,12 +2020,12 @@ public struct MenuBarIconRenderer {
             leftPercentage: inPct,
             rightPercentage: outPct,
             leftColor: .systemTeal,
-            rightColor: .systemBlue
+            rightColor: .systemPurple
         )
     }
 
     public static func drawNetworkSparkline(history: [Double]) -> NSImage {
-        let maxVal = max(history.max() ?? 1024.0, 1024.0)
+        let maxVal = computeDecayMax(values: history, floor: 1024.0 * 1024.0)
         return drawColoredSparkline(values: history, maxValue: maxVal, strokeColor: NSColor.systemBlue, fillColor: NSColor.systemBlue.withAlphaComponent(0.25))
     }
 
@@ -1811,6 +2035,15 @@ public struct MenuBarIconRenderer {
 
     public static func drawDiskGauge(percentage: Double) -> NSImage {
         drawCircularGauge(percentage: percentage, iconName: "internaldrive")
+    }
+
+    /// Draws boot volume storage capacity used-% capsule bar (Linear capacity).
+    public static func drawDiskBar(percentage: Double) -> NSImage {
+        drawSingleCapsuleBar(
+            label: "SSD",
+            percentage: percentage,
+            barColor: .systemIndigo
+        )
     }
 
     public static func drawDiskBar(readPct: Double, writePct: Double) -> NSImage {
@@ -1824,8 +2057,8 @@ public struct MenuBarIconRenderer {
     }
 
     public static func drawDiskSparkline(history: [Double]) -> NSImage {
-        let maxVal = max(history.max() ?? 1024.0, 1024.0)
-        return drawColoredSparkline(values: history, maxValue: maxVal, strokeColor: NSColor.systemBlue, fillColor: NSColor.systemBlue.withAlphaComponent(0.25))
+        let maxVal = computeDecayMax(values: history, floor: 10.0 * 1024.0 * 1024.0)
+        return drawColoredSparkline(values: history, maxValue: maxVal, strokeColor: NSColor.systemIndigo, fillColor: NSColor.systemIndigo.withAlphaComponent(0.25))
     }
 
     public static func drawPowerSymbol(
@@ -1834,6 +2067,21 @@ public struct MenuBarIconRenderer {
         hasBattery: Bool = true
     ) -> NSImage {
         drawBatteryInstrument(charge: charge, state: state, hasBattery: hasBattery)
+    }
+
+    /// Draws 2-line stacked live power draw wattage over adapter capacity (e.g. `28W` over `68W`).
+    public static func drawPowerBudgetText(drawWatts: Double?, adapterWatts: Double?) -> NSImage {
+        let drawStr = drawWatts != nil ? String(format: "%.0fW", drawWatts!) : "--W"
+        let adaptStr = adapterWatts != nil ? String(format: "%.0fW", adapterWatts!) : "AC"
+        return drawStackedTwoLineText(
+            prefix1: "",
+            value1: drawStr,
+            prefix2: "",
+            value2: adaptStr,
+            minWidth: 34.0,
+            color1: .systemGreen,
+            color2: .secondaryLabelColor
+        )
     }
 
     public static func drawPowerGauge(percentage: Double, isCharging: Bool = false) -> NSImage {
@@ -1847,7 +2095,8 @@ public struct MenuBarIconRenderer {
     }
 
     public static func drawPowerSparkline(history: [Double]) -> NSImage {
-        drawColoredSparkline(values: history, maxValue: 100.0, strokeColor: NSColor.systemGreen, fillColor: NSColor.systemGreen.withAlphaComponent(0.25))
+        let maxVal = computeDecayMax(values: history, floor: 5.0)
+        return drawColoredSparkline(values: history, maxValue: maxVal, strokeColor: NSColor.systemGreen, fillColor: NSColor.systemGreen.withAlphaComponent(0.25))
     }
 
     /// Generic circular gauge template.

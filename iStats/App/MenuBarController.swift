@@ -192,6 +192,7 @@ public final class MenuBarController: NSObject {
         button.image = result.image
         button.title = result.title
         button.toolTip = result.toolTip
+        button.setAccessibilityLabel(result.accessibilityLabel)
 
         if result.image != nil && !result.title.isEmpty {
             button.imagePosition = .imageLeading

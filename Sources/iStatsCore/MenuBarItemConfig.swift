@@ -2,45 +2,144 @@ import Foundation
 
 /// The visual presentation style for an item in the macOS menu bar.
 public enum MetricDisplayStyle: String, CaseIterable, Identifiable, Codable, Sendable {
-    case symbol
-    case gauge
-    case bar
-    case sparkline
     case text
     case throughput
-    case tachometer
-    case blades
+    case bar
+    case gauge
+    case sparkline
+    case symbol
 
     public var id: String { rawValue }
 
+    // MARK: - Codable Migration
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        let raw = try container.decode(String.self)
+        switch raw {
+        case "tachometer":
+            self = .gauge
+        case "blades":
+            self = .symbol
+        default:
+            if let matched = MetricDisplayStyle(rawValue: raw) {
+                self = matched
+            } else {
+                throw DecodingError.dataCorruptedError(
+                    in: container,
+                    debugDescription: "Unknown MetricDisplayStyle raw value: \(raw)"
+                )
+            }
+        }
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(rawValue)
+    }
+
+    // MARK: - Display Names
+
+    /// Category-specific descriptive metric name for preferences and menus.
+    public func displayName(for category: MetricCategory) -> String {
+        switch (category, self) {
+        // CPU
+        case (.cpu, .text): return "CPU %"
+        case (.cpu, .gauge): return "User/System"
+        case (.cpu, .bar): return "Core Cluster"
+        case (.cpu, .sparkline): return "Usage History"
+
+        // Memory
+        case (.memory, .text): return "Used %"
+        case (.memory, .gauge): return "Composition"
+        case (.memory, .bar): return "Allocation"
+        case (.memory, .sparkline): return "Used % History"
+        case (.memory, .symbol): return "Pressure"
+
+        // GPU
+        case (.gpu, .text): return "GPU %"
+        case (.gpu, .gauge): return "Load Ring"
+        case (.gpu, .bar): return "Load Bar"
+        case (.gpu, .sparkline): return "Load History"
+        case (.gpu, .symbol): return "GPU Die"
+
+        // Thermal
+        case (.thermal, .text): return "Peak °C"
+        case (.thermal, .gauge): return "Temp Ring"
+        case (.thermal, .bar): return "Temp Bar"
+        case (.thermal, .sparkline): return "Peak History"
+
+        // Fans
+        case (.fan, .text): return "Fan %"
+        case (.fan, .throughput): return "Dual RPM"
+        case (.fan, .gauge): return "Tachometer"
+        case (.fan, .bar): return "Fan Bars"
+        case (.fan, .sparkline): return "RPM History"
+        case (.fan, .symbol): return "Blades"
+
+        // Network
+        case (.network, .throughput): return "Up / Down"
+        case (.network, .bar): return "In / Out Bars"
+        case (.network, .sparkline): return "Duplex History"
+        case (.network, .symbol): return "Activity Arrows"
+
+        // Disk
+        case (.disk, .throughput): return "Read / Write"
+        case (.disk, .gauge): return "Storage Ring"
+        case (.disk, .bar): return "Storage Bar"
+        case (.disk, .sparkline): return "I/O History"
+        case (.disk, .symbol): return "R/W LEDs"
+
+        // Power
+        case (.power, .text): return "Charge + Time"
+        case (.power, .throughput): return "Draw / Adapter W"
+        case (.power, .gauge): return "Charge Ring"
+        case (.power, .bar): return "Charge Bar"
+        case (.power, .sparkline): return "Wattage History"
+        case (.power, .symbol): return "Battery"
+
+        default:
+            return genericDisplayName
+        }
+    }
+
+    /// Generic presentation family name.
     public var displayName: String {
+        genericDisplayName
+    }
+
+    private var genericDisplayName: String {
         switch self {
-        case .gauge: return "Donut / Pie Chart"
-        case .bar: return "Load Bar / Multi-Fan Bar"
-        case .sparkline: return "Real-Time History Graph"
-        case .throughput: return "Stacked 2-Line Text"
         case .text: return "Single-Line Text"
+        case .throughput: return "Stacked 2-Line Text"
+        case .bar: return "Load Bar"
+        case .gauge: return "Gauge / Donut"
+        case .sparkline: return "History Graph"
         case .symbol: return "Activity Instrument"
-        case .tachometer: return "Speed Tachometer"
-        case .blades: return "Fan Turbine / Blades"
         }
     }
 
     /// Default compatible styles for a given metric category.
-    public static func supportedStyles(for category: MetricCategory) -> [MetricDisplayStyle] {
+    public static func supportedStyles(for category: MetricCategory, hasBattery: Bool = true) -> [MetricDisplayStyle] {
         switch category {
-        case .cpu, .memory, .gpu:
-            return [.gauge, .bar, .sparkline, .text, .symbol]
+        case .cpu:
+            return [.text, .gauge, .bar, .sparkline]
+        case .memory:
+            return [.text, .gauge, .bar, .sparkline, .symbol]
+        case .gpu:
+            return [.text, .gauge, .bar, .sparkline, .symbol]
         case .thermal:
-            return [.gauge, .bar, .sparkline, .text, .symbol]
+            return [.text, .gauge, .bar, .sparkline]
         case .fan:
-            return [.gauge, .bar, .sparkline, .text, .throughput, .tachometer, .blades]
+            return [.text, .throughput, .gauge, .bar, .sparkline, .symbol]
         case .network:
-            return [.throughput, .gauge, .bar, .sparkline, .text, .symbol]
+            return [.throughput, .bar, .sparkline, .symbol]
         case .disk:
-            return [.throughput, .gauge, .bar, .sparkline, .text, .symbol]
+            return [.throughput, .gauge, .bar, .sparkline, .symbol]
         case .power:
-            return [.symbol, .gauge, .bar, .sparkline, .text]
+            return hasBattery
+                ? [.text, .throughput, .gauge, .bar, .sparkline, .symbol]
+                : [.text, .throughput, .sparkline]
         }
     }
 }
@@ -82,10 +181,11 @@ public struct MenuBarItemConfig: Identifiable, Codable, Hashable, Equatable, Sen
     /// Sensible default starter widgets for the app.
     public static func defaultConfigs() -> [MenuBarItemConfig] {
         [
-            MenuBarItemConfig(category: .cpu, style: .gauge),
-            MenuBarItemConfig(category: .memory, style: .gauge),
+            MenuBarItemConfig(category: .cpu, style: .bar),
+            MenuBarItemConfig(category: .memory, style: .bar),
             MenuBarItemConfig(category: .network, style: .throughput)
         ]
     }
 }
+
 

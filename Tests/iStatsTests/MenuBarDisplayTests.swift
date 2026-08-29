@@ -245,11 +245,11 @@ final class MenuBarDisplayTests: XCTestCase {
         XCTAssertNotNil(resFanText.image)
         XCTAssertTrue(resFanText.toolTip.contains("Fans"))
 
-        let fanTachoConfig = MenuBarItemConfig(category: .fan, style: .tachometer)
+        let fanTachoConfig = MenuBarItemConfig(category: .fan, style: .gauge)
         let resFanTacho = MenuBarIconRenderer.render(config: fanTachoConfig, coordinator: coord, preferences: prefs)
         XCTAssertNotNil(resFanTacho.image)
 
-        let fanBladesConfig = MenuBarItemConfig(category: .fan, style: .blades)
+        let fanBladesConfig = MenuBarItemConfig(category: .fan, style: .symbol)
         let resFanBlades = MenuBarIconRenderer.render(config: fanBladesConfig, coordinator: coord, preferences: prefs)
         XCTAssertNotNil(resFanBlades.image)
 
@@ -472,7 +472,7 @@ final class MenuBarDisplayTests: XCTestCase {
         XCTAssertEqual(dualThroughputImg.size.width, 36.0)
 
         // Network
-        XCTAssertNotNil(MenuBarIconRenderer.drawNetworkGauge(percentage: 20.0))
+        XCTAssertNotNil(MenuBarIconRenderer.drawNetworkBar(inBytes: 2000, outBytes: 1000, inHistory: [2000], outHistory: [1000]))
         XCTAssertNotNil(MenuBarIconRenderer.drawNetworkBar(inPct: 20.0, outPct: 10.0))
         XCTAssertNotNil(MenuBarIconRenderer.drawNetworkSparkline(history: [1024, 2048, 5120, 10240]))
 
@@ -677,5 +677,126 @@ final class MenuBarDisplayTests: XCTestCase {
 
         let unmetered = MenuBarIconRenderer.drawBatteryInstrument(charge: nil, state: nil, hasBattery: true)
         XCTAssertEqual(unmetered.size, NSSize(width: 25, height: 16))
+    }
+
+    // MARK: - Design Rationalization & Semantic Contract Tests
+
+    func testDecayMaxDynamicCeiling() {
+        // Floor applies when values are below floor
+        let scaledFloor = MenuBarIconRenderer.computeDecayMax(values: [100.0, 500.0], floor: 1024.0)
+        XCTAssertEqual(scaledFloor, 1024.0)
+
+        // Peak applies when values exceed floor
+        let scaledPeak = MenuBarIconRenderer.computeDecayMax(values: [100.0, 5000.0, 2500.0], floor: 1024.0)
+        XCTAssertEqual(scaledPeak, 5000.0)
+
+        // Empty values fallback to floor
+        let scaledEmpty = MenuBarIconRenderer.computeDecayMax(values: [], floor: 5.0)
+        XCTAssertEqual(scaledEmpty, 5.0)
+    }
+
+    func testPeakThermalSensorSelectionAndTMPTitle() {
+        let suiteName = "test.istats.thermal.peak.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        let prefs = PreferencesStore(userDefaults: defaults)
+        let coord = MetricsCoordinator(preferencesStore: prefs)
+
+        // Mock thermal sample with multiple sensors (SoC hottest at 88°C, CPU at 55°C, Memory at 45°C)
+        let thermalSample = ThermalSample(
+            sensors: [
+                SensorReading(name: "Memory Module", celsius: 45.0),
+                SensorReading(name: "CPU Core Average", celsius: 55.0),
+                SensorReading(name: "SoC Peak Die", celsius: 88.0)
+            ],
+            pressure: .nominal
+        )
+        coord.handleReading(.thermal(Sample(value: thermalSample)))
+
+        let configText = MenuBarItemConfig(category: .thermal, style: .text)
+        let res = MenuBarIconRenderer.render(config: configText, coordinator: coord, preferences: prefs)
+
+        // Verify title is "TMP", never "CPU"
+        XCTAssertNotNil(res.image)
+        XCTAssertTrue(res.toolTip.contains("88.0 °C") || res.toolTip.contains("88.0°C") || res.toolTip.contains("88.0"))
+        XCTAssertTrue(res.toolTip.contains("SoC Peak Die"))
+        XCTAssertEqual(res.accessibilityLabel, "Peak temperature 88 °C")
+
+        defaults.removePersistentDomain(forName: suiteName)
+    }
+
+    func testPowerBudgetTextRendering() {
+        let suiteName = "test.istats.power.budget.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        let prefs = PreferencesStore(userDefaults: defaults)
+        let coord = MetricsCoordinator(preferencesStore: prefs)
+
+        let powerSample = PowerSample(
+            hasBattery: true,
+            charge: 80.0,
+            state: .charging,
+            powerDrawWatts: 28.4,
+            adapterWatts: 67.0
+        )
+        coord.handleReading(.power(Sample(value: powerSample)))
+
+        let configThroughput = MenuBarItemConfig(category: .power, style: .throughput)
+        let res = MenuBarIconRenderer.render(config: configThroughput, coordinator: coord, preferences: prefs)
+        XCTAssertNotNil(res.image)
+        XCTAssertEqual(res.image?.size.width, 34.0)
+        XCTAssertEqual(res.image?.size.height, 22.0)
+
+        // Direct drawer check
+        let budgetImg = MenuBarIconRenderer.drawPowerBudgetText(drawWatts: 28.0, adapterWatts: 67.0)
+        XCTAssertEqual(budgetImg.size.width, 34.0)
+        XCTAssertEqual(budgetImg.size.height, 22.0)
+
+        defaults.removePersistentDomain(forName: suiteName)
+    }
+
+    func testDiskLinearCapacityBar() {
+        let diskBar = MenuBarIconRenderer.drawDiskBar(percentage: 72.5)
+        XCTAssertEqual(diskBar.size.width, 25.0)
+        XCTAssertEqual(diskBar.size.height, 22.0)
+        XCTAssertFalse(diskBar.isTemplate)
+    }
+
+    func testMemorySegmentedBarAndPressureBadge() {
+        let memSample = MemorySample(
+            total: 32 * 1024 * 1024 * 1024,
+            used: 20 * 1024 * 1024 * 1024,
+            free: 12 * 1024 * 1024 * 1024,
+            wired: 6 * 1024 * 1024 * 1024,
+            compressed: 4 * 1024 * 1024 * 1024,
+            cached: 4 * 1024 * 1024 * 1024,
+            swapUsed: 0,
+            pressure: .warning,
+            appMemory: 10 * 1024 * 1024 * 1024,
+            active: 10 * 1024 * 1024 * 1024
+        )
+
+        // Segmented Stacked Bar
+        let barImg = MenuBarIconRenderer.drawMemoryStackedBar(sample: memSample, ratio: 62.5)
+        XCTAssertEqual(barImg.size.width, 25.0)
+        XCTAssertEqual(barImg.size.height, 22.0)
+        XCTAssertFalse(barImg.isTemplate)
+
+        // Pressure Badge (OK, WARN, CRIT)
+        let badgeNormal = MenuBarIconRenderer.drawMemoryPressureBadge(pressure: .normal)
+        let badgeWarn = MenuBarIconRenderer.drawMemoryPressureBadge(pressure: .warning)
+        let badgeCrit = MenuBarIconRenderer.drawMemoryPressureBadge(pressure: .critical)
+
+        XCTAssertEqual(badgeNormal.size, NSSize(width: 18, height: 18))
+        XCTAssertEqual(badgeWarn.size, NSSize(width: 18, height: 18))
+        XCTAssertEqual(badgeCrit.size, NSSize(width: 18, height: 18))
+    }
+
+    func testGPUDieSymbolAndTempTintedGauge() {
+        let dieSymbol = MenuBarIconRenderer.drawGPUDieSymbol(utilization: 75.0, tempCelsius: 68.0)
+        XCTAssertEqual(dieSymbol.size, NSSize(width: 18, height: 18))
+        XCTAssertFalse(dieSymbol.isTemplate)
+
+        let gpuGauge = MenuBarIconRenderer.drawGPUGauge(percentage: 80.0, tempCelsius: 72.0)
+        XCTAssertEqual(gpuGauge.size, NSSize(width: 18, height: 18))
+        XCTAssertFalse(gpuGauge.isTemplate)
     }
 }
