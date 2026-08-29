@@ -55,6 +55,17 @@
 		1100000000000000000000F1 /* MenuBarIconRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000000F0 /* MenuBarIconRenderer.swift */; };
 		1100000000000000000000F3 /* CategoryDetailPopoverView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000000F2 /* CategoryDetailPopoverView.swift */; };
 		110000000000000000000045 /* iStatsCore in Frameworks */ = {isa = PBXBuildFile; productRef = 110000000000000000000005 /* iStatsCore */; };
+		110000000000000000000101 /* MetricVerdict.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000100 /* MetricVerdict.swift */; };
+		110000000000000000000103 /* PopoverCommonComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000102 /* PopoverCommonComponents.swift */; };
+		110000000000000000000105 /* CPUDieIllustrationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000104 /* CPUDieIllustrationView.swift */; };
+		110000000000000000000107 /* MemoryStickIllustrationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000106 /* MemoryStickIllustrationView.swift */; };
+		110000000000000000000109 /* ThermalHeatMapIllustrationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000108 /* ThermalHeatMapIllustrationView.swift */; };
+		11000000000000000000010B /* FanBladesIllustrationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11000000000000000000010A /* FanBladesIllustrationView.swift */; };
+		11000000000000000000010D /* GPUDieIllustrationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11000000000000000000010C /* GPUDieIllustrationView.swift */; };
+		11000000000000000000010F /* NetworkPipesIllustrationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11000000000000000000010E /* NetworkPipesIllustrationView.swift */; };
+		110000000000000000000111 /* DiskStorageTankIllustrationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000110 /* DiskStorageTankIllustrationView.swift */; };
+		110000000000000000000113 /* PowerBudgetIllustrationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000112 /* PowerBudgetIllustrationView.swift */; };
+		110000000000000000000115 /* PopoverVerdictTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000114 /* PopoverVerdictTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -117,6 +128,17 @@
 		1100000000000000000000E6 /* PerformancePassTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PerformancePassTests.swift; sourceTree = "<group>"; };
 		1100000000000000000000F0 /* MenuBarIconRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarIconRenderer.swift; sourceTree = "<group>"; };
 		1100000000000000000000F2 /* CategoryDetailPopoverView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CategoryDetailPopoverView.swift; sourceTree = "<group>"; };
+		110000000000000000000100 /* MetricVerdict.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetricVerdict.swift; sourceTree = "<group>"; };
+		110000000000000000000102 /* PopoverCommonComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PopoverCommonComponents.swift; sourceTree = "<group>"; };
+		110000000000000000000104 /* CPUDieIllustrationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CPUDieIllustrationView.swift; sourceTree = "<group>"; };
+		110000000000000000000106 /* MemoryStickIllustrationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryStickIllustrationView.swift; sourceTree = "<group>"; };
+		110000000000000000000108 /* ThermalHeatMapIllustrationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThermalHeatMapIllustrationView.swift; sourceTree = "<group>"; };
+		11000000000000000000010A /* FanBladesIllustrationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FanBladesIllustrationView.swift; sourceTree = "<group>"; };
+		11000000000000000000010C /* GPUDieIllustrationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GPUDieIllustrationView.swift; sourceTree = "<group>"; };
+		11000000000000000000010E /* NetworkPipesIllustrationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkPipesIllustrationView.swift; sourceTree = "<group>"; };
+		110000000000000000000110 /* DiskStorageTankIllustrationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiskStorageTankIllustrationView.swift; sourceTree = "<group>"; };
+		110000000000000000000112 /* PowerBudgetIllustrationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PowerBudgetIllustrationView.swift; sourceTree = "<group>"; };
+		110000000000000000000114 /* PopoverVerdictTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PopoverVerdictTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -205,6 +227,16 @@
 				1100000000000000000000C2 /* GPUSummaryView.swift */,
 				1100000000000000000000F0 /* MenuBarIconRenderer.swift */,
 				1100000000000000000000F2 /* CategoryDetailPopoverView.swift */,
+				110000000000000000000100 /* MetricVerdict.swift */,
+				110000000000000000000102 /* PopoverCommonComponents.swift */,
+				110000000000000000000104 /* CPUDieIllustrationView.swift */,
+				110000000000000000000106 /* MemoryStickIllustrationView.swift */,
+				110000000000000000000108 /* ThermalHeatMapIllustrationView.swift */,
+				11000000000000000000010A /* FanBladesIllustrationView.swift */,
+				11000000000000000000010C /* GPUDieIllustrationView.swift */,
+				11000000000000000000010E /* NetworkPipesIllustrationView.swift */,
+				110000000000000000000110 /* DiskStorageTankIllustrationView.swift */,
+				110000000000000000000112 /* PowerBudgetIllustrationView.swift */,
 			);
 			path = UI;
 			sourceTree = "<group>";
@@ -245,6 +277,7 @@
 				1100000000000000000000E0 /* MenuBarDisplayTests.swift */,
 				1100000000000000000000E4 /* SystemIntegrationTests.swift */,
 				1100000000000000000000E6 /* PerformancePassTests.swift */,
+				110000000000000000000114 /* PopoverVerdictTests.swift */,
 			);
 			path = iStatsTests;
 			sourceTree = "<group>";
@@ -389,6 +422,16 @@
 				1100000000000000000000C3 /* GPUSummaryView.swift in Sources */,
 				1100000000000000000000F1 /* MenuBarIconRenderer.swift in Sources */,
 				1100000000000000000000F3 /* CategoryDetailPopoverView.swift in Sources */,
+				110000000000000000000101 /* MetricVerdict.swift in Sources */,
+				110000000000000000000103 /* PopoverCommonComponents.swift in Sources */,
+				110000000000000000000105 /* CPUDieIllustrationView.swift in Sources */,
+				110000000000000000000107 /* MemoryStickIllustrationView.swift in Sources */,
+				110000000000000000000109 /* ThermalHeatMapIllustrationView.swift in Sources */,
+				11000000000000000000010B /* FanBladesIllustrationView.swift in Sources */,
+				11000000000000000000010D /* GPUDieIllustrationView.swift in Sources */,
+				11000000000000000000010F /* NetworkPipesIllustrationView.swift in Sources */,
+				110000000000000000000111 /* DiskStorageTankIllustrationView.swift in Sources */,
+				110000000000000000000113 /* PowerBudgetIllustrationView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -413,6 +456,7 @@
 				1100000000000000000000E1 /* MenuBarDisplayTests.swift in Sources */,
 				1100000000000000000000E5 /* SystemIntegrationTests.swift in Sources */,
 				1100000000000000000000E7 /* PerformancePassTests.swift in Sources */,
+				110000000000000000000115 /* PopoverVerdictTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
