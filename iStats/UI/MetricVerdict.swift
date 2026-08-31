@@ -482,10 +482,19 @@ public enum VerdictEvaluator {
                 badge = "Charging"
                 sentence = "Connected to power adapter"
             }
-        case .charged, .acConnected:
+        case .charged:
             level = .fine
             badge = "Fully Charged"
             sentence = "On AC power. Battery full."
+        case .acConnected:
+            level = .fine
+            if charge >= 99.0 {
+                badge = "Fully Charged"
+                sentence = "On AC power. Battery full."
+            } else {
+                badge = "Not Charging"
+                sentence = "Connected to power. Battery not charging."
+            }
         case .discharging, .unknown:
             if charge <= 10.0 {
                 level = .critical

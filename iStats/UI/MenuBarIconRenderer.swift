@@ -444,9 +444,27 @@ public struct MenuBarIconRenderer {
         let a11y: String
         if let pwr = power {
             if pwr.hasBattery {
-                let stateStr = pwr.state == .charging ? " (Charging)" : ""
+                let stateStr: String
+                let a11yState: String
+                switch pwr.state {
+                case .charging:
+                    stateStr = " (Charging)"
+                    a11yState = ", charging"
+                case .charged:
+                    stateStr = " (Fully Charged)"
+                    a11yState = ", fully charged"
+                case .acConnected:
+                    stateStr = " (AC Connected)"
+                    a11yState = ", on AC power"
+                case .discharging:
+                    stateStr = " (On Battery)"
+                    a11yState = ", on battery"
+                case .unknown, .none:
+                    stateStr = ""
+                    a11yState = ""
+                }
                 tip = String(format: "Battery: %.0f%%%@", charge, stateStr)
-                a11y = String(format: "Battery %.0f percent%@", charge, pwr.state == .charging ? ", charging" : "")
+                a11y = String(format: "Battery %.0f percent%@", charge, a11yState)
             } else {
                 let wattsStr = power?.powerDrawWatts != nil ? String(format: " (%.1f W)", power!.powerDrawWatts!) : ""
                 tip = "Power: Connected to AC\(wattsStr)"
@@ -1452,6 +1470,10 @@ public struct MenuBarIconRenderer {
             l2 = String(format: "%d:%02d", hours, mins)
         } else if let w = watts, w > 0 {
             l2 = String(format: "%.1fW", w)
+        } else if state == .charged {
+            l2 = "Full"
+        } else if state == .acConnected {
+            l2 = "AC"
         } else {
             l2 = "Bat"
         }

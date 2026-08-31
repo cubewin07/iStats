@@ -97,9 +97,9 @@ public struct PowerSummaryView: View {
                                 .foregroundColor(.primary)
                         }
 
-                        Text(sample.state == .charging ? "Charging" : (sample.state == .acConnected ? "AC Connected" : "On Battery"))
+                        Text(sample.state == .charging ? "Charging" : (sample.state == .charged ? "Fully Charged" : (sample.state == .acConnected ? "AC Connected" : "On Battery")))
                             .font(.system(size: 12, weight: .semibold, design: .rounded))
-                            .foregroundColor(sample.state == .charging ? .green : .secondary)
+                            .foregroundColor((sample.state == .charging || sample.state == .charged) ? .green : .secondary)
 
                         if sample.state == .charging {
                             Image(systemName: "bolt.fill")
@@ -113,8 +113,12 @@ public struct PowerSummaryView: View {
                         Text(formatDuration(timeRemaining) + (sample.state == .charging ? " to full" : " remaining"))
                             .font(.system(size: 11, weight: .semibold, design: .monospaced))
                             .foregroundColor(.secondary)
-                    } else if sample.state == .acConnected {
+                    } else if sample.state == .charged || (sample.state == .acConnected && (sample.charge ?? 0) >= 99.0) {
                         Text("Fully charged / On AC power")
+                            .font(.system(size: 10.5, weight: .medium))
+                            .foregroundColor(.secondary)
+                    } else if sample.state == .acConnected {
+                        Text("Connected to power / Not charging")
                             .font(.system(size: 10.5, weight: .medium))
                             .foregroundColor(.secondary)
                     }
