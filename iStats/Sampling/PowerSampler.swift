@@ -310,13 +310,14 @@ public final class PowerSampler: Sampler, @unchecked Sendable {
 
         // 2. Battery State
         let isCharging = powerSource.isCharging ?? false
-        let isCharged = powerSource.isCharged ?? (charge == 100.0 && powerSource.powerSourceState == (kIOPSACPowerValue as String))
         let isAC = powerSource.powerSourceState == (kIOPSACPowerValue as String)
+        let isChargedExplicit = powerSource.isCharged ?? false
+        let isFullyCharged = (isChargedExplicit || (charge != nil && charge! >= 99.0)) && isAC && !isCharging
 
         let state: BatteryState
         if isCharging {
             state = .charging
-        } else if isCharged {
+        } else if isFullyCharged && (charge == nil || charge! >= 99.0) {
             state = .charged
         } else if isAC {
             state = .acConnected

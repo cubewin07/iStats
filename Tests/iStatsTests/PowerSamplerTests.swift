@@ -130,6 +130,31 @@ final class PowerSamplerTests: XCTestCase {
         XCTAssertNil(sample.timeRemaining)
     }
 
+    func testPowerSamplerACConnectedWhenFirmwareReportsChargedUnder100() throws {
+        let mock = MockPowerInfoProvider()
+        // Firmware sets isCharged: true at 80% (charge limit), but charge is < 99.0%
+        mock.mockSnapshot = RawPowerSourceSnapshot(
+            hasBattery: true,
+            isPresent: true,
+            powerSourceState: "AC Power",
+            currentCapacity: 80,
+            maxCapacity: 100,
+            isCharging: false,
+            isCharged: true, // IOKit/firmware flag
+            timeToEmpty: 0,
+            timeToFullCharge: 0,
+            timeRemainingEstimate: -2.0
+        )
+
+        let sampler = PowerSampler(provider: mock)
+        let sample = try sampler.sample()
+
+        XCTAssertTrue(sample.hasBattery)
+        XCTAssertEqual(sample.charge, 80.0)
+        XCTAssertEqual(sample.state, .acConnected, "When charge is under 99%, state must degrade to .acConnected instead of .charged")
+        XCTAssertNil(sample.timeRemaining)
+    }
+
     func testPowerSamplerTimeRemainingCalculatingReturnsNil() throws {
         let mock = MockPowerInfoProvider()
         mock.mockSnapshot = RawPowerSourceSnapshot(

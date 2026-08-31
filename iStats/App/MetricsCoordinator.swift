@@ -1,5 +1,6 @@
 import Foundation
 import Combine
+import IOKit.ps
 import iStatsCore
 
 /// A central `@MainActor` coordinator bridging background sampling from `SampleScheduler`
@@ -18,6 +19,7 @@ public final class MetricsCoordinator: ObservableObject {
     private let preferencesStore: PreferencesStore
     private var cancellables = Set<AnyCancellable>()
     private var streamTask: Task<Void, Never>?
+    nonisolated(unsafe) private var powerRunLoopSource: CFRunLoopSource?
 
     // MARK: - Published State
 
@@ -99,6 +101,7 @@ public final class MetricsCoordinator: ObservableObject {
 
     deinit {
         streamTask?.cancel()
+        teardownPowerNotifications()
     }
 
     // MARK: - Lifecycle
@@ -129,6 +132,7 @@ public final class MetricsCoordinator: ObservableObject {
         }
 
         startListeningToStream()
+        setupPowerNotifications()
     }
 
     /// Stops background sampling and stream observation.
@@ -137,6 +141,7 @@ public final class MetricsCoordinator: ObservableObject {
         isRunning = false
         streamTask?.cancel()
         streamTask = nil
+        teardownPowerNotifications()
 
         Task {
             await scheduler.stop()
@@ -217,5 +222,45 @@ public final class MetricsCoordinator: ObservableObject {
                 }
             }
             .store(in: &cancellables)
+    }
+
+    // MARK: - On-Demand & Event-Driven Sampling
+
+    /// Triggers an immediate background sample for a specific category and updates published state.
+    public func triggerImmediateSample(for category: MetricCategory) {
+        Task { [weak self] in
+            guard let self = self else { return }
+            if let reading = await self.scheduler.sampleOnce(category: category) {
+                self.handleReading(reading)
+            }
+        }
+    }
+
+    // MARK: - Power Source Notifications
+
+    private func setupPowerNotifications() {
+        guard powerRunLoopSource == nil else { return }
+
+        let callback: IOPowerSourceCallbackType = { context in
+            guard let context = context else { return }
+            let coordinator = Unmanaged<MetricsCoordinator>.fromOpaque(context).takeUnretainedValue()
+            Task { @MainActor in
+                coordinator.triggerImmediateSample(for: .power)
+            }
+        }
+
+        let unmanagedSelf = Unmanaged.passUnretained(self).toOpaque()
+        if let source = IOPSNotificationCreateRunLoopSource(callback, unmanagedSelf)?.takeRetainedValue() {
+            CFRunLoopAddSource(CFRunLoopGetMain(), source, .defaultMode)
+            self.powerRunLoopSource = source
+        }
+    }
+
+    nonisolated private func teardownPowerNotifications() {
+        if let source = powerRunLoopSource {
+            CFRunLoopRemoveSource(CFRunLoopGetMain(), source, .defaultMode)
+            CFRunLoopSourceInvalidate(source)
+            self.powerRunLoopSource = nil
+        }
     }
 }

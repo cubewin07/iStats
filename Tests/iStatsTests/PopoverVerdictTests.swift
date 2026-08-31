@@ -127,6 +127,48 @@ final class PopoverVerdictTests: XCTestCase {
         XCTAssertTrue(desktopVerdict.dadSentence.contains("Drawing 48 W"))
     }
 
+    func testPowerEvaluationChargedVsACConnected() {
+        // 1. Fully charged (100%)
+        let fullyChargedSample = PowerSample(
+            hasBattery: true,
+            charge: 100.0,
+            state: .charged,
+            powerDrawWatts: 0.0,
+            adapterWatts: 67.0
+        )
+        let fullyChargedVerdict = VerdictEvaluator.evaluatePower(fullyChargedSample)
+        XCTAssertEqual(fullyChargedVerdict.level, .fine)
+        XCTAssertEqual(fullyChargedVerdict.badgeText, "Fully Charged")
+        XCTAssertEqual(fullyChargedVerdict.dadSentence, "On AC power. Battery full.")
+
+        // 2. AC Connected but Not Charging (73% or 80% limit)
+        let acConnectedSample73 = PowerSample(
+            hasBattery: true,
+            charge: 73.0,
+            state: .acConnected,
+            powerDrawWatts: 12.0,
+            adapterWatts: 67.0
+        )
+        let acConnectedVerdict73 = VerdictEvaluator.evaluatePower(acConnectedSample73)
+        XCTAssertEqual(acConnectedVerdict73.level, .fine)
+        XCTAssertEqual(acConnectedVerdict73.badgeText, "Not Charging")
+        XCTAssertEqual(acConnectedVerdict73.dadSentence, "Connected to power. Battery not charging.")
+
+        // 3. Actively Charging (60%)
+        let chargingSample = PowerSample(
+            hasBattery: true,
+            charge: 60.0,
+            state: .charging,
+            timeRemaining: 45 * 60,
+            powerDrawWatts: 28.0,
+            adapterWatts: 67.0
+        )
+        let chargingVerdict = VerdictEvaluator.evaluatePower(chargingSample)
+        XCTAssertEqual(chargingVerdict.level, .fine)
+        XCTAssertEqual(chargingVerdict.badgeText, "45 min to full")
+        XCTAssertEqual(chargingVerdict.dadSentence, "Battery charging rapidly")
+    }
+
     // MARK: - Live Illustration Views Rendering Tests
 
     func testIllustrationViewsRenderCleanly() {
