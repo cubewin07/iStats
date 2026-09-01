@@ -28,6 +28,22 @@ public final class PreferencesStore: ObservableObject, @unchecked Sendable {
         public static let launchAtLogin = "iStats.launchAtLogin"
         public static let menuBarDisplayMode = "iStats.menuBarDisplayMode"
         public static let menuBarItems = "iStats.menuBarItems"
+
+        // Notification & Alert Keys
+        public static let notificationsEnabled = "iStats.notificationsEnabled"
+        public static let cpuAlertEnabled = "iStats.cpuAlertEnabled"
+        public static let cpuAlertThreshold = "iStats.cpuAlertThreshold"
+        public static let memoryAlertEnabled = "iStats.memoryAlertEnabled"
+        public static let memoryAlertThreshold = "iStats.memoryAlertThreshold"
+        public static let memoryAlertCriticalPressureOnly = "iStats.memoryAlertCriticalPressureOnly"
+        public static let batteryLowAlertEnabled = "iStats.batteryLowAlertEnabled"
+        public static let batteryLowThreshold = "iStats.batteryLowThreshold"
+        public static let batteryFullAlertEnabled = "iStats.batteryFullAlertEnabled"
+        public static let thermalAlertEnabled = "iStats.thermalAlertEnabled"
+        public static let thermalAlertThreshold = "iStats.thermalAlertThreshold"
+        public static let diskAlertEnabled = "iStats.diskAlertEnabled"
+        public static let diskAlertThreshold = "iStats.diskAlertThreshold"
+        public static let alertCooldownInterval = "iStats.alertCooldownInterval"
     }
 
     /// The metric representation shown directly in the macOS menu bar status item (Requirement 9.4).
@@ -140,6 +156,136 @@ public final class PreferencesStore: ObservableObject, @unchecked Sendable {
         }
     }
 
+    // MARK: - Notifications & Alerts
+
+    /// Master toggle enabling or disabling all metric alert notifications.
+    @Published public var notificationsEnabled: Bool {
+        didSet {
+            userDefaults.set(notificationsEnabled, forKey: Keys.notificationsEnabled)
+        }
+    }
+
+    /// Whether CPU high-usage alert notifications are enabled.
+    @Published public var cpuAlertEnabled: Bool {
+        didSet {
+            userDefaults.set(cpuAlertEnabled, forKey: Keys.cpuAlertEnabled)
+        }
+    }
+
+    /// CPU usage percentage threshold for triggering an alert (50.0 - 100.0).
+    @Published public var cpuAlertThreshold: Double {
+        didSet {
+            let clamped = min(max(cpuAlertThreshold, 50.0), 100.0)
+            if clamped != cpuAlertThreshold {
+                cpuAlertThreshold = clamped
+                return
+            }
+            userDefaults.set(clamped, forKey: Keys.cpuAlertThreshold)
+        }
+    }
+
+    /// Whether memory pressure alert notifications are enabled.
+    @Published public var memoryAlertEnabled: Bool {
+        didSet {
+            userDefaults.set(memoryAlertEnabled, forKey: Keys.memoryAlertEnabled)
+        }
+    }
+
+    /// Memory usage percentage threshold for triggering an alert (50.0 - 100.0).
+    @Published public var memoryAlertThreshold: Double {
+        didSet {
+            let clamped = min(max(memoryAlertThreshold, 50.0), 100.0)
+            if clamped != memoryAlertThreshold {
+                memoryAlertThreshold = clamped
+                return
+            }
+            userDefaults.set(clamped, forKey: Keys.memoryAlertThreshold)
+        }
+    }
+
+    /// If true, only trigger memory alert on kernel critical pressure; if false, trigger on custom % threshold.
+    @Published public var memoryAlertCriticalPressureOnly: Bool {
+        didSet {
+            userDefaults.set(memoryAlertCriticalPressureOnly, forKey: Keys.memoryAlertCriticalPressureOnly)
+        }
+    }
+
+    /// Whether low battery alert notifications are enabled.
+    @Published public var batteryLowAlertEnabled: Bool {
+        didSet {
+            userDefaults.set(batteryLowAlertEnabled, forKey: Keys.batteryLowAlertEnabled)
+        }
+    }
+
+    /// Low battery percentage threshold (5 - 50%).
+    @Published public var batteryLowThreshold: Int {
+        didSet {
+            let clamped = min(max(batteryLowThreshold, 5), 50)
+            if clamped != batteryLowThreshold {
+                batteryLowThreshold = clamped
+                return
+            }
+            userDefaults.set(clamped, forKey: Keys.batteryLowThreshold)
+        }
+    }
+
+    /// Whether full battery (100% charged) alert notifications are enabled.
+    @Published public var batteryFullAlertEnabled: Bool {
+        didSet {
+            userDefaults.set(batteryFullAlertEnabled, forKey: Keys.batteryFullAlertEnabled)
+        }
+    }
+
+    /// Whether thermal high temperature alert notifications are enabled.
+    @Published public var thermalAlertEnabled: Bool {
+        didSet {
+            userDefaults.set(thermalAlertEnabled, forKey: Keys.thermalAlertEnabled)
+        }
+    }
+
+    /// Thermal temperature threshold in Celsius (60.0 - 105.0 °C).
+    @Published public var thermalAlertThreshold: Double {
+        didSet {
+            let clamped = min(max(thermalAlertThreshold, 60.0), 105.0)
+            if clamped != thermalAlertThreshold {
+                thermalAlertThreshold = clamped
+                return
+            }
+            userDefaults.set(clamped, forKey: Keys.thermalAlertThreshold)
+        }
+    }
+
+    /// Whether low disk space alert notifications are enabled.
+    @Published public var diskAlertEnabled: Bool {
+        didSet {
+            userDefaults.set(diskAlertEnabled, forKey: Keys.diskAlertEnabled)
+        }
+    }
+
+    /// Primary disk usage percentage threshold (70.0 - 98.0%).
+    @Published public var diskAlertThreshold: Double {
+        didSet {
+            let clamped = min(max(diskAlertThreshold, 70.0), 98.0)
+            if clamped != diskAlertThreshold {
+                diskAlertThreshold = clamped
+                return
+            }
+            userDefaults.set(clamped, forKey: Keys.diskAlertThreshold)
+        }
+    }
+
+    /// Cooldown debounce interval in seconds between alerts for the same category (e.g. 300s = 5m).
+    @Published public var alertCooldownInterval: TimeInterval {
+        didSet {
+            let clamped = max(alertCooldownInterval, 30.0)
+            if clamped != alertCooldownInterval {
+                alertCooldownInterval = clamped
+                return
+            }
+            userDefaults.set(clamped, forKey: Keys.alertCooldownInterval)
+        }
+    }
+
     // MARK: - Initialization
 
     /// Creates a new `PreferencesStore` instance.
@@ -217,6 +363,33 @@ public final class PreferencesStore: ObservableObject, @unchecked Sendable {
         } else {
             self.menuBarItems = MenuBarItemConfig.defaultConfigs()
         }
+
+        // Load notifications and alert preferences
+        self.notificationsEnabled = userDefaults.bool(forKey: Keys.notificationsEnabled)
+        self.cpuAlertEnabled = userDefaults.bool(forKey: Keys.cpuAlertEnabled)
+        let storedCPUThreshold = userDefaults.object(forKey: Keys.cpuAlertThreshold) as? Double
+        self.cpuAlertThreshold = storedCPUThreshold ?? 90.0
+
+        self.memoryAlertEnabled = userDefaults.bool(forKey: Keys.memoryAlertEnabled)
+        let storedMemThreshold = userDefaults.object(forKey: Keys.memoryAlertThreshold) as? Double
+        self.memoryAlertThreshold = storedMemThreshold ?? 85.0
+        self.memoryAlertCriticalPressureOnly = userDefaults.object(forKey: Keys.memoryAlertCriticalPressureOnly) as? Bool ?? true
+
+        self.batteryLowAlertEnabled = userDefaults.bool(forKey: Keys.batteryLowAlertEnabled)
+        let storedBatteryThreshold = userDefaults.object(forKey: Keys.batteryLowThreshold) as? Int
+        self.batteryLowThreshold = storedBatteryThreshold ?? 20
+        self.batteryFullAlertEnabled = userDefaults.bool(forKey: Keys.batteryFullAlertEnabled)
+
+        self.thermalAlertEnabled = userDefaults.bool(forKey: Keys.thermalAlertEnabled)
+        let storedThermalThreshold = userDefaults.object(forKey: Keys.thermalAlertThreshold) as? Double
+        self.thermalAlertThreshold = storedThermalThreshold ?? 90.0
+
+        self.diskAlertEnabled = userDefaults.bool(forKey: Keys.diskAlertEnabled)
+        let storedDiskThreshold = userDefaults.object(forKey: Keys.diskAlertThreshold) as? Double
+        self.diskAlertThreshold = storedDiskThreshold ?? 90.0
+
+        let storedCooldown = userDefaults.object(forKey: Keys.alertCooldownInterval) as? Double
+        self.alertCooldownInterval = storedCooldown ?? 300.0
     }
 
     // MARK: - Helpers
@@ -300,6 +473,21 @@ public final class PreferencesStore: ObservableObject, @unchecked Sendable {
         self.launchAtLogin = false
         self.menuBarDisplayMode = .cpu
         self.menuBarItems = MenuBarItemConfig.defaultConfigs()
+
+        self.notificationsEnabled = false
+        self.cpuAlertEnabled = false
+        self.cpuAlertThreshold = 90.0
+        self.memoryAlertEnabled = false
+        self.memoryAlertThreshold = 85.0
+        self.memoryAlertCriticalPressureOnly = true
+        self.batteryLowAlertEnabled = false
+        self.batteryLowThreshold = 20
+        self.batteryFullAlertEnabled = false
+        self.thermalAlertEnabled = false
+        self.thermalAlertThreshold = 90.0
+        self.diskAlertEnabled = false
+        self.diskAlertThreshold = 90.0
+        self.alertCooldownInterval = 300.0
     }
 }
 

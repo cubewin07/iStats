@@ -68,6 +68,8 @@
 		110000000000000000000115 /* PopoverVerdictTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000114 /* PopoverVerdictTests.swift */; };
 		110000000000000000000117 /* NotificationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000116 /* NotificationManager.swift */; };
 		110000000000000000000119 /* NotificationManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000118 /* NotificationManagerTests.swift */; };
+		110000000000000000000121 /* AlertCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000120 /* AlertCoordinator.swift */; };
+		110000000000000000000123 /* AlertCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000122 /* AlertCoordinatorTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -143,6 +145,8 @@
 		110000000000000000000114 /* PopoverVerdictTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PopoverVerdictTests.swift; sourceTree = "<group>"; };
 		110000000000000000000116 /* NotificationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationManager.swift; sourceTree = "<group>"; };
 		110000000000000000000118 /* NotificationManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationManagerTests.swift; sourceTree = "<group>"; };
+		110000000000000000000120 /* AlertCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlertCoordinator.swift; sourceTree = "<group>"; };
+		110000000000000000000122 /* AlertCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlertCoordinatorTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -195,6 +199,7 @@
 				110000000000000000000014 /* DockIconManager.swift */,
 				1100000000000000000000E2 /* LaunchAtLoginManager.swift */,
 				110000000000000000000116 /* NotificationManager.swift */,
+				110000000000000000000120 /* AlertCoordinator.swift */,
 				11000000000000000000001E /* PreferencesWindowController.swift */,
 			);
 			path = App;
@@ -284,6 +289,7 @@
 				1100000000000000000000E6 /* PerformancePassTests.swift */,
 				110000000000000000000114 /* PopoverVerdictTests.swift */,
 				110000000000000000000118 /* NotificationManagerTests.swift */,
+				110000000000000000000122 /* AlertCoordinatorTests.swift */,
 			);
 			path = iStatsTests;
 			sourceTree = "<group>";
@@ -439,6 +445,7 @@
 				110000000000000000000111 /* DiskStorageTankIllustrationView.swift in Sources */,
 				110000000000000000000113 /* PowerBudgetIllustrationView.swift in Sources */,
 				110000000000000000000117 /* NotificationManager.swift in Sources */,
+				110000000000000000000121 /* AlertCoordinator.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -465,6 +472,7 @@
 				1100000000000000000000E7 /* PerformancePassTests.swift in Sources */,
 				110000000000000000000115 /* PopoverVerdictTests.swift in Sources */,
 				110000000000000000000119 /* NotificationManagerTests.swift in Sources */,
+				110000000000000000000123 /* AlertCoordinatorTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -20,6 +20,9 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         // Start background metrics collection
         MetricsCoordinator.shared.start()
 
+        // Start metric alert threshold monitor
+        AlertCoordinator.shared.start()
+
         // Install the menu bar item and detail popover.
         menuBarController = MenuBarController()
     }
