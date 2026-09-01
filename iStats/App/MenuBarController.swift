@@ -13,7 +13,7 @@ public final class MenuBarController: NSObject {
     public let coordinator: MetricsCoordinator
 
     private var cancellables = Set<AnyCancellable>()
-    private var currentlyShownButton: NSStatusBarButton?
+    public private(set) var currentlyShownButton: NSStatusBarButton?
 
     public init(
         preferences: PreferencesStore = .shared,
@@ -305,10 +305,8 @@ public final class MenuBarController: NSObject {
     }
 
     public func hidePopover() {
-        if popover.isShown {
-            popover.performClose(nil)
-            currentlyShownButton = nil
-        }
+        popover.performClose(nil)
+        currentlyShownButton = nil
     }
 
     // MARK: - Legacy Formatting Helpers (Preserved for compatibility)

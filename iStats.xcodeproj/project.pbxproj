@@ -70,6 +70,10 @@
 		110000000000000000000119 /* NotificationManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000118 /* NotificationManagerTests.swift */; };
 		110000000000000000000121 /* AlertCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000120 /* AlertCoordinator.swift */; };
 		110000000000000000000123 /* AlertCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000122 /* AlertCoordinatorTests.swift */; };
+		110000000000000000000125 /* MenuBarItemMatrixTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000124 /* MenuBarItemMatrixTests.swift */; };
+		110000000000000000000127 /* MenuBarGeometryInvarianceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000126 /* MenuBarGeometryInvarianceTests.swift */; };
+		110000000000000000000129 /* MenuBarControllerInteractionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000128 /* MenuBarControllerInteractionTests.swift */; };
+		11000000000000000000012B /* SwiftUIViewsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11000000000000000000012A /* SwiftUIViewsTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -147,6 +151,10 @@
 		110000000000000000000118 /* NotificationManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationManagerTests.swift; sourceTree = "<group>"; };
 		110000000000000000000120 /* AlertCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlertCoordinator.swift; sourceTree = "<group>"; };
 		110000000000000000000122 /* AlertCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlertCoordinatorTests.swift; sourceTree = "<group>"; };
+		110000000000000000000124 /* MenuBarItemMatrixTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarItemMatrixTests.swift; sourceTree = "<group>"; };
+		110000000000000000000126 /* MenuBarGeometryInvarianceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarGeometryInvarianceTests.swift; sourceTree = "<group>"; };
+		110000000000000000000128 /* MenuBarControllerInteractionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarControllerInteractionTests.swift; sourceTree = "<group>"; };
+		11000000000000000000012A /* SwiftUIViewsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftUIViewsTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -290,6 +298,10 @@
 				110000000000000000000114 /* PopoverVerdictTests.swift */,
 				110000000000000000000118 /* NotificationManagerTests.swift */,
 				110000000000000000000122 /* AlertCoordinatorTests.swift */,
+				110000000000000000000124 /* MenuBarItemMatrixTests.swift */,
+				110000000000000000000126 /* MenuBarGeometryInvarianceTests.swift */,
+				110000000000000000000128 /* MenuBarControllerInteractionTests.swift */,
+				11000000000000000000012A /* SwiftUIViewsTests.swift */,
 			);
 			path = iStatsTests;
 			sourceTree = "<group>";
@@ -473,6 +485,10 @@
 				110000000000000000000115 /* PopoverVerdictTests.swift in Sources */,
 				110000000000000000000119 /* NotificationManagerTests.swift in Sources */,
 				110000000000000000000123 /* AlertCoordinatorTests.swift in Sources */,
+				110000000000000000000125 /* MenuBarItemMatrixTests.swift in Sources */,
+				110000000000000000000127 /* MenuBarGeometryInvarianceTests.swift in Sources */,
+				110000000000000000000129 /* MenuBarControllerInteractionTests.swift in Sources */,
+				11000000000000000000012B /* SwiftUIViewsTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
