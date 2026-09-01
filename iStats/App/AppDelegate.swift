@@ -14,8 +14,14 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             LaunchAtLoginManager.shared.setLaunchAtLogin(enabled: true)
         }
 
+        // Register system notifications delegate and sync status
+        NotificationManager.shared.register()
+
         // Start background metrics collection
         MetricsCoordinator.shared.start()
+
+        // Start metric alert threshold monitor
+        AlertCoordinator.shared.start()
 
         // Install the menu bar item and detail popover.
         menuBarController = MenuBarController()

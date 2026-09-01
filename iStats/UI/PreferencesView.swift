@@ -6,8 +6,16 @@ import iStatsCore
 public struct PreferencesView: View {
     @ObservedObject public var store: PreferencesStore
     @ObservedObject public var coordinator: MetricsCoordinator
+    @ObservedObject private var notificationManager = NotificationManager.shared
 
     private let presetIntervals: [TimeInterval] = [0.5, 1.0, 2.0, 5.0, 10.0, 30.0, 60.0]
+    private let cooldownOptions: [(label: String, seconds: TimeInterval)] = [
+        ("1 minute", 60.0),
+        ("5 minutes", 300.0),
+        ("15 minutes", 900.0),
+        ("30 minutes", 1800.0),
+        ("1 hour", 3600.0)
+    ]
 
     public init(
         store: PreferencesStore = .shared,
@@ -31,19 +39,25 @@ public struct PreferencesView: View {
                 }
                 .tag(1)
 
+            notificationsTab
+                .tabItem {
+                    Label("Notifications", systemImage: "bell.badge")
+                }
+                .tag(2)
+
             unitsTab
                 .tabItem {
                     Label("Units", systemImage: "ruler")
                 }
-                .tag(2)
+                .tag(3)
 
             aboutTab
                 .tabItem {
                     Label("About", systemImage: "info.circle")
                 }
-                .tag(3)
+                .tag(4)
         }
-        .frame(width: 560, height: 480)
+        .frame(width: 580, height: 530)
         .padding(16)
     }
 
@@ -334,6 +348,347 @@ public struct PreferencesView: View {
             Spacer()
         }
         .padding(.top, 24)
+    }
+
+    // MARK: - Notifications Tab
+
+    private var notificationsTab: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                // MARK: 1. System Permission Status Card
+                permissionStatusCard
+
+                // MARK: 2. Master Alerts Switch
+                GroupBox {
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Enable System Alert Notifications")
+                                    .font(.headline)
+                                Text("Sends macOS banner notifications when hardware metrics cross configured thresholds.")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            Spacer()
+                            Toggle("", isOn: Binding(
+                                get: { store.notificationsEnabled && notificationManager.isAuthorized },
+                                set: { newValue in
+                                    updatePermissionGuardedSetting(newValue: newValue) { granted in
+                                        store.notificationsEnabled = granted
+                                    }
+                                }
+                            ))
+                            .toggleStyle(.switch)
+                        }
+                    }
+                    .padding(4)
+                }
+
+                // MARK: 3. Metric Thresholds
+                GroupBox(label: Label("Metric Alert Thresholds", systemImage: "slider.horizontal.3")) {
+                    VStack(alignment: .leading, spacing: 16) {
+                        // CPU Alert
+                        VStack(alignment: .leading, spacing: 6) {
+                            HStack {
+                                Label("High CPU Usage Alert", systemImage: "cpu")
+                                    .font(.subheadline)
+                                    .fontWeight(.medium)
+                                Spacer()
+                                Toggle("", isOn: Binding(
+                                    get: { store.cpuAlertEnabled },
+                                    set: { newValue in
+                                        updatePermissionGuardedSetting(newValue: newValue) { granted in
+                                            store.cpuAlertEnabled = granted
+                                        }
+                                    }
+                                ))
+                                .toggleStyle(.switch)
+                            }
+
+                            if store.cpuAlertEnabled {
+                                HStack {
+                                    Slider(value: $store.cpuAlertThreshold, in: 50.0...100.0, step: 5.0)
+                                    Text("\(Int(store.cpuAlertThreshold))%")
+                                        .font(.system(.body, design: .monospaced))
+                                        .frame(width: 48, alignment: .trailing)
+                                }
+                                .padding(.leading, 8)
+                            }
+                        }
+
+                        Divider()
+
+                        // Memory Alert
+                        VStack(alignment: .leading, spacing: 6) {
+                            HStack {
+                                Label("Memory Pressure Alert", systemImage: "memorychip")
+                                    .font(.subheadline)
+                                    .fontWeight(.medium)
+                                Spacer()
+                                Toggle("", isOn: Binding(
+                                    get: { store.memoryAlertEnabled },
+                                    set: { newValue in
+                                        updatePermissionGuardedSetting(newValue: newValue) { granted in
+                                            store.memoryAlertEnabled = granted
+                                        }
+                                    }
+                                ))
+                                .toggleStyle(.switch)
+                            }
+
+                            if store.memoryAlertEnabled {
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Toggle("Notify on critical pressure only (recommended)", isOn: $store.memoryAlertCriticalPressureOnly)
+                                        .font(.caption)
+
+                                    if !store.memoryAlertCriticalPressureOnly {
+                                        HStack {
+                                            Text("Usage:")
+                                                .font(.caption)
+                                                .foregroundColor(.secondary)
+                                            Slider(value: $store.memoryAlertThreshold, in: 50.0...100.0, step: 5.0)
+                                            Text("\(Int(store.memoryAlertThreshold))%")
+                                                .font(.system(.body, design: .monospaced))
+                                                .frame(width: 48, alignment: .trailing)
+                                        }
+                                    }
+                                }
+                                .padding(.leading, 8)
+                            }
+                        }
+
+                        Divider()
+
+                        // Battery Alerts
+                        VStack(alignment: .leading, spacing: 6) {
+                            HStack {
+                                Label("Low Battery Alert", systemImage: "battery.25")
+                                    .font(.subheadline)
+                                    .fontWeight(.medium)
+                                Spacer()
+                                Toggle("", isOn: Binding(
+                                    get: { store.batteryLowAlertEnabled },
+                                    set: { newValue in
+                                        updatePermissionGuardedSetting(newValue: newValue) { granted in
+                                            store.batteryLowAlertEnabled = granted
+                                        }
+                                    }
+                                ))
+                                .toggleStyle(.switch)
+                            }
+
+                            if store.batteryLowAlertEnabled {
+                                HStack {
+                                    Slider(value: Binding(
+                                        get: { Double(store.batteryLowThreshold) },
+                                        set: { store.batteryLowThreshold = Int($0) }
+                                    ), in: 5.0...50.0, step: 5.0)
+                                    Text("\(store.batteryLowThreshold)%")
+                                        .font(.system(.body, design: .monospaced))
+                                        .frame(width: 48, alignment: .trailing)
+                                }
+                                .padding(.leading, 8)
+                            }
+
+                            HStack {
+                                Label("Battery Fully Charged Alert (100%)", systemImage: "battery.100.bolt")
+                                    .font(.subheadline)
+                                    .fontWeight(.medium)
+                                Spacer()
+                                Toggle("", isOn: Binding(
+                                    get: { store.batteryFullAlertEnabled },
+                                    set: { newValue in
+                                        updatePermissionGuardedSetting(newValue: newValue) { granted in
+                                            store.batteryFullAlertEnabled = granted
+                                        }
+                                    }
+                                ))
+                                .toggleStyle(.switch)
+                            }
+                        }
+
+                        Divider()
+
+                        // Thermal Alert
+                        VStack(alignment: .leading, spacing: 6) {
+                            HStack {
+                                Label("High Temperature Alert", systemImage: "thermometer.high")
+                                    .font(.subheadline)
+                                    .fontWeight(.medium)
+                                Spacer()
+                                Toggle("", isOn: Binding(
+                                    get: { store.thermalAlertEnabled },
+                                    set: { newValue in
+                                        updatePermissionGuardedSetting(newValue: newValue) { granted in
+                                            store.thermalAlertEnabled = granted
+                                        }
+                                    }
+                                ))
+                                .toggleStyle(.switch)
+                            }
+
+                            if store.thermalAlertEnabled {
+                                HStack {
+                                    Slider(value: $store.thermalAlertThreshold, in: 60.0...105.0, step: 5.0)
+                                    Text(Units.formatTemperature(store.thermalAlertThreshold, unit: store.temperatureUnit))
+                                        .font(.system(.body, design: .monospaced))
+                                        .frame(width: 70, alignment: .trailing)
+                                }
+                                .padding(.leading, 8)
+                            }
+                        }
+
+                        Divider()
+
+                        // Disk Alert
+                        VStack(alignment: .leading, spacing: 6) {
+                            HStack {
+                                Label("Low Disk Space Alert", systemImage: "internaldrive")
+                                    .font(.subheadline)
+                                    .fontWeight(.medium)
+                                Spacer()
+                                Toggle("", isOn: Binding(
+                                    get: { store.diskAlertEnabled },
+                                    set: { newValue in
+                                        updatePermissionGuardedSetting(newValue: newValue) { granted in
+                                            store.diskAlertEnabled = granted
+                                        }
+                                    }
+                                ))
+                                .toggleStyle(.switch)
+                            }
+
+                            if store.diskAlertEnabled {
+                                HStack {
+                                    Slider(value: $store.diskAlertThreshold, in: 70.0...98.0, step: 2.0)
+                                    Text("\(Int(store.diskAlertThreshold))%")
+                                        .font(.system(.body, design: .monospaced))
+                                        .frame(width: 48, alignment: .trailing)
+                                }
+                                .padding(.leading, 8)
+                            }
+                        }
+                    }
+                    .padding(8)
+                }
+                .disabled(!store.notificationsEnabled || !notificationManager.isAuthorized)
+
+                // MARK: 4. Anti-Spam Cooldown Picker
+                GroupBox(label: Label("Notification Timing", systemImage: "clock.arrow.circlepath")) {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Alert Cooldown:")
+                                .font(.subheadline)
+                            Text("Minimum wait time before notifying again for the same metric category.")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        Spacer()
+                        Picker("", selection: $store.alertCooldownInterval) {
+                            ForEach(cooldownOptions, id: \.seconds) { option in
+                                Text(option.label).tag(option.seconds)
+                            }
+                        }
+                        .frame(width: 140)
+                    }
+                    .padding(6)
+                }
+                .disabled(!store.notificationsEnabled || !notificationManager.isAuthorized)
+            }
+            .padding(.horizontal, 4)
+            .padding(.bottom, 8)
+        }
+    }
+
+    private var permissionStatusCard: some View {
+        GroupBox {
+            HStack(spacing: 12) {
+                if notificationManager.isAuthorized {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundColor(.green)
+                        .font(.title2)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Notifications Authorized")
+                            .font(.headline)
+                        Text("iStats has permission to display alert banners in macOS Notification Center.")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    Spacer()
+                    Button("Send Test Notification") {
+                        Task {
+                            await AlertCoordinator.shared.sendTestNotification()
+                        }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                } else if notificationManager.authorizationStatus == .denied {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundColor(.red)
+                        .font(.title2)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Notifications Disabled in System Settings")
+                            .font(.headline)
+                        Text("macOS has blocked notifications for iStats. Please enable them in System Settings.")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    Spacer()
+                    Button("Open Settings") {
+                        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.notifications") {
+                            NSWorkspace.shared.open(url)
+                        }
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                } else {
+                    Image(systemName: "bell.badge")
+                        .foregroundColor(.orange)
+                        .font(.title2)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Notification Permission Not Granted")
+                            .font(.headline)
+                        Text("Authorization will be requested when you enable an alert.")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    Spacer()
+                    Button("Request Permission") {
+                        Task {
+                            await notificationManager.requestAuthorization()
+                        }
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                }
+            }
+            .padding(6)
+        }
+    }
+
+    private func updatePermissionGuardedSetting(
+        newValue: Bool,
+        completion: @escaping (Bool) -> Void
+    ) {
+        if newValue {
+            if notificationManager.isAuthorized {
+                completion(true)
+                store.notificationsEnabled = true
+            } else {
+                Task {
+                    let granted = await notificationManager.requestAuthorization()
+                    if granted {
+                        completion(true)
+                        store.notificationsEnabled = true
+                    } else {
+                        completion(false)
+                        store.notificationsEnabled = false
+                    }
+                }
+            }
+        } else {
+            completion(false)
+        }
     }
 
     // MARK: - Category Helpers
