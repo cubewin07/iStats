@@ -35,7 +35,13 @@ final class GPUSamplerTests: XCTestCase {
             powerWatts: 6.2,
             rendererUtilization: 38.0,
             tilerUtilization: 12.0,
-            deviceName: "Apple M4 Pro"
+            deviceName: "Apple M4 Pro",
+            coreCount: 16,
+            recommendedMaxMemory: 16_000_000_000,
+            isUnifiedMemory: true,
+            displayCount: 2,
+            displayDescriptions: ["Built-in Retina (120Hz)", "DELL SE2725HM (100Hz)"],
+            recoveryCount: 0
         )
         let provider = MockGPUInfoProvider(statsToReturn: raw)
         let sampler = GPUSampler(provider: provider)
@@ -45,6 +51,16 @@ final class GPUSamplerTests: XCTestCase {
         XCTAssertEqual(sample.memoryUsed, 2_147_483_648)
         XCTAssertEqual(sample.tempCelsius, 48.5)
         XCTAssertEqual(sample.powerWatts, 6.2)
+        XCTAssertEqual(sample.coreCount, 16)
+        XCTAssertEqual(sample.deviceName, "Apple M4 Pro")
+        XCTAssertEqual(sample.allocatedMemory, 4_294_967_296)
+        XCTAssertEqual(sample.recommendedMaxMemory, 16_000_000_000)
+        XCTAssertEqual(sample.rendererUtilization, 38.0)
+        XCTAssertEqual(sample.tilerUtilization, 12.0)
+        XCTAssertEqual(sample.isUnifiedMemory, true)
+        XCTAssertEqual(sample.displayCount, 2)
+        XCTAssertEqual(sample.displayDescriptions?.count, 2)
+        XCTAssertEqual(sample.recoveryCount, 0)
     }
 
     func testGPUSamplerWithPartialMetrics() throws {
@@ -142,10 +158,20 @@ final class GPUSamplerTests: XCTestCase {
             if let name = stats.deviceName {
                 print("  Device: \(name)")
             }
+            if let cores = stats.coreCount {
+                print("  Cores: \(cores)")
+                XCTAssertGreaterThan(cores, 0)
+            }
             if let util = stats.utilization {
                 print("  Utilization: \(String(format: "%.1f%%", util))")
                 XCTAssertGreaterThanOrEqual(util, 0.0)
                 XCTAssertLessThanOrEqual(util, 100.0)
+            }
+            if let r = stats.rendererUtilization {
+                print("  Renderer Utilization: \(String(format: "%.1f%%", r))")
+            }
+            if let t = stats.tilerUtilization {
+                print("  Tiler Utilization: \(String(format: "%.1f%%", t))")
             }
             if let mem = stats.memoryUsed {
                 print("  Memory In Use: \(mem) bytes (\(Units.formatBytes(mem, standard: .iec)))")
@@ -153,6 +179,15 @@ final class GPUSamplerTests: XCTestCase {
             }
             if let alloc = stats.allocatedMemory {
                 print("  Allocated Memory: \(alloc) bytes")
+            }
+            if let maxMem = stats.recommendedMaxMemory {
+                print("  Max Working Set: \(Units.formatBytes(maxMem, standard: .iec))")
+            }
+            if let unified = stats.isUnifiedMemory {
+                print("  Unified Memory: \(unified)")
+            }
+            if let descs = stats.displayDescriptions {
+                print("  Displays: \(descs.joined(separator: ", "))")
             }
             if let temp = stats.tempCelsius {
                 print("  Temperature: \(temp) °C")
@@ -174,6 +209,7 @@ final class GPUSamplerTests: XCTestCase {
 
     // MARK: - UI Tests
 
+    @MainActor
     func testGPUSummaryViewRendersWithData() {
         let sample = GPUSample(
             utilization: 38.5,
@@ -199,12 +235,58 @@ final class GPUSamplerTests: XCTestCase {
         XCTAssertNotNil(hosting)
     }
 
+    @MainActor
+    func testGPUSummaryViewRendersEnrichedData() {
+        let sample = GPUSample(
+            utilization: 52.0,
+            memoryUsed: 2_500_000_000,
+            tempCelsius: 62.0,
+            powerWatts: 14.5,
+            coreCount: 16,
+            deviceName: "Apple M4 Pro",
+            allocatedMemory: 4_000_000_000,
+            recommendedMaxMemory: 18_000_000_000,
+            rendererUtilization: 48.0,
+            tilerUtilization: 12.0,
+            isUnifiedMemory: true,
+            displayCount: 2,
+            displayDescriptions: ["Built-in Retina Display (1512×982 @ 120Hz)", "DELL SE2725HM (1920×1080 @ 100Hz)"],
+            recoveryCount: 0
+        )
+        let history = [
+            Sample(value: GPUSample(utilization: 30.0)),
+            Sample(value: sample)
+        ]
+
+        let view = GPUSummaryView(
+            sample: sample,
+            history: history,
+            temperatureUnit: .celsius,
+            byteStandard: .iec
+        )
+
+        let hosting = NSHostingView(rootView: view)
+        hosting.frame = NSRect(x: 0, y: 0, width: 330, height: 350)
+        XCTAssertNotNil(hosting)
+    }
+
+    @MainActor
     func testGPUSummaryViewRendersFahrenheitAndSI() {
         let sample = GPUSample(
             utilization: 75.0,
             memoryUsed: 2_000_000_000,
             tempCelsius: 60.0,
-            powerWatts: 12.0
+            powerWatts: 12.0,
+            coreCount: 10,
+            deviceName: "Apple M2",
+            allocatedMemory: 3_000_000_000,
+            recommendedMaxMemory: 16_000_000_000,
+            rendererUtilization: 65.0,
+            tilerUtilization: 10.0,
+            isUnifiedMemory: true,
+            displayCount: 1,
+            displayDescriptions: ["Built-in Liquid Retina"],
+            recoveryCount: 0
         )
 
         let view = GPUSummaryView(
@@ -215,10 +297,11 @@ final class GPUSamplerTests: XCTestCase {
         )
 
         let hosting = NSHostingView(rootView: view)
-        hosting.frame = NSRect(x: 0, y: 0, width: 330, height: 180)
+        hosting.frame = NSRect(x: 0, y: 0, width: 330, height: 280)
         XCTAssertNotNil(hosting)
     }
 
+    @MainActor
     func testGPUSummaryViewRendersUnavailable() {
         let view = GPUSummaryView(sample: GPUSample(), history: [])
         let hosting = NSHostingView(rootView: view)
@@ -226,8 +309,9 @@ final class GPUSamplerTests: XCTestCase {
         XCTAssertNotNil(hosting)
     }
 
+    @MainActor
     func testDetailPopoverViewIncludesGPU() {
-        let gpuSample = GPUSample(utilization: 40.0, memoryUsed: 1_000_000_000, tempCelsius: 45.0)
+        let gpuSample = GPUSample(utilization: 40.0, memoryUsed: 1_000_000_000, tempCelsius: 45.0, coreCount: 16)
         let gpuHist = [Sample(value: gpuSample)]
 
         let popoverView = DetailPopoverView(
@@ -240,18 +324,45 @@ final class GPUSamplerTests: XCTestCase {
         XCTAssertNotNil(hosting)
     }
 
+    func testGPUSamplerCalculateSampleRichClamping() {
+        let raw = RawGPUStatistics(
+            utilization: 45.0,
+            memoryUsed: 1_000_000,
+            allocatedMemory: 2_000_000,
+            tempCelsius: 50.0,
+            powerWatts: 8.0,
+            rendererUtilization: 140.0, // should clamp to 100
+            tilerUtilization: -20.0,    // should clamp to 0
+            deviceName: "Apple M4 Pro",
+            coreCount: -4,              // invalid negative cores, should be filtered to nil
+            recommendedMaxMemory: 16_000_000,
+            isUnifiedMemory: true,
+            displayCount: 2,
+            displayDescriptions: ["Screen 1", "Screen 2"],
+            recoveryCount: 0
+        )
+
+        let sample = GPUSampler.calculateSample(raw: raw)
+        XCTAssertEqual(sample.rendererUtilization, 100.0)
+        XCTAssertEqual(sample.tilerUtilization, 0.0)
+        XCTAssertNil(sample.coreCount)
+        XCTAssertEqual(sample.deviceName, "Apple M4 Pro")
+        XCTAssertEqual(sample.displayCount, 2)
+    }
+
     // MARK: - MetricsCoordinator Integration
 
     @MainActor
     func testMetricsCoordinatorGPUIntegration() {
         let coordinator = MetricsCoordinator()
         let reading = MetricReading.gpu(
-            Sample(value: GPUSample(utilization: 55.0, memoryUsed: 2_000_000_000))
+            Sample(value: GPUSample(utilization: 55.0, memoryUsed: 2_000_000_000, coreCount: 16))
         )
 
         coordinator.handleReading(reading)
         XCTAssertEqual(coordinator.latestGPU?.value.utilization, 55.0)
         XCTAssertEqual(coordinator.latestGPU?.value.memoryUsed, 2_000_000_000)
+        XCTAssertEqual(coordinator.latestGPU?.value.coreCount, 16)
         XCTAssertEqual(coordinator.gpuHistory.count, 1)
         XCTAssertEqual(coordinator.gpuHistory.first?.value.utilization, 55.0)
     }

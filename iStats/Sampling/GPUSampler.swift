@@ -1,6 +1,8 @@
 import Foundation
 import Darwin
 import IOKit
+import Metal
+import AppKit
 import iStatsCore
 
 // MARK: - Raw GPU Statistics
@@ -23,6 +25,18 @@ public struct RawGPUStatistics: Sendable, Equatable {
     public let tilerUtilization: Double?
     /// Detected GPU device name / model identifier.
     public let deviceName: String?
+    /// Number of active GPU cores.
+    public let coreCount: Int?
+    /// Maximum recommended working set size in bytes.
+    public let recommendedMaxMemory: UInt64?
+    /// Indicates whether GPU uses unified memory architecture.
+    public let isUnifiedMemory: Bool?
+    /// Number of active connected displays.
+    public let displayCount: Int?
+    /// Descriptions of connected displays with resolution & refresh rate.
+    public let displayDescriptions: [String]?
+    /// GPU driver recovery / restart count.
+    public let recoveryCount: Int?
 
     public init(
         utilization: Double? = nil,
@@ -32,7 +46,13 @@ public struct RawGPUStatistics: Sendable, Equatable {
         powerWatts: Double? = nil,
         rendererUtilization: Double? = nil,
         tilerUtilization: Double? = nil,
-        deviceName: String? = nil
+        deviceName: String? = nil,
+        coreCount: Int? = nil,
+        recommendedMaxMemory: UInt64? = nil,
+        isUnifiedMemory: Bool? = nil,
+        displayCount: Int? = nil,
+        displayDescriptions: [String]? = nil,
+        recoveryCount: Int? = nil
     ) {
         self.utilization = utilization
         self.memoryUsed = memoryUsed
@@ -42,6 +62,12 @@ public struct RawGPUStatistics: Sendable, Equatable {
         self.rendererUtilization = rendererUtilization
         self.tilerUtilization = tilerUtilization
         self.deviceName = deviceName
+        self.coreCount = coreCount
+        self.recommendedMaxMemory = recommendedMaxMemory
+        self.isUnifiedMemory = isUnifiedMemory
+        self.displayCount = displayCount
+        self.displayDescriptions = displayDescriptions
+        self.recoveryCount = recoveryCount
     }
 }
 
@@ -78,6 +104,8 @@ public struct HostGPUInfoProvider: GPUInfoProvider {
         var bestTemp: Double?
         var bestPower: Double?
         var bestName: String?
+        var bestCoreCount: Int?
+        var bestRecoveryCount: Int?
         var foundAny = false
 
         while case let entry = IOIteratorNext(iterator), entry != 0 {
@@ -90,6 +118,20 @@ public struct HostGPUInfoProvider: GPUInfoProvider {
             }
 
             foundAny = true
+
+            // Read core count
+            if bestCoreCount == nil {
+                if let cores = dict["gpu-core-count"] as? NSNumber {
+                    bestCoreCount = cores.intValue
+                } else if let cores = dict["gpu-core-count"] as? Int {
+                    bestCoreCount = cores
+                } else if let cores = dict["core-count"] as? NSNumber {
+                    bestCoreCount = cores.intValue
+                } else if let cfg = dict["GPUConfigurationVariable"] as? [String: Any],
+                          let numCores = cfg["num_cores"] as? NSNumber {
+                    bestCoreCount = numCores.intValue
+                }
+            }
 
             // Read model name if present
             if bestName == nil {
@@ -143,6 +185,11 @@ public struct HostGPUInfoProvider: GPUInfoProvider {
                     bestAllocatedMemory = max(bestAllocatedMemory ?? 0, allocMem)
                 }
 
+                // Recovery count
+                if let rec = perf["recoveryCount"] as? NSNumber {
+                    bestRecoveryCount = rec.intValue
+                }
+
                 // Temperature in PerformanceStatistics
                 if let temp = extractDouble(from: perf, keys: [
                     "temperature",
@@ -168,7 +215,16 @@ public struct HostGPUInfoProvider: GPUInfoProvider {
             bestTemp = readSMCGPUTemperature()
         }
 
-        guard foundAny || bestUtilization != nil || bestMemoryUsed != nil || bestTemp != nil || bestPower != nil else {
+        // Metal device enrichment (name, unified memory, recommended working set)
+        let metalDevice = MTLCopyAllDevices().first
+        if bestName == nil {
+            bestName = metalDevice?.name
+        }
+        let isUnified = metalDevice?.hasUnifiedMemory
+        let recommendedMax = metalDevice?.recommendedMaxWorkingSetSize
+        let (dispCount, dispDescs) = Self.queryConnectedDisplays()
+
+        guard foundAny || bestUtilization != nil || bestMemoryUsed != nil || bestTemp != nil || bestPower != nil || bestCoreCount != nil else {
             return fallbackSMCGPUStats()
         }
 
@@ -180,7 +236,13 @@ public struct HostGPUInfoProvider: GPUInfoProvider {
             powerWatts: bestPower,
             rendererUtilization: bestRendererUtilization,
             tilerUtilization: bestTilerUtilization,
-            deviceName: bestName
+            deviceName: bestName,
+            coreCount: bestCoreCount,
+            recommendedMaxMemory: recommendedMax,
+            isUnifiedMemory: isUnified,
+            displayCount: dispCount > 0 ? dispCount : nil,
+            displayDescriptions: !dispDescs.isEmpty ? dispDescs : nil,
+            recoveryCount: bestRecoveryCount
         )
     }
 
@@ -232,10 +294,52 @@ public struct HostGPUInfoProvider: GPUInfoProvider {
     }
 
     private func fallbackSMCGPUStats() -> RawGPUStatistics? {
-        if let temp = readSMCGPUTemperature() {
-            return RawGPUStatistics(tempCelsius: temp)
+        let temp = readSMCGPUTemperature()
+        let metalDevice = MTLCopyAllDevices().first
+        let (dispCount, dispDescs) = Self.queryConnectedDisplays()
+
+        guard temp != nil || metalDevice != nil || dispCount > 0 else {
+            return nil
         }
-        return nil
+
+        return RawGPUStatistics(
+            tempCelsius: temp,
+            deviceName: metalDevice?.name,
+            recommendedMaxMemory: metalDevice?.recommendedMaxWorkingSetSize,
+            isUnifiedMemory: metalDevice?.hasUnifiedMemory,
+            displayCount: dispCount > 0 ? dispCount : nil,
+            displayDescriptions: !dispDescs.isEmpty ? dispDescs : nil
+        )
+    }
+
+    // MARK: - Display Outputs Helper
+
+    private static func queryConnectedDisplays() -> (count: Int, descriptions: [String]) {
+        let screens = NSScreen.screens
+        guard !screens.isEmpty else { return (0, []) }
+
+        var descriptions: [String] = []
+        for screen in screens {
+            let name = screen.localizedName
+            var hzStr = ""
+            var resStr = "\(Int(screen.frame.width * screen.backingScaleFactor))×\(Int(screen.frame.height * screen.backingScaleFactor))"
+            if let idNum = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber {
+                let dID = CGDirectDisplayID(idNum.uint32Value)
+                if let mode = CGDisplayCopyDisplayMode(dID) {
+                    let w = mode.width
+                    let h = mode.height
+                    let rate = mode.refreshRate
+                    if w > 0 && h > 0 {
+                        resStr = "\(w)×\(h)"
+                    }
+                    if rate > 0 {
+                        hzStr = " @ \(Int(round(rate)))Hz"
+                    }
+                }
+            }
+            descriptions.append("\(name) (\(resStr)\(hzStr))")
+        }
+        return (screens.count, descriptions)
     }
 
     private func readSMCKeyNumeric(keyStr: String, connection: io_connect_t) -> Double? {
@@ -371,7 +475,7 @@ public final class GPUSampler: Sampler, @unchecked Sendable {
         let sample = Self.calculateSample(raw: raw)
 
         // If no fields could be populated, surface as unsupported
-        if sample.utilization == nil && sample.memoryUsed == nil && sample.tempCelsius == nil && sample.powerWatts == nil {
+        if sample.utilization == nil && sample.memoryUsed == nil && sample.tempCelsius == nil && sample.powerWatts == nil && sample.coreCount == nil && sample.deviceName == nil {
             throw SamplerError.unsupported("No GPU telemetry reported by hardware")
         }
 
@@ -388,12 +492,25 @@ public final class GPUSampler: Sampler, @unchecked Sendable {
         let mem: UInt64? = raw.memoryUsed
         let temp: Double? = raw.tempCelsius.flatMap { ($0 >= -40.0 && $0 <= 150.0) ? $0 : nil }
         let pwr: Double? = raw.powerWatts.flatMap { $0 >= 0.0 ? $0 : nil }
+        let renderer: Double? = raw.rendererUtilization.map { max(0.0, min(100.0, $0)) }
+        let tiler: Double? = raw.tilerUtilization.map { max(0.0, min(100.0, $0)) }
+        let coreCount: Int? = raw.coreCount.flatMap { $0 > 0 ? $0 : nil }
 
         return GPUSample(
             utilization: util,
             memoryUsed: mem,
             tempCelsius: temp,
-            powerWatts: pwr
+            powerWatts: pwr,
+            coreCount: coreCount,
+            deviceName: raw.deviceName,
+            allocatedMemory: raw.allocatedMemory,
+            recommendedMaxMemory: raw.recommendedMaxMemory,
+            rendererUtilization: renderer,
+            tilerUtilization: tiler,
+            isUnifiedMemory: raw.isUnifiedMemory,
+            displayCount: raw.displayCount,
+            displayDescriptions: raw.displayDescriptions,
+            recoveryCount: raw.recoveryCount
         )
     }
 }

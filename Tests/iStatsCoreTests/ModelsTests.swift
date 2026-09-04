@@ -226,13 +226,48 @@ final class ModelsTests: XCTestCase {
     }
 
     func testGPUSample() {
-        let gpu = GPUSample(utilization: 12.5, memoryUsed: 1_000_000_000, tempCelsius: 48.0, powerWatts: 5.2)
+        let gpu = GPUSample(
+            utilization: 12.5,
+            memoryUsed: 1_000_000_000,
+            tempCelsius: 48.0,
+            powerWatts: 5.2,
+            coreCount: 16,
+            deviceName: "Apple M4 Pro",
+            allocatedMemory: 3_000_000_000,
+            recommendedMaxMemory: 19_000_000_000,
+            rendererUtilization: 10.5,
+            tilerUtilization: 2.0,
+            isUnifiedMemory: true,
+            displayCount: 2,
+            displayDescriptions: ["Built-in Retina (120Hz)", "DELL SE2725HM (100Hz)"],
+            recoveryCount: 0
+        )
         XCTAssertEqual(gpu.utilization, 12.5)
         XCTAssertEqual(gpu.memoryUsed, 1_000_000_000)
         XCTAssertEqual(gpu.tempCelsius, 48.0)
         XCTAssertEqual(gpu.powerWatts, 5.2)
+        XCTAssertEqual(gpu.coreCount, 16)
+        XCTAssertEqual(gpu.deviceName, "Apple M4 Pro")
+        XCTAssertEqual(gpu.allocatedMemory, 3_000_000_000)
+        XCTAssertEqual(gpu.recommendedMaxMemory, 19_000_000_000)
+        XCTAssertEqual(gpu.rendererUtilization, 10.5)
+        XCTAssertEqual(gpu.tilerUtilization, 2.0)
+        XCTAssertEqual(gpu.isUnifiedMemory, true)
+        XCTAssertEqual(gpu.displayCount, 2)
+        XCTAssertEqual(gpu.displayDescriptions?.count, 2)
+        XCTAssertEqual(gpu.recoveryCount, 0)
+
+        // Codable test
+        let data = try? JSONEncoder().encode(gpu)
+        XCTAssertNotNil(data)
+        if let data = data {
+            let decoded = try? JSONDecoder().decode(GPUSample.self, from: data)
+            XCTAssertEqual(decoded, gpu)
+        }
 
         let unavailableGPU = GPUSample()
         XCTAssertNil(unavailableGPU.utilization)
+        XCTAssertNil(unavailableGPU.coreCount)
+        XCTAssertNil(unavailableGPU.deviceName)
     }
 }

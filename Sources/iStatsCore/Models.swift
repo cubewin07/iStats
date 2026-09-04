@@ -476,12 +476,49 @@ public struct GPUSample: Sendable, Equatable, Codable {
     public let tempCelsius: Double?
     public let powerWatts: Double?
 
-    public init(utilization: Double? = nil, memoryUsed: UInt64? = nil,
-                tempCelsius: Double? = nil, powerWatts: Double? = nil) {
+    // Enhanced hardware & architecture telemetry
+    public let coreCount: Int?
+    public let deviceName: String?
+    public let allocatedMemory: UInt64?
+    public let recommendedMaxMemory: UInt64?
+    public let rendererUtilization: Double?
+    public let tilerUtilization: Double?
+    public let isUnifiedMemory: Bool?
+    public let displayCount: Int?
+    public let displayDescriptions: [String]?
+    public let recoveryCount: Int?
+
+    public init(
+        utilization: Double? = nil,
+        memoryUsed: UInt64? = nil,
+        tempCelsius: Double? = nil,
+        powerWatts: Double? = nil,
+        coreCount: Int? = nil,
+        deviceName: String? = nil,
+        allocatedMemory: UInt64? = nil,
+        recommendedMaxMemory: UInt64? = nil,
+        rendererUtilization: Double? = nil,
+        tilerUtilization: Double? = nil,
+        isUnifiedMemory: Bool? = nil,
+        displayCount: Int? = nil,
+        displayDescriptions: [String]? = nil,
+        recoveryCount: Int? = nil
+    ) {
         self.utilization = utilization
         self.memoryUsed = memoryUsed
         self.tempCelsius = tempCelsius
         self.powerWatts = powerWatts
+        self.coreCount = coreCount
+        self.deviceName = deviceName
+        self.allocatedMemory = allocatedMemory
+        self.recommendedMaxMemory = recommendedMaxMemory
+        self.rendererUtilization = rendererUtilization
+        self.tilerUtilization = tilerUtilization
+        self.isUnifiedMemory = isUnifiedMemory
+        self.displayCount = displayCount
+        self.displayDescriptions = displayDescriptions
+        self.recoveryCount = recoveryCount
     }
 }
+
 
