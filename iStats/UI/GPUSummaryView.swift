@@ -78,7 +78,7 @@ public struct GPUSummaryView: View {
                     }
                 }
 
-                // Hero Row: Die Illustration + Core Load + Quick Pills
+                // Hero Row: Die Illustration + Power & Thermals + Quick Pills
                 HStack(alignment: .center, spacing: 12) {
                     GPUDieIllustrationView(
                         sample: sample,
@@ -88,33 +88,61 @@ public struct GPUSummaryView: View {
                         showPills: false
                     )
 
-                    VStack(alignment: .leading, spacing: 3) {
+                    VStack(alignment: .leading, spacing: 4) {
                         if let sample = sample {
-                            if let util = sample.utilization {
-                                HStack(alignment: .firstTextBaseline, spacing: 4) {
-                                    Text(String(format: "%.0f%%", util))
-                                        .font(.system(size: 24, weight: .bold, design: .rounded))
+                            // Primary Hero Metrics (non-redundant with die icon's utilization %)
+                            HStack(alignment: .firstTextBaseline, spacing: 5) {
+                                if let watts = sample.powerWatts {
+                                    Text(String(format: "%.1f W", watts))
+                                        .font(.system(size: 22, weight: .bold, design: .rounded))
                                         .foregroundColor(.primary)
 
-                                    Text("Core Load")
+                                    if let temp = sample.tempCelsius {
+                                        Text("·")
+                                            .font(.system(size: 16, weight: .bold))
+                                            .foregroundColor(.secondary.opacity(0.4))
+
+                                        Text(Units.formatTemperature(temp, unit: temperatureUnit, fractionDigits: 0))
+                                            .font(.system(size: 18, weight: .bold, design: .rounded))
+                                            .foregroundColor(gpuTempColor(celsius: temp))
+                                    } else {
+                                        Text("Power Draw")
+                                            .font(.system(size: 11, weight: .semibold))
+                                            .foregroundColor(.secondary)
+                                    }
+                                } else if let temp = sample.tempCelsius {
+                                    Text(Units.formatTemperature(temp, unit: temperatureUnit, fractionDigits: 0))
+                                        .font(.system(size: 22, weight: .bold, design: .rounded))
+                                        .foregroundColor(gpuTempColor(celsius: temp))
+
+                                    Text("Temperature")
                                         .font(.system(size: 11, weight: .semibold))
                                         .foregroundColor(.secondary)
+                                } else {
+                                    Text(sample.deviceName ?? "Graphics Active")
+                                        .font(.system(size: 16, weight: .bold, design: .rounded))
+                                        .foregroundColor(purpleAccent)
                                 }
-                            } else {
-                                Text("Graphics Active")
-                                    .font(.system(size: 16, weight: .bold, design: .rounded))
-                                    .foregroundColor(purpleAccent)
                             }
 
-                            // Quick metrics: Temp & Watts
+                            // Secondary metrics: VRAM, Active Engine, Displays
                             HStack(spacing: 5) {
-                                if let temp = sample.tempCelsius {
-                                    statTag(icon: "thermometer.medium", text: Units.formatTemperature(temp, unit: temperatureUnit, fractionDigits: 0))
-                                }
-                                if let watts = sample.powerWatts {
-                                    statTag(icon: "bolt.fill", text: String(format: "%.1f W", watts))
+                                if let mem = sample.memoryUsed, mem > 0 {
+                                    statTag(icon: "memorychip", text: Units.formatBytes(mem, standard: byteStandard))
                                 } else if sample.isUnifiedMemory == true {
                                     statTag(icon: "memorychip", text: "Unified")
+                                }
+
+                                if let render = sample.rendererUtilization, render > 0 {
+                                    statTag(icon: "cube.fill", text: String(format: "3D: %.0f%%", render))
+                                } else if let tiler = sample.tilerUtilization, tiler > 0 {
+                                    statTag(icon: "square.grid.2x2.fill", text: String(format: "Tiler: %.0f%%", tiler))
+                                } else if (sample.utilization ?? 0) < 2.0 {
+                                    statTag(icon: "powersleep", text: "Idle")
+                                }
+
+                                if let count = sample.displayCount, count > 0 {
+                                    statTag(icon: "display", text: "\(count) Display\(count > 1 ? "s" : "")")
                                 }
                             }
                         } else {
@@ -410,6 +438,18 @@ public struct GPUSummaryView: View {
         )
     }
 
+    private func gpuTempColor(celsius: Double) -> Color {
+        if celsius >= 85.0 {
+            return .red
+        } else if celsius >= 70.0 {
+            return .orange
+        } else if celsius >= 50.0 {
+            return .yellow
+        } else {
+            return .green
+        }
+    }
+
     // MARK: - Diagnostics Content
 
     @ViewBuilder
@@ -448,20 +488,31 @@ public struct GPUSummaryView: View {
 
             // 2-Column Telemetry Tiles
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 5) {
-                if let temp = sample.tempCelsius {
-                    tile(label: "GPU Temperature", value: Units.formatTemperature(temp, unit: temperatureUnit, fractionDigits: 1), icon: "thermometer.medium")
+                // 1. Max VRAM Budget (replaces redundant GPU temperature)
+                if let maxMem = sample.recommendedMaxMemory, maxMem > 0 {
+                    tile(label: "VRAM Budget", value: Units.formatBytes(maxMem, standard: byteStandard), icon: "memorychip.fill")
+                } else if let alloc = sample.allocatedMemory, alloc > 0 {
+                    tile(label: "Allocated VRAM", value: Units.formatBytes(alloc, standard: byteStandard), icon: "memorychip.fill")
+                } else {
+                    tile(label: "VRAM Budget", value: "Dynamic", icon: "memorychip.fill")
                 }
-                if let watts = sample.powerWatts {
-                    tile(label: "Instant Power", value: String(format: "%.1f W", watts), icon: "bolt.fill")
-                } else if sample.isUnifiedMemory == true {
-                    tile(label: "Architecture", value: "Apple Unified", icon: "memorychip")
+
+                // 2. Hardware Raytracing Acceleration (replaces redundant architecture)
+                if let rt = sample.supportsRaytracing {
+                    tile(label: "Ray Tracing", value: rt ? "Hardware Accel" : "Unsupported", icon: "sparkles")
+                } else {
+                    tile(label: "Ray Tracing", value: "Standard", icon: "sparkles")
                 }
+
+                // 3. Driver Health & Fault Counter (kept)
                 if let rec = sample.recoveryCount {
                     tile(label: "Driver Health", value: rec == 0 ? "Normal (0 Err)" : "\(rec) Recoveries", icon: "checkmark.shield.fill")
+                } else {
+                    tile(label: "Driver Health", value: "Normal (0 Err)", icon: "checkmark.shield.fill")
                 }
-                if let cores = sample.coreCount {
-                    tile(label: "Total Cores", value: "\(cores) Active", icon: "square.grid.2x2.fill")
-                }
+
+                // 4. Metal Graphics API Version (replaces redundant core count)
+                tile(label: "Metal Support", value: sample.metalFeatureSet ?? "Metal 3", icon: "square.stack.3d.up.fill")
             }
         }
         .padding(.top, 4)

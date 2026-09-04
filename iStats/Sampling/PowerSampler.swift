@@ -49,6 +49,7 @@ public struct RawPowerSourceSnapshot: Sendable, Equatable {
 }
 
 /// Raw battery health and wattage data from the `AppleSmartBattery` IOKit registry.
+/// Raw battery health and wattage data from the `AppleSmartBattery` IOKit registry.
 public struct RawSmartBatteryData: Sendable, Equatable {
     public let cycleCount: Int?
     public let condition: String?
@@ -56,6 +57,10 @@ public struct RawSmartBatteryData: Sendable, Equatable {
     public let currentMaxCapacity: Int?
     public let adapterWatts: Double?
     public let powerDrawWatts: Double?
+    public let voltageVolts: Double?
+    public let amperageMilliAmps: Double?
+    public let designCycleCount: Int?
+    public let adapterName: String?
 
     public init(
         cycleCount: Int? = nil,
@@ -63,7 +68,11 @@ public struct RawSmartBatteryData: Sendable, Equatable {
         designCapacity: Int? = nil,
         currentMaxCapacity: Int? = nil,
         adapterWatts: Double? = nil,
-        powerDrawWatts: Double? = nil
+        powerDrawWatts: Double? = nil,
+        voltageVolts: Double? = nil,
+        amperageMilliAmps: Double? = nil,
+        designCycleCount: Int? = nil,
+        adapterName: String? = nil
     ) {
         self.cycleCount = cycleCount
         self.condition = condition
@@ -71,6 +80,10 @@ public struct RawSmartBatteryData: Sendable, Equatable {
         self.currentMaxCapacity = currentMaxCapacity
         self.adapterWatts = adapterWatts
         self.powerDrawWatts = powerDrawWatts
+        self.voltageVolts = voltageVolts
+        self.amperageMilliAmps = amperageMilliAmps
+        self.designCycleCount = designCycleCount
+        self.adapterName = adapterName
     }
 }
 
@@ -245,13 +258,42 @@ public struct HostPowerInfoProvider: PowerInfoProvider {
             }
         }
 
+        // 7. Voltage (AppleRawBatteryVoltage or Voltage in mV -> Volts)
+        let rawVoltage = (props["AppleRawBatteryVoltage"] as? NSNumber)?.doubleValue
+            ?? (props["Voltage"] as? NSNumber)?.doubleValue
+            ?? (batteryData?["Voltage"] as? NSNumber)?.doubleValue
+        let voltageVolts: Double? = rawVoltage != nil ? (rawVoltage! > 100 ? rawVoltage! / 1000.0 : rawVoltage!) : nil
+
+        // 8. Amperage (InstantAmperage or Amperage in mA)
+        let amperageMilliAmps = (props["InstantAmperage"] as? NSNumber)?.doubleValue
+            ?? (props["Amperage"] as? NSNumber)?.doubleValue
+            ?? (batteryData?["InstantAmperage"] as? NSNumber)?.doubleValue
+            ?? (batteryData?["Amperage"] as? NSNumber)?.doubleValue
+
+        // 9. Design Cycle Count (Apple Silicon / Mac standard rated cycle limit is 1000)
+        let designCycleCount = (props["DesignCycleCount9C"] as? NSNumber)?.intValue
+            ?? (props["DesignCycleCount"] as? NSNumber)?.intValue
+            ?? 1000
+
+        // 10. Adapter Name (from AdapterDetails)
+        var adapterName: String? = nil
+        if let adapterDetails = props["AdapterDetails"] as? [String: Any] {
+            if let name = adapterDetails["Name"] as? String, !name.trimmingCharacters(in: .whitespaces).isEmpty {
+                adapterName = name.trimmingCharacters(in: .whitespaces)
+            }
+        }
+
         return RawSmartBatteryData(
             cycleCount: cycleCount,
             condition: condition,
             designCapacity: designCapacity,
             currentMaxCapacity: currentMaxCapacity,
             adapterWatts: adapterWatts,
-            powerDrawWatts: powerDrawWatts
+            powerDrawWatts: powerDrawWatts,
+            voltageVolts: voltageVolts,
+            amperageMilliAmps: amperageMilliAmps,
+            designCycleCount: designCycleCount,
+            adapterName: adapterName
         )
     }
 }
@@ -296,7 +338,11 @@ public final class PowerSampler: Sampler, @unchecked Sendable {
                 designCapacity: nil,
                 currentMaxCapacity: nil,
                 powerDrawWatts: smartBattery?.powerDrawWatts,
-                adapterWatts: smartBattery?.adapterWatts
+                adapterWatts: smartBattery?.adapterWatts,
+                voltageVolts: nil,
+                amperageMilliAmps: nil,
+                designCycleCount: nil,
+                adapterName: smartBattery?.adapterName
             )
         }
 
@@ -358,7 +404,11 @@ public final class PowerSampler: Sampler, @unchecked Sendable {
             designCapacity: smartBattery?.designCapacity,
             currentMaxCapacity: smartBattery?.currentMaxCapacity,
             powerDrawWatts: smartBattery?.powerDrawWatts,
-            adapterWatts: smartBattery?.adapterWatts
+            adapterWatts: smartBattery?.adapterWatts,
+            voltageVolts: smartBattery?.voltageVolts,
+            amperageMilliAmps: smartBattery?.amperageMilliAmps,
+            designCycleCount: smartBattery?.designCycleCount,
+            adapterName: smartBattery?.adapterName
         )
     }
 }

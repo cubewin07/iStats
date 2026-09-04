@@ -452,10 +452,18 @@ public struct PowerSample: Sendable, Equatable, Codable {
     public let powerDrawWatts: Double?
     public let adapterWatts: Double?
 
+    // Enhanced hardware & battery diagnostics
+    public let voltageVolts: Double?
+    public let amperageMilliAmps: Double?
+    public let designCycleCount: Int?
+    public let adapterName: String?
+
     public init(hasBattery: Bool, charge: Double? = nil, state: BatteryState? = nil,
                 timeRemaining: TimeInterval? = nil, cycleCount: Int? = nil, condition: String? = nil,
                 designCapacity: Int? = nil, currentMaxCapacity: Int? = nil,
-                powerDrawWatts: Double? = nil, adapterWatts: Double? = nil) {
+                powerDrawWatts: Double? = nil, adapterWatts: Double? = nil,
+                voltageVolts: Double? = nil, amperageMilliAmps: Double? = nil,
+                designCycleCount: Int? = nil, adapterName: String? = nil) {
         self.hasBattery = hasBattery
         self.charge = charge
         self.state = state
@@ -466,6 +474,10 @@ public struct PowerSample: Sendable, Equatable, Codable {
         self.currentMaxCapacity = currentMaxCapacity
         self.powerDrawWatts = powerDrawWatts
         self.adapterWatts = adapterWatts
+        self.voltageVolts = voltageVolts
+        self.amperageMilliAmps = amperageMilliAmps
+        self.designCycleCount = designCycleCount
+        self.adapterName = adapterName
     }
 }
 
@@ -487,6 +499,8 @@ public struct GPUSample: Sendable, Equatable, Codable {
     public let displayCount: Int?
     public let displayDescriptions: [String]?
     public let recoveryCount: Int?
+    public let supportsRaytracing: Bool?
+    public let metalFeatureSet: String?
 
     public init(
         utilization: Double? = nil,
@@ -502,7 +516,9 @@ public struct GPUSample: Sendable, Equatable, Codable {
         isUnifiedMemory: Bool? = nil,
         displayCount: Int? = nil,
         displayDescriptions: [String]? = nil,
-        recoveryCount: Int? = nil
+        recoveryCount: Int? = nil,
+        supportsRaytracing: Bool? = nil,
+        metalFeatureSet: String? = nil
     ) {
         self.utilization = utilization
         self.memoryUsed = memoryUsed
@@ -518,6 +534,8 @@ public struct GPUSample: Sendable, Equatable, Codable {
         self.displayCount = displayCount
         self.displayDescriptions = displayDescriptions
         self.recoveryCount = recoveryCount
+        self.supportsRaytracing = supportsRaytracing
+        self.metalFeatureSet = metalFeatureSet
     }
 }
 

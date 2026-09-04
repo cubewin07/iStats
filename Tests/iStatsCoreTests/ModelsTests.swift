@@ -240,7 +240,9 @@ final class ModelsTests: XCTestCase {
             isUnifiedMemory: true,
             displayCount: 2,
             displayDescriptions: ["Built-in Retina (120Hz)", "DELL SE2725HM (100Hz)"],
-            recoveryCount: 0
+            recoveryCount: 0,
+            supportsRaytracing: true,
+            metalFeatureSet: "Metal 3"
         )
         XCTAssertEqual(gpu.utilization, 12.5)
         XCTAssertEqual(gpu.memoryUsed, 1_000_000_000)
@@ -256,6 +258,8 @@ final class ModelsTests: XCTestCase {
         XCTAssertEqual(gpu.displayCount, 2)
         XCTAssertEqual(gpu.displayDescriptions?.count, 2)
         XCTAssertEqual(gpu.recoveryCount, 0)
+        XCTAssertEqual(gpu.supportsRaytracing, true)
+        XCTAssertEqual(gpu.metalFeatureSet, "Metal 3")
 
         // Codable test
         let data = try? JSONEncoder().encode(gpu)

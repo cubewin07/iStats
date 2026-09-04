@@ -37,6 +37,10 @@ public struct RawGPUStatistics: Sendable, Equatable {
     public let displayDescriptions: [String]?
     /// GPU driver recovery / restart count.
     public let recoveryCount: Int?
+    /// Indicates whether hardware-accelerated ray tracing is supported.
+    public let supportsRaytracing: Bool?
+    /// Supported Metal feature set version (e.g. "Metal 3").
+    public let metalFeatureSet: String?
 
     public init(
         utilization: Double? = nil,
@@ -52,7 +56,9 @@ public struct RawGPUStatistics: Sendable, Equatable {
         isUnifiedMemory: Bool? = nil,
         displayCount: Int? = nil,
         displayDescriptions: [String]? = nil,
-        recoveryCount: Int? = nil
+        recoveryCount: Int? = nil,
+        supportsRaytracing: Bool? = nil,
+        metalFeatureSet: String? = nil
     ) {
         self.utilization = utilization
         self.memoryUsed = memoryUsed
@@ -68,6 +74,8 @@ public struct RawGPUStatistics: Sendable, Equatable {
         self.displayCount = displayCount
         self.displayDescriptions = displayDescriptions
         self.recoveryCount = recoveryCount
+        self.supportsRaytracing = supportsRaytracing
+        self.metalFeatureSet = metalFeatureSet
     }
 }
 
@@ -215,13 +223,17 @@ public struct HostGPUInfoProvider: GPUInfoProvider {
             bestTemp = readSMCGPUTemperature()
         }
 
-        // Metal device enrichment (name, unified memory, recommended working set)
+        // Metal device enrichment (name, unified memory, recommended working set, raytracing, feature set)
         let metalDevice = MTLCopyAllDevices().first
         if bestName == nil {
             bestName = metalDevice?.name
         }
         let isUnified = metalDevice?.hasUnifiedMemory
         let recommendedMax = metalDevice?.recommendedMaxWorkingSetSize
+        let supportsRT = metalDevice?.supportsRaytracing
+        let metalVersion: String? = metalDevice.map { dev in
+            dev.supportsFamily(.metal3) ? "Metal 3" : "Metal 2"
+        }
         let (dispCount, dispDescs) = Self.queryConnectedDisplays()
 
         guard foundAny || bestUtilization != nil || bestMemoryUsed != nil || bestTemp != nil || bestPower != nil || bestCoreCount != nil else {
@@ -242,7 +254,9 @@ public struct HostGPUInfoProvider: GPUInfoProvider {
             isUnifiedMemory: isUnified,
             displayCount: dispCount > 0 ? dispCount : nil,
             displayDescriptions: !dispDescs.isEmpty ? dispDescs : nil,
-            recoveryCount: bestRecoveryCount
+            recoveryCount: bestRecoveryCount,
+            supportsRaytracing: supportsRT,
+            metalFeatureSet: metalVersion
         )
     }
 
@@ -297,6 +311,10 @@ public struct HostGPUInfoProvider: GPUInfoProvider {
         let temp = readSMCGPUTemperature()
         let metalDevice = MTLCopyAllDevices().first
         let (dispCount, dispDescs) = Self.queryConnectedDisplays()
+        let supportsRT = metalDevice?.supportsRaytracing
+        let metalVersion: String? = metalDevice.map { dev in
+            dev.supportsFamily(.metal3) ? "Metal 3" : "Metal 2"
+        }
 
         guard temp != nil || metalDevice != nil || dispCount > 0 else {
             return nil
@@ -308,7 +326,9 @@ public struct HostGPUInfoProvider: GPUInfoProvider {
             recommendedMaxMemory: metalDevice?.recommendedMaxWorkingSetSize,
             isUnifiedMemory: metalDevice?.hasUnifiedMemory,
             displayCount: dispCount > 0 ? dispCount : nil,
-            displayDescriptions: !dispDescs.isEmpty ? dispDescs : nil
+            displayDescriptions: !dispDescs.isEmpty ? dispDescs : nil,
+            supportsRaytracing: supportsRT,
+            metalFeatureSet: metalVersion
         )
     }
 
@@ -510,7 +530,9 @@ public final class GPUSampler: Sampler, @unchecked Sendable {
             isUnifiedMemory: raw.isUnifiedMemory,
             displayCount: raw.displayCount,
             displayDescriptions: raw.displayDescriptions,
-            recoveryCount: raw.recoveryCount
+            recoveryCount: raw.recoveryCount,
+            supportsRaytracing: raw.supportsRaytracing,
+            metalFeatureSet: raw.metalFeatureSet
         )
     }
 }
