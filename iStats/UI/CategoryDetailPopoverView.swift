@@ -2,10 +2,14 @@ import SwiftUI
 import iStatsCore
 
 /// A focused, dedicated popover view presenting metrics solely for a specific `MetricCategory` (ADR 0007).
-/// All menu bar icons configured under the same category share this popover presentation.
+///
+/// Performance optimization:
+/// Instead of observing the entire `MetricsCoordinator` (which causes blanket re-renders whenever ANY
+/// metric in the system ticks), `CategoryDetailPopoverView` delegates rendering to category-specific sections
+/// that listen strictly to their own targeted `$latest<Category>` Combine publishers via `.onReceive`.
 public struct CategoryDetailPopoverView: View {
     public let category: MetricCategory
-    @ObservedObject public var coordinator: MetricsCoordinator
+    public let coordinator: MetricsCoordinator
     @ObservedObject public var preferences: PreferencesStore
 
     // Optional sample overrides for previews / testing
@@ -44,66 +48,16 @@ public struct CategoryDetailPopoverView: View {
         self.overrideFanSample = fanSample
     }
 
-    private var currentVerdict: MetricVerdict {
-        switch category {
-        case .cpu:
-            return VerdictEvaluator.evaluateCPU(overrideCPUSample ?? coordinator.latestCPU?.value)
-        case .memory:
-            return VerdictEvaluator.evaluateMemory(overrideMemorySample ?? coordinator.latestMemory?.value, standard: preferences.byteUnitStandard)
-        case .gpu:
-            return VerdictEvaluator.evaluateGPU(overrideGPUSample ?? coordinator.latestGPU?.value)
-        case .thermal:
-            return VerdictEvaluator.evaluateThermal(overrideThermalSample ?? coordinator.latestThermal?.value, unit: preferences.temperatureUnit)
-        case .fan:
-            return VerdictEvaluator.evaluateFan(overrideFanSample ?? coordinator.latestFan?.value)
-        case .network:
-            return VerdictEvaluator.evaluateNetwork(overrideNetworkSample ?? coordinator.latestNetwork?.value, unit: preferences.networkUnit, standard: preferences.byteUnitStandard)
-        case .disk:
-            return VerdictEvaluator.evaluateDisk(overrideDiskSample ?? coordinator.latestDisk?.value, standard: preferences.byteUnitStandard)
-        case .power:
-            return VerdictEvaluator.evaluatePower(overridePowerSample ?? coordinator.latestPower?.value)
-        }
-    }
-
     public var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            // Standardized 3-tier Header
-            PopoverHeaderView(
-                category: category,
-                verdict: currentVerdict
-            )
-
-            Divider()
-
-            // Category-Specific Metric Content
-            categoryContent
+            // Category-Specific Metric Content (Isolated fine-grained publisher subscription)
+            categorySection
                 .frame(maxWidth: .infinity)
 
             Divider()
 
-            // Footer / System Actions
-            HStack(spacing: 6) {
-                Button(action: {
-                    NSWorkspace.shared.open(URL(fileURLWithPath: "/System/Applications/Utilities/Activity Monitor.app"))
-                }) {
-                    Label("Activity Monitor", systemImage: "chart.line.uptrend.xyaxis")
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-
-                Spacer()
-
-                Button(action: {
-                    PreferencesWindowController.shared.showPreferences()
-                }) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "gearshape")
-                        Text("Preferences...")
-                    }
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-            }
+            // Footer / System Actions (Static, never re-renders on telemetry ticks)
+            footerActions
         }
         .padding(14)
         .frame(width: 330)
@@ -114,56 +68,372 @@ public struct CategoryDetailPopoverView: View {
         }
     }
 
+    // MARK: - Category Sections (Fine-Grained Isolation)
+
     @ViewBuilder
-    private var categoryContent: some View {
+    private var categorySection: some View {
         switch category {
         case .cpu:
-            CPUSummaryView(
-                sample: overrideCPUSample ?? coordinator.latestCPU?.value,
-                history: coordinator.cpuHistory
+            CPUCategorySection(
+                coordinator: coordinator,
+                overrideSample: overrideCPUSample
             )
         case .memory:
-            MemorySummaryView(
-                sample: overrideMemorySample ?? coordinator.latestMemory?.value,
-                history: coordinator.memoryHistory,
-                byteStandard: preferences.byteUnitStandard
+            MemoryCategorySection(
+                coordinator: coordinator,
+                preferences: preferences,
+                overrideSample: overrideMemorySample
             )
         case .gpu:
+            GPUCategorySection(
+                coordinator: coordinator,
+                preferences: preferences,
+                overrideSample: overrideGPUSample
+            )
+        case .thermal:
+            ThermalCategorySection(
+                coordinator: coordinator,
+                preferences: preferences,
+                overrideSample: overrideThermalSample
+            )
+        case .fan:
+            FanCategorySection(
+                coordinator: coordinator,
+                overrideSample: overrideFanSample
+            )
+        case .network:
+            NetworkCategorySection(
+                coordinator: coordinator,
+                preferences: preferences,
+                overrideSample: overrideNetworkSample
+            )
+        case .disk:
+            DiskCategorySection(
+                coordinator: coordinator,
+                preferences: preferences,
+                overrideSample: overrideDiskSample
+            )
+        case .power:
+            PowerCategorySection(
+                coordinator: coordinator,
+                overrideSample: overridePowerSample
+            )
+        }
+    }
+
+    // MARK: - Static Footer Actions
+
+    private var footerActions: some View {
+        HStack(spacing: 6) {
+            Button(action: {
+                NSWorkspace.shared.open(URL(fileURLWithPath: "/System/Applications/Utilities/Activity Monitor.app"))
+            }) {
+                Label("Activity Monitor", systemImage: "chart.line.uptrend.xyaxis")
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+
+            Spacer()
+
+            Button(action: {
+                PreferencesWindowController.shared.showPreferences()
+            }) {
+                HStack(spacing: 4) {
+                    Image(systemName: "gearshape")
+                    Text("Preferences...")
+                }
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+        }
+    }
+}
+
+// MARK: - Dedicated Category Subsections (Targeted Publisher Subscriptions)
+
+private struct CPUCategorySection: View {
+    let coordinator: MetricsCoordinator
+    let overrideSample: CPUSample?
+    @State private var sample: CPUSample?
+    @State private var history: [Sample<CPUSample>]
+
+    init(coordinator: MetricsCoordinator, overrideSample: CPUSample?) {
+        self.coordinator = coordinator
+        self.overrideSample = overrideSample
+        _sample = State(initialValue: overrideSample ?? coordinator.latestCPU?.value)
+        _history = State(initialValue: coordinator.cpuHistory)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            PopoverHeaderView(category: .cpu, verdict: VerdictEvaluator.evaluateCPU(sample))
+            Divider()
+            CPUSummaryView(sample: sample, history: history)
+        }
+        .onReceive(coordinator.$latestCPU) { newSample in
+            if overrideSample == nil {
+                sample = newSample?.value
+                history = coordinator.cpuHistory
+            }
+        }
+    }
+}
+
+private struct MemoryCategorySection: View {
+    let coordinator: MetricsCoordinator
+    @ObservedObject var preferences: PreferencesStore
+    let overrideSample: MemorySample?
+    @State private var sample: MemorySample?
+    @State private var history: [Sample<MemorySample>]
+
+    init(coordinator: MetricsCoordinator, preferences: PreferencesStore, overrideSample: MemorySample?) {
+        self.coordinator = coordinator
+        self.preferences = preferences
+        self.overrideSample = overrideSample
+        _sample = State(initialValue: overrideSample ?? coordinator.latestMemory?.value)
+        _history = State(initialValue: coordinator.memoryHistory)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            PopoverHeaderView(
+                category: .memory,
+                verdict: VerdictEvaluator.evaluateMemory(sample, standard: preferences.byteUnitStandard)
+            )
+            Divider()
+            MemorySummaryView(
+                sample: sample,
+                history: history,
+                byteStandard: preferences.byteUnitStandard
+            )
+        }
+        .onReceive(coordinator.$latestMemory) { newSample in
+            if overrideSample == nil {
+                sample = newSample?.value
+                history = coordinator.memoryHistory
+            }
+        }
+    }
+}
+
+private struct GPUCategorySection: View {
+    let coordinator: MetricsCoordinator
+    @ObservedObject var preferences: PreferencesStore
+    let overrideSample: GPUSample?
+    @State private var sample: GPUSample?
+    @State private var history: [Sample<GPUSample>]
+
+    init(coordinator: MetricsCoordinator, preferences: PreferencesStore, overrideSample: GPUSample?) {
+        self.coordinator = coordinator
+        self.preferences = preferences
+        self.overrideSample = overrideSample
+        _sample = State(initialValue: overrideSample ?? coordinator.latestGPU?.value)
+        _history = State(initialValue: coordinator.gpuHistory)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            PopoverHeaderView(
+                category: .gpu,
+                verdict: VerdictEvaluator.evaluateGPU(sample)
+            )
+            Divider()
             GPUSummaryView(
-                sample: overrideGPUSample ?? coordinator.latestGPU?.value,
-                history: coordinator.gpuHistory,
+                sample: sample,
+                history: history,
                 temperatureUnit: preferences.temperatureUnit,
                 byteStandard: preferences.byteUnitStandard
             )
-        case .thermal:
+        }
+        .onReceive(coordinator.$latestGPU) { newSample in
+            if overrideSample == nil {
+                sample = newSample?.value
+                history = coordinator.gpuHistory
+            }
+        }
+    }
+}
+
+private struct ThermalCategorySection: View {
+    let coordinator: MetricsCoordinator
+    @ObservedObject var preferences: PreferencesStore
+    let overrideSample: ThermalSample?
+    @State private var sample: ThermalSample?
+    @State private var history: [Sample<ThermalSample>]
+
+    init(coordinator: MetricsCoordinator, preferences: PreferencesStore, overrideSample: ThermalSample?) {
+        self.coordinator = coordinator
+        self.preferences = preferences
+        self.overrideSample = overrideSample
+        _sample = State(initialValue: overrideSample ?? coordinator.latestThermal?.value)
+        _history = State(initialValue: coordinator.thermalHistory)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            PopoverHeaderView(
+                category: .thermal,
+                verdict: VerdictEvaluator.evaluateThermal(sample, unit: preferences.temperatureUnit)
+            )
+            Divider()
             ThermalSummaryView(
-                sample: overrideThermalSample ?? coordinator.latestThermal?.value,
-                history: coordinator.thermalHistory,
+                sample: sample,
+                history: history,
                 temperatureUnit: preferences.temperatureUnit
             )
-        case .fan:
-            FanSummaryView(
-                sample: overrideFanSample ?? coordinator.latestFan?.value,
-                history: coordinator.fanHistory
+        }
+        .onReceive(coordinator.$latestThermal) { newSample in
+            if overrideSample == nil {
+                sample = newSample?.value
+                history = coordinator.thermalHistory
+            }
+        }
+    }
+}
+
+private struct FanCategorySection: View {
+    let coordinator: MetricsCoordinator
+    let overrideSample: FanSample?
+    @State private var sample: FanSample?
+    @State private var history: [Sample<FanSample>]
+
+    init(coordinator: MetricsCoordinator, overrideSample: FanSample?) {
+        self.coordinator = coordinator
+        self.overrideSample = overrideSample
+        _sample = State(initialValue: overrideSample ?? coordinator.latestFan?.value)
+        _history = State(initialValue: coordinator.fanHistory)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            PopoverHeaderView(
+                category: .fan,
+                verdict: VerdictEvaluator.evaluateFan(sample)
             )
-        case .network:
+            Divider()
+            FanSummaryView(
+                sample: sample,
+                history: history
+            )
+        }
+        .onReceive(coordinator.$latestFan) { newSample in
+            if overrideSample == nil {
+                sample = newSample?.value
+                history = coordinator.fanHistory
+            }
+        }
+    }
+}
+
+private struct NetworkCategorySection: View {
+    let coordinator: MetricsCoordinator
+    @ObservedObject var preferences: PreferencesStore
+    let overrideSample: NetworkSample?
+    @State private var sample: NetworkSample?
+    @State private var history: [Sample<NetworkSample>]
+
+    init(coordinator: MetricsCoordinator, preferences: PreferencesStore, overrideSample: NetworkSample?) {
+        self.coordinator = coordinator
+        self.preferences = preferences
+        self.overrideSample = overrideSample
+        _sample = State(initialValue: overrideSample ?? coordinator.latestNetwork?.value)
+        _history = State(initialValue: coordinator.networkHistory)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            PopoverHeaderView(
+                category: .network,
+                verdict: VerdictEvaluator.evaluateNetwork(
+                    sample,
+                    unit: preferences.networkUnit,
+                    standard: preferences.byteUnitStandard
+                )
+            )
+            Divider()
             NetworkSummaryView(
-                sample: overrideNetworkSample ?? coordinator.latestNetwork?.value,
-                history: coordinator.networkHistory,
+                sample: sample,
+                history: history,
                 networkUnit: preferences.networkUnit,
                 byteStandard: preferences.byteUnitStandard
             )
-        case .disk:
+        }
+        .onReceive(coordinator.$latestNetwork) { newSample in
+            if overrideSample == nil {
+                sample = newSample?.value
+                history = coordinator.networkHistory
+            }
+        }
+    }
+}
+
+private struct DiskCategorySection: View {
+    let coordinator: MetricsCoordinator
+    @ObservedObject var preferences: PreferencesStore
+    let overrideSample: DiskSample?
+    @State private var sample: DiskSample?
+    @State private var history: [Sample<DiskSample>]
+
+    init(coordinator: MetricsCoordinator, preferences: PreferencesStore, overrideSample: DiskSample?) {
+        self.coordinator = coordinator
+        self.preferences = preferences
+        self.overrideSample = overrideSample
+        _sample = State(initialValue: overrideSample ?? coordinator.latestDisk?.value)
+        _history = State(initialValue: coordinator.diskHistory)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            PopoverHeaderView(
+                category: .disk,
+                verdict: VerdictEvaluator.evaluateDisk(sample, standard: preferences.byteUnitStandard)
+            )
+            Divider()
             DiskSummaryView(
-                sample: overrideDiskSample ?? coordinator.latestDisk?.value,
-                history: coordinator.diskHistory,
+                sample: sample,
+                history: history,
                 byteStandard: preferences.byteUnitStandard
             )
-        case .power:
-            PowerSummaryView(
-                sample: overridePowerSample ?? coordinator.latestPower?.value,
-                history: coordinator.powerHistory
+        }
+        .onReceive(coordinator.$latestDisk) { newSample in
+            if overrideSample == nil {
+                sample = newSample?.value
+                history = coordinator.diskHistory
+            }
+        }
+    }
+}
+
+private struct PowerCategorySection: View {
+    let coordinator: MetricsCoordinator
+    let overrideSample: PowerSample?
+    @State private var sample: PowerSample?
+    @State private var history: [Sample<PowerSample>]
+
+    init(coordinator: MetricsCoordinator, overrideSample: PowerSample?) {
+        self.coordinator = coordinator
+        self.overrideSample = overrideSample
+        _sample = State(initialValue: overrideSample ?? coordinator.latestPower?.value)
+        _history = State(initialValue: coordinator.powerHistory)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            PopoverHeaderView(
+                category: .power,
+                verdict: VerdictEvaluator.evaluatePower(sample)
             )
+            Divider()
+            PowerSummaryView(
+                sample: sample,
+                history: history
+            )
+        }
+        .onReceive(coordinator.$latestPower) { newSample in
+            if overrideSample == nil {
+                sample = newSample?.value
+                history = coordinator.powerHistory
+            }
         }
     }
 }
