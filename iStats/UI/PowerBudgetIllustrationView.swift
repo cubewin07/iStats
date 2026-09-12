@@ -51,19 +51,19 @@ public struct PowerBudgetIllustrationView: View {
 
     private func batteryGlyphContent(sample: PowerSample) -> some View {
         let charge = sample.charge ?? 100.0
-        let isCharging = sample.state == .charging
-        let color = chargeColor(charge: charge, state: sample.state)
+        let variant = sample.variant
+        let color = chargeColor(charge: charge, variant: variant)
 
         return VStack(spacing: 3) {
             // Battery Terminal Top Cap
             RoundedRectangle(cornerRadius: 1)
-                .fill(Color.primary.opacity(0.3))
+                .fill(color.opacity(0.4))
                 .frame(width: 10, height: 2.5)
 
             // Battery Body
             ZStack(alignment: .bottom) {
                 RoundedRectangle(cornerRadius: 4)
-                    .strokeBorder(Color.primary.opacity(0.3), lineWidth: 1.5)
+                    .strokeBorder(variant == .lowBattery && charge <= 10.0 ? Color.red.opacity(0.8) : Color.primary.opacity(0.3), lineWidth: 1.5)
                     .frame(width: 28, height: 38)
 
                 // Fill level
@@ -78,17 +78,51 @@ public struct PowerBudgetIllustrationView: View {
                     .frame(width: 24, height: max(3, 34 * CGFloat(charge / 100.0)))
                     .padding(2)
 
-                if isCharging {
-                    Image(systemName: "bolt.fill")
-                        .font(.system(size: 13, weight: .bold))
-                        .foregroundColor(.white)
-                        .shadow(color: .black.opacity(0.5), radius: 1, x: 0, y: 1)
-                }
+                // Multi-state overlay icon
+                overlayIcon(for: variant)
             }
 
             Text(String(format: "%.0f%%", charge))
                 .font(.system(size: 9.5, weight: .bold, design: .rounded))
                 .foregroundColor(.primary)
+        }
+    }
+
+    @ViewBuilder
+    private func overlayIcon(for variant: PowerStateVariant) -> some View {
+        switch variant {
+        case .charging:
+            Image(systemName: "bolt.fill")
+                .font(.system(size: 13, weight: .bold))
+                .foregroundColor(.yellow)
+                .shadow(color: .black.opacity(0.5), radius: 1, x: 0, y: 1)
+                .padding(.bottom, 12)
+        case .onHold:
+            Image(systemName: "pause.fill")
+                .font(.system(size: 11, weight: .bold))
+                .foregroundColor(.orange)
+                .shadow(color: .black.opacity(0.5), radius: 1, x: 0, y: 1)
+                .padding(.bottom, 13)
+        case .powerDeficit:
+            Image(systemName: "bolt.trianglebadge.exclamationmark.fill")
+                .font(.system(size: 12, weight: .bold))
+                .foregroundColor(.orange)
+                .shadow(color: .black.opacity(0.5), radius: 1, x: 0, y: 1)
+                .padding(.bottom, 12)
+        case .lowBattery:
+            Image(systemName: "exclamationmark")
+                .font(.system(size: 13, weight: .black))
+                .foregroundColor(.white)
+                .shadow(color: .black.opacity(0.6), radius: 1, x: 0, y: 1)
+                .padding(.bottom, 12)
+        case .charged:
+            Image(systemName: "powerplug.fill")
+                .font(.system(size: 11, weight: .bold))
+                .foregroundColor(.white)
+                .shadow(color: .black.opacity(0.5), radius: 1, x: 0, y: 1)
+                .padding(.bottom, 13)
+        case .discharging, .acDesktop, .unavailable:
+            EmptyView()
         }
     }
 
@@ -112,15 +146,25 @@ public struct PowerBudgetIllustrationView: View {
         }
     }
 
-    private func chargeColor(charge: Double, state: BatteryState?) -> Color {
-        if state == .charging {
-            return .green
-        }
-        if charge <= 10 {
+    private func chargeColor(charge: Double, variant: PowerStateVariant) -> Color {
+        switch variant {
+        case .lowBattery:
             return .red
-        } else if charge <= 20 {
+        case .powerDeficit:
             return .orange
-        } else {
+        case .onHold:
+            return .green
+        case .charging, .charged:
+            return .green
+        case .discharging:
+            if charge <= 10 {
+                return .red
+            } else if charge <= 20 {
+                return .orange
+            } else {
+                return .green
+            }
+        case .acDesktop, .unavailable:
             return .green
         }
     }

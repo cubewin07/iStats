@@ -467,51 +467,61 @@ public enum VerdictEvaluator {
         let badge: String
         let sentence: String
 
-        switch state {
-        case .charging:
-            level = .fine
-            if let time = s.timeRemaining, time > 0 && time < 86400 {
-                let mins = Int(time / 60)
-                if mins >= 60 {
-                    badge = "\(mins / 60)h \(mins % 60)m to full"
-                } else {
-                    badge = "\(mins) min to full"
-                }
-                sentence = "Battery charging rapidly"
+        if s.variant == .powerDeficit {
+            level = .warning
+            badge = "Power Deficit"
+            if let draw = s.powerDrawWatts, let adapt = s.adapterWatts {
+                sentence = "System load (\(Int(draw))W) exceeds charger (\(Int(adapt))W). Battery assisting."
             } else {
-                badge = "Charging"
-                sentence = "Connected to power adapter"
+                sentence = "System draw exceeds power input; battery discharging."
             }
-        case .charged:
-            level = .fine
-            badge = "Fully Charged"
-            sentence = "On AC power. Battery full."
-        case .acConnected:
-            level = .fine
-            if charge >= 99.0 {
+        } else {
+            switch state {
+            case .charging:
+                level = .fine
+                if let time = s.timeRemaining, time > 0 && time < 86400 {
+                    let mins = Int(time / 60)
+                    if mins >= 60 {
+                        badge = "\(mins / 60)h \(mins % 60)m to full"
+                    } else {
+                        badge = "\(mins) min to full"
+                    }
+                    sentence = "Battery charging rapidly"
+                } else {
+                    badge = "Charging"
+                    sentence = "Connected to power adapter"
+                }
+            case .charged:
+                level = .fine
                 badge = "Fully Charged"
                 sentence = "On AC power. Battery full."
-            } else {
-                badge = "Not Charging"
-                sentence = "Connected to power. Battery not charging."
-            }
-        case .discharging, .unknown:
-            if charge <= 10.0 {
-                level = .critical
-                badge = "Plug in now"
-                sentence = "Battery is critically low"
-            } else if charge <= 20.0 {
-                level = .warning
-                badge = "Plug in soon"
-                sentence = "Battery level is low"
-            } else if charge <= 40.0 {
-                level = .elevated
-                badge = "Running down"
-                sentence = formatBatteryTimeSentence(s.timeRemaining)
-            } else {
+            case .acConnected:
                 level = .fine
-                badge = formatBatteryTimeBadge(s.timeRemaining)
-                sentence = "Battery discharge is normal"
+                if charge >= 99.0 {
+                    badge = "Fully Charged"
+                    sentence = "On AC power. Battery full."
+                } else {
+                    badge = "Not Charging"
+                    sentence = "Connected to power. Battery not charging."
+                }
+            case .discharging, .unknown:
+                if charge <= 10.0 {
+                    level = .critical
+                    badge = "Plug in now"
+                    sentence = "Battery is critically low"
+                } else if charge <= 20.0 {
+                    level = .warning
+                    badge = "Plug in soon"
+                    sentence = "Battery level is low"
+                } else if charge <= 40.0 {
+                    level = .elevated
+                    badge = "Running down"
+                    sentence = formatBatteryTimeSentence(s.timeRemaining)
+                } else {
+                    level = .fine
+                    badge = formatBatteryTimeBadge(s.timeRemaining)
+                    sentence = "Battery discharge is normal"
+                }
             }
         }
 

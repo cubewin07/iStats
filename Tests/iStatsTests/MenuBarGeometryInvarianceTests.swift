@@ -260,6 +260,11 @@ final class MenuBarGeometryInvarianceTests: XCTestCase {
 
             let batDesktop = MenuBarIconRenderer.drawBatteryInstrument(charge: nil, state: nil, hasBattery: false)
             XCTAssertEqual(batDesktop.size, NSSize(width: 25, height: 16))
+
+            for variant in PowerStateVariant.allCases {
+                let batVariant = MenuBarIconRenderer.drawBatteryInstrument(charge: chg, state: nil, hasBattery: true, variant: variant)
+                XCTAssertEqual(batVariant.size, NSSize(width: 25, height: 16), "Battery instrument for variant \(variant) must be 25x16pt")
+            }
         }
 
         // Power budget text (34.0pt × 22.0pt)

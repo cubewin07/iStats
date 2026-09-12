@@ -479,6 +479,161 @@ public struct PowerSample: Sendable, Equatable, Codable {
         self.designCycleCount = designCycleCount
         self.adapterName = adapterName
     }
+
+    /// Computed dynamic operational and visual power state variant.
+    public var variant: PowerStateVariant {
+        PowerStateVariant.resolve(
+            charge: charge,
+            state: state,
+            hasBattery: hasBattery,
+            drawWatts: powerDrawWatts,
+            adapterWatts: adapterWatts,
+            amperageMilliAmps: amperageMilliAmps
+        )
+    }
+
+    /// Whether charging is currently held / paused while connected to AC power.
+    public var isOnHold: Bool { variant == .onHold }
+
+    /// Whether system load exceeds connected adapter capacity, causing battery drain.
+    public var isPowerDeficit: Bool { variant == .powerDeficit }
+
+    /// Whether the battery is at or below the low battery threshold (<= 20%).
+    public var isLowBattery: Bool { variant == .lowBattery }
+
+    /// Whether the Mac is operating on battery power (normal or low).
+    public var isUsingBatteryPower: Bool { variant == .discharging || variant == .lowBattery }
+}
+
+/// Distinct operational and visual power state variants.
+public enum PowerStateVariant: String, Sendable, Equatable, Codable, CaseIterable {
+    /// Actively charging from an external AC power adapter.
+    case charging
+    /// Connected to AC power, but charging is intentionally held / paused (e.g. 80% optimized limit or thermal pause).
+    case onHold
+    /// Connected to AC power, but active system power draw exceeds the adapter's wattage capability (battery assisting).
+    case powerDeficit
+    /// Operating normally on internal battery power (> 20%).
+    case discharging
+    /// Operating on battery with low or critical charge level (<= 20%).
+    case lowBattery
+    /// Connected to AC power with battery at 100% (or AC bypass).
+    case charged
+    /// Desktop Mac (Mac mini, Mac Studio, Mac Pro) or system without an internal battery.
+    case acDesktop
+    /// Battery or power telemetry is unavailable / unmetered.
+    case unavailable
+
+    public var displayName: String {
+        switch self {
+        case .charging:
+            return "Charging"
+        case .onHold:
+            return "Charging On Hold"
+        case .powerDeficit:
+            return "Power Deficit"
+        case .discharging:
+            return "On Battery"
+        case .lowBattery:
+            return "Low Battery"
+        case .charged:
+            return "Fully Charged"
+        case .acDesktop:
+            return "AC Power"
+        case .unavailable:
+            return "Unavailable"
+        }
+    }
+
+    public var shortBadge: String {
+        switch self {
+        case .charging:
+            return "CHG"
+        case .onHold:
+            return "HOLD"
+        case .powerDeficit:
+            return "DEFICIT"
+        case .discharging:
+            return "BAT"
+        case .lowBattery:
+            return "LOW"
+        case .charged:
+            return "PWR"
+        case .acDesktop:
+            return "AC"
+        case .unavailable:
+            return "--"
+        }
+    }
+
+    public var systemImageName: String {
+        switch self {
+        case .charging:
+            return "bolt.fill"
+        case .onHold:
+            return "pause.fill"
+        case .powerDeficit:
+            return "bolt.trianglebadge.exclamationmark.fill"
+        case .discharging:
+            return "battery.100percent"
+        case .lowBattery:
+            return "exclamationmark.triangle.fill"
+        case .charged:
+            return "powerplug.fill"
+        case .acDesktop:
+            return "powerplug.fill"
+        case .unavailable:
+            return "battery.slash"
+        }
+    }
+
+    /// Pure resolution of the dynamic `PowerStateVariant` based on telemetry inputs.
+    public static func resolve(
+        charge: Double?,
+        state: BatteryState?,
+        hasBattery: Bool,
+        drawWatts: Double? = nil,
+        adapterWatts: Double? = nil,
+        amperageMilliAmps: Double? = nil
+    ) -> PowerStateVariant {
+        guard hasBattery else { return .acDesktop }
+        guard let charge = charge else { return .unavailable }
+
+        let isConnectedToAC = state == .acConnected || state == .charging || state == .charged || (adapterWatts != nil && adapterWatts! > 0)
+
+        // 1. Power Deficit: Connected to AC, but power draw exceeds adapter wattage (or active discharging current)
+        if isConnectedToAC {
+            if let adapter = adapterWatts, adapter > 0, let draw = drawWatts, draw > (adapter + 1.0) {
+                return .powerDeficit
+            }
+            if let amp = amperageMilliAmps, amp < -200.0 {
+                return .powerDeficit
+            }
+        }
+
+        // 2. Active Charging
+        if state == .charging {
+            return .charging
+        }
+
+        // 3. Fully Charged (AC connected & 100% or flagged charged)
+        if isConnectedToAC && (state == .charged || charge >= 99.0) {
+            return .charged
+        }
+
+        // 4. On Hold: Connected to AC, but not charging and not full (e.g. 80% optimized battery charging limit)
+        if isConnectedToAC {
+            return .onHold
+        }
+
+        // 5. Low Battery: Discharging on battery at or below 20%
+        if charge <= 20.0 {
+            return .lowBattery
+        }
+
+        // 6. Normal discharging on battery
+        return .discharging
+    }
 }
 
 /// GPU statistics for one sample.

@@ -41,17 +41,17 @@ public struct PowerSummaryView: View {
     public var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             // MARK: - Hero Row: Battery Glyph + Battery & Charging Metrics
-            HStack(alignment: .center, spacing: 14) {
+            HStack(alignment: .center, spacing: 12) {
                 // Live Battery Glyph Illustration
                 PowerBudgetIllustrationView(
                     sample: sample,
                     peakDraw: peakPowerDraw,
-                    size: CGSize(width: 54, height: 64)
+                    size: CGSize(width: 52, height: 62)
                 )
 
                 // High-Readability Power Metrics
                 powerHeroMetrics
-                Spacer(minLength: 0)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
 
             // MARK: - 60-Sample Power Draw History Sparkline (if draw exposed)
@@ -89,99 +89,258 @@ public struct PowerSummaryView: View {
         VStack(alignment: .leading, spacing: 6) {
             if let sample = sample {
                 if sample.hasBattery {
-                    // Primary Hero Status / Live Power Draw & Adapter
-                    HStack(alignment: .firstTextBaseline) {
-                        if sample.state == .charging {
-                            if let draw = sample.powerDrawWatts {
-                                HStack(alignment: .firstTextBaseline, spacing: 4) {
-                                    Text(String(format: "%.1f W", draw))
-                                        .font(.system(size: 21, weight: .bold, design: .rounded))
-                                        .foregroundColor(.green)
+                    let variant = sample.variant
+                    // Primary Hero Status Row
+                    HStack(alignment: .center) {
+                        switch variant {
+                        case .charging:
+                            VStack(alignment: .leading, spacing: 2) {
+                                HStack(alignment: .center, spacing: 5) {
+                                    if let timeRemaining = sample.timeRemaining, timeRemaining > 0 {
+                                        Text(formatDuration(timeRemaining))
+                                            .font(.system(size: 15.5, weight: .bold, design: .rounded))
+                                            .foregroundColor(.green)
 
-                                    Text("Charging")
-                                        .font(.system(size: 11.5, weight: .semibold, design: .rounded))
-                                        .foregroundColor(.secondary)
+                                        Text("to full")
+                                            .font(.system(size: 11.5, weight: .semibold, design: .rounded))
+                                            .foregroundColor(.secondary)
+                                    } else {
+                                        Text("Charging")
+                                            .font(.system(size: 15, weight: .bold, design: .rounded))
+                                            .foregroundColor(.green)
+                                    }
 
                                     Image(systemName: "bolt.fill")
-                                        .font(.system(size: 10, weight: .bold))
+                                        .font(.system(size: 11, weight: .bold))
                                         .foregroundColor(.green)
                                 }
-                            } else if let timeRemaining = sample.timeRemaining, timeRemaining > 0 {
-                                HStack(alignment: .firstTextBaseline, spacing: 4) {
-                                    Text(formatDuration(timeRemaining))
-                                        .font(.system(size: 21, weight: .bold, design: .rounded))
-                                        .foregroundColor(.green)
 
-                                    Text("until full")
-                                        .font(.system(size: 11.5, weight: .semibold, design: .rounded))
+                                if let adapter = sample.adapterWatts, adapter > 0 {
+                                    if let voltage = sample.voltageVolts {
+                                        Text(String(format: "%dW Adapter · %.1fV", Int(round(adapter)), voltage))
+                                            .font(.system(size: 11, weight: .medium, design: .rounded))
+                                            .foregroundColor(.secondary)
+                                            .lineLimit(1)
+                                    } else {
+                                        Text("Charging via \(Int(round(adapter)))W Adapter")
+                                            .font(.system(size: 11, weight: .medium, design: .rounded))
+                                            .foregroundColor(.secondary)
+                                            .lineLimit(1)
+                                    }
+                                } else {
+                                    Text("Charging on AC Power")
+                                        .font(.system(size: 11, weight: .medium, design: .rounded))
                                         .foregroundColor(.secondary)
-
-                                    Image(systemName: "bolt.fill")
-                                        .font(.system(size: 10, weight: .bold))
-                                        .foregroundColor(.green)
-                                }
-                            } else {
-                                HStack(alignment: .firstTextBaseline, spacing: 4) {
-                                    Text("Charging")
-                                        .font(.system(size: 21, weight: .bold, design: .rounded))
-                                        .foregroundColor(.green)
-
-                                    Image(systemName: "bolt.fill")
-                                        .font(.system(size: 10, weight: .bold))
-                                        .foregroundColor(.green)
+                                        .lineLimit(1)
                                 }
                             }
-                        } else if sample.state == .acConnected || sample.state == .charged {
-                            if let draw = sample.powerDrawWatts {
-                                HStack(alignment: .firstTextBaseline, spacing: 4) {
-                                    Text(String(format: "%.1f W", draw))
-                                        .font(.system(size: 21, weight: .bold, design: .rounded))
-                                        .foregroundColor(.primary)
 
-                                    Text("Draw")
-                                        .font(.system(size: 11.5, weight: .semibold, design: .rounded))
-                                        .foregroundColor(.secondary)
-                                }
-                            } else {
-                                Text("Power Connected")
-                                    .font(.system(size: 18, weight: .bold, design: .rounded))
+                        case .onHold:
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("AC Power")
+                                    .font(.system(size: 15, weight: .bold, design: .rounded))
                                     .foregroundColor(.primary)
+
+                                if let adapter = sample.adapterWatts, adapter > 0 {
+                                    if let voltage = sample.voltageVolts {
+                                        Text(String(format: "%dW Adapter · %.1fV", Int(round(adapter)), voltage))
+                                            .font(.system(size: 11, weight: .medium, design: .rounded))
+                                            .foregroundColor(.secondary)
+                                            .lineLimit(1)
+                                    } else {
+                                        Text("Connected to \(Int(round(adapter)))W Adapter")
+                                            .font(.system(size: 11, weight: .medium, design: .rounded))
+                                            .foregroundColor(.secondary)
+                                            .lineLimit(1)
+                                    }
+                                } else if let voltage = sample.voltageVolts {
+                                    Text(String(format: "Direct AC · %.1fV", voltage))
+                                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                                        .foregroundColor(.secondary)
+                                        .lineLimit(1)
+                                } else {
+                                    Text("Direct AC · Battery Idle")
+                                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                                        .foregroundColor(.secondary)
+                                        .lineLimit(1)
+                                }
                             }
-                        } else {
-                            // On battery / discharging
-                            if let timeRemaining = sample.timeRemaining, timeRemaining > 0 {
-                                HStack(alignment: .firstTextBaseline, spacing: 4) {
-                                    Text(formatDuration(timeRemaining))
-                                        .font(.system(size: 21, weight: .bold, design: .rounded))
+
+                        case .powerDeficit:
+                            VStack(alignment: .leading, spacing: 2) {
+                                HStack(alignment: .center, spacing: 5) {
+                                    Text("Power Deficit")
+                                        .font(.system(size: 15, weight: .bold, design: .rounded))
+                                        .foregroundColor(.orange)
+
+                                    Image(systemName: "exclamationmark.triangle.fill")
+                                        .font(.system(size: 12, weight: .bold))
+                                        .foregroundColor(.orange)
+                                }
+
+                                if let draw = sample.powerDrawWatts, let adapter = sample.adapterWatts {
+                                    Text(String(format: "%.0fW Draw > %.0fW Supply", draw, adapter))
+                                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                                        .foregroundColor(.secondary)
+                                        .lineLimit(1)
+                                } else {
+                                    Text("Draw exceeds power input")
+                                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                                        .foregroundColor(.secondary)
+                                        .lineLimit(1)
+                                }
+                            }
+
+                        case .charged:
+                            VStack(alignment: .leading, spacing: 2) {
+                                HStack(alignment: .center, spacing: 5) {
+                                    Text("Fully Charged")
+                                        .font(.system(size: 15, weight: .bold, design: .rounded))
                                         .foregroundColor(.primary)
 
-                                    Text("remaining")
-                                        .font(.system(size: 11.5, weight: .semibold, design: .rounded))
-                                        .foregroundColor(.secondary)
+                                    Image(systemName: "powerplug.fill")
+                                        .font(.system(size: 11, weight: .bold))
+                                        .foregroundColor(.green)
                                 }
-                            } else if let draw = sample.powerDrawWatts {
-                                HStack(alignment: .firstTextBaseline, spacing: 4) {
-                                    Text(String(format: "%.1f W", draw))
-                                        .font(.system(size: 21, weight: .bold, design: .rounded))
-                                        .foregroundColor(.primary)
 
-                                    Text("Draw")
-                                        .font(.system(size: 11.5, weight: .semibold, design: .rounded))
+                                if let adapter = sample.adapterWatts, adapter > 0 {
+                                    Text("\(Int(round(adapter)))W Adapter · AC Bypass")
+                                        .font(.system(size: 11, weight: .medium, design: .rounded))
                                         .foregroundColor(.secondary)
+                                        .lineLimit(1)
+                                } else {
+                                    Text("Running on Power Adapter")
+                                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                                        .foregroundColor(.secondary)
+                                        .lineLimit(1)
                                 }
-                            } else {
-                                Text("On Battery")
-                                    .font(.system(size: 21, weight: .bold, design: .rounded))
-                                    .foregroundColor(.primary)
+                            }
+
+                        case .lowBattery:
+                            VStack(alignment: .leading, spacing: 2) {
+                                HStack(alignment: .center, spacing: 5) {
+                                    Text("Low Battery")
+                                        .font(.system(size: 15, weight: .bold, design: .rounded))
+                                        .foregroundColor(.red)
+
+                                    Image(systemName: "exclamationmark.triangle.fill")
+                                        .font(.system(size: 12, weight: .bold))
+                                        .foregroundColor(.red)
+                                }
+
+                                if let timeRemaining = sample.timeRemaining, timeRemaining > 0 {
+                                    Text("\(formatDuration(timeRemaining)) remaining")
+                                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                                        .foregroundColor(.secondary)
+                                        .lineLimit(1)
+                                } else {
+                                    Text("Connect power adapter soon")
+                                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                                        .foregroundColor(.secondary)
+                                        .lineLimit(1)
+                                }
+                            }
+
+                        case .discharging, .acDesktop, .unavailable:
+                            VStack(alignment: .leading, spacing: 2) {
+                                HStack(alignment: .center, spacing: 5) {
+                                    if let timeRemaining = sample.timeRemaining, timeRemaining > 0 {
+                                        Text(formatDuration(timeRemaining))
+                                            .font(.system(size: 15.5, weight: .bold, design: .rounded))
+                                            .foregroundColor(.primary)
+
+                                        Text("left")
+                                            .font(.system(size: 11.5, weight: .semibold, design: .rounded))
+                                            .foregroundColor(.secondary)
+                                    } else {
+                                        Text("On Battery")
+                                            .font(.system(size: 15, weight: .bold, design: .rounded))
+                                            .foregroundColor(.primary)
+                                    }
+                                }
+
+                                if let voltage = sample.voltageVolts {
+                                    Text(String(format: "Battery Power · %.1fV", voltage))
+                                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                                        .foregroundColor(.secondary)
+                                        .lineLimit(1)
+                                } else {
+                                    Text("Operating on Battery")
+                                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                                        .foregroundColor(.secondary)
+                                        .lineLimit(1)
+                                }
                             }
                         }
 
-                        Spacer(minLength: 8)
+                        Spacer(minLength: 6)
 
-                        if let adapter = sample.adapterWatts, adapter > 0 {
+                        // Right-aligned status badge (strictly single line)
+                        if variant == .onHold {
+                            Text("Optimized 80%")
+                                .font(.system(size: 10.5, weight: .bold, design: .rounded))
+                                .foregroundColor(.orange)
+                                .padding(.horizontal, 7)
+                                .padding(.vertical, 2.5)
+                                .background(
+                                    Capsule()
+                                        .fill(Color.orange.opacity(0.15))
+                                )
+                                .lineLimit(1)
+                                .fixedSize(horizontal: true, vertical: false)
+                        } else if variant == .powerDeficit {
+                            Text("Assisting")
+                                .font(.system(size: 10.5, weight: .bold, design: .rounded))
+                                .foregroundColor(.orange)
+                                .padding(.horizontal, 7)
+                                .padding(.vertical, 2.5)
+                                .background(
+                                    Capsule()
+                                        .fill(Color.orange.opacity(0.15))
+                                )
+                                .lineLimit(1)
+                                .fixedSize(horizontal: true, vertical: false)
+                        } else if variant == .charged {
+                            Text("AC Power")
+                                .font(.system(size: 10.5, weight: .bold, design: .rounded))
+                                .foregroundColor(.green)
+                                .padding(.horizontal, 7)
+                                .padding(.vertical, 2.5)
+                                .background(
+                                    Capsule()
+                                        .fill(Color.green.opacity(0.15))
+                                )
+                                .lineLimit(1)
+                                .fixedSize(horizontal: true, vertical: false)
+                        } else if variant == .lowBattery {
+                            Text("Plug In")
+                                .font(.system(size: 10.5, weight: .bold, design: .rounded))
+                                .foregroundColor(.red)
+                                .padding(.horizontal, 7)
+                                .padding(.vertical, 2.5)
+                                .background(
+                                    Capsule()
+                                        .fill(Color.red.opacity(0.15))
+                                )
+                                .lineLimit(1)
+                                .fixedSize(horizontal: true, vertical: false)
+                        } else if variant == .charging, let adapter = sample.adapterWatts, adapter > 0 {
                             let adapterWatts = Int(round(adapter))
-                            Text("\(adapterWatts)W Adapter")
-                                .font(.system(size: 11.5, weight: .bold, design: .rounded))
+                            Text("\(adapterWatts)W")
+                                .font(.system(size: 10.5, weight: .bold, design: .rounded))
+                                .foregroundColor(.green)
+                                .padding(.horizontal, 7)
+                                .padding(.vertical, 2.5)
+                                .background(
+                                    Capsule()
+                                        .fill(Color.green.opacity(0.15))
+                                )
+                                .lineLimit(1)
+                                .fixedSize(horizontal: true, vertical: false)
+                        } else if let adapter = sample.adapterWatts, adapter > 0 {
+                            let adapterWatts = Int(round(adapter))
+                            Text("\(adapterWatts)W")
+                                .font(.system(size: 10.5, weight: .bold, design: .rounded))
                                 .foregroundColor(.blue)
                                 .padding(.horizontal, 7)
                                 .padding(.vertical, 2.5)
@@ -189,12 +348,8 @@ public struct PowerSummaryView: View {
                                     Capsule()
                                         .fill(Color.blue.opacity(0.12))
                                 )
-                        } else if sample.state != .charging && sample.state != .acConnected && sample.state != .charged {
-                            if let time = sample.timeRemaining, time > 0, let draw = sample.powerDrawWatts {
-                                Text(String(format: "%.1f W Draw", draw))
-                                    .font(.system(size: 11, weight: .semibold, design: .rounded))
-                                    .foregroundColor(.secondary)
-                            }
+                                .lineLimit(1)
+                                .fixedSize(horizontal: true, vertical: false)
                         }
                     }
 

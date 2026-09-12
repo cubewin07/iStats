@@ -430,6 +430,22 @@ final class MenuBarDisplayTests: XCTestCase {
         XCTAssertNotNil(powerAC)
     }
 
+    func testPowerIconVariantRendering() {
+        for variant in PowerStateVariant.allCases {
+            let symbolImg = MenuBarIconRenderer.drawBatteryInstrument(charge: 65.0, state: .discharging, hasBattery: true, variant: variant)
+            XCTAssertNotNil(symbolImg)
+            XCTAssertEqual(symbolImg.size, NSSize(width: 25, height: 16))
+
+            let gaugeImg = MenuBarIconRenderer.drawPowerGauge(percentage: 65.0, variant: variant)
+            XCTAssertNotNil(gaugeImg)
+            XCTAssertEqual(gaugeImg.size, NSSize(width: 18, height: 18))
+
+            let barImg = MenuBarIconRenderer.drawPowerBar(percentage: 65.0, variant: variant)
+            XCTAssertNotNil(barImg)
+            XCTAssertEqual(barImg.size, NSSize(width: 25, height: 22))
+        }
+    }
+
     func testBespokeCategoryGaugesBarsAndSparklines() {
         // CPU
         XCTAssertNotNil(MenuBarIconRenderer.drawCPUGauge(percentage: 50.0))

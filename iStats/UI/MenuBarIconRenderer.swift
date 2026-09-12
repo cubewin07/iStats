@@ -440,26 +440,40 @@ public struct MenuBarIconRenderer {
 
     private static func renderPower(style: MetricDisplayStyle, power: PowerSample?, history: [Double]) -> RenderResult {
         let charge = power?.charge ?? 0.0
+        let variant = power?.variant ?? .unavailable
         let tip: String
         let a11y: String
         if let pwr = power {
             if pwr.hasBattery {
                 let stateStr: String
                 let a11yState: String
-                switch pwr.state {
+                switch variant {
                 case .charging:
                     stateStr = " (Charging)"
                     a11yState = ", charging"
+                case .onHold:
+                    stateStr = " (Charging On Hold - Optimized)"
+                    a11yState = ", charging on hold"
+                case .powerDeficit:
+                    if let draw = pwr.powerDrawWatts, let adapter = pwr.adapterWatts {
+                        stateStr = String(format: " (Power Deficit: %.0fW > %.0fW)", draw, adapter)
+                    } else {
+                        stateStr = " (Power Deficit)"
+                    }
+                    a11yState = ", power deficit"
                 case .charged:
-                    stateStr = " (Fully Charged)"
+                    stateStr = " (Fully Charged - Power Adapter)"
                     a11yState = ", fully charged"
-                case .acConnected:
-                    stateStr = " (AC Connected)"
-                    a11yState = ", on AC power"
+                case .lowBattery:
+                    stateStr = " (Low Battery)"
+                    a11yState = ", low battery"
                 case .discharging:
                     stateStr = " (On Battery)"
                     a11yState = ", on battery"
-                case .unknown, .none:
+                case .acDesktop:
+                    stateStr = " (AC Power)"
+                    a11yState = ", on AC power"
+                case .unavailable:
                     stateStr = ""
                     a11yState = ""
                 }
@@ -475,13 +489,13 @@ public struct MenuBarIconRenderer {
             a11y = "Power unavailable"
         }
 
-        let isCharging = power?.state == .charging
+        let isCharging = variant == .charging
         let hasBattery = power?.hasBattery ?? true
 
         switch style {
         case .symbol:
-            // Authentic Battery Shell Instrument with Live Fill & Charging Bolt
-            let img = drawBatteryInstrument(charge: power?.charge, state: power?.state, hasBattery: hasBattery)
+            // Authentic Battery Shell Instrument with Live Fill & Multi-State Overlays
+            let img = drawBatteryInstrument(charge: power?.charge, state: power?.state, hasBattery: hasBattery, variant: variant)
             return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y)
         case .text:
             // Two-Line Stacked Battery Charge% + Time Remaining / Wattage
@@ -492,17 +506,17 @@ public struct MenuBarIconRenderer {
             let img = drawPowerBudgetText(drawWatts: power?.powerDrawWatts, adapterWatts: power?.adapterWatts)
             return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y)
         case .gauge:
-            let img = drawPowerGauge(percentage: charge, isCharging: isCharging)
+            let img = drawPowerGauge(percentage: charge, isCharging: isCharging, variant: variant)
             return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y)
         case .bar:
-            let img = drawPowerBar(percentage: charge, isCharging: isCharging)
+            let img = drawPowerBar(percentage: charge, isCharging: isCharging, variant: variant)
             return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y)
         case .sparkline:
             // Live Power Draw Watts History with decay-max scaling
             let img = drawPowerSparkline(history: history)
             return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y)
         default:
-            let img = drawBatteryInstrument(charge: power?.charge, state: power?.state, hasBattery: hasBattery)
+            let img = drawBatteryInstrument(charge: power?.charge, state: power?.state, hasBattery: hasBattery, variant: variant)
             return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y)
         }
     }
@@ -1363,26 +1377,38 @@ public struct MenuBarIconRenderer {
         return image
     }
 
-    /// Draws authentic iStat Menus horizontal Battery Instrument with live proportional level fill & charging bolt.
+    /// Draws authentic iStat Menus horizontal Battery Instrument with live proportional level fill & multi-state overlays.
     public static func drawBatteryInstrument(
         charge: Double?,
         state: BatteryState?,
-        hasBattery: Bool
+        hasBattery: Bool,
+        variant: PowerStateVariant? = nil
     ) -> NSImage {
+        let activeVariant = variant ?? PowerStateVariant.resolve(charge: charge, state: state, hasBattery: hasBattery)
         let size = NSSize(width: 25, height: 16)
         let image = NSImage(size: size, flipped: false) { bounds in
-            if hasBattery {
+            if hasBattery && activeVariant != .acDesktop {
+                let isCritical = activeVariant == .lowBattery && (charge ?? 0.0) <= 10.0
+
                 // Battery Body Frame
                 let bodyRect = NSRect(x: 1.0, y: 2.0, width: 19.5, height: 12.0)
                 let body = NSBezierPath(roundedRect: bodyRect, xRadius: 2.5, yRadius: 2.5)
                 body.lineWidth = 1.2
-                NSColor.labelColor.withAlphaComponent(0.85).setStroke()
+                if isCritical {
+                    NSColor.systemRed.setStroke()
+                } else {
+                    NSColor.labelColor.withAlphaComponent(0.85).setStroke()
+                }
                 body.stroke()
 
                 // Battery Terminal Cap
                 let capRect = NSRect(x: 21.0, y: 5.5, width: 2.0, height: 5.0)
                 let cap = NSBezierPath(roundedRect: capRect, xRadius: 1.0, yRadius: 1.0)
-                NSColor.labelColor.withAlphaComponent(0.85).setFill()
+                if isCritical {
+                    NSColor.systemRed.setFill()
+                } else {
+                    NSColor.labelColor.withAlphaComponent(0.85).setFill()
+                }
                 cap.fill()
 
                 if let chg = charge {
@@ -1392,20 +1418,29 @@ public struct MenuBarIconRenderer {
                     let fillWidth = max(maxFillWidth * CGFloat(clamped / 100.0), 1.5)
                     let fillRect = NSRect(x: 3.0, y: 4.0, width: fillWidth, height: 8.0)
                     let fillPath = NSBezierPath(roundedRect: fillRect, xRadius: 1.2, yRadius: 1.2)
-                    
+
                     let fillColor: NSColor
-                    if clamped <= 20.0 {
+                    switch activeVariant {
+                    case .lowBattery:
                         fillColor = NSColor.systemRed
-                    } else if state == .charging {
+                    case .powerDeficit:
+                        fillColor = NSColor.systemOrange
+                    case .onHold:
                         fillColor = NSColor.systemGreen
-                    } else {
+                    case .charging, .charged:
+                        fillColor = NSColor.systemGreen
+                    case .discharging:
+                        fillColor = clamped <= 20.0 ? NSColor.systemRed : (clamped <= 40.0 ? NSColor.systemYellow : NSColor.systemGreen)
+                    case .acDesktop, .unavailable:
                         fillColor = NSColor.systemGreen
                     }
                     fillColor.setFill()
                     fillPath.fill()
 
-                    // Charging Lightning Bolt Overlay (Gold / Yellow)
-                    if state == .charging {
+                    // Multi-State Overlay Badges
+                    switch activeVariant {
+                    case .charging:
+                        // Golden Yellow Lightning Bolt
                         let bolt = NSBezierPath()
                         bolt.move(to: NSPoint(x: 11.5, y: 13.0))
                         bolt.line(to: NSPoint(x: 8.0, y: 8.0))
@@ -1419,6 +1454,82 @@ public struct MenuBarIconRenderer {
                         bolt.lineWidth = 0.5
                         NSColor.black.withAlphaComponent(0.6).setStroke()
                         bolt.stroke()
+
+                    case .onHold:
+                        // Elegant Pause Symbol (two vertical rounded pills || in warm amber)
+                        let p1 = NSBezierPath(roundedRect: NSRect(x: 8.8, y: 5.0, width: 1.8, height: 6.0), xRadius: 0.9, yRadius: 0.9)
+                        let p2 = NSBezierPath(roundedRect: NSRect(x: 11.8, y: 5.0, width: 1.8, height: 6.0), xRadius: 0.9, yRadius: 0.9)
+                        NSColor.systemOrange.setFill()
+                        p1.fill()
+                        p2.fill()
+                        p1.lineWidth = 0.5
+                        p2.lineWidth = 0.5
+                        NSColor.black.withAlphaComponent(0.65).setStroke()
+                        p1.stroke()
+                        p2.stroke()
+
+                    case .powerDeficit:
+                        // Dual Deficit Indicator: Mini bolt on left + downward discharge arrow on right
+                        let bolt = NSBezierPath()
+                        bolt.move(to: NSPoint(x: 9.0, y: 12.8))
+                        bolt.line(to: NSPoint(x: 6.6, y: 8.2))
+                        bolt.line(to: NSPoint(x: 8.8, y: 8.2))
+                        bolt.line(to: NSPoint(x: 7.6, y: 3.2))
+                        bolt.line(to: NSPoint(x: 11.0, y: 8.8))
+                        bolt.line(to: NSPoint(x: 8.8, y: 8.8))
+                        bolt.close()
+                        NSColor.systemOrange.setFill()
+                        bolt.fill()
+                        bolt.lineWidth = 0.4
+                        NSColor.black.withAlphaComponent(0.65).setStroke()
+                        bolt.stroke()
+
+                        let arrow = NSBezierPath()
+                        arrow.move(to: NSPoint(x: 13.5, y: 11.8))
+                        arrow.line(to: NSPoint(x: 13.5, y: 4.8))
+                        arrow.move(to: NSPoint(x: 11.5, y: 6.8))
+                        arrow.line(to: NSPoint(x: 13.5, y: 4.2))
+                        arrow.line(to: NSPoint(x: 15.5, y: 6.8))
+                        arrow.lineWidth = 1.3
+                        arrow.lineCapStyle = .round
+                        arrow.lineJoinStyle = .round
+                        NSColor.white.setStroke()
+                        arrow.stroke()
+
+                    case .lowBattery:
+                        // Centered crisp white exclamation mark with dark outline
+                        let stem = NSBezierPath(roundedRect: NSRect(x: 9.8, y: 6.8, width: 2.0, height: 4.8), xRadius: 1.0, yRadius: 1.0)
+                        let dot = NSBezierPath(ovalIn: NSRect(x: 9.8, y: 4.0, width: 2.0, height: 2.0))
+                        NSColor.white.setFill()
+                        stem.fill()
+                        dot.fill()
+                        stem.lineWidth = 0.5
+                        dot.lineWidth = 0.5
+                        NSColor.black.withAlphaComponent(0.7).setStroke()
+                        stem.stroke()
+                        dot.stroke()
+
+                    case .charged:
+                        // Miniature AC wall plug glyph centered in battery (wall power bypass)
+                        let prong1 = NSBezierPath(rect: NSRect(x: 7.0, y: 6.0, width: 2.2, height: 1.2))
+                        let prong2 = NSBezierPath(rect: NSRect(x: 7.0, y: 8.8, width: 2.2, height: 1.2))
+                        let plugBody = NSBezierPath(roundedRect: NSRect(x: 9.2, y: 5.0, width: 4.2, height: 6.0), xRadius: 1.0, yRadius: 1.0)
+                        let stub = NSBezierPath(rect: NSRect(x: 13.4, y: 7.2, width: 1.6, height: 1.6))
+                        NSColor.white.setFill()
+                        prong1.fill()
+                        prong2.fill()
+                        plugBody.fill()
+                        stub.fill()
+                        plugBody.lineWidth = 0.5
+                        NSColor.black.withAlphaComponent(0.6).setStroke()
+                        plugBody.stroke()
+
+                    case .discharging:
+                        // Pure serene Apple minimal fill: no overlay glyph
+                        break
+
+                    case .acDesktop, .unavailable:
+                        break
                     }
                 } else {
                     // Unavailable/Unmetered: dashed line across center
@@ -2138,9 +2249,10 @@ public struct MenuBarIconRenderer {
     public static func drawPowerSymbol(
         charge: Double? = nil,
         state: BatteryState? = nil,
-        hasBattery: Bool = true
+        hasBattery: Bool = true,
+        variant: PowerStateVariant? = nil
     ) -> NSImage {
-        drawBatteryInstrument(charge: charge, state: state, hasBattery: hasBattery)
+        drawBatteryInstrument(charge: charge, state: state, hasBattery: hasBattery, variant: variant)
     }
 
     /// Draws 2-line stacked live power draw wattage over adapter capacity (e.g. `28W` over `68W`).
@@ -2158,14 +2270,54 @@ public struct MenuBarIconRenderer {
         )
     }
 
-    public static func drawPowerGauge(percentage: Double, isCharging: Bool = false) -> NSImage {
-        drawCircularGauge(percentage: percentage, iconName: isCharging ? "bolt.fill" : "battery.100percent")
+    public static func drawPowerGauge(percentage: Double, isCharging: Bool = false, variant: PowerStateVariant? = nil) -> NSImage {
+        let v: PowerStateVariant = variant ?? (isCharging ? .charging : (percentage <= 20.0 ? .lowBattery : .discharging))
+        let icon: String
+        switch v {
+        case .charging:
+            icon = "bolt.fill"
+        case .onHold:
+            icon = "pause.fill"
+        case .powerDeficit:
+            icon = "bolt.trianglebadge.exclamationmark.fill"
+        case .lowBattery:
+            icon = "exclamationmark"
+        case .charged, .acDesktop:
+            icon = "powerplug.fill"
+        case .discharging:
+            icon = percentage <= 20.0 ? "battery.25percent" : "battery.100percent"
+        case .unavailable:
+            icon = "battery.slash"
+        }
+        return drawCircularGauge(percentage: percentage, iconName: icon)
     }
 
-    public static func drawPowerBar(percentage: Double, isCharging: Bool = false) -> NSImage {
+    public static func drawPowerBar(percentage: Double, isCharging: Bool = false, variant: PowerStateVariant? = nil) -> NSImage {
+        let v: PowerStateVariant = variant ?? (isCharging ? .charging : (percentage <= 20.0 ? .lowBattery : .discharging))
         let clamped = min(max(percentage, 0.0), 100.0)
-        let color: NSColor = clamped <= 20.0 ? NSColor.systemRed : (clamped <= 40.0 ? NSColor.systemYellow : NSColor.systemGreen)
-        return drawSingleCapsuleBar(label: "BAT", percentage: percentage, barColor: color)
+        let color: NSColor
+        let label: String
+        switch v {
+        case .powerDeficit:
+            color = NSColor.systemOrange
+            label = "DEF"
+        case .onHold:
+            color = NSColor.systemTeal
+            label = "HLD"
+        case .lowBattery:
+            color = NSColor.systemRed
+            label = "LOW"
+        case .charging:
+            color = NSColor.systemGreen
+            label = "CHG"
+        case .charged:
+            color = NSColor.systemGreen
+            label = "PWR"
+        case .discharging, .acDesktop, .unavailable:
+            color = clamped <= 20.0 ? NSColor.systemRed : (clamped <= 40.0 ? NSColor.systemYellow : NSColor.systemGreen)
+            label = "BAT"
+        }
+        return drawSingleCapsuleBar(label: label, percentage: percentage, barColor: color)
     }
 
     public static func drawPowerSparkline(history: [Double]) -> NSImage {
