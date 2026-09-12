@@ -176,15 +176,63 @@ final class ModelsTests: XCTestCase {
     }
 
     func testNetworkSampleAndAggregateCalculations() {
-        let en0 = InterfaceThroughput(interfaceName: "en0", bytesInPerSec: 1000.0, bytesOutPerSec: 500.0, totalBytesIn: 10000, totalBytesOut: 5000)
-        let en1 = InterfaceThroughput(interfaceName: "en1", bytesInPerSec: 2000.0, bytesOutPerSec: 1500.0, totalBytesIn: 20000, totalBytesOut: 15000)
-        let sample = NetworkSample(interfaces: [en0, en1])
+        let en0 = InterfaceThroughput(
+            interfaceName: "en0",
+            bytesInPerSec: 1000.0,
+            bytesOutPerSec: 500.0,
+            totalBytesIn: 10000,
+            totalBytesOut: 5000,
+            ipv4Address: "192.168.1.50",
+            type: .wifi
+        )
+        let en1 = InterfaceThroughput(
+            interfaceName: "en1",
+            bytesInPerSec: 2000.0,
+            bytesOutPerSec: 1500.0,
+            totalBytesIn: 20000,
+            totalBytesOut: 15000,
+            ipv4Address: "10.0.0.1",
+            type: .ethernet
+        )
+        let wifi = WiFiLinkTelemetry(ssid: "HomeNetwork", rssi: -65, noise: -90, txRate: 866.0, channel: 36, band: "5 GHz")
+        let sample = NetworkSample(
+            interfaces: [en0, en1],
+            primaryInterface: "en0",
+            primaryType: .wifi,
+            localIPv4: "192.168.1.50",
+            gatewayIPv4: "192.168.1.1",
+            primaryDNS: "1.1.1.1",
+            wifiDetails: wifi
+        )
 
         XCTAssertEqual(sample.interfaces.count, 2)
         XCTAssertEqual(sample.totalBytesInPerSec, 3000.0, accuracy: 0.001)
         XCTAssertEqual(sample.totalBytesOutPerSec, 2000.0, accuracy: 0.001)
         XCTAssertEqual(sample.totalBytesIn, 30000)
         XCTAssertEqual(sample.totalBytesOut, 20000)
+        XCTAssertEqual(sample.primaryInterface, "en0")
+        XCTAssertEqual(sample.primaryType, .wifi)
+        XCTAssertEqual(sample.localIPv4, "192.168.1.50")
+        XCTAssertEqual(sample.gatewayIPv4, "192.168.1.1")
+        XCTAssertEqual(sample.primaryDNS, "1.1.1.1")
+        XCTAssertEqual(sample.wifiDetails?.ssid, "HomeNetwork")
+        XCTAssertEqual(sample.wifiDetails?.rssi, -65)
+        XCTAssertEqual(sample.wifiDetails?.snr, 25)
+        XCTAssertEqual(sample.wifiDetails?.signalPercent, 70)
+        XCTAssertEqual(sample.wifiDetails?.qualityRating, "Good")
+    }
+
+    func testNetworkConnectionTypesAndInference() {
+        XCTAssertEqual(NetworkConnectionType.infer(from: "en0"), .wifi)
+        XCTAssertEqual(NetworkConnectionType.infer(from: "en1"), .ethernet)
+        XCTAssertEqual(NetworkConnectionType.infer(from: "utun2"), .vpn)
+        XCTAssertEqual(NetworkConnectionType.infer(from: "bridge0"), .thunderbolt)
+        XCTAssertEqual(NetworkConnectionType.infer(from: "pdp_ip0"), .cellular)
+        XCTAssertEqual(NetworkConnectionType.infer(from: "lo0"), .other)
+
+        XCTAssertEqual(NetworkConnectionType.wifi.iconName, "wifi")
+        XCTAssertEqual(NetworkConnectionType.ethernet.iconName, "cable.connector")
+        XCTAssertEqual(NetworkConnectionType.vpn.iconName, "lock.shield.fill")
     }
 
     func testDiskSampleAndIO() {

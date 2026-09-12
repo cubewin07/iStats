@@ -304,6 +304,82 @@ final class DetailViewGraphsTests: XCTestCase {
         let viewNil = NetworkSummaryView(sample: nil, history: [])
         let hostingNil = NSHostingView(rootView: viewNil)
         XCTAssertNotNil(hostingNil)
+
+        // Enriched sample with full connectivity & Wi-Fi link telemetry
+        let wifiDetails = WiFiLinkTelemetry(
+            ssid: "Office-5G",
+            rssi: -58,
+            noise: -92,
+            txRate: 650.0,
+            channel: 36,
+            band: "5 GHz"
+        )
+        let enrichedSample = NetworkSample(
+            interfaces: [
+                InterfaceThroughput(
+                    interfaceName: "en0",
+                    bytesInPerSec: 1024 * 1024 * 12.5,
+                    bytesOutPerSec: 1024 * 1024 * 3.2,
+                    totalBytesIn: 1024 * 1024 * 1024 * 45,
+                    totalBytesOut: 1024 * 1024 * 1024 * 8,
+                    ipv4Address: "192.168.1.105",
+                    type: .wifi
+                ),
+                InterfaceThroughput(
+                    interfaceName: "utun3",
+                    bytesInPerSec: 1024 * 512,
+                    bytesOutPerSec: 1024 * 256,
+                    totalBytesIn: 1024 * 1024 * 500,
+                    totalBytesOut: 1024 * 1024 * 250,
+                    ipv4Address: "10.8.0.2",
+                    type: .vpn
+                )
+            ],
+            primaryInterface: "en0",
+            primaryType: .wifi,
+            localIPv4: "192.168.1.105",
+            gatewayIPv4: "192.168.1.1",
+            primaryDNS: "1.1.1.1",
+            wifiDetails: wifiDetails
+        )
+        let enrichedHistory = [
+            Sample(value: enrichedSample, timestamp: Date().addingTimeInterval(-1), availability: .available),
+            Sample(value: enrichedSample, timestamp: Date(), availability: .available)
+        ]
+
+        let viewEnriched = NetworkSummaryView(
+            sample: enrichedSample,
+            history: enrichedHistory,
+            networkUnit: .bytesPerSecond,
+            byteStandard: .iec
+        )
+        let hostingEnriched = NSHostingView(rootView: viewEnriched)
+        hostingEnriched.frame = CGRect(x: 0, y: 0, width: 330, height: 400)
+        XCTAssertNotNil(hostingEnriched)
+
+        // Enriched Ethernet sample
+        let ethernetSample = NetworkSample(
+            interfaces: [
+                InterfaceThroughput(
+                    interfaceName: "en1",
+                    bytesInPerSec: 1024 * 1024 * 50,
+                    bytesOutPerSec: 1024 * 1024 * 20,
+                    totalBytesIn: 1024 * 1024 * 1024 * 100,
+                    totalBytesOut: 1024 * 1024 * 1024 * 50,
+                    ipv4Address: "10.0.1.25",
+                    type: .ethernet
+                )
+            ],
+            primaryInterface: "en1",
+            primaryType: .ethernet,
+            localIPv4: "10.0.1.25",
+            gatewayIPv4: "10.0.1.1",
+            primaryDNS: "8.8.8.8"
+        )
+        let viewEthernet = NetworkSummaryView(sample: ethernetSample, history: [])
+        let hostingEthernet = NSHostingView(rootView: viewEthernet)
+        hostingEthernet.frame = CGRect(x: 0, y: 0, width: 330, height: 400)
+        XCTAssertNotNil(hostingEthernet)
     }
 
     func testDiskSummaryViewRenderingWithAndWithoutIO() {

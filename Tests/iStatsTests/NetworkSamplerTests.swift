@@ -508,4 +508,53 @@ final class NetworkSamplerTests: XCTestCase {
         XCTAssertEqual(totals2["en0"]?.bytesIn, 5000)
         XCTAssertEqual(totals2["en0"]?.bytesOut, 10000)
     }
+
+    func testCalculateSamplePropagatesConnectivityAndIPs() {
+        let t0 = Date(timeIntervalSince1970: 100.0)
+        let counters = [
+            RawInterfaceCounters(name: "en0", bytesIn: 500, bytesOut: 300),
+            RawInterfaceCounters(name: "utun0", bytesIn: 200, bytesOut: 100)
+        ]
+        let wifi = WiFiLinkTelemetry(ssid: "TestWiFi", rssi: -60, noise: -90, txRate: 600.0, channel: 44, band: "5 GHz")
+        let connectivity = RawNetworkConnectivity(
+            primaryInterface: "en0",
+            routerIPv4: "192.168.1.1",
+            primaryDNS: "1.1.1.1",
+            interfaceIPs: ["en0": "192.168.1.42", "utun0": "10.8.0.2"],
+            wifiTelemetry: wifi
+        )
+
+        let (sample, _, _) = NetworkSampler.calculateSample(
+            previous: nil,
+            current: counters,
+            currentTimestamp: t0,
+            sessionTotals: nil,
+            includeLoopback: false,
+            connectivity: connectivity
+        )
+
+        XCTAssertEqual(sample.primaryInterface, "en0")
+        XCTAssertEqual(sample.primaryType, .wifi)
+        XCTAssertEqual(sample.localIPv4, "192.168.1.42")
+        XCTAssertEqual(sample.gatewayIPv4, "192.168.1.1")
+        XCTAssertEqual(sample.primaryDNS, "1.1.1.1")
+        XCTAssertEqual(sample.wifiDetails?.ssid, "TestWiFi")
+        XCTAssertEqual(sample.wifiDetails?.rssi, -60)
+        XCTAssertEqual(sample.wifiDetails?.txRate, 600.0)
+
+        let en0 = sample.interfaces.first(where: { $0.interfaceName == "en0" })
+        XCTAssertEqual(en0?.ipv4Address, "192.168.1.42")
+        XCTAssertEqual(en0?.type, .wifi)
+
+        let utun0 = sample.interfaces.first(where: { $0.interfaceName == "utun0" })
+        XCTAssertEqual(utun0?.ipv4Address, "10.8.0.2")
+        XCTAssertEqual(utun0?.type, .vpn)
+    }
+
+    func testLiveHostNetworkInfoProviderConnectivity() throws {
+        let provider = HostNetworkInfoProvider()
+        let connectivity = try provider.networkConnectivity()
+        // Host connectivity may vary depending on offline/online status, but should not throw
+        XCTAssertNotNil(connectivity)
+    }
 }

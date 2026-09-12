@@ -344,6 +344,96 @@ public struct FanSample: Sendable, Equatable, Codable {
     }
 }
 
+/// Type of network connection.
+public enum NetworkConnectionType: String, Sendable, Equatable, Codable, CaseIterable {
+    case wifi = "Wi-Fi"
+    case ethernet = "Ethernet"
+    case vpn = "VPN"
+    case thunderbolt = "Thunderbolt"
+    case cellular = "Cellular"
+    case other = "Network"
+
+    public var displayName: String {
+        rawValue
+    }
+
+    public var iconName: String {
+        switch self {
+        case .wifi: return "wifi"
+        case .ethernet: return "cable.connector"
+        case .vpn: return "lock.shield.fill"
+        case .thunderbolt: return "bolt.horizontal.fill"
+        case .cellular: return "antenna.radiowaves.left.and.right"
+        case .other: return "network"
+        }
+    }
+
+    /// Infers connection type from interface device name.
+    public static func infer(from interfaceName: String) -> NetworkConnectionType {
+        if interfaceName.hasPrefix("en") {
+            return interfaceName == "en0" ? .wifi : .ethernet
+        }
+        if interfaceName.hasPrefix("utun") || interfaceName.hasPrefix("ipsec") || interfaceName.hasPrefix("ppp") {
+            return .vpn
+        }
+        if interfaceName.hasPrefix("bridge") {
+            return .thunderbolt
+        }
+        if interfaceName.hasPrefix("pdp_ip") {
+            return .cellular
+        }
+        return .other
+    }
+}
+
+/// Detailed Wi-Fi physical and radio link statistics.
+public struct WiFiLinkTelemetry: Sendable, Equatable, Codable {
+    public let ssid: String?
+    public let rssi: Int?          // dBm, e.g. -65
+    public let noise: Int?         // dBm, e.g. -92
+    public let txRate: Double?     // Mbps, e.g. 585.0
+    public let channel: Int?       // Channel number, e.g. 36
+    public let band: String?       // e.g. "5 GHz", "2.4 GHz", "6 GHz"
+
+    public init(
+        ssid: String? = nil,
+        rssi: Int? = nil,
+        noise: Int? = nil,
+        txRate: Double? = nil,
+        channel: Int? = nil,
+        band: String? = nil
+    ) {
+        self.ssid = ssid
+        self.rssi = rssi
+        self.noise = noise
+        self.txRate = txRate
+        self.channel = channel
+        self.band = band
+    }
+
+    /// Signal-to-Noise Ratio (SNR) in dB, if both RSSI and Noise are available.
+    public var snr: Int? {
+        guard let r = rssi, let n = noise else { return nil }
+        return r - n
+    }
+
+    /// Computed signal quality rating (0 to 100%).
+    public var signalPercent: Int? {
+        guard let r = rssi else { return nil }
+        let clamped = max(-100, min(-50, r))
+        return Int(round(Double(clamped + 100) * 2.0))
+    }
+
+    /// Human-friendly qualitative signal rating.
+    public var qualityRating: String? {
+        guard let p = signalPercent else { return nil }
+        if p >= 80 { return "Excellent" }
+        if p >= 60 { return "Good" }
+        if p >= 40 { return "Fair" }
+        return "Weak"
+    }
+}
+
 /// Throughput for one network interface, in bytes per second plus session totals.
 public struct InterfaceThroughput: Sendable, Equatable, Codable {
     public let interfaceName: String
@@ -351,19 +441,39 @@ public struct InterfaceThroughput: Sendable, Equatable, Codable {
     public let bytesOutPerSec: Double
     public let totalBytesIn: UInt64
     public let totalBytesOut: UInt64
-    public init(interfaceName: String, bytesInPerSec: Double, bytesOutPerSec: Double,
-                totalBytesIn: UInt64, totalBytesOut: UInt64) {
+    public let ipv4Address: String?
+    public let type: NetworkConnectionType
+
+    public init(
+        interfaceName: String,
+        bytesInPerSec: Double,
+        bytesOutPerSec: Double,
+        totalBytesIn: UInt64,
+        totalBytesOut: UInt64,
+        ipv4Address: String? = nil,
+        type: NetworkConnectionType? = nil
+    ) {
         self.interfaceName = interfaceName
         self.bytesInPerSec = bytesInPerSec
         self.bytesOutPerSec = bytesOutPerSec
         self.totalBytesIn = totalBytesIn
         self.totalBytesOut = totalBytesOut
+        self.ipv4Address = ipv4Address
+        self.type = type ?? NetworkConnectionType.infer(from: interfaceName)
     }
 }
 
 /// Network statistics across all monitored interfaces for one sample.
 public struct NetworkSample: Sendable, Equatable, Codable {
     public let interfaces: [InterfaceThroughput]
+
+    // Enhanced connectivity & routing telemetry
+    public let primaryInterface: String?
+    public let primaryType: NetworkConnectionType?
+    public let localIPv4: String?
+    public let gatewayIPv4: String?
+    public let primaryDNS: String?
+    public let wifiDetails: WiFiLinkTelemetry?
 
     public var totalBytesInPerSec: Double {
         interfaces.reduce(0.0) { $0 + $1.bytesInPerSec }
@@ -381,8 +491,22 @@ public struct NetworkSample: Sendable, Equatable, Codable {
         interfaces.reduce(0) { $0 + $1.totalBytesOut }
     }
 
-    public init(interfaces: [InterfaceThroughput] = []) {
+    public init(
+        interfaces: [InterfaceThroughput] = [],
+        primaryInterface: String? = nil,
+        primaryType: NetworkConnectionType? = nil,
+        localIPv4: String? = nil,
+        gatewayIPv4: String? = nil,
+        primaryDNS: String? = nil,
+        wifiDetails: WiFiLinkTelemetry? = nil
+    ) {
         self.interfaces = interfaces
+        self.primaryInterface = primaryInterface
+        self.primaryType = primaryType
+        self.localIPv4 = localIPv4
+        self.gatewayIPv4 = gatewayIPv4
+        self.primaryDNS = primaryDNS
+        self.wifiDetails = wifiDetails
     }
 }
 

@@ -1,5 +1,7 @@
 import Foundation
 import Darwin
+import SystemConfiguration
+import CoreWLAN
 import iStatsCore
 
 /// Raw byte counter snapshot for a single network interface.
@@ -25,10 +27,42 @@ public struct RawInterfaceCounters: Sendable, Equatable {
     }
 }
 
-/// Abstract provider for reading network interface counters.
+/// Active network connectivity snapshot (primary interface, routing, IP addresses, and Wi-Fi link).
+public struct RawNetworkConnectivity: Sendable, Equatable {
+    public let primaryInterface: String?
+    public let routerIPv4: String?
+    public let primaryDNS: String?
+    public let interfaceIPs: [String: String]
+    public let wifiTelemetry: WiFiLinkTelemetry?
+
+    public init(
+        primaryInterface: String? = nil,
+        routerIPv4: String? = nil,
+        primaryDNS: String? = nil,
+        interfaceIPs: [String: String] = [:],
+        wifiTelemetry: WiFiLinkTelemetry? = nil
+    ) {
+        self.primaryInterface = primaryInterface
+        self.routerIPv4 = routerIPv4
+        self.primaryDNS = primaryDNS
+        self.interfaceIPs = interfaceIPs
+        self.wifiTelemetry = wifiTelemetry
+    }
+}
+
+/// Abstract provider for reading network interface counters and connectivity.
 public protocol NetworkInfoProvider: Sendable {
     /// Returns raw counter snapshots for all network interfaces on the system.
     func interfaceCounters() throws -> [RawInterfaceCounters]
+
+    /// Returns active routing, local IP addresses, and Wi-Fi link telemetry.
+    func networkConnectivity() throws -> RawNetworkConnectivity
+}
+
+public extension NetworkInfoProvider {
+    func networkConnectivity() throws -> RawNetworkConnectivity {
+        RawNetworkConnectivity()
+    }
 }
 
 /// Darwin `sysctl(NET_RT_IFLIST2)` and `getifaddrs` implementation of `NetworkInfoProvider`.
@@ -143,6 +177,89 @@ public struct HostNetworkInfoProvider: NetworkInfoProvider {
 
         return results
     }
+
+    /// Reads active network routing, local IP addresses, and Wi-Fi link parameters.
+    public func networkConnectivity() throws -> RawNetworkConnectivity {
+        var primaryInterface: String? = nil
+        var routerIPv4: String? = nil
+        var primaryDNS: String? = nil
+
+        if let store = SCDynamicStoreCreate(nil, "iStatsNetworkSampler" as CFString, nil, nil) {
+            if let ipv4 = SCDynamicStoreCopyValue(store, "State:/Network/Global/IPv4" as CFString) as? [String: Any] {
+                primaryInterface = ipv4["PrimaryInterface"] as? String
+                routerIPv4 = ipv4["Router"] as? String
+            }
+            if let dns = SCDynamicStoreCopyValue(store, "State:/Network/Global/DNS" as CFString) as? [String: Any] {
+                if let servers = dns["ServerAddresses"] as? [String], let first = servers.first {
+                    primaryDNS = first
+                }
+            }
+        }
+
+        var interfaceIPs: [String: String] = [:]
+        var ifap: UnsafeMutablePointer<ifaddrs>? = nil
+        if getifaddrs(&ifap) == 0, let first = ifap {
+            defer { freeifaddrs(ifap) }
+            var cur: UnsafeMutablePointer<ifaddrs>? = first
+            while let p = cur {
+                let name = String(cString: p.pointee.ifa_name)
+                if let addr = p.pointee.ifa_addr, addr.pointee.sa_family == UInt8(AF_INET) {
+                    var host = [CChar](repeating: 0, count: Int(NI_MAXHOST))
+                    if getnameinfo(addr, socklen_t(addr.pointee.sa_len), &host, socklen_t(host.count), nil, 0, NI_NUMERICHOST) == 0 {
+                        let ip = String(cString: host)
+                        if !ip.hasPrefix("127.") && interfaceIPs[name] == nil {
+                            interfaceIPs[name] = ip
+                        }
+                    }
+                }
+                cur = p.pointee.ifa_next
+            }
+        }
+
+        var wifiTelemetry: WiFiLinkTelemetry? = nil
+        if let iface = CWWiFiClient.shared().interface(), iface.powerOn() {
+            let rawRssi = iface.rssiValue()
+            let rssi: Int? = rawRssi != 0 ? rawRssi : nil
+            let rawNoise = iface.noiseMeasurement()
+            let noise: Int? = rawNoise != 0 ? rawNoise : nil
+            let rawRate = iface.transmitRate()
+            let txRate: Double? = rawRate > 0 ? rawRate : nil
+            let channelNum = iface.wlanChannel()?.channelNumber
+            let rawBand = iface.wlanChannel()?.channelBand
+            let bandStr: String?
+            if let band = rawBand {
+                switch band {
+                case .band2GHz: bandStr = "2.4 GHz"
+                case .band5GHz: bandStr = "5 GHz"
+                case .band6GHz: bandStr = "6 GHz"
+                default: bandStr = nil
+                }
+            } else {
+                bandStr = nil
+            }
+            let rawSSID = iface.ssid()
+            let ssid: String? = (rawSSID != nil && !rawSSID!.trimmingCharacters(in: .whitespaces).isEmpty) ? rawSSID : nil
+
+            if rssi != nil || txRate != nil || channelNum != nil {
+                wifiTelemetry = WiFiLinkTelemetry(
+                    ssid: ssid,
+                    rssi: rssi,
+                    noise: noise,
+                    txRate: txRate,
+                    channel: channelNum,
+                    band: bandStr
+                )
+            }
+        }
+
+        return RawNetworkConnectivity(
+            primaryInterface: primaryInterface,
+            routerIPv4: routerIPv4,
+            primaryDNS: primaryDNS,
+            interfaceIPs: interfaceIPs,
+            wifiTelemetry: wifiTelemetry
+        )
+    }
 }
 
 /// Interface historical state for rate calculation.
@@ -194,6 +311,7 @@ public final class NetworkSampler: Sampler, @unchecked Sendable {
     /// Samples network metrics. Runs off the main thread.
     public func sample() throws -> NetworkSample {
         let currentCounters = try provider.interfaceCounters()
+        let connectivity = (try? provider.networkConnectivity()) ?? RawNetworkConnectivity()
         let currentTimestamp = Date()
 
         lock.lock()
@@ -205,7 +323,8 @@ public final class NetworkSampler: Sampler, @unchecked Sendable {
             current: currentCounters,
             currentTimestamp: currentTimestamp,
             sessionTotals: totals,
-            includeLoopback: includeLoopback
+            includeLoopback: includeLoopback,
+            connectivity: connectivity
         )
 
         self.previousStates = newPrev
@@ -221,7 +340,8 @@ public final class NetworkSampler: Sampler, @unchecked Sendable {
         current: [RawInterfaceCounters],
         currentTimestamp: Date,
         sessionTotals: [String: InterfaceSessionTotal]?,
-        includeLoopback: Bool = false
+        includeLoopback: Bool = false,
+        connectivity: RawNetworkConnectivity = RawNetworkConnectivity()
     ) -> (sample: NetworkSample, newPrevious: [String: InterfaceState], newSessionTotals: [String: InterfaceSessionTotal]) {
         var newPrevious = previous ?? [:]
         var newSessionTotals = sessionTotals ?? [:]
@@ -266,18 +386,33 @@ public final class NetworkSampler: Sampler, @unchecked Sendable {
             newPrevious[name] = InterfaceState(bytesIn: currIn, bytesOut: currOut, timestamp: currentTimestamp)
             newSessionTotals[name] = InterfaceSessionTotal(bytesIn: currentSessionIn, bytesOut: currentSessionOut)
 
+            let ip = connectivity.interfaceIPs[name]
             throughputs.append(
                 InterfaceThroughput(
                     interfaceName: name,
                     bytesInPerSec: rateIn,
                     bytesOutPerSec: rateOut,
                     totalBytesIn: currentSessionIn,
-                    totalBytesOut: currentSessionOut
+                    totalBytesOut: currentSessionOut,
+                    ipv4Address: ip,
+                    type: NetworkConnectionType.infer(from: name)
                 )
             )
         }
 
-        let sample = NetworkSample(interfaces: throughputs)
+        let primaryIface = connectivity.primaryInterface
+        let primaryIP = primaryIface != nil ? connectivity.interfaceIPs[primaryIface!] : nil
+        let primaryType = primaryIface != nil ? NetworkConnectionType.infer(from: primaryIface!) : nil
+
+        let sample = NetworkSample(
+            interfaces: throughputs,
+            primaryInterface: primaryIface,
+            primaryType: primaryType,
+            localIPv4: primaryIP,
+            gatewayIPv4: connectivity.routerIPv4,
+            primaryDNS: connectivity.primaryDNS,
+            wifiDetails: connectivity.wifiTelemetry
+        )
         return (sample: sample, newPrevious: newPrevious, newSessionTotals: newSessionTotals)
     }
 }
