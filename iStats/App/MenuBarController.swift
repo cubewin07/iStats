@@ -8,34 +8,81 @@ public final class MenuBarController: NSObject {
     /// Active status items in the macOS menu bar, mapped by item configuration ID (ADR 0007).
     public private(set) var statusItems: [String: NSStatusItem] = [:]
 
-    public let popover: NSPopover
+    /// Active dedicated popovers in the macOS menu bar, mapped by item configuration ID (ADR 0007).
+    /// Each category configuration owns its own dedicated NSPopover instance.
+    public private(set) var popovers: [String: NSPopover] = [:]
+
+    private let fallbackPopover: NSPopover
     public let preferences: PreferencesStore
     public let coordinator: MetricsCoordinator
 
     private var cancellables = Set<AnyCancellable>()
     public private(set) var currentlyShownButton: NSStatusBarButton?
 
+    /// Returns the currently active popover, or the popover matching currentlyShownButton,
+    /// or fallback/primary popover for backward compatibility.
+    public var popover: NSPopover {
+        if let button = currentlyShownButton,
+           let rawId = button.identifier?.rawValue,
+           let p = popovers[rawId] {
+            return p
+        }
+        for (_, p) in popovers where p.isShown {
+            return p
+        }
+        return popovers[Self.fallbackStatusItemId] ?? popovers.values.first ?? fallbackPopover
+    }
+
+    /// Helper to retrieve the dedicated popover for a specific category config ID.
+    public func popover(for configId: String) -> NSPopover? {
+        popovers[configId]
+    }
+
     public init(
         preferences: PreferencesStore = .shared,
         coordinator: MetricsCoordinator = .shared
     ) {
-        self.popover = NSPopover()
+        self.fallbackPopover = NSPopover()
         self.preferences = preferences
         self.coordinator = coordinator
         super.init()
 
-        configurePopover()
+        fallbackPopover.behavior = .transient
+        fallbackPopover.animates = true
+        fallbackPopover.delegate = self
+
         syncStatusItems()
         setupSubscriptions()
     }
 
-    private func configurePopover() {
-        popover.behavior = .transient
-        popover.animates = true
-    }
-
     /// Identifier for the fallback status item displayed when all menu items are disabled.
     public static let fallbackStatusItemId = "app.istats.fallback"
+
+    // MARK: - Popover Factory (ADR 0007)
+
+    /// Instantiates the dedicated NSHostingController for a given menu bar item configuration.
+    public func makeHostingController(for config: MenuBarItemConfig) -> NSViewController {
+        ConfigPopoverFactory.makeHostingController(
+            config: config,
+            coordinator: coordinator,
+            preferences: preferences
+        )
+    }
+
+    /// Backward-compatible category-only hosting controller factory.
+    public func makeHostingController(for category: MetricCategory) -> NSViewController {
+        let config = MenuBarItemConfig(category: category, style: .text)
+        return makeHostingController(for: config)
+    }
+
+    private func createPopover(for config: MenuBarItemConfig) -> NSPopover {
+        let p = NSPopover()
+        p.behavior = .transient
+        p.animates = true
+        p.delegate = self
+        p.contentViewController = makeHostingController(for: config)
+        return p
+    }
 
     // MARK: - Status Item Lifecycle & Synchronization (ADR 0007)
 
@@ -45,10 +92,13 @@ public final class MenuBarController: NSObject {
         let activeIds = Set(activeConfigs.map(\.id))
 
         if activeConfigs.isEmpty {
-            // Remove any leftover category status items
+            // Remove any leftover category status items and popovers
             for (id, item) in statusItems where id != Self.fallbackStatusItemId {
                 NSStatusBar.system.removeStatusItem(item)
                 statusItems.removeValue(forKey: id)
+                if let p = popovers.removeValue(forKey: id), p.isShown {
+                    p.performClose(nil)
+                }
             }
 
             // Install or keep fallback status item with iStats app icon so user is never orphaned
@@ -64,6 +114,14 @@ public final class MenuBarController: NSObject {
                     button.identifier = NSUserInterfaceItemIdentifier(Self.fallbackStatusItemId)
                 }
                 statusItems[Self.fallbackStatusItemId] = fallbackItem
+
+                let fallbackP = NSPopover()
+                fallbackP.behavior = .transient
+                fallbackP.animates = true
+                fallbackP.contentViewController = NSHostingController(
+                    rootView: DetailPopoverView(coordinator: coordinator, preferences: preferences)
+                )
+                popovers[Self.fallbackStatusItemId] = fallbackP
             }
             return
         }
@@ -71,15 +129,21 @@ public final class MenuBarController: NSObject {
         // Active items exist: clean up fallback item if present
         if let fallbackItem = statusItems.removeValue(forKey: Self.fallbackStatusItemId) {
             NSStatusBar.system.removeStatusItem(fallbackItem)
+            if let p = popovers.removeValue(forKey: Self.fallbackStatusItemId), p.isShown {
+                p.performClose(nil)
+            }
         }
 
-        // 1. Remove status items for items/categories that have been disabled or deleted
+        // 1. Remove status items and popovers for items/categories that have been disabled or deleted
         for (id, item) in statusItems where !activeIds.contains(id) {
             NSStatusBar.system.removeStatusItem(item)
             statusItems.removeValue(forKey: id)
+            if let p = popovers.removeValue(forKey: id), p.isShown {
+                p.performClose(nil)
+            }
         }
 
-        // 2. Create and configure status items for newly active items
+        // 2. Create and configure status items and dedicated popovers for newly active items
         for config in activeConfigs where statusItems[config.id] == nil {
             let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
             if let button = item.button {
@@ -89,6 +153,7 @@ public final class MenuBarController: NSObject {
                 button.identifier = NSUserInterfaceItemIdentifier(config.id)
             }
             statusItems[config.id] = item
+            popovers[config.id] = createPopover(for: config)
         }
 
         // 3. Re-render all active status items
@@ -220,23 +285,35 @@ public final class MenuBarController: NSObject {
             return
         }
 
-        if rawId == Self.fallbackStatusItemId {
-            if popover.isShown && currentlyShownButton == button {
-                hidePopover()
-            } else {
-                showUniversalPopover(relativeTo: button)
-            }
+        if currentlyShownButton == button {
+            hidePopover()
             return
         }
 
-        let categoryRaw = rawId.components(separatedBy: ".").first ?? rawId
-        guard let category = MetricCategory(rawValue: categoryRaw) else { return }
-
-        if popover.isShown && currentlyShownButton == button {
-            hidePopover()
-        } else {
-            showPopover(for: category, relativeTo: button)
+        if rawId == Self.fallbackStatusItemId {
+            showUniversalPopover(relativeTo: button)
+            return
         }
+
+        let targetPopover: NSPopover
+        if let existing = popovers[rawId] {
+            targetPopover = existing
+        } else {
+            let parts = rawId.components(separatedBy: ".")
+            let categoryRaw = parts.first ?? rawId
+            let styleRaw = parts.dropFirst().joined(separator: ".")
+            guard let category = MetricCategory(rawValue: categoryRaw) else { return }
+            let style = MetricDisplayStyle(rawValue: styleRaw) ?? .text
+            let config = MenuBarItemConfig(category: category, style: style)
+            let p = createPopover(for: config)
+            popovers[rawId] = p
+            targetPopover = p
+        }
+
+        hidePopover()
+        currentlyShownButton = button
+        targetPopover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+        targetPopover.contentViewController?.view.window?.makeKey()
     }
 
     /// Shows a standard macOS context menu on right-click.
@@ -279,33 +356,56 @@ public final class MenuBarController: NSObject {
 
     /// Shows the dedicated popover for a specific category anchored to a menu bar button.
     public func showPopover(for category: MetricCategory, relativeTo button: NSStatusBarButton) {
-        popover.contentViewController = NSHostingController(
-            rootView: CategoryDetailPopoverView(
-                category: category,
-                coordinator: coordinator,
-                preferences: preferences
-            )
-        )
+        let rawId = button.identifier?.rawValue ?? category.rawValue
+        let targetPopover: NSPopover
+        if let existing = popovers[rawId] {
+            targetPopover = existing
+        } else {
+            let parts = rawId.components(separatedBy: ".")
+            let styleRaw = parts.dropFirst().joined(separator: ".")
+            let style = MetricDisplayStyle(rawValue: styleRaw) ?? .text
+            let config = MenuBarItemConfig(category: category, style: style)
+            let p = createPopover(for: config)
+            popovers[rawId] = p
+            targetPopover = p
+        }
+        hidePopover()
         currentlyShownButton = button
-        popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
-        popover.contentViewController?.view.window?.makeKey()
+        targetPopover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+        targetPopover.contentViewController?.view.window?.makeKey()
     }
 
     /// Shows the universal popover displaying all metrics or app overview.
     public func showUniversalPopover(relativeTo button: NSStatusBarButton) {
-        popover.contentViewController = NSHostingController(
-            rootView: DetailPopoverView(
-                coordinator: coordinator,
-                preferences: preferences
+        let targetPopover: NSPopover
+        if let existing = popovers[Self.fallbackStatusItemId] {
+            targetPopover = existing
+        } else {
+            let p = NSPopover()
+            p.behavior = .transient
+            p.animates = true
+            p.contentViewController = NSHostingController(
+                rootView: DetailPopoverView(
+                    coordinator: coordinator,
+                    preferences: preferences
+                )
             )
-        )
+            popovers[Self.fallbackStatusItemId] = p
+            targetPopover = p
+        }
+        hidePopover()
         currentlyShownButton = button
-        popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
-        popover.contentViewController?.view.window?.makeKey()
+        targetPopover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+        targetPopover.contentViewController?.view.window?.makeKey()
     }
 
     public func hidePopover() {
-        popover.performClose(nil)
+        for (_, p) in popovers where p.isShown {
+            p.performClose(nil)
+        }
+        if fallbackPopover.isShown {
+            fallbackPopover.performClose(nil)
+        }
         currentlyShownButton = nil
     }
 
@@ -420,5 +520,19 @@ public final class MenuBarController: NSObject {
             }
         }
         return parts.joined(separator: " • ")
+    }
+}
+
+// MARK: - NSPopoverDelegate
+
+extension MenuBarController: NSPopoverDelegate {
+    public func popoverDidClose(_ notification: Notification) {
+        if let closed = notification.object as? NSPopover {
+            if let button = currentlyShownButton,
+               let rawId = button.identifier?.rawValue,
+               popovers[rawId] === closed || fallbackPopover === closed {
+                currentlyShownButton = nil
+            }
+        }
     }
 }

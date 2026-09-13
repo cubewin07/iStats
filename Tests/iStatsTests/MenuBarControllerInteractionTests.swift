@@ -192,17 +192,32 @@ final class MenuBarControllerInteractionTests: XCTestCase {
             return
         }
 
-        // 1. Click CPU button via statusItemClicked action selector
+        // Verify distinct NSPopovers exist for each category config
+        let cpuPopover = controller.popover(for: cpuItem.id)
+        let memPopover = controller.popover(for: memItem.id)
+        XCTAssertNotNil(cpuPopover)
+        XCTAssertNotNil(memPopover)
+        XCTAssertTrue(cpuPopover !== memPopover, "Each category config must own its own distinct NSPopover instance")
+
+        // 1. Click CPU button -> opens CPU dedicated popover (CPUUserSystemPopoverView for .gauge)
         controller.statusItemClicked(cpuButton)
         XCTAssertTrue(controller.currentlyShownButton === cpuButton)
-        XCTAssertTrue(controller.popover.contentViewController is NSHostingController<CategoryDetailPopoverView>)
+        XCTAssertTrue(controller.popover === cpuPopover)
+        XCTAssertTrue(controller.popover.contentViewController is NSHostingController<CPUUserSystemPopoverView>)
 
-        // 2. Click Memory button -> switches popover to Memory
+        // 2. Click Memory button -> closes CPU popover and opens Memory dedicated popover (MemoryAllocationPopoverView for .bar)
         controller.statusItemClicked(memButton)
         XCTAssertTrue(controller.currentlyShownButton === memButton)
-        XCTAssertTrue(controller.popover.contentViewController is NSHostingController<CategoryDetailPopoverView>)
+        XCTAssertTrue(controller.popover === memPopover)
+        XCTAssertTrue(controller.popover.contentViewController is NSHostingController<MemoryAllocationPopoverView>)
 
-        // 3. Dismiss popover
+        // 3. Click Memory button again -> toggles off/dismisses
+        controller.statusItemClicked(memButton)
+        XCTAssertNil(controller.currentlyShownButton)
+
+        // 4. Dismiss popover via hidePopover
+        controller.statusItemClicked(cpuButton)
+        XCTAssertTrue(controller.currentlyShownButton === cpuButton)
         controller.hidePopover()
         XCTAssertNil(controller.currentlyShownButton)
     }
@@ -228,6 +243,28 @@ final class MenuBarControllerInteractionTests: XCTestCase {
         XCTAssertNil(controller.currentlyShownButton)
     }
 
+    func testDedicatedPopoversPerCategoryConfigLifecycle() {
+        let (defaults, prefs, _, controller, suiteName) = makeContext()
+        defer { cleanup(defaults: defaults, controller: controller, suiteName: suiteName) }
+
+        let cpuItem = MenuBarItemConfig(category: .cpu, style: .gauge)
+        let diskItem = MenuBarItemConfig(category: .disk, style: .bar)
+        prefs.menuBarItems = [cpuItem, diskItem]
+        controller.syncStatusItems()
+
+        XCTAssertNotNil(controller.popover(for: cpuItem.id))
+        XCTAssertNotNil(controller.popover(for: diskItem.id))
+        XCTAssertTrue(controller.popover(for: cpuItem.id)?.contentViewController is NSHostingController<CPUUserSystemPopoverView>)
+        XCTAssertTrue(controller.popover(for: diskItem.id)?.contentViewController is NSHostingController<DiskStorageTanksPopoverView>)
+
+        // Remove diskItem from preferences -> popover should be cleaned up
+        prefs.menuBarItems = [cpuItem]
+        controller.syncStatusItems()
+
+        XCTAssertNotNil(controller.popover(for: cpuItem.id))
+        XCTAssertNil(controller.popover(for: diskItem.id))
+    }
+
     func testButtonPropertiesImagePositioning() {
         let (defaults, prefs, _, controller, suiteName) = makeContext()
         defer { cleanup(defaults: defaults, controller: controller, suiteName: suiteName) }
@@ -240,5 +277,29 @@ final class MenuBarControllerInteractionTests: XCTestCase {
         XCTAssertNotNil(button?.image)
         XCTAssertEqual(button?.imagePosition, .imageOnly)
         XCTAssertEqual(button?.identifier?.rawValue, configWithImage.id)
+    }
+
+    func testThermalOffersHaveDedicatedPopovers() {
+        let (defaults, prefs, _, controller, suiteName) = makeContext()
+        defer { cleanup(defaults: defaults, controller: controller, suiteName: suiteName) }
+
+        let cpuTemp = MenuBarItemConfig(category: .thermal, style: .cpuTemp)
+        let gpuTemp = MenuBarItemConfig(category: .thermal, style: .gpuTemp)
+        let memTemp = MenuBarItemConfig(category: .thermal, style: .memoryTemp)
+        let ssdTemp = MenuBarItemConfig(category: .thermal, style: .storageTemp)
+        let batTemp = MenuBarItemConfig(category: .thermal, style: .batteryTemp)
+        let ringTemp = MenuBarItemConfig(category: .thermal, style: .gauge)
+        let histTemp = MenuBarItemConfig(category: .thermal, style: .sparkline)
+
+        prefs.menuBarItems = [cpuTemp, gpuTemp, memTemp, ssdTemp, batTemp, ringTemp, histTemp]
+        controller.syncStatusItems()
+
+        XCTAssertTrue(controller.popover(for: cpuTemp.id)?.contentViewController is NSHostingController<ThermalCPUPopoverView>)
+        XCTAssertTrue(controller.popover(for: gpuTemp.id)?.contentViewController is NSHostingController<ThermalGPUPopoverView>)
+        XCTAssertTrue(controller.popover(for: memTemp.id)?.contentViewController is NSHostingController<ThermalMemoryPopoverView>)
+        XCTAssertTrue(controller.popover(for: ssdTemp.id)?.contentViewController is NSHostingController<ThermalStoragePopoverView>)
+        XCTAssertTrue(controller.popover(for: batTemp.id)?.contentViewController is NSHostingController<ThermalBatteryPopoverView>)
+        XCTAssertTrue(controller.popover(for: ringTemp.id)?.contentViewController is NSHostingController<ThermalRingPopoverView>)
+        XCTAssertTrue(controller.popover(for: histTemp.id)?.contentViewController is NSHostingController<ThermalHistoryPopoverView>)
     }
 }
