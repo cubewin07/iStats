@@ -302,4 +302,26 @@ final class MenuBarControllerInteractionTests: XCTestCase {
         XCTAssertTrue(controller.popover(for: ringTemp.id)?.contentViewController is NSHostingController<ThermalRingPopoverView>)
         XCTAssertTrue(controller.popover(for: histTemp.id)?.contentViewController is NSHostingController<ThermalHistoryPopoverView>)
     }
+
+    func testPowerOffersHaveDedicatedPopovers() {
+        let (defaults, prefs, _, controller, suiteName) = makeContext()
+        defer { cleanup(defaults: defaults, controller: controller, suiteName: suiteName) }
+
+        let batSymbol = MenuBarItemConfig(category: .power, style: .symbol)
+        let chargeText = MenuBarItemConfig(category: .power, style: .text)
+        let wattageThroughput = MenuBarItemConfig(category: .power, style: .throughput)
+        let chargeRing = MenuBarItemConfig(category: .power, style: .gauge)
+        let chargeBar = MenuBarItemConfig(category: .power, style: .bar)
+        let wattageHistory = MenuBarItemConfig(category: .power, style: .sparkline)
+
+        prefs.menuBarItems = [batSymbol, chargeText, wattageThroughput, chargeRing, chargeBar, wattageHistory]
+        controller.syncStatusItems()
+
+        XCTAssertTrue(controller.popover(for: batSymbol.id)?.contentViewController is NSHostingController<PowerPopoverView>)
+        XCTAssertTrue(controller.popover(for: chargeText.id)?.contentViewController is NSHostingController<PowerBudgetIllustrationPopoverView>)
+        XCTAssertTrue(controller.popover(for: wattageThroughput.id)?.contentViewController is NSHostingController<PowerWattagePopoverView>)
+        XCTAssertTrue(controller.popover(for: chargeRing.id)?.contentViewController is NSHostingController<PowerChargeRingPopoverView>)
+        XCTAssertTrue(controller.popover(for: chargeBar.id)?.contentViewController is NSHostingController<PowerBarPopoverView>)
+        XCTAssertTrue(controller.popover(for: wattageHistory.id)?.contentViewController is NSHostingController<PowerHistoryPopoverView>)
+    }
 }

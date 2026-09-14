@@ -4354,11 +4354,45 @@ public struct PowerBudgetIllustrationPopoverView: View {
         VStack(alignment: .leading, spacing: 10) {
             PopoverHeaderView(
                 category: .power,
-                title: "Power Budget",
-                subtitle: "Battery Health Condition & Design Capacity",
+                title: "Charge & Health Budget",
+                subtitle: "Charge Status, Condition & Factory Capacity",
                 verdict: VerdictEvaluator.evaluatePower(sample)
             )
             Divider()
+
+            // Current Charge & Time Status Row
+            if let sample = sample {
+                let chargePct = Int(round(sample.charge ?? 100.0))
+                HStack(spacing: 12) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("CURRENT CHARGE")
+                            .font(.system(size: 8, weight: .bold, design: .monospaced))
+                            .foregroundColor(.secondary)
+                        Text("\(chargePct)%")
+                            .font(.system(size: 20, weight: .bold, design: .rounded))
+                            .foregroundColor(chargePct <= 20 ? .red : .primary)
+                    }
+                    Spacer()
+                    VStack(alignment: .trailing, spacing: 2) {
+                        Text(sample.variant == .charging ? "TIME TO FULL" : (sample.variant == .discharging ? "TIME REMAINING" : "POWER STATUS"))
+                            .font(.system(size: 8, weight: .bold, design: .monospaced))
+                            .foregroundColor(.secondary)
+                        if let time = sample.timeRemaining, time > 0 {
+                            let totalSeconds = Int(time)
+                            let hrs = totalSeconds / 3600
+                            let mins = (totalSeconds % 3600) / 60
+                            Text(String(format: "%dh %02dm", hrs, mins))
+                                .font(.system(size: 14, weight: .bold, design: .rounded))
+                        } else {
+                            Text(sample.variant.displayName)
+                                .font(.system(size: 13, weight: .semibold))
+                        }
+                    }
+                }
+                .padding(10)
+                .background(Color(nsColor: .controlBackgroundColor).opacity(0.5))
+                .clipShape(RoundedRectangle(cornerRadius: 10))
+            }
 
             // Condition Hero Card
             HStack(spacing: 12) {
@@ -4668,9 +4702,11 @@ public enum ConfigPopoverFactory {
         case (.power, .bar):
             PowerBarPopoverView(coordinator: coordinator, preferences: preferences)
         case (.power, .symbol):
-            PowerBudgetIllustrationPopoverView(coordinator: coordinator, preferences: preferences)
+            PowerPopoverView(coordinator: coordinator)
         case (.power, .sparkline):
             PowerHistoryPopoverView(coordinator: coordinator, preferences: preferences)
+        case (.power, .text):
+            PowerBudgetIllustrationPopoverView(coordinator: coordinator, preferences: preferences)
         case (.power, _):
             PowerPopoverView(coordinator: coordinator)
         }
@@ -4779,9 +4815,11 @@ public enum ConfigPopoverFactory {
         case (.power, .bar):
             return NSHostingController(rootView: PowerBarPopoverView(coordinator: coordinator, preferences: preferences))
         case (.power, .symbol):
-            return NSHostingController(rootView: PowerBudgetIllustrationPopoverView(coordinator: coordinator, preferences: preferences))
+            return NSHostingController(rootView: PowerPopoverView(coordinator: coordinator))
         case (.power, .sparkline):
             return NSHostingController(rootView: PowerHistoryPopoverView(coordinator: coordinator, preferences: preferences))
+        case (.power, .text):
+            return NSHostingController(rootView: PowerBudgetIllustrationPopoverView(coordinator: coordinator, preferences: preferences))
         case (.power, _):
             return NSHostingController(rootView: PowerPopoverView(coordinator: coordinator))
         }
