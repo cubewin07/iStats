@@ -7,22 +7,38 @@ import iStatsCore
 /// for any `MenuBarItemConfig` across all `MetricCategory` and `MetricDisplayStyle` options (ADR 0007).
 @MainActor
 public struct MenuBarIconRenderer {
+    // MARK: - Image Cache (Stage 3 Energy Optimization)
+
+    private static let imageCache: NSCache<NSString, NSImage> = {
+        let cache = NSCache<NSString, NSImage>()
+        cache.countLimit = 256
+        return cache
+    }()
+
+    /// Clears the rendered image cache (useful on low memory or theme change).
+    public static func clearImageCache() {
+        imageCache.removeAllObjects()
+    }
+
     public struct RenderResult {
         public let image: NSImage?
         public let title: String
         public let toolTip: String
         public let accessibilityLabel: String
+        public let visualKey: String?
 
         public init(
             image: NSImage? = nil,
             title: String = "",
             toolTip: String = "",
-            accessibilityLabel: String = ""
+            accessibilityLabel: String = "",
+            visualKey: String? = nil
         ) {
             self.image = image
             self.title = title
             self.toolTip = toolTip
             self.accessibilityLabel = accessibilityLabel.isEmpty ? toolTip : accessibilityLabel
+            self.visualKey = visualKey
         }
     }
 
@@ -104,7 +120,9 @@ public struct MenuBarIconRenderer {
         case .gauge:
             // Segmented Donut Pie (User vs Kernel load) with vibrant signature colors
             let img = drawCPUDonutPie(user: cpu?.user ?? usage, system: cpu?.system ?? 0.0)
-            return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y)
+            let qUser = Int(round(min(max(cpu?.user ?? usage, 0.0), 100.0)))
+            let qSys = Int(round(min(max(cpu?.system ?? 0.0, 0.0), 100.0 - Double(qUser))))
+            return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y, visualKey: "cpu:gauge:\(qUser):\(qSys)")
         case .bar:
             // Live Per-Core Micro-Bar Cluster (or stacked bar)
             let img = drawCPUBar(perCore: cpu?.perCore, user: cpu?.user, system: cpu?.system)
@@ -116,10 +134,10 @@ public struct MenuBarIconRenderer {
         case .text:
             // Invariant Jitter-Free Stacked Text (CPU over Usage%)
             let img = drawCategoryStackedText(title: "CPU", value: valStr, fixedWidth: 32.0)
-            return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y)
+            return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y, visualKey: "cpu:text:\(valStr)")
         default:
             let img = drawCategoryStackedText(title: "CPU", value: valStr, fixedWidth: 32.0)
-            return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y)
+            return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y, visualKey: "cpu:text:\(valStr)")
         }
     }
 
@@ -162,14 +180,14 @@ public struct MenuBarIconRenderer {
         case .symbol:
             // Dedicated 3-state Pressure Badge / Pill (OK / WARN / CRIT)
             let img = drawMemoryPressureBadge(pressure: memory?.pressure)
-            return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y)
+            return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y, visualKey: "mem:badge:\(memory?.pressure.rawValue ?? "normal")")
         case .text:
             // Two-Line Jitter-Free Stacked Text (MEM / Used %)
             let img = drawCategoryStackedText(title: "MEM", value: valStr, fixedWidth: 32.0)
-            return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y)
+            return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y, visualKey: "mem:text:\(valStr)")
         default:
             let img = drawCategoryStackedText(title: "MEM", value: valStr, fixedWidth: 32.0)
-            return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y)
+            return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y, visualKey: "mem:text:\(valStr)")
         }
     }
 
@@ -377,7 +395,7 @@ public struct MenuBarIconRenderer {
         case .symbol:
             // Dynamic Dual Activity Arrows
             let img = drawNetworkActivityArrows(inBytes: inBytes, outBytes: outBytes)
-            return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y)
+            return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y, visualKey: "net:arrows:\(inBytes > 1024.0):\(outBytes > 1024.0)")
         case .bar:
             // Dual In/Out Saturation Bars with decay-max scaling
             let img = drawNetworkBar(inBytes: inBytes, outBytes: outBytes, inHistory: inHistory, outHistory: outHistory)
@@ -417,7 +435,7 @@ public struct MenuBarIconRenderer {
         case .symbol:
             // Dynamic Read / Write Activity LEDs
             let img = drawDiskActivityLeds(readBytes: readBytes, writeBytes: writeBytes)
-            return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y)
+            return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y, visualKey: "disk:leds:\(readBytes > 10240.0):\(writeBytes > 10240.0)")
         case .gauge:
             // Volume Capacity Donut Ring (Boot volume used %)
             let img = drawDiskGauge(percentage: volRatio)
@@ -566,6 +584,12 @@ public struct MenuBarIconRenderer {
         titleColor: NSColor? = nil,
         valueColor: NSColor? = nil
     ) -> NSImage {
+        let isTemplate = (titleColor == nil && valueColor == nil)
+        let cacheKey = "stacked:\(title):\(value):\(fixedWidth):\(isTemplate ? 0 : (titleColor?.hashValue ?? 0)):\(isTemplate ? 0 : (valueColor?.hashValue ?? 0))" as NSString
+        if let cached = imageCache.object(forKey: cacheKey) {
+            return cached
+        }
+
         let tColor = titleColor ?? NSColor.labelColor.withAlphaComponent(0.90)
         let vColor = valueColor ?? NSColor.labelColor
 
@@ -599,7 +623,8 @@ public struct MenuBarIconRenderer {
             valueAttrString.draw(at: NSPoint(x: vX, y: vY))
             return true
         }
-        image.isTemplate = (titleColor == nil && valueColor == nil)
+        image.isTemplate = isTemplate
+        imageCache.setObject(image, forKey: cacheKey)
         return image
     }
 
@@ -610,6 +635,11 @@ public struct MenuBarIconRenderer {
         wiredRatio: Double? = nil,
         compressedRatio: Double? = nil
     ) -> NSImage {
+        let cacheKey = "triSegmentPie" as NSString
+        if let cached = imageCache.object(forKey: cacheKey) {
+            return cached
+        }
+
         let size = NSSize(width: 18, height: 18)
         let image = NSImage(size: size, flipped: false) { bounds in
             let center = NSPoint(x: bounds.midX, y: bounds.midY)
@@ -639,6 +669,7 @@ public struct MenuBarIconRenderer {
             return true
         }
         image.isTemplate = true
+        imageCache.setObject(image, forKey: cacheKey)
         return image
     }
 
@@ -647,6 +678,11 @@ public struct MenuBarIconRenderer {
         text: String,
         fixedWidth: CGFloat = 60.0
     ) -> NSImage {
+        let cacheKey = "singleLine:\(text):\(fixedWidth)" as NSString
+        if let cached = imageCache.object(forKey: cacheKey) {
+            return cached
+        }
+
         let font = NSFont.monospacedDigitSystemFont(ofSize: 12.0, weight: .bold)
         let attrs: [NSAttributedString.Key: Any] = [
             .font: font,
@@ -663,6 +699,7 @@ public struct MenuBarIconRenderer {
             return true
         }
         image.isTemplate = true
+        imageCache.setObject(image, forKey: cacheKey)
         return image
     }
 
@@ -1173,6 +1210,13 @@ public struct MenuBarIconRenderer {
 
     /// Draws authentic iStat Menus segmented CPU Donut Pie (User vs. System load) with signature vibrant colors.
     public static func drawCPUDonutPie(user: Double, system: Double) -> NSImage {
+        let qUser = Int(round(min(max(user, 0.0), 100.0)))
+        let qSys = Int(round(min(max(system, 0.0), 100.0 - Double(qUser))))
+        let cacheKey = "cpuDonut:\(qUser):\(qSys)" as NSString
+        if let cached = imageCache.object(forKey: cacheKey) {
+            return cached
+        }
+
         let size = NSSize(width: 18, height: 18)
         let image = NSImage(size: size, flipped: false) { bounds in
             let center = NSPoint(x: bounds.midX, y: bounds.midY)
@@ -1221,6 +1265,7 @@ public struct MenuBarIconRenderer {
             return true
         }
         image.isTemplate = false
+        imageCache.setObject(image, forKey: cacheKey)
         return image
     }
 
@@ -1594,11 +1639,15 @@ public struct MenuBarIconRenderer {
 
     /// Draws dynamic Dual Activity Arrows (`↓` Download and `↑` Upload) with signature colors.
     public static func drawNetworkActivityArrows(inBytes: Double, outBytes: Double) -> NSImage {
+        let inActive = inBytes > 1024.0
+        let outActive = outBytes > 1024.0
+        let cacheKey = "netArrows:\(inActive):\(outActive)" as NSString
+        if let cached = imageCache.object(forKey: cacheKey) {
+            return cached
+        }
+
         let size = NSSize(width: 18, height: 18)
         let image = NSImage(size: size, flipped: false) { _ in
-            let inActive = inBytes > 1024.0
-            let outActive = outBytes > 1024.0
-
             // Download Arrow (Left, pointing Down) - System Blue
             let down = NSBezierPath()
             down.move(to: NSPoint(x: 5.0, y: 15.0))
@@ -1628,16 +1677,21 @@ public struct MenuBarIconRenderer {
             return true
         }
         image.isTemplate = false
+        imageCache.setObject(image, forKey: cacheKey)
         return image
     }
 
     /// Draws dynamic Disk Read / Write Activity LEDs (`R` and `W`) with signature colors.
     public static func drawDiskActivityLeds(readBytes: Double, writeBytes: Double) -> NSImage {
+        let rActive = readBytes > 10240.0
+        let wActive = writeBytes > 10240.0
+        let cacheKey = "diskLeds:\(rActive):\(wActive)" as NSString
+        if let cached = imageCache.object(forKey: cacheKey) {
+            return cached
+        }
+
         let size = NSSize(width: 20, height: 18)
         let image = NSImage(size: size, flipped: false) { bounds in
-            let rActive = readBytes > 10240.0
-            let wActive = writeBytes > 10240.0
-
             let font = NSFont.systemFont(ofSize: 9.5, weight: .black)
 
             // Read badge (Blue)
@@ -1671,6 +1725,7 @@ public struct MenuBarIconRenderer {
             return true
         }
         image.isTemplate = false
+        imageCache.setObject(image, forKey: cacheKey)
         return image
     }
 
@@ -1705,10 +1760,15 @@ public struct MenuBarIconRenderer {
 
     /// Draws dedicated 3-state Memory Pressure Pill/Badge (OK / WARN / CRIT) with high-DPI micro-indicators.
     public static func drawMemoryPressureBadge(pressure: MemoryPressure?) -> NSImage {
+        let p = pressure ?? .normal
+        let cacheKey = "memPressure:\(p.rawValue)" as NSString
+        if let cached = imageCache.object(forKey: cacheKey) {
+            return cached
+        }
+
         let size = NSSize(width: 18, height: 18)
         let image = NSImage(size: size, flipped: false) { bounds in
             let center = NSPoint(x: bounds.midX, y: bounds.midY)
-            let p = pressure ?? .normal
 
             // Outer capsule pill container (14w x 16h)
             let pillRect = NSRect(x: center.x - 7.0, y: center.y - 8.0, width: 14.0, height: 16.0)
@@ -1745,6 +1805,7 @@ public struct MenuBarIconRenderer {
             return true
         }
         image.isTemplate = false
+        imageCache.setObject(image, forKey: cacheKey)
         return image
     }
 
