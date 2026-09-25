@@ -51,7 +51,7 @@ public struct MenuBarIconRenderer {
         switch config.category {
         case .cpu:
             let cpu = coordinator.latestCPU?.value
-            let history = coordinator.cpuHistory.map { $0.value.totalUsage }
+            let history = (config.style == .sparkline) ? coordinator.cpuHistory.map { $0.value.totalUsage } : []
             return renderCPU(style: config.style, cpu: cpu, history: history)
 
         case .memory:
@@ -59,32 +59,33 @@ public struct MenuBarIconRenderer {
             let ratio: Double = (memory != nil && memory!.total > 0)
                 ? (Double(memory!.used) / Double(memory!.total)) * 100.0
                 : 0.0
-            let history = coordinator.memoryHistory.map {
+            let history = (config.style == .sparkline) ? coordinator.memoryHistory.map {
                 $0.value.total > 0 ? (Double($0.value.used) / Double($0.value.total)) * 100.0 : 0.0
-            }
+            } : []
             return renderMemory(style: config.style, memory: memory, ratio: ratio, history: history, standard: preferences.byteUnitStandard)
 
         case .gpu:
             let gpu = coordinator.latestGPU?.value
-            let history = coordinator.gpuHistory.compactMap { $0.value.utilization }
+            let history = (config.style == .sparkline) ? coordinator.gpuHistory.compactMap { $0.value.utilization } : []
             return renderGPU(style: config.style, gpu: gpu, history: history)
 
         case .thermal:
             let thermal = coordinator.latestThermal?.value
-            let history = coordinator.thermalHistory.compactMap { sample in
+            let history = (config.style == .sparkline) ? coordinator.thermalHistory.compactMap { sample in
                 sample.value.sensors.map(\.celsius).max()
-            }
+            } : []
             return renderThermal(style: config.style, thermal: thermal, history: history, unit: preferences.temperatureUnit)
 
         case .fan:
             let fan = coordinator.latestFan?.value
-            let history = coordinator.fanHistory.compactMap { Double($0.value.fans.first?.rpm ?? 0) }
+            let history = (config.style == .sparkline) ? coordinator.fanHistory.compactMap { Double($0.value.fans.first?.rpm ?? 0) } : []
             return renderFan(style: config.style, fan: fan, history: history)
 
         case .network:
             let network = coordinator.latestNetwork?.value
-            let inHistory = coordinator.networkHistory.map { Double($0.value.totalBytesInPerSec) }
-            let outHistory = coordinator.networkHistory.map { Double($0.value.totalBytesOutPerSec) }
+            let isSparklineOrBar = (config.style == .sparkline || config.style == .bar)
+            let inHistory = isSparklineOrBar ? coordinator.networkHistory.map { Double($0.value.totalBytesInPerSec) } : []
+            let outHistory = isSparklineOrBar ? coordinator.networkHistory.map { Double($0.value.totalBytesOutPerSec) } : []
             return renderNetwork(
                 style: config.style,
                 network: network,
@@ -96,14 +97,14 @@ public struct MenuBarIconRenderer {
 
         case .disk:
             let disk = coordinator.latestDisk?.value
-            let history = coordinator.diskHistory.compactMap {
+            let history = (config.style == .sparkline) ? coordinator.diskHistory.compactMap {
                 Double(($0.value.io?.bytesReadPerSec ?? 0) + ($0.value.io?.bytesWrittenPerSec ?? 0))
-            }
+            } : []
             return renderDisk(style: config.style, disk: disk, history: history, standard: preferences.byteUnitStandard)
 
         case .power:
             let power = coordinator.latestPower?.value
-            let history = coordinator.powerHistory.compactMap { $0.value.powerDrawWatts }
+            let history = (config.style == .sparkline) ? coordinator.powerHistory.compactMap { $0.value.powerDrawWatts } : []
             return renderPower(style: config.style, power: power, history: history)
         }
     }

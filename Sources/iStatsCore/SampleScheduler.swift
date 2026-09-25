@@ -163,6 +163,8 @@ public actor SampleScheduler {
         }
     }
 
+    public typealias BatchSampleHandler = @Sendable ([MetricReading]) -> Void
+
     private var samplers: [MetricCategory: AnySampler] = [:]
     private var intervals: [MetricCategory: TimeInterval] = [:]
     private var enabledCategories: Set<MetricCategory> = Set(MetricCategory.allCases)
@@ -170,12 +172,16 @@ public actor SampleScheduler {
     private var timeBudget: TimeInterval
     private var cadenceTasks: [CadenceKey: Task<Void, Never>] = [:]
     private var continuations: [UUID: AsyncStream<MetricReading>.Continuation] = [:]
+    private var batchContinuations: [UUID: AsyncStream<[MetricReading]>.Continuation] = [:]
 
     /// Configurable timer coalescing tolerance ratio (default: 0.15, meaning 15% leeway).
     public private(set) var toleranceRatio: Double = 0.15
 
     /// Optional general callback invoked when a sample reading is published.
     public var onSample: SampleHandler?
+
+    /// Optional batch callback invoked when a tick completes sampling all active categories.
+    public var onBatchSample: BatchSampleHandler?
 
     /// Optional `@MainActor` callback invoked on the main thread when a reading is published.
     public var onMainActorSample: MainActorSampleHandler?
@@ -195,18 +201,25 @@ public actor SampleScheduler {
         timeBudget: TimeInterval = 2.0,
         toleranceRatio: Double = 0.15,
         onSample: SampleHandler? = nil,
-        onMainActorSample: MainActorSampleHandler? = nil
+        onMainActorSample: MainActorSampleHandler? = nil,
+        onBatchSample: BatchSampleHandler? = nil
     ) {
         self.defaultInterval = max(defaultInterval, 0.001)
         self.timeBudget = max(timeBudget, 0.001)
         self.toleranceRatio = max(0.0, min(0.5, toleranceRatio))
         self.onSample = onSample
         self.onMainActorSample = onMainActorSample
+        self.onBatchSample = onBatchSample
     }
 
     /// Sets the general onSample callback.
     public func setOnSample(_ handler: SampleHandler?) {
         self.onSample = handler
+    }
+
+    /// Sets the batch onBatchSample callback.
+    public func setOnBatchSample(_ handler: BatchSampleHandler?) {
+        self.onBatchSample = handler
     }
 
     /// Sets the MainActor onSample callback.
@@ -226,6 +239,9 @@ public actor SampleScheduler {
         for continuation in continuations.values {
             continuation.finish()
         }
+        for batchContinuation in batchContinuations.values {
+            batchContinuation.finish()
+        }
     }
 
     /// An `AsyncStream` delivering all live sampled metrics as they are produced.
@@ -243,12 +259,35 @@ public actor SampleScheduler {
         }
     }
 
+    /// An `AsyncStream` delivering live sampled metrics grouped atomically by cadence batch.
+    nonisolated public var batchStream: AsyncStream<[MetricReading]> {
+        AsyncStream { continuation in
+            let id = UUID()
+            Task {
+                await self.addBatchContinuation(id: id, continuation: continuation)
+            }
+            continuation.onTermination = { @Sendable _ in
+                Task {
+                    await self.removeBatchContinuation(id: id)
+                }
+            }
+        }
+    }
+
     private func addContinuation(id: UUID, continuation: AsyncStream<MetricReading>.Continuation) {
         continuations[id] = continuation
     }
 
     private func removeContinuation(id: UUID) {
         continuations.removeValue(forKey: id)
+    }
+
+    private func addBatchContinuation(id: UUID, continuation: AsyncStream<[MetricReading]>.Continuation) {
+        batchContinuations[id] = continuation
+    }
+
+    private func removeBatchContinuation(id: UUID) {
+        batchContinuations.removeValue(forKey: id)
     }
 
     // MARK: - Registration & Configuration
@@ -418,18 +457,22 @@ public actor SampleScheduler {
                 guard !categories.isEmpty else { break }
 
                 // Batch dispatch all active categories concurrently on utility priority
-                await withTaskGroup(of: Void.self) { group in
+                let readings = await withTaskGroup(of: MetricReading.self) { group in
                     for category in categories {
                         guard let sampler = await self.samplers[category] else { continue }
                         group.addTask {
                             let timeout = await self.timeBudget
-                            let reading = await self.sampleWithTimeout(sampler: sampler, timeout: timeout)
-                            await self.publish(reading)
+                            return await self.sampleWithTimeout(sampler: sampler, timeout: timeout)
                         }
                     }
+                    var results: [MetricReading] = []
+                    for await r in group {
+                        results.append(r)
+                    }
+                    return results
                 }
 
-                // Compute next tick & leeway
+                await self.publish(readings)
                 nextTick = nextTick + .milliseconds(cadence.milliseconds)
                 let now = clock.now
                 if nextTick <= now {
@@ -487,17 +530,34 @@ public actor SampleScheduler {
         }
     }
 
-    private func publish(_ reading: MetricReading) {
+    private func publish(_ readings: [MetricReading]) {
+        guard !readings.isEmpty else { return }
         for continuation in continuations.values {
-            continuation.yield(reading)
+            for reading in readings {
+                continuation.yield(reading)
+            }
+        }
+        for batchContinuation in batchContinuations.values {
+            batchContinuation.yield(readings)
         }
         if let onSample = self.onSample {
-            onSample(reading)
+            for reading in readings {
+                onSample(reading)
+            }
+        }
+        if let onBatchSample = self.onBatchSample {
+            onBatchSample(readings)
         }
         if let onMainActorSample = self.onMainActorSample {
             Task { @MainActor in
-                onMainActorSample(reading)
+                for reading in readings {
+                    onMainActorSample(reading)
+                }
             }
         }
+    }
+
+    private func publish(_ reading: MetricReading) {
+        publish([reading])
     }
 }
