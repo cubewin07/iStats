@@ -98,9 +98,6 @@ final class SampleSchedulerCoalescingTests: XCTestCase {
                 category: cat,
                 output: CPUSample(totalUsage: 0, perCore: [], user: 0, system: 0, idle: 100),
                 onSampleCalled: {
-                    if sleepMs > 0 {
-                        usleep(sleepMs * 1000)
-                    }
                     let count = tickCounts.withValue { dict -> Int in
                         let c = (dict[cat] ?? 0) + 1
                         dict[cat] = c
@@ -111,6 +108,9 @@ final class SampleSchedulerCoalescingTests: XCTestCase {
                             dict[cat] = Date()
                         }
                         expSecondTick.fulfill()
+                    }
+                    if sleepMs > 0 {
+                        usleep(sleepMs * 1000)
                     }
                 }
             )
