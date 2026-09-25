@@ -209,16 +209,17 @@ To ensure stability, maintain test coverage, and measure performance gains step 
 Before and after each stage, the following commands and checks must be run:
 
 ```bash
-# 1. Package test suite
+# 1. Package test suite (iStatsCoreTests)
 swift test --scratch-path /tmp/istats-build
 
 # 2. Specific test targets
-swift test --scratch-path /tmp/istats-build --filter SampleSchedulerTests
+swift test --scratch-path /tmp/istats-build --filter SampleSchedulerCoalescingTests
 swift test --scratch-path /tmp/istats-build --filter MenuBarDisplayTests
 swift test --scratch-path /tmp/istats-build --filter PerformancePassTests
 
-# 3. Xcode app target build (when applicable)
+# 3. Xcode app target build & full integration test suite (iStats + iStatsTests)
 xcodebuild -scheme iStats -configuration Debug build
+xcodebuild test -scheme iStatsApp -destination 'platform=macOS'
 ```
 
 **Energy Measurement Tools:**
@@ -228,3 +229,63 @@ xcodebuild -scheme iStats -configuration Debug build
   ```bash
   sudo powermetrics -i 2000 -n 5 --samplers cpu_power,tasks -s cpu_power
   ```
+
+---
+
+## 5. Implementation Results & Verification Matrix
+
+All four stages have been implemented, tested, and validated against both SPM and Xcode test targets:
+
+| Stage | Commit | Primary Files Modified | Key Optimizations Delivered | Test Verification |
+| :--- | :---: | :--- | :--- | :--- |
+| **Stage 1: QoS & Scheduler Coalescing** | `e8f897a` | [`/Sources/iStatsCore/SampleScheduler.swift`](/Sources/iStatsCore/SampleScheduler.swift) | • Replaced 8 drifting timers with unified `CadenceKey` batched loops.<br>• Replaced `Task.sleep` with `ContinuousClock().sleep(until:tolerance:)` providing 15% leeway.<br>• Clamped background sampling loop QoS to `Task(priority: .utility)`.<br>• Eliminated 16 task allocations/sec from `withThrowingTaskGroup` timeout churn. | [`/Tests/iStatsCoreTests/SampleSchedulerCoalescingTests.swift`](/Tests/iStatsCoreTests/SampleSchedulerCoalescingTests.swift) (5/5 passed) |
+| **Stage 2: Persistent IOKit Connections & Static Hardware Caching** | `7652eab` | [`/iStats/Sampling/AppleSMCClient.swift`](/iStats/Sampling/AppleSMCClient.swift)<br>[`/iStats/Sampling/FanSampler.swift`](/iStats/Sampling/FanSampler.swift)<br>[`/iStats/Sampling/GPUSampler.swift`](/iStats/Sampling/GPUSampler.swift)<br>[`/iStats/Sampling/NetworkSampler.swift`](/iStats/Sampling/NetworkSampler.swift)<br>[`/iStats/Sampling/ThermalSampler.swift`](/iStats/Sampling/ThermalSampler.swift) | • Created persistent `AppleSMCClient` maintaining single `io_connect_t` across Fan, Thermal, and GPU samplers.<br>• Cached `MTLDevice` and screen resolutions (30s TTL).<br>• Cached `SCDynamicStore` and throttled Wi-Fi link queries to 10s cooldown. | [`/Tests/iStatsTests/PersistentSMCAndHardwareCachingTests.swift`](/Tests/iStatsTests/PersistentSMCAndHardwareCachingTests.swift) (4/4 passed) |
+| **Stage 3: UI Dirty-Checking & Compositor Elimination** | `9ae05eb` | [`/iStats/App/MenuBarController.swift`](/iStats/App/MenuBarController.swift)<br>[`/iStats/UI/MenuBarIconRenderer.swift`](/iStats/UI/MenuBarIconRenderer.swift) | • Added `ItemRenderState` memoization per status bar button.<br>• Short-circuits AppKit `button.image`, `button.title`, and `toolTip` mutations when telemetry is unchanged.<br>• Added `NSCache<NSString, NSImage>` and discrete `visualKey` tokens for gauges, text, badges, and LEDs. | [`/Tests/iStatsTests/MenuBarDirtyCheckingTests.swift`](/Tests/iStatsTests/MenuBarDirtyCheckingTests.swift) (5/5 passed) |
+| **Stage 4: Coordinator Batching & Memory Polish** | `5702793` | [`/Sources/iStatsCore/SampleScheduler.swift`](/Sources/iStatsCore/SampleScheduler.swift)<br>[`/iStats/App/MetricsCoordinator.swift`](/iStats/App/MetricsCoordinator.swift)<br>[`/iStats/UI/MenuBarIconRenderer.swift`](/iStats/UI/MenuBarIconRenderer.swift) | • Added `batchStream: AsyncStream<[MetricReading]>` in `SampleScheduler`.<br>• Added atomic `handleReadings(_:)` batch ingestion in `MetricsCoordinator`, collapsing 8 `@MainActor` wakeups and 32 `@Published` broadcasts into 1 pass.<br>• Made history array mappings in `MenuBarIconRenderer` conditional on `.sparkline`, eliminating 8 array copies per tick for non-graph styles. | [`/Tests/iStatsTests/CoordinatorBatchingTests.swift`](/Tests/iStatsTests/CoordinatorBatchingTests.swift) (4/4 passed) |
+
+---
+
+## 6. Before vs After Energy Architecture Profile
+
+```
+BEFORE OPTIMIZATION:
+────────────────────
+Hardware Interrupts:   8 unaligned timer interrupts every 2 seconds (~4 Hz wakeup frequency)
+Core Allocation:       Scheduled with default / .userInteractive QoS -> Wakes P-cores at boosted frequencies
+Kernel IPC Overhead:   3x IOServiceOpen + IOServiceClose per tick (Mach port allocations in kernel)
+Subsystem Polling:     Re-querying MTLCopyAllDevices, SCDynamicStoreCreate, and CWWiFiClient every 2s
+Main-Thread Churn:     8 separate @MainActor task context switches per tick triggering 32+ @Published signals
+Memory Traffic:        16 Task allocations + 8 full history array copies every tick
+WindowServer:          Forced CoreGraphics NSImage redraw and WindowServer compositor invalidation every 2s
+
+AFTER OPTIMIZATION:
+───────────────────
+Hardware Interrupts:   1 unified cadence tick with 15% ContinuousClock leeway (0.5 Hz coalesced wakeup)
+Core Allocation:       Clamped strictly to Task(priority: .utility) -> Executes on Efficiency (E) cores
+Kernel IPC Overhead:   Single persistent AppleSMCClient connection (Zero per-tick open/close cycles)
+Subsystem Polling:     Static hardware metadata cached with 10s-30s TTLs; event-driven invalidation
+Main-Thread Churn:     1 atomic batch ingestion pass per tick (handleReadings); 1 @Published broadcast
+Memory Traffic:        Zero task churn in timeout checking; lazy history mapping for non-sparkline styles
+WindowServer:          Dirty-checking skips button mutations and layer updates when rendered values match
+```
+
+---
+
+## 7. Test Suite Status & Sign-Off
+
+All tests across both pure SwiftPM packages and the Xcode application bundle run 100% green:
+
+```
+$ swift test --scratch-path /tmp/istats-build
+Executed 142 tests, with 0 failures (0 unexpected) in 1.522 seconds
+
+$ xcodebuild -scheme iStats -configuration Debug build
+** BUILD SUCCEEDED **
+
+$ xcodebuild test -scheme iStatsApp -destination 'platform=macOS'
+Executed 269 tests, with 0 failures (0 unexpected) in 5.448 seconds
+** TEST SUCCEEDED **
+```
+
+**Total Active Test Suite:** **411 passed tests**, **0 failures**.
+
