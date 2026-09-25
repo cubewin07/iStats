@@ -80,6 +80,20 @@ public final class MetricsCoordinator: ObservableObject {
     /// Whether the coordinator is actively sampling.
     @Published public private(set) var isRunning: Bool = false
 
+    // MARK: - Performance Instrumentation (Stage 4 Energy Optimization)
+
+    /// Count of times a batch of readings was ingested in a single pass.
+    public private(set) var batchIngestionCount: Int = 0
+
+    /// Count of times a single reading was ingested (legacy / direct path).
+    public private(set) var singleIngestionCount: Int = 0
+
+    /// Resets ingestion telemetry counters (primarily for tests).
+    public func resetPerformanceCounters() {
+        batchIngestionCount = 0
+        singleIngestionCount = 0
+    }
+
     // MARK: - Initialization
 
     /// Creates a new `MetricsCoordinator`.
@@ -152,22 +166,38 @@ public final class MetricsCoordinator: ObservableObject {
 
     private func startListeningToStream() {
         streamTask?.cancel()
-        let stream = scheduler.stream
+        let batchStream = scheduler.batchStream
 
         streamTask = Task { [weak self] in
-            for await reading in stream {
+            for await batch in batchStream {
                 guard !Task.isCancelled else { break }
-                self?.handleReading(reading)
+                self?.handleReadings(batch)
             }
         }
     }
 
-    /// Handles a new reading from the sampling layer and updates published properties.
+    /// Handles a batch of readings in a single atomic `@MainActor` pass, minimizing `@Published` churn.
+    public func handleReadings(_ readings: [MetricReading]) {
+        guard !readings.isEmpty else { return }
+        batchIngestionCount += 1
+
+        store.append(readings)
+        for reading in readings {
+            self.categoryAvailability[reading.category] = reading.availability
+            updateLatestAndHistory(for: reading.category)
+        }
+    }
+
+    /// Handles a single reading from the sampling layer (backward compatibility).
     public func handleReading(_ reading: MetricReading) {
+        singleIngestionCount += 1
         store.append(reading)
         self.categoryAvailability[reading.category] = reading.availability
+        updateLatestAndHistory(for: reading.category)
+    }
 
-        switch reading.category {
+    private func updateLatestAndHistory(for category: MetricCategory) {
+        switch category {
         case .cpu:
             self.latestCPU = store.latestCPU()
             self.cpuHistory = store.cpuHistory()

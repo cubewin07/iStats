@@ -32,21 +32,18 @@ public struct HostFanInfoProvider: FanInfoProvider {
     public init() {}
 
     public func fanCount() throws -> Int {
-        guard let conn = openSMCConnection() else {
+        guard AppleSMCClient.shared.connection() != nil else {
             throw SamplerError.unsupported("AppleSMC service not available")
         }
-        defer { IOServiceClose(conn) }
-
-        return readFanCount(connection: conn)
+        return readFanCount()
     }
 
     public func fans() throws -> [FanReading] {
-        guard let conn = openSMCConnection() else {
+        guard AppleSMCClient.shared.connection() != nil else {
             throw SamplerError.unsupported("AppleSMC service not available")
         }
-        defer { IOServiceClose(conn) }
 
-        let count = readFanCount(connection: conn)
+        let count = readFanCount()
         guard count > 0 else {
             // Fanless systems (e.g. MacBook Air) report 0 fans cleanly (Requirement 4.4, ADR 0003)
             return []
@@ -59,10 +56,10 @@ public struct HostFanInfoProvider: FanInfoProvider {
             let maxKey = "F\(i)Mx"
             let idKey = "F\(i)ID"
 
-            let actualRPM = readSMCKeyNumeric(keyStr: actualKey, connection: conn).map { Int(round($0)) } ?? 0
-            let minRPM = readSMCKeyNumeric(keyStr: minKey, connection: conn).map { Int(round($0)) }
-            let maxRPM = readSMCKeyNumeric(keyStr: maxKey, connection: conn).map { Int(round($0)) }
-            let fanName = readSMCKeyString(keyStr: idKey, connection: conn) ?? defaultFanName(index: i, total: count)
+            let actualRPM = AppleSMCClient.shared.readNumericKey(actualKey).map { Int(round($0)) } ?? 0
+            let minRPM = AppleSMCClient.shared.readNumericKey(minKey).map { Int(round($0)) }
+            let maxRPM = AppleSMCClient.shared.readNumericKey(maxKey).map { Int(round($0)) }
+            let fanName = AppleSMCClient.shared.readStringKey(idKey) ?? defaultFanName(index: i, total: count)
 
             results.append(
                 FanReading(
@@ -80,25 +77,14 @@ public struct HostFanInfoProvider: FanInfoProvider {
     // MARK: - SMC Connection Helper
 
     private func openSMCConnection() -> io_connect_t? {
-        let service = IOServiceGetMatchingService(kIOMainPortDefault, IOServiceMatching("AppleSMC"))
-        guard service != 0 else {
-            return nil
-        }
-        defer { IOObjectRelease(service) }
-
-        var conn: io_connect_t = 0
-        let openRes = IOServiceOpen(service, mach_task_self_, 0, &conn)
-        guard openRes == KERN_SUCCESS else {
-            return nil
-        }
-        return conn
+        AppleSMCClient.shared.connection()
     }
 
     // MARK: - SMC Key Readers
 
-    private func readFanCount(connection: io_connect_t) -> Int {
+    private func readFanCount() -> Int {
         // Read FNum key
-        if let countVal = readSMCKeyNumeric(keyStr: "FNum", connection: connection) {
+        if let countVal = AppleSMCClient.shared.readNumericKey("FNum") {
             let count = Int(countVal)
             if count >= 0 && count <= 16 {
                 return count
@@ -106,8 +92,8 @@ public struct HostFanInfoProvider: FanInfoProvider {
         }
 
         // Fallback: check if F0Ac exists
-        if readSMCKeyNumeric(keyStr: "F0Ac", connection: connection) != nil {
-            if readSMCKeyNumeric(keyStr: "F1Ac", connection: connection) != nil {
+        if AppleSMCClient.shared.readNumericKey("F0Ac") != nil {
+            if AppleSMCClient.shared.readNumericKey("F1Ac") != nil {
                 return 2
             }
             return 1

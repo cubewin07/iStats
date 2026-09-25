@@ -74,6 +74,10 @@
 		110000000000000000000127 /* MenuBarGeometryInvarianceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000126 /* MenuBarGeometryInvarianceTests.swift */; };
 		110000000000000000000129 /* MenuBarControllerInteractionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000128 /* MenuBarControllerInteractionTests.swift */; };
 		11000000000000000000012B /* SwiftUIViewsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11000000000000000000012A /* SwiftUIViewsTests.swift */; };
+		110000000000000000000131 /* AppleSMCClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000130 /* AppleSMCClient.swift */; };
+		110000000000000000000133 /* PersistentSMCAndHardwareCachingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000132 /* PersistentSMCAndHardwareCachingTests.swift */; };
+		110000000000000000000135 /* MenuBarDirtyCheckingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000134 /* MenuBarDirtyCheckingTests.swift */; };
+		110000000000000000000137 /* CoordinatorBatchingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000136 /* CoordinatorBatchingTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -155,6 +159,10 @@
 		110000000000000000000126 /* MenuBarGeometryInvarianceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarGeometryInvarianceTests.swift; sourceTree = "<group>"; };
 		110000000000000000000128 /* MenuBarControllerInteractionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarControllerInteractionTests.swift; sourceTree = "<group>"; };
 		11000000000000000000012A /* SwiftUIViewsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftUIViewsTests.swift; sourceTree = "<group>"; };
+		110000000000000000000130 /* AppleSMCClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleSMCClient.swift; sourceTree = "<group>"; };
+		110000000000000000000132 /* PersistentSMCAndHardwareCachingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersistentSMCAndHardwareCachingTests.swift; sourceTree = "<group>"; };
+		110000000000000000000134 /* MenuBarDirtyCheckingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarDirtyCheckingTests.swift; sourceTree = "<group>"; };
+		110000000000000000000136 /* CoordinatorBatchingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoordinatorBatchingTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -225,6 +233,7 @@
 				1100000000000000000000A0 /* ThermalSampler.swift */,
 				1100000000000000000000B0 /* FanSampler.swift */,
 				1100000000000000000000C0 /* GPUSampler.swift */,
+				110000000000000000000130 /* AppleSMCClient.swift */,
 			);
 			path = Sampling;
 			sourceTree = "<group>";
@@ -302,6 +311,9 @@
 				110000000000000000000126 /* MenuBarGeometryInvarianceTests.swift */,
 				110000000000000000000128 /* MenuBarControllerInteractionTests.swift */,
 				11000000000000000000012A /* SwiftUIViewsTests.swift */,
+				110000000000000000000132 /* PersistentSMCAndHardwareCachingTests.swift */,
+				110000000000000000000134 /* MenuBarDirtyCheckingTests.swift */,
+				110000000000000000000136 /* CoordinatorBatchingTests.swift */,
 			);
 			path = iStatsTests;
 			sourceTree = "<group>";
@@ -458,6 +470,7 @@
 				110000000000000000000113 /* PowerBudgetIllustrationView.swift in Sources */,
 				110000000000000000000117 /* NotificationManager.swift in Sources */,
 				110000000000000000000121 /* AlertCoordinator.swift in Sources */,
+				110000000000000000000131 /* AppleSMCClient.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -489,6 +502,9 @@
 				110000000000000000000127 /* MenuBarGeometryInvarianceTests.swift in Sources */,
 				110000000000000000000129 /* MenuBarControllerInteractionTests.swift in Sources */,
 				11000000000000000000012B /* SwiftUIViewsTests.swift in Sources */,
+				110000000000000000000133 /* PersistentSMCAndHardwareCachingTests.swift in Sources */,
+				110000000000000000000135 /* MenuBarDirtyCheckingTests.swift in Sources */,
+				110000000000000000000137 /* CoordinatorBatchingTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

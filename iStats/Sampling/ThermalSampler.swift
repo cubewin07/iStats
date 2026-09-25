@@ -362,28 +362,19 @@ public struct HostThermalInfoProvider: ThermalInfoProvider {
     // MARK: - AppleSMC Reader
 
     private func readAppleSMCThermals() -> [SensorReading]? {
-        let service = IOServiceGetMatchingService(kIOMainPortDefault, IOServiceMatching("AppleSMC"))
-        guard service != 0 else {
+        guard let conn = AppleSMCClient.shared.connection() else {
             return nil
         }
-        defer { IOObjectRelease(service) }
-
-        var conn: io_connect_t = 0
-        let openRes = IOServiceOpen(service, mach_task_self_, 0, &conn)
-        guard openRes == KERN_SUCCESS else {
-            return nil
-        }
-        defer { IOServiceClose(conn) }
 
         let activeDescriptors = SMCSensorCache.shared.getOrDiscoverSensors(
             connection: conn,
             candidates: Self.candidateSensors,
-            reader: { key, c in self.readSMCKeyTemperature(keyStr: key, connection: c) }
+            reader: { key, _ in AppleSMCClient.shared.readNumericKey(key) }
         )
 
         var results: [SensorReading] = []
         for descriptor in activeDescriptors {
-            if let temp = readSMCKeyTemperature(keyStr: descriptor.key, connection: conn) {
+            if let temp = AppleSMCClient.shared.readNumericKey(descriptor.key) {
                 // Filter to physically plausible operating temperatures (0°C to 150°C)
                 if temp > 0.0 && temp < 150.0 {
                     results.append(SensorReading(name: descriptor.label, celsius: temp))

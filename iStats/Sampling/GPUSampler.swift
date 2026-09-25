@@ -224,7 +224,7 @@ public struct HostGPUInfoProvider: GPUInfoProvider {
         }
 
         // Metal device enrichment (name, unified memory, recommended working set, raytracing, feature set)
-        let metalDevice = MTLCopyAllDevices().first
+        let metalDevice = Self.cachedMetalDevice
         if bestName == nil {
             bestName = metalDevice?.name
         }
@@ -234,7 +234,7 @@ public struct HostGPUInfoProvider: GPUInfoProvider {
         let metalVersion: String? = metalDevice.map { dev in
             dev.supportsFamily(.metal3) ? "Metal 3" : "Metal 2"
         }
-        let (dispCount, dispDescs) = Self.queryConnectedDisplays()
+        let (dispCount, dispDescs) = Self.cachedConnectedDisplays()
 
         guard foundAny || bestUtilization != nil || bestMemoryUsed != nil || bestTemp != nil || bestPower != nil || bestCoreCount != nil else {
             return fallbackSMCGPUStats()
@@ -287,20 +287,12 @@ public struct HostGPUInfoProvider: GPUInfoProvider {
     // MARK: - SMC GPU Thermal Fallback
 
     private func readSMCGPUTemperature() -> Double? {
-        let service = IOServiceGetMatchingService(kIOMainPortDefault, IOServiceMatching("AppleSMC"))
-        guard service != 0 else { return nil }
-        defer { IOObjectRelease(service) }
-
-        var conn: io_connect_t = 0
-        guard IOServiceOpen(service, mach_task_self_, 0, &conn) == KERN_SUCCESS else {
-            return nil
-        }
-        defer { IOServiceClose(conn) }
+        guard AppleSMCClient.shared.connection() != nil else { return nil }
 
         // Candidate Apple Silicon & Intel GPU thermal keys
         let candidateKeys = ["Tg05", "Tg0S", "TG0P", "TG0D", "TG0T", "TG0B"]
         for keyStr in candidateKeys {
-            if let temp = readSMCKeyNumeric(keyStr: keyStr, connection: conn), temp > 0.0, temp < 150.0 {
+            if let temp = AppleSMCClient.shared.readNumericKey(keyStr), temp > 0.0, temp < 150.0 {
                 return temp
             }
         }
@@ -309,8 +301,8 @@ public struct HostGPUInfoProvider: GPUInfoProvider {
 
     private func fallbackSMCGPUStats() -> RawGPUStatistics? {
         let temp = readSMCGPUTemperature()
-        let metalDevice = MTLCopyAllDevices().first
-        let (dispCount, dispDescs) = Self.queryConnectedDisplays()
+        let metalDevice = Self.cachedMetalDevice
+        let (dispCount, dispDescs) = Self.cachedConnectedDisplays()
         let supportsRT = metalDevice?.supportsRaytracing
         let metalVersion: String? = metalDevice.map { dev in
             dev.supportsFamily(.metal3) ? "Metal 3" : "Metal 2"
@@ -330,6 +322,29 @@ public struct HostGPUInfoProvider: GPUInfoProvider {
             supportsRaytracing: supportsRT,
             metalFeatureSet: metalVersion
         )
+    }
+
+    // MARK: - Hardware Caching Helpers
+
+    private static let cachedMetalDevice: MTLDevice? = MTLCopyAllDevices().first
+
+    private static let displayCacheLock = NSLock()
+    nonisolated(unsafe) private static var lastDisplayCheck: Date?
+    nonisolated(unsafe) private static var cachedDisplayData: (count: Int, descriptions: [String]) = (0, [])
+
+    private static func cachedConnectedDisplays() -> (count: Int, descriptions: [String]) {
+        displayCacheLock.lock()
+        defer { displayCacheLock.unlock() }
+
+        let now = Date()
+        if let last = lastDisplayCheck, now.timeIntervalSince(last) < 30.0 {
+            return cachedDisplayData
+        }
+
+        let data = queryConnectedDisplays()
+        cachedDisplayData = data
+        lastDisplayCheck = now
+        return data
     }
 
     // MARK: - Display Outputs Helper

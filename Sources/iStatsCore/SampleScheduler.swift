@@ -153,16 +153,35 @@ public actor SampleScheduler {
     public typealias SampleHandler = @Sendable (MetricReading) -> Void
     public typealias MainActorSampleHandler = @Sendable @MainActor (MetricReading) -> Void
 
+    // MARK: - Cadence Key
+    private struct CadenceKey: Hashable, Sendable {
+        let milliseconds: Int
+        var seconds: TimeInterval { Double(milliseconds) / 1000.0 }
+
+        init(_ seconds: TimeInterval) {
+            self.milliseconds = max(1, Int((seconds * 1000.0).rounded()))
+        }
+    }
+
+    public typealias BatchSampleHandler = @Sendable ([MetricReading]) -> Void
+
     private var samplers: [MetricCategory: AnySampler] = [:]
     private var intervals: [MetricCategory: TimeInterval] = [:]
     private var enabledCategories: Set<MetricCategory> = Set(MetricCategory.allCases)
     private var defaultInterval: TimeInterval
     private var timeBudget: TimeInterval
-    private var tasks: [MetricCategory: Task<Void, Never>] = [:]
+    private var cadenceTasks: [CadenceKey: Task<Void, Never>] = [:]
     private var continuations: [UUID: AsyncStream<MetricReading>.Continuation] = [:]
+    private var batchContinuations: [UUID: AsyncStream<[MetricReading]>.Continuation] = [:]
+
+    /// Configurable timer coalescing tolerance ratio (default: 0.15, meaning 15% leeway).
+    public private(set) var toleranceRatio: Double = 0.15
 
     /// Optional general callback invoked when a sample reading is published.
     public var onSample: SampleHandler?
+
+    /// Optional batch callback invoked when a tick completes sampling all active categories.
+    public var onBatchSample: BatchSampleHandler?
 
     /// Optional `@MainActor` callback invoked on the main thread when a reading is published.
     public var onMainActorSample: MainActorSampleHandler?
@@ -174,18 +193,23 @@ public actor SampleScheduler {
     /// - Parameters:
     ///   - defaultInterval: The default sampling interval in seconds (default: 2.0).
     ///   - timeBudget: The maximum execution duration allowed per sampler before timing out (default: 2.0).
+    ///   - toleranceRatio: The timer tolerance ratio for sleep coalescing (default: 0.15).
     ///   - onSample: Optional callback for reading updates.
     ///   - onMainActorSample: Optional `@MainActor` callback for reading updates.
     public init(
         defaultInterval: TimeInterval = 2.0,
         timeBudget: TimeInterval = 2.0,
+        toleranceRatio: Double = 0.15,
         onSample: SampleHandler? = nil,
-        onMainActorSample: MainActorSampleHandler? = nil
+        onMainActorSample: MainActorSampleHandler? = nil,
+        onBatchSample: BatchSampleHandler? = nil
     ) {
         self.defaultInterval = max(defaultInterval, 0.001)
         self.timeBudget = max(timeBudget, 0.001)
+        self.toleranceRatio = max(0.0, min(0.5, toleranceRatio))
         self.onSample = onSample
         self.onMainActorSample = onMainActorSample
+        self.onBatchSample = onBatchSample
     }
 
     /// Sets the general onSample callback.
@@ -193,17 +217,30 @@ public actor SampleScheduler {
         self.onSample = handler
     }
 
+    /// Sets the batch onBatchSample callback.
+    public func setOnBatchSample(_ handler: BatchSampleHandler?) {
+        self.onBatchSample = handler
+    }
+
     /// Sets the MainActor onSample callback.
     public func setOnMainActorSample(_ handler: MainActorSampleHandler?) {
         self.onMainActorSample = handler
     }
 
+    /// Sets the timer coalescing tolerance ratio (clamped to 0.0...0.5).
+    public func setToleranceRatio(_ ratio: Double) {
+        self.toleranceRatio = max(0.0, min(0.5, ratio))
+    }
+
     deinit {
-        for task in tasks.values {
+        for task in cadenceTasks.values {
             task.cancel()
         }
         for continuation in continuations.values {
             continuation.finish()
+        }
+        for batchContinuation in batchContinuations.values {
+            batchContinuation.finish()
         }
     }
 
@@ -222,12 +259,35 @@ public actor SampleScheduler {
         }
     }
 
+    /// An `AsyncStream` delivering live sampled metrics grouped atomically by cadence batch.
+    nonisolated public var batchStream: AsyncStream<[MetricReading]> {
+        AsyncStream { continuation in
+            let id = UUID()
+            Task {
+                await self.addBatchContinuation(id: id, continuation: continuation)
+            }
+            continuation.onTermination = { @Sendable _ in
+                Task {
+                    await self.removeBatchContinuation(id: id)
+                }
+            }
+        }
+    }
+
     private func addContinuation(id: UUID, continuation: AsyncStream<MetricReading>.Continuation) {
         continuations[id] = continuation
     }
 
     private func removeContinuation(id: UUID) {
         continuations.removeValue(forKey: id)
+    }
+
+    private func addBatchContinuation(id: UUID, continuation: AsyncStream<[MetricReading]>.Continuation) {
+        batchContinuations[id] = continuation
+    }
+
+    private func removeBatchContinuation(id: UUID) {
+        batchContinuations.removeValue(forKey: id)
     }
 
     // MARK: - Registration & Configuration
@@ -241,14 +301,16 @@ public actor SampleScheduler {
     public func register(_ sampler: AnySampler) {
         samplers[sampler.category] = sampler
         if isRunning && isEnabled(category: sampler.category) {
-            startLoop(for: sampler.category)
+            syncCadenceLoops()
         }
     }
 
     /// Unregisters the sampler for the given category.
     public func unregister(category: MetricCategory) {
-        stopLoop(for: category)
         samplers.removeValue(forKey: category)
+        if isRunning {
+            syncCadenceLoops()
+        }
     }
 
     /// Returns whether a sampler is registered for the specified category.
@@ -265,12 +327,11 @@ public actor SampleScheduler {
     public func setEnabled(category: MetricCategory, isEnabled: Bool) {
         if isEnabled {
             enabledCategories.insert(category)
-            if isRunning && isRegistered(category: category) {
-                startLoop(for: category)
-            }
         } else {
             enabledCategories.remove(category)
-            stopLoop(for: category)
+        }
+        if isRunning {
+            syncCadenceLoops()
         }
     }
 
@@ -282,8 +343,8 @@ public actor SampleScheduler {
     /// Sets the sampling interval for a specific category.
     public func setInterval(category: MetricCategory, interval: TimeInterval) {
         intervals[category] = max(interval, 0.001)
-        if isRunning && isEnabled(category: category) && isRegistered(category: category) {
-            restartLoop(for: category)
+        if isRunning {
+            syncCadenceLoops()
         }
     }
 
@@ -296,9 +357,7 @@ public actor SampleScheduler {
     public func setDefaultInterval(_ interval: TimeInterval) {
         self.defaultInterval = max(interval, 0.001)
         if isRunning {
-            for category in samplers.keys where intervals[category] == nil && isEnabled(category: category) {
-                restartLoop(for: category)
-            }
+            syncCadenceLoops()
         }
     }
 
@@ -318,19 +377,17 @@ public actor SampleScheduler {
     public func start() {
         guard !isRunning else { return }
         isRunning = true
-        for category in samplers.keys where isEnabled(category: category) {
-            startLoop(for: category)
-        }
+        syncCadenceLoops()
     }
 
     /// Stops periodic sampling across all categories and cancels background tasks.
     public func stop() {
         guard isRunning else { return }
         isRunning = false
-        for task in tasks.values {
+        for task in cadenceTasks.values {
             task.cancel()
         }
-        tasks.removeAll()
+        cadenceTasks.removeAll()
     }
 
     // MARK: - Direct Sampling
@@ -353,38 +410,86 @@ public actor SampleScheduler {
         return readings
     }
 
-    // MARK: - Internal Sampling & Task Loop
+    // MARK: - Internal Sampling & Batched Cadence Loops
 
-    private func startLoop(for category: MetricCategory) {
-        tasks[category]?.cancel()
-        guard let sampler = samplers[category] else { return }
+    private func syncCadenceLoops() {
+        guard isRunning else {
+            for task in cadenceTasks.values { task.cancel() }
+            cadenceTasks.removeAll()
+            return
+        }
 
-        tasks[category] = Task { [weak self, category] in
+        var neededCadences: Set<CadenceKey> = []
+        for category in samplers.keys where isEnabled(category: category) {
+            let intv = interval(for: category)
+            neededCadences.insert(CadenceKey(intv))
+        }
+
+        for (cadence, task) in cadenceTasks where !neededCadences.contains(cadence) {
+            task.cancel()
+            cadenceTasks.removeValue(forKey: cadence)
+        }
+
+        for cadence in neededCadences where cadenceTasks[cadence] == nil {
+            startCadenceLoop(for: cadence)
+        }
+    }
+
+    private func activeCategories(for cadence: CadenceKey) -> [MetricCategory] {
+        samplers.keys.filter { category in
+            isEnabled(category: category) && CadenceKey(interval(for: category)) == cadence
+        }
+    }
+
+    private func startCadenceLoop(for cadence: CadenceKey) {
+        cadenceTasks[cadence]?.cancel()
+        let intervalSeconds = cadence.seconds
+
+        // Explicitly set .utility QoS to ensure tasks execute on Efficiency cores
+        cadenceTasks[cadence] = Task(priority: .utility) { [weak self] in
+            let clock = ContinuousClock()
+            var nextTick = clock.now
+
             while !Task.isCancelled {
                 guard let self = self else { break }
 
-                let reading = await self.sampleWithTimeout(sampler: sampler, timeout: await self.timeBudget)
-                await self.publish(reading)
+                let categories = await self.activeCategories(for: cadence)
+                guard !categories.isEmpty else { break }
 
-                let currentInterval = await self.interval(for: category)
-                let sleepNanos = UInt64(currentInterval * 1_000_000_000)
+                // Batch dispatch all active categories concurrently on utility priority
+                let readings = await withTaskGroup(of: MetricReading.self) { group in
+                    for category in categories {
+                        guard let sampler = await self.samplers[category] else { continue }
+                        group.addTask {
+                            let timeout = await self.timeBudget
+                            return await self.sampleWithTimeout(sampler: sampler, timeout: timeout)
+                        }
+                    }
+                    var results: [MetricReading] = []
+                    for await r in group {
+                        results.append(r)
+                    }
+                    return results
+                }
+
+                await self.publish(readings)
+                nextTick = nextTick + .milliseconds(cadence.milliseconds)
+                let now = clock.now
+                if nextTick <= now {
+                    nextTick = now + .milliseconds(cadence.milliseconds)
+                }
+
+                let ratio = await self.toleranceRatio
+                let toleranceSeconds = max(0.005, min(0.5, intervalSeconds * ratio))
+                let toleranceDuration = Duration.milliseconds(Int(toleranceSeconds * 1000.0))
+
                 do {
-                    try await Task.sleep(nanoseconds: sleepNanos)
+                    try await clock.sleep(until: nextTick, tolerance: toleranceDuration)
                 } catch {
                     break
                 }
             }
         }
-    }
-
-    private func stopLoop(for category: MetricCategory) {
-        tasks[category]?.cancel()
-        tasks.removeValue(forKey: category)
-    }
-
-    private func restartLoop(for category: MetricCategory) {
-        stopLoop(for: category)
-        startLoop(for: category)
     }
 
     private func sampleWithTimeout(sampler: AnySampler, timeout: TimeInterval) async -> MetricReading {
@@ -425,17 +530,34 @@ public actor SampleScheduler {
         }
     }
 
-    private func publish(_ reading: MetricReading) {
+    private func publish(_ readings: [MetricReading]) {
+        guard !readings.isEmpty else { return }
         for continuation in continuations.values {
-            continuation.yield(reading)
+            for reading in readings {
+                continuation.yield(reading)
+            }
+        }
+        for batchContinuation in batchContinuations.values {
+            batchContinuation.yield(readings)
         }
         if let onSample = self.onSample {
-            onSample(reading)
+            for reading in readings {
+                onSample(reading)
+            }
+        }
+        if let onBatchSample = self.onBatchSample {
+            onBatchSample(readings)
         }
         if let onMainActorSample = self.onMainActorSample {
             Task { @MainActor in
-                onMainActorSample(reading)
+                for reading in readings {
+                    onMainActorSample(reading)
+                }
             }
         }
+    }
+
+    private func publish(_ reading: MetricReading) {
+        publish([reading])
     }
 }
