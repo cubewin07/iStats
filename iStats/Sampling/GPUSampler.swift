@@ -2,7 +2,7 @@ import Foundation
 import Darwin
 import IOKit
 import Metal
-import AppKit
+import CoreGraphics
 import iStatsCore
 
 // MARK: - Raw GPU Statistics
@@ -350,31 +350,41 @@ public struct HostGPUInfoProvider: GPUInfoProvider {
     // MARK: - Display Outputs Helper
 
     private static func queryConnectedDisplays() -> (count: Int, descriptions: [String]) {
-        let screens = NSScreen.screens
-        guard !screens.isEmpty else { return (0, []) }
+        var displayCount: UInt32 = 0
+        var displays = [CGDirectDisplayID](repeating: 0, count: 16)
+        let err = CGGetOnlineDisplayList(16, &displays, &displayCount)
+        guard err == .success, displayCount > 0 else { return (0, []) }
 
         var descriptions: [String] = []
-        for screen in screens {
-            let name = screen.localizedName
+        for i in 0..<Int(displayCount) {
+            let dID = displays[i]
+            let isBuiltin = CGDisplayIsBuiltin(dID) != 0
+            let isMain = CGDisplayIsMain(dID) != 0
+            let name: String
+            if isBuiltin {
+                name = "Built-in Display"
+            } else if isMain {
+                name = "Main Display"
+            } else {
+                name = "External Display \(i + 1)"
+            }
+
             var hzStr = ""
-            var resStr = "\(Int(screen.frame.width * screen.backingScaleFactor))×\(Int(screen.frame.height * screen.backingScaleFactor))"
-            if let idNum = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber {
-                let dID = CGDirectDisplayID(idNum.uint32Value)
-                if let mode = CGDisplayCopyDisplayMode(dID) {
-                    let w = mode.width
-                    let h = mode.height
-                    let rate = mode.refreshRate
-                    if w > 0 && h > 0 {
-                        resStr = "\(w)×\(h)"
-                    }
-                    if rate > 0 {
-                        hzStr = " @ \(Int(round(rate)))Hz"
-                    }
+            var resStr = "\(CGDisplayPixelsWide(dID))×\(CGDisplayPixelsHigh(dID))"
+            if let mode = CGDisplayCopyDisplayMode(dID) {
+                let w = mode.width
+                let h = mode.height
+                let rate = mode.refreshRate
+                if w > 0 && h > 0 {
+                    resStr = "\(w)×\(h)"
+                }
+                if rate > 0 {
+                    hzStr = " @ \(Int(round(rate)))Hz"
                 }
             }
             descriptions.append("\(name) (\(resStr)\(hzStr))")
         }
-        return (screens.count, descriptions)
+        return (Int(displayCount), descriptions)
     }
 
     private func readSMCKeyNumeric(keyStr: String, connection: io_connect_t) -> Double? {

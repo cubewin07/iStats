@@ -17,6 +17,16 @@ public final class AppleSMCClient: @unchecked Sendable {
     private let kSMCGetKeyInfo: UInt8 = 9
     private let kSMCReadKey: UInt8 = 5
 
+    // MARK: - Telemetry & Diagnostic Counters
+    public private(set) var openConnectionCount: Int = 0
+    public private(set) var reconnectCount: Int = 0
+
+    public func resetPerformanceCounters() {
+        lock.lock()
+        defer { lock.unlock() }
+        reconnectCount = 0
+    }
+
     public init() {}
 
     deinit {
@@ -52,6 +62,7 @@ public final class AppleSMCClient: @unchecked Sendable {
             return nil
         }
         _connection = conn
+        openConnectionCount += 1
         return conn
     }
 
@@ -62,20 +73,33 @@ public final class AppleSMCClient: @unchecked Sendable {
         }
     }
 
+    private enum SMCReadResult<T> {
+        case success(T)
+        case keyNotFound
+        case transportError(kern_return_t)
+    }
+
     /// Reads a numeric key from SMC using the persistent connection with self-healing reconnect on failure.
     public func readNumericKey(_ keyStr: String) -> Double? {
         lock.lock()
         defer { lock.unlock() }
 
         guard let conn = getOrCreateConnection() else { return nil }
-        if let val = readNumericKeyInternal(keyStr: keyStr, connection: conn) {
+        switch readNumericKeyInternal(keyStr: keyStr, connection: conn) {
+        case .success(let val):
             return val
+        case .keyNotFound:
+            return nil
+        case .transportError:
+            // Retry once after reopening connection ONLY when Mach transport / user client connection died
+            close()
+            reconnectCount += 1
+            guard let reconnected = getOrCreateConnection() else { return nil }
+            if case .success(let val) = readNumericKeyInternal(keyStr: keyStr, connection: reconnected) {
+                return val
+            }
+            return nil
         }
-
-        // Retry once after reopening connection in case connection went stale across system sleep
-        close()
-        guard let reconnected = getOrCreateConnection() else { return nil }
-        return readNumericKeyInternal(keyStr: keyStr, connection: reconnected)
     }
 
     /// Reads an ASCII string key from SMC using the persistent connection.
@@ -84,18 +108,25 @@ public final class AppleSMCClient: @unchecked Sendable {
         defer { lock.unlock() }
 
         guard let conn = getOrCreateConnection() else { return nil }
-        if let val = readStringKeyInternal(keyStr: keyStr, connection: conn) {
+        switch readStringKeyInternal(keyStr: keyStr, connection: conn) {
+        case .success(let val):
             return val
+        case .keyNotFound:
+            return nil
+        case .transportError:
+            close()
+            reconnectCount += 1
+            guard let reconnected = getOrCreateConnection() else { return nil }
+            if case .success(let val) = readStringKeyInternal(keyStr: keyStr, connection: reconnected) {
+                return val
+            }
+            return nil
         }
-
-        close()
-        guard let reconnected = getOrCreateConnection() else { return nil }
-        return readStringKeyInternal(keyStr: keyStr, connection: reconnected)
     }
 
     // MARK: - Internal IOKit Communication
 
-    private func readNumericKeyInternal(keyStr: String, connection: io_connect_t) -> Double? {
+    private func readNumericKeyInternal(keyStr: String, connection: io_connect_t) -> SMCReadResult<Double> {
         var input = SMCParamStruct()
         input.key = fourCharCode(keyStr)
         input.data8 = kSMCGetKeyInfo
@@ -111,8 +142,11 @@ public final class AppleSMCClient: @unchecked Sendable {
             &output,
             &outSize
         )
-        guard kr == KERN_SUCCESS, output.result == 0 else {
-            return nil
+        guard kr == KERN_SUCCESS else {
+            return .transportError(kr)
+        }
+        guard output.result == 0 else {
+            return .keyNotFound
         }
 
         let dataSize = output.keyInfo_dataSize
@@ -129,15 +163,25 @@ public final class AppleSMCClient: @unchecked Sendable {
             &output,
             &outSize
         )
-        guard kr == KERN_SUCCESS, output.result == 0 else {
-            return nil
+        guard kr == KERN_SUCCESS else {
+            return .transportError(kr)
+        }
+        guard output.result == 0 else {
+            return .keyNotFound
         }
 
         let typeStr = fourCharCodeToString(dataType)
-        return decodeNumericValue(bytes: output.bytes, size: Int(dataSize), type: typeStr)
+        let decoded = withUnsafeBytes(of: output.bytes) { buffer in
+            decodeNumericValue(buffer: buffer, size: Int(dataSize), type: typeStr)
+        }
+        if let val = decoded {
+            return .success(val)
+        } else {
+            return .keyNotFound
+        }
     }
 
-    private func readStringKeyInternal(keyStr: String, connection: io_connect_t) -> String? {
+    private func readStringKeyInternal(keyStr: String, connection: io_connect_t) -> SMCReadResult<String> {
         var input = SMCParamStruct()
         input.key = fourCharCode(keyStr)
         input.data8 = kSMCGetKeyInfo
@@ -153,8 +197,11 @@ public final class AppleSMCClient: @unchecked Sendable {
             &output,
             &outSize
         )
-        guard kr == KERN_SUCCESS, output.result == 0 else {
-            return nil
+        guard kr == KERN_SUCCESS else {
+            return .transportError(kr)
+        }
+        guard output.result == 0 else {
+            return .keyNotFound
         }
 
         let dataSize = output.keyInfo_dataSize
@@ -162,7 +209,7 @@ public final class AppleSMCClient: @unchecked Sendable {
         let typeStr = fourCharCodeToString(dataType)
 
         guard typeStr == "ch8*" || typeStr == "{clh" || typeStr.hasPrefix("ch") else {
-            return nil
+            return .keyNotFound
         }
 
         input.keyInfo_dataSize = dataSize
@@ -176,30 +223,34 @@ public final class AppleSMCClient: @unchecked Sendable {
             &output,
             &outSize
         )
-        guard kr == KERN_SUCCESS, output.result == 0 else {
-            return nil
+        guard kr == KERN_SUCCESS else {
+            return .transportError(kr)
+        }
+        guard output.result == 0 else {
+            return .keyNotFound
         }
 
-        return decodeStringValue(bytes: output.bytes, size: Int(dataSize))
+        let decoded = withUnsafeBytes(of: output.bytes) { buffer in
+            decodeStringValue(buffer: buffer, size: Int(dataSize))
+        }
+        if let val = decoded {
+            return .success(val)
+        } else {
+            return .keyNotFound
+        }
     }
 
     // MARK: - Value Decoders
 
-    private func decodeNumericValue(bytes: Any, size: Int, type: String) -> Double? {
-        var rawBytes = [UInt8](repeating: 0, count: 32)
-        withUnsafeBytes(of: bytes) { rawBytesPtr in
-            for i in 0..<min(32, rawBytesPtr.count) {
-                rawBytes[i] = rawBytesPtr[i]
-            }
-        }
-
-        guard size > 0, size <= 32 else { return nil }
+    private func decodeNumericValue(buffer: UnsafeRawBufferPointer, size: Int, type: String) -> Double? {
+        guard size > 0, size <= buffer.count else { return nil }
+        let rawBytes = buffer.bindMemory(to: UInt8.self)
 
         switch type {
         case "flt ", "\0\0\0\0":
             if size == 4 {
                 var floatVal: Float32 = 0.0
-                memcpy(&floatVal, rawBytes, 4)
+                memcpy(&floatVal, rawBytes.baseAddress!, 4)
                 if floatVal.isFinite && floatVal >= 0 && floatVal < 100000 {
                     return Double(floatVal)
                 }
@@ -240,7 +291,7 @@ public final class AppleSMCClient: @unchecked Sendable {
         default:
             if size == 4 {
                 var floatVal: Float32 = 0.0
-                memcpy(&floatVal, rawBytes, 4)
+                memcpy(&floatVal, rawBytes.baseAddress!, 4)
                 if floatVal.isFinite && floatVal >= 0 && floatVal < 100000 {
                     return Double(floatVal)
                 }
@@ -253,16 +304,10 @@ public final class AppleSMCClient: @unchecked Sendable {
         return nil
     }
 
-    private func decodeStringValue(bytes: Any, size: Int) -> String? {
-        var rawBytes = [UInt8](repeating: 0, count: 32)
-        withUnsafeBytes(of: bytes) { rawBytesPtr in
-            for i in 0..<min(32, rawBytesPtr.count) {
-                rawBytes[i] = rawBytesPtr[i]
-            }
-        }
-
-        let length = min(size, 32)
-        let validBytes = rawBytes.prefix(length).filter { $0 != 0 }
+    private func decodeStringValue(buffer: UnsafeRawBufferPointer, size: Int) -> String? {
+        guard size > 0 else { return nil }
+        let length = min(size, buffer.count)
+        let validBytes = buffer.prefix(length).filter { $0 != 0 }
         guard !validBytes.isEmpty else { return nil }
 
         let str = String(bytes: validBytes, encoding: .ascii) ?? String(bytes: validBytes, encoding: .utf8)

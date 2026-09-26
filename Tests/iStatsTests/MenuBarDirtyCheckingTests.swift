@@ -87,6 +87,79 @@ final class MenuBarDirtyCheckingTests: XCTestCase {
         XCTAssertEqual(controller.dirtyCheckBypassCount, 0)
     }
 
+    func testBatteryGaugeBypassesMutationWhenUnchanged() {
+        let (defaults, prefs, coord, controller, suiteName) = makeContext()
+        defer { cleanup(defaults: defaults, controller: controller, suiteName: suiteName) }
+
+        let batteryItem = MenuBarItemConfig(category: .power, style: .gauge)
+        prefs.menuBarItems = [batteryItem]
+        controller.syncStatusItems()
+
+        controller.resetPerformanceCounters()
+
+        let sample1 = PowerSample(hasBattery: true, charge: 85.0, state: .discharging)
+        coord.handleReading(MetricReading.wrap(category: .power, value: sample1))
+        controller.updateItems(for: .power)
+
+        XCTAssertEqual(controller.buttonMutationCount, 1)
+        XCTAssertEqual(controller.dirtyCheckBypassCount, 0)
+
+        let sample2 = PowerSample(hasBattery: true, charge: 85.0, state: .discharging)
+        coord.handleReading(MetricReading.wrap(category: .power, value: sample2))
+        controller.updateItems(for: .power)
+
+        XCTAssertEqual(controller.buttonMutationCount, 1, "Unchanged battery gauge must NOT mutate button")
+        XCTAssertEqual(controller.dirtyCheckBypassCount, 1, "Unchanged battery gauge must increment bypass count")
+    }
+
+    func testGPUGaugeBypassesMutationWhenUnchanged() {
+        let (defaults, prefs, coord, controller, suiteName) = makeContext()
+        defer { cleanup(defaults: defaults, controller: controller, suiteName: suiteName) }
+
+        let gpuItem = MenuBarItemConfig(category: .gpu, style: .gauge)
+        prefs.menuBarItems = [gpuItem]
+        controller.syncStatusItems()
+
+        controller.resetPerformanceCounters()
+
+        let sample1 = GPUSample(utilization: 24.0, tempCelsius: 52.0)
+        coord.handleReading(MetricReading.wrap(category: .gpu, value: sample1))
+        controller.updateItems(for: .gpu)
+
+        XCTAssertEqual(controller.buttonMutationCount, 1)
+
+        let sample2 = GPUSample(utilization: 24.0, tempCelsius: 52.0)
+        coord.handleReading(MetricReading.wrap(category: .gpu, value: sample2))
+        controller.updateItems(for: .gpu)
+
+        XCTAssertEqual(controller.buttonMutationCount, 1, "Unchanged GPU gauge must NOT mutate button")
+        XCTAssertEqual(controller.dirtyCheckBypassCount, 1, "Unchanged GPU gauge must increment bypass count")
+    }
+
+    func testThermalGaugeBypassesMutationWhenUnchanged() {
+        let (defaults, prefs, coord, controller, suiteName) = makeContext()
+        defer { cleanup(defaults: defaults, controller: controller, suiteName: suiteName) }
+
+        let thermalItem = MenuBarItemConfig(category: .thermal, style: .gauge)
+        prefs.menuBarItems = [thermalItem]
+        controller.syncStatusItems()
+
+        controller.resetPerformanceCounters()
+
+        let sample1 = ThermalSample(sensors: [SensorReading(name: "CPU", celsius: 46.0)])
+        coord.handleReading(MetricReading.wrap(category: .thermal, value: sample1))
+        controller.updateItems(for: .thermal)
+
+        XCTAssertEqual(controller.buttonMutationCount, 1)
+
+        let sample2 = ThermalSample(sensors: [SensorReading(name: "CPU", celsius: 46.0)])
+        coord.handleReading(MetricReading.wrap(category: .thermal, value: sample2))
+        controller.updateItems(for: .thermal)
+
+        XCTAssertEqual(controller.buttonMutationCount, 1, "Unchanged thermal gauge must NOT mutate button")
+        XCTAssertEqual(controller.dirtyCheckBypassCount, 1, "Unchanged thermal gauge must increment bypass count")
+    }
+
     // MARK: - 2. Image Cache Pointer Identity Tests
 
     func testDiscretePressureBadgeReusesSameImagePointer() {

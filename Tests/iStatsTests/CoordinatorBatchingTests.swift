@@ -146,4 +146,22 @@ final class CoordinatorBatchingTests: XCTestCase {
         let gaugeResult = MenuBarIconRenderer.render(config: gaugeConfig, coordinator: coord, preferences: prefs)
         XCTAssertNotNil(gaugeResult.image)
     }
+
+    func testCoordinatorHistoryQueriesDirectlyFromStoreOnDemand() {
+        let suiteName = "test.istats.coordinator.history.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        let prefs = PreferencesStore(userDefaults: defaults)
+        let coord = MetricsCoordinator(preferencesStore: prefs)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        XCTAssertTrue(coord.cpuHistory.isEmpty)
+
+        let cpu = CPUSample(totalUsage: 35, perCore: [], user: 20, system: 15, idle: 65)
+        let r1 = MetricReading.wrap(category: .cpu, value: cpu)
+        coord.handleReadings([r1])
+
+        XCTAssertEqual(coord.cpuHistory.count, 1)
+        XCTAssertEqual(coord.cpuHistory.first?.value.totalUsage, 35)
+    }
 }

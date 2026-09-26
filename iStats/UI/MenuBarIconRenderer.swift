@@ -127,7 +127,8 @@ public struct MenuBarIconRenderer {
         case .bar:
             // Live Per-Core Micro-Bar Cluster (or stacked bar)
             let img = drawCPUBar(perCore: cpu?.perCore, user: cpu?.user, system: cpu?.system)
-            return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y)
+            let qUsage = Int(round(usage))
+            return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y, visualKey: "cpu:bar:\(qUsage)")
         case .sparkline:
             // Real-Time Scrolling History Graph with signature blue gradient
             let img = drawCPUSparkline(history: history)
@@ -169,11 +170,13 @@ public struct MenuBarIconRenderer {
         case .gauge:
             // Memory Breakdown Donut Ring (Wired / Active / Compressed / Free)
             let img = drawMemoryDonutPie(sample: memory, ratio: ratio)
-            return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y)
+            let qRatio = Int(round(ratio * 100.0))
+            return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y, visualKey: "mem:gauge:\(qRatio)")
         case .bar:
             // Segmented Allocation Memory Bar (Apps, Wired, Compressed, Cached)
             let img = drawMemoryStackedBar(sample: memory, ratio: ratio)
-            return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y)
+            let qRatio = Int(round(ratio * 100.0))
+            return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y, visualKey: "mem:bar:\(qRatio)")
         case .sparkline:
             // Rolling Memory History Graph with pressure tint
             let img = drawMemorySparkline(history: history, pressure: memory?.pressure)
@@ -199,28 +202,30 @@ public struct MenuBarIconRenderer {
         let tip = gpu != nil ? String(format: "GPU: %.1f%%", util) : "GPU: --%"
         let valStr = gpu?.utilization != nil ? String(format: "%.0f%%", util) : "--%"
         let a11y = gpu?.utilization != nil ? String(format: "GPU utilization %.0f percent", util) : "GPU utilization unavailable"
+        let qUtil = Int(round(util))
+        let qTemp = Int(round(gpu?.tempCelsius ?? 0.0))
 
         switch style {
         case .gauge:
             // Util ring tinted by GPU temperature stops
             let img = drawGPUGauge(percentage: util, tempCelsius: gpu?.tempCelsius)
-            return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y)
+            return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y, visualKey: "gpu:gauge:\(qUtil):\(qTemp)")
         case .bar:
             let img = drawGPUBar(percentage: util)
-            return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y)
+            return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y, visualKey: "gpu:bar:\(qUtil)")
         case .sparkline:
             let img = drawGPUSparkline(history: history)
             return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y)
         case .symbol:
             // Mini GPU-die glyph (fill = util, color = temp)
             let img = drawGPUDieSymbol(utilization: gpu?.utilization, tempCelsius: gpu?.tempCelsius)
-            return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y)
+            return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y, visualKey: "gpu:symbol:\(qUtil):\(qTemp)")
         case .text:
             let img = drawCategoryStackedText(title: "GPU", value: valStr, fixedWidth: 32.0)
-            return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y)
+            return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y, visualKey: "gpu:text:\(valStr)")
         default:
             let img = drawCategoryStackedText(title: "GPU", value: valStr, fixedWidth: 32.0)
-            return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y)
+            return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y, visualKey: "gpu:text:\(valStr)")
         }
     }
 
@@ -287,23 +292,24 @@ public struct MenuBarIconRenderer {
             ? "\(componentLabel) temperature \(formattedTemp)"
             : "\(componentLabel) thermal unavailable"
 
+        let qTemp = Int(round(tempC))
         switch style {
         case .gauge:
             let img = drawThermalGauge(percentage: pct, celsius: tempC)
-            return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y)
+            return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y, visualKey: "thermal:gauge:\(title):\(qTemp)")
         case .sparkline:
             let img = drawThermalSparkline(history: history)
             return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y)
         case .bar:
             // Legacy fallback if requested directly
             let img = drawThermalBar(percentage: pct, celsius: tempC)
-            return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y)
+            return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y, visualKey: "thermal:bar:\(title):\(qTemp)")
         case .cpuTemp, .gpuTemp, .memoryTemp, .storageTemp, .batteryTemp, .text:
             let img = drawCategoryStackedText(title: title, value: valStr, fixedWidth: 32.0)
-            return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y)
+            return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y, visualKey: "thermal:text:\(title):\(valStr)")
         default:
             let img = drawCategoryStackedText(title: title, value: valStr, fixedWidth: 32.0)
-            return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y)
+            return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y, visualKey: "thermal:text:\(title):\(valStr)")
         }
     }
 
@@ -339,31 +345,32 @@ public struct MenuBarIconRenderer {
 
         let pct: Double = primaryFan != nil ? fanPercentage(for: primaryFan!) : 0.0
         let valStr = primaryFan != nil ? String(format: "%.0f%%", pct) : (fan?.isFanless == true ? "0%" : "--%")
+        let qPct = Int(round(pct))
 
         switch style {
         case .gauge:
             // 240° tachometer with ticks + needle
             let img = drawFanTachometer(percentage: pct, rpm: primaryFan?.rpm)
-            return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y)
+            return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y, visualKey: "fan:gauge:\(qPct):\(rpm)")
         case .bar:
             let img = drawFanBar(fan: fan, primaryPct: pct)
-            return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y)
+            return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y, visualKey: "fan:bar:\(qPct):\(rpm)")
         case .sparkline:
             let img = drawFanSparkline(history: history)
             return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y)
         case .text:
             let img = drawCategoryStackedText(title: "FAN", value: valStr, fixedWidth: 32.0)
-            return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y)
+            return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y, visualKey: "fan:text:\(valStr)")
         case .throughput:
             let img = drawFanStackedThroughput(fan: fan, primaryPct: pct)
-            return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y)
+            return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y, visualKey: "fan:tp:\(rpm)")
         case .symbol:
             // 4-blade cooling turbine with speed-based opacity
             let img = drawFanBlades(percentage: pct, rpm: primaryFan?.rpm)
-            return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y)
+            return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y, visualKey: "fan:blades:\(qPct)")
         default:
             let img = drawCategoryStackedText(title: "FAN", value: valStr, fixedWidth: 32.0)
-            return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y)
+            return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y, visualKey: "fan:text:\(valStr)")
         }
     }
 
@@ -440,11 +447,13 @@ public struct MenuBarIconRenderer {
         case .gauge:
             // Volume Capacity Donut Ring (Boot volume used %)
             let img = drawDiskGauge(percentage: volRatio)
-            return RenderResult(image: img, toolTip: tip, accessibilityLabel: String(format: "Storage %.0f percent full", volRatio))
+            let qVol = Int(round(volRatio))
+            return RenderResult(image: img, toolTip: tip, accessibilityLabel: String(format: "Storage %.0f percent full", volRatio), visualKey: "disk:gauge:\(qVol)")
         case .bar:
             // "SSD" + Boot Volume Used-% Capsule Bar
             let img = drawDiskBar(percentage: volRatio)
-            return RenderResult(image: img, toolTip: tip, accessibilityLabel: String(format: "Storage %.0f percent full", volRatio))
+            let qVol = Int(round(volRatio))
+            return RenderResult(image: img, toolTip: tip, accessibilityLabel: String(format: "Storage %.0f percent full", volRatio), visualKey: "disk:bar:\(qVol)")
         case .sparkline:
             // Combined I/O History with decay-max scaling
             let img = drawDiskSparkline(history: history)
@@ -510,33 +519,37 @@ public struct MenuBarIconRenderer {
 
         let isCharging = variant == .charging
         let hasBattery = power?.hasBattery ?? true
+        let qCharge = Int(round(charge))
+        let varStr = variant.rawValue
 
         switch style {
         case .symbol:
             // Authentic Battery Shell Instrument with Live Fill & Multi-State Overlays
             let img = drawBatteryInstrument(charge: power?.charge, state: power?.state, hasBattery: hasBattery, variant: variant)
-            return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y)
+            return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y, visualKey: "pwr:symbol:\(qCharge):\(varStr):\(hasBattery)")
         case .text:
             // Two-Line Stacked Battery Charge% + Time Remaining / Wattage
             let img = drawPowerStackedText(charge: power?.charge, state: power?.state, timeRemaining: power?.timeRemaining, watts: power?.powerDrawWatts)
-            return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y)
+            return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y, visualKey: "pwr:text:\(qCharge):\(varStr)")
         case .throughput:
             // Live Power Budget (Draw W over Adapter W)
             let img = drawPowerBudgetText(drawWatts: power?.powerDrawWatts, adapterWatts: power?.adapterWatts)
-            return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y)
+            let dWatts = Int(round(power?.powerDrawWatts ?? 0))
+            let aWatts = Int(round(power?.adapterWatts ?? 0))
+            return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y, visualKey: "pwr:tp:\(dWatts):\(aWatts)")
         case .gauge:
             let img = drawPowerGauge(percentage: charge, isCharging: isCharging, variant: variant)
-            return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y)
+            return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y, visualKey: "pwr:gauge:\(qCharge):\(isCharging):\(varStr)")
         case .bar:
             let img = drawPowerBar(percentage: charge, isCharging: isCharging, variant: variant)
-            return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y)
+            return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y, visualKey: "pwr:bar:\(qCharge):\(isCharging):\(varStr)")
         case .sparkline:
             // Live Power Draw Watts History with decay-max scaling
             let img = drawPowerSparkline(history: history)
             return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y)
         default:
             let img = drawBatteryInstrument(charge: power?.charge, state: power?.state, hasBattery: hasBattery, variant: variant)
-            return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y)
+            return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y, visualKey: "pwr:symbol:\(qCharge):\(varStr):\(hasBattery)")
         }
     }
 
