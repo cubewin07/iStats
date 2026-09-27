@@ -225,4 +225,82 @@ final class MenuBarDirtyCheckingTests: XCTestCase {
 
         XCTAssertNil(controller.previousRenderStates[cpuItem.id], "Removing status item must purge its cached render state")
     }
+
+    // MARK: - 4. Two-Phase Pre-Render Visual Key Tests
+
+    func testComputeVisualKeyCalculatesExpectedTokensAcrossCategories() {
+        let (defaults, prefs, coord, controller, suiteName) = makeContext()
+        defer { cleanup(defaults: defaults, controller: controller, suiteName: suiteName) }
+
+        // 1. CPU
+        let cpuSample = CPUSample(totalUsage: 25.0, perCore: [25.0], user: 15.0, system: 10.0, idle: 75.0)
+        coord.handleReading(MetricReading.wrap(category: .cpu, value: cpuSample))
+
+        let cpuText = MenuBarIconRenderer.computeVisualKey(config: MenuBarItemConfig(category: .cpu, style: .text), coordinator: coord, preferences: prefs)
+        XCTAssertEqual(cpuText, "cpu:text:25%")
+
+        let cpuGauge = MenuBarIconRenderer.computeVisualKey(config: MenuBarItemConfig(category: .cpu, style: .gauge), coordinator: coord, preferences: prefs)
+        XCTAssertEqual(cpuGauge, "cpu:gauge:15:10")
+
+        let cpuSparkline = MenuBarIconRenderer.computeVisualKey(config: MenuBarItemConfig(category: .cpu, style: .sparkline), coordinator: coord, preferences: prefs)
+        XCTAssertNil(cpuSparkline, "Sparkline continuous graphs must return nil visualKey")
+
+        // 2. Memory
+        let memSample = MemorySample(total: 1000, used: 550, free: 450, wired: 100, compressed: 50, cached: 250, swapUsed: 0, pressure: .normal)
+        coord.handleReading(MetricReading.wrap(category: .memory, value: memSample))
+
+        let memGauge = MenuBarIconRenderer.computeVisualKey(config: MenuBarItemConfig(category: .memory, style: .gauge), coordinator: coord, preferences: prefs)
+        XCTAssertEqual(memGauge, "mem:gauge:5500")
+
+        let memBadge = MenuBarIconRenderer.computeVisualKey(config: MenuBarItemConfig(category: .memory, style: .symbol), coordinator: coord, preferences: prefs)
+        XCTAssertEqual(memBadge, "mem:badge:normal")
+
+        // 3. GPU
+        let gpuSample = GPUSample(utilization: 35.0, tempCelsius: 48.0)
+        coord.handleReading(MetricReading.wrap(category: .gpu, value: gpuSample))
+
+        let gpuGauge = MenuBarIconRenderer.computeVisualKey(config: MenuBarItemConfig(category: .gpu, style: .gauge), coordinator: coord, preferences: prefs)
+        XCTAssertEqual(gpuGauge, "gpu:gauge:35:48")
+
+        let gpuSymbol = MenuBarIconRenderer.computeVisualKey(config: MenuBarItemConfig(category: .gpu, style: .symbol), coordinator: coord, preferences: prefs)
+        XCTAssertEqual(gpuSymbol, "gpu:symbol:35:48")
+
+        // 4. Power
+        let pwrSample = PowerSample(hasBattery: true, charge: 92.0, state: .charging)
+        coord.handleReading(MetricReading.wrap(category: .power, value: pwrSample))
+
+        let pwrGauge = MenuBarIconRenderer.computeVisualKey(config: MenuBarItemConfig(category: .power, style: .gauge), coordinator: coord, preferences: prefs)
+        XCTAssertEqual(pwrGauge, "pwr:gauge:92:true:charging")
+
+        let pwrSymbol = MenuBarIconRenderer.computeVisualKey(config: MenuBarItemConfig(category: .power, style: .symbol), coordinator: coord, preferences: prefs)
+        XCTAssertEqual(pwrSymbol, "pwr:symbol:92:charging:true")
+
+        // 5. Fan
+        let fanSample = FanSample(fans: [FanReading(name: "Fan 1", rpm: 2100, minRPM: 1200, maxRPM: 5000)])
+        coord.handleReading(MetricReading.wrap(category: .fan, value: fanSample))
+
+        let fanGauge = MenuBarIconRenderer.computeVisualKey(config: MenuBarItemConfig(category: .fan, style: .gauge), coordinator: coord, preferences: prefs)
+        XCTAssertNotNil(fanGauge)
+        XCTAssertTrue(fanGauge!.starts(with: "fan:gauge:"))
+
+        // 6. Network
+        let netSample = NetworkSample(interfaces: [InterfaceThroughput(interfaceName: "en0", bytesInPerSec: 50_000, bytesOutPerSec: 200, totalBytesIn: 1000, totalBytesOut: 500)])
+        coord.handleReading(MetricReading.wrap(category: .network, value: netSample))
+
+        let netArrows = MenuBarIconRenderer.computeVisualKey(config: MenuBarItemConfig(category: .network, style: .symbol), coordinator: coord, preferences: prefs)
+        XCTAssertEqual(netArrows, "net:arrows:true:false")
+
+        // 7. Disk
+        let diskSample = DiskSample(
+            volumes: [VolumeCapacity(name: "Macintosh HD", mountPoint: "/", total: 1_000_000, used: 600_000, free: 400_000)],
+            io: DiskIO(bytesReadPerSec: 50_000, bytesWrittenPerSec: 0, readOpsPerSec: 10, writeOpsPerSec: 0)
+        )
+        coord.handleReading(MetricReading.wrap(category: .disk, value: diskSample))
+
+        let diskLeds = MenuBarIconRenderer.computeVisualKey(config: MenuBarItemConfig(category: .disk, style: .symbol), coordinator: coord, preferences: prefs)
+        XCTAssertEqual(diskLeds, "disk:leds:true:false")
+
+        let diskGauge = MenuBarIconRenderer.computeVisualKey(config: MenuBarItemConfig(category: .disk, style: .gauge), coordinator: coord, preferences: prefs)
+        XCTAssertEqual(diskGauge, "disk:gauge:60")
+    }
 }

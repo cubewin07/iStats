@@ -293,6 +293,17 @@ public final class MenuBarController: NSObject {
     private func updateStatusItem(config: MenuBarItemConfig) {
         guard let item = statusItems[config.id], let button = item.button else { return }
 
+        // Fast-path pre-render bypass: If the computed visualKey matches the previously
+        // rendered state, we can avoid invoking CoreGraphics drawing and NSImage allocation entirely!
+        if let visualKey = MenuBarIconRenderer.computeVisualKey(
+            config: config,
+            coordinator: coordinator,
+            preferences: preferences
+        ), let previous = previousRenderStates[config.id], previous.visualKey == visualKey {
+            dirtyCheckBypassCount += 1
+            return
+        }
+
         let result = MenuBarIconRenderer.render(
             config: config,
             coordinator: coordinator,

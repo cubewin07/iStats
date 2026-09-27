@@ -42,6 +42,263 @@ public struct MenuBarIconRenderer {
         }
     }
 
+    // MARK: - Fast-Path Visual Key Computation (Pre-Render Bypass)
+
+    /// Fast-path visual key calculator that inspects the current metric state without performing any
+    /// CoreGraphics drawing or NSImage allocation.
+    /// Returns `nil` for unbounded continuous displays (like sparklines) that must redraw on every tick.
+    public static func computeVisualKey(
+        config: MenuBarItemConfig,
+        coordinator: MetricsCoordinator,
+        preferences: PreferencesStore
+    ) -> String? {
+        guard config.style != .sparkline else { return nil }
+
+        switch config.category {
+        case .cpu:
+            return visualKeyForCPU(style: config.style, cpu: coordinator.latestCPU?.value)
+        case .memory:
+            let memory = coordinator.latestMemory?.value
+            let ratio: Double = (memory != nil && memory!.total > 0)
+                ? (Double(memory!.used) / Double(memory!.total)) * 100.0
+                : 0.0
+            return visualKeyForMemory(style: config.style, memory: memory, ratio: ratio, standard: preferences.byteUnitStandard)
+        case .gpu:
+            return visualKeyForGPU(style: config.style, gpu: coordinator.latestGPU?.value)
+        case .thermal:
+            return visualKeyForThermal(style: config.style, thermal: coordinator.latestThermal?.value, unit: preferences.temperatureUnit)
+        case .fan:
+            return visualKeyForFan(style: config.style, fan: coordinator.latestFan?.value)
+        case .network:
+            return visualKeyForNetwork(style: config.style, network: coordinator.latestNetwork?.value, unit: preferences.networkUnit, standard: preferences.byteUnitStandard)
+        case .disk:
+            return visualKeyForDisk(style: config.style, disk: coordinator.latestDisk?.value, standard: preferences.byteUnitStandard)
+        case .power:
+            return visualKeyForPower(style: config.style, power: coordinator.latestPower?.value)
+        }
+    }
+
+    public static func visualKeyForCPU(style: MetricDisplayStyle, cpu: CPUSample?) -> String? {
+        guard style != .sparkline else { return nil }
+        let usage = cpu?.totalUsage ?? 0.0
+        let valStr = cpu != nil ? String(format: "%.0f%%", usage) : "--%"
+
+        switch style {
+        case .gauge:
+            let qUser = Int(round(min(max(cpu?.user ?? usage, 0.0), 100.0)))
+            let qSys = Int(round(min(max(cpu?.system ?? 0.0, 0.0), 100.0 - Double(qUser))))
+            return "cpu:gauge:\(qUser):\(qSys)"
+        case .bar:
+            let qUsage = Int(round(usage))
+            return "cpu:bar:\(qUsage)"
+        case .text:
+            return "cpu:text:\(valStr)"
+        default:
+            return "cpu:text:\(valStr)"
+        }
+    }
+
+    public static func visualKeyForMemory(
+        style: MetricDisplayStyle,
+        memory: MemorySample?,
+        ratio: Double,
+        standard: Units.ByteUnitStandard
+    ) -> String? {
+        guard style != .sparkline else { return nil }
+        let valStr = memory != nil ? String(format: "%.0f%%", ratio) : "--%"
+        let qRatio = Int(round(ratio * 100.0))
+
+        switch style {
+        case .gauge:
+            return "mem:gauge:\(qRatio)"
+        case .bar:
+            return "mem:bar:\(qRatio)"
+        case .symbol:
+            return "mem:badge:\(memory?.pressure.rawValue ?? "normal")"
+        case .text:
+            return "mem:text:\(valStr)"
+        default:
+            return "mem:text:\(valStr)"
+        }
+    }
+
+    public static func visualKeyForGPU(style: MetricDisplayStyle, gpu: GPUSample?) -> String? {
+        guard style != .sparkline else { return nil }
+        let util = gpu?.utilization ?? 0.0
+        let valStr = gpu?.utilization != nil ? String(format: "%.0f%%", util) : "--%"
+        let qUtil = Int(round(util))
+        let qTemp = Int(round(gpu?.tempCelsius ?? 0.0))
+
+        switch style {
+        case .gauge:
+            return "gpu:gauge:\(qUtil):\(qTemp)"
+        case .bar:
+            return "gpu:bar:\(qUtil)"
+        case .symbol:
+            return "gpu:symbol:\(qUtil):\(qTemp)"
+        case .text:
+            return "gpu:text:\(valStr)"
+        default:
+            return "gpu:text:\(valStr)"
+        }
+    }
+
+    public static func resolveThermalSensor(
+        style: MetricDisplayStyle,
+        thermal: ThermalSample?
+    ) -> (sensor: SensorReading?, title: String, componentLabel: String) {
+        let sensor: SensorReading?
+        let title: String
+        let componentLabel: String
+
+        switch style {
+        case .cpuTemp:
+            sensor = findThermalSensor(in: thermal, matching: ["CPU", "Efficiency Cores", "Package"])
+            title = "CPU"
+            componentLabel = "CPU"
+        case .gpuTemp:
+            sensor = findThermalSensor(in: thermal, matching: ["GPU"])
+            title = "GPU"
+            componentLabel = "GPU"
+        case .memoryTemp:
+            sensor = findThermalSensor(in: thermal, matching: ["Memory", "RAM"])
+            title = "MEM"
+            componentLabel = "Memory"
+        case .storageTemp:
+            sensor = findThermalSensor(in: thermal, matching: ["Flash", "NAND", "SSD", "Storage", "Disk"])
+            title = "SSD"
+            componentLabel = "Storage"
+        case .batteryTemp:
+            sensor = findThermalSensor(in: thermal, matching: ["Battery"])
+            title = "BAT"
+            componentLabel = "Battery"
+        case .text, .gauge, .bar, .sparkline, .symbol, .throughput:
+            sensor = thermal?.sensors.max(by: { $0.celsius < $1.celsius }) ?? thermal?.sensors.first
+            title = "TMP"
+            componentLabel = "Peak"
+        }
+        return (sensor, title, componentLabel)
+    }
+
+    public static func visualKeyForThermal(
+        style: MetricDisplayStyle,
+        thermal: ThermalSample?,
+        unit: Units.TemperatureUnit
+    ) -> String? {
+        guard style != .sparkline else { return nil }
+        let (sensor, title, _) = resolveThermalSensor(style: style, thermal: thermal)
+        let tempC = sensor?.celsius ?? 0.0
+        let formattedTemp = Units.formatTemperature(tempC, unit: unit, fractionDigits: 0)
+        let valStr = sensor != nil ? formattedTemp : "--°"
+        let qTemp = Int(round(tempC))
+
+        switch style {
+        case .gauge:
+            return "thermal:gauge:\(title):\(qTemp)"
+        case .bar:
+            return "thermal:bar:\(title):\(qTemp)"
+        case .cpuTemp, .gpuTemp, .memoryTemp, .storageTemp, .batteryTemp, .text:
+            return "thermal:text:\(title):\(valStr)"
+        default:
+            return "thermal:text:\(title):\(valStr)"
+        }
+    }
+
+    public static func visualKeyForFan(style: MetricDisplayStyle, fan: FanSample?) -> String? {
+        guard style != .sparkline else { return nil }
+        let fans = fan?.fans ?? []
+        let primaryFan = fans.max(by: { fanPercentage(for: $0) < fanPercentage(for: $1) }) ?? fans.first
+        let rpm = primaryFan?.rpm ?? 0
+        let pct: Double = primaryFan != nil ? fanPercentage(for: primaryFan!) : 0.0
+        let valStr = primaryFan != nil ? String(format: "%.0f%%", pct) : (fan?.isFanless == true ? "0%" : "--%")
+        let qPct = Int(round(pct))
+
+        switch style {
+        case .gauge:
+            return "fan:gauge:\(qPct):\(rpm)"
+        case .bar:
+            return "fan:bar:\(qPct):\(rpm)"
+        case .text:
+            return "fan:text:\(valStr)"
+        case .throughput:
+            return "fan:tp:\(rpm)"
+        case .symbol:
+            return "fan:blades:\(qPct)"
+        default:
+            return "fan:text:\(valStr)"
+        }
+    }
+
+    public static func visualKeyForNetwork(
+        style: MetricDisplayStyle,
+        network: NetworkSample?,
+        unit: Units.NetworkUnit,
+        standard: Units.ByteUnitStandard
+    ) -> String? {
+        guard style != .sparkline && style != .bar && style != .throughput else { return nil }
+        let inBytes = network?.totalBytesInPerSec ?? 0.0
+        let outBytes = network?.totalBytesOutPerSec ?? 0.0
+        switch style {
+        case .symbol:
+            return "net:arrows:\(inBytes > 1024.0):\(outBytes > 1024.0)"
+        default:
+            return nil
+        }
+    }
+
+    public static func visualKeyForDisk(
+        style: MetricDisplayStyle,
+        disk: DiskSample?,
+        standard: Units.ByteUnitStandard
+    ) -> String? {
+        guard style != .sparkline && style != .throughput else { return nil }
+        let readBytes = disk?.io?.bytesReadPerSec ?? 0.0
+        let writeBytes = disk?.io?.bytesWrittenPerSec ?? 0.0
+        let primaryVol = disk?.volumes.first(where: { $0.mountPoint == "/" }) ?? disk?.volumes.first
+        let volRatio: Double = (primaryVol != nil && primaryVol!.total > 0)
+            ? (Double(primaryVol!.used) / Double(primaryVol!.total)) * 100.0
+            : 0.0
+        let qVol = Int(round(volRatio))
+
+        switch style {
+        case .symbol:
+            return "disk:leds:\(readBytes > 10240.0):\(writeBytes > 10240.0)"
+        case .gauge:
+            return "disk:gauge:\(qVol)"
+        case .bar:
+            return "disk:bar:\(qVol)"
+        default:
+            return nil
+        }
+    }
+
+    public static func visualKeyForPower(style: MetricDisplayStyle, power: PowerSample?) -> String? {
+        guard style != .sparkline else { return nil }
+        let charge = power?.charge ?? 0.0
+        let variant = power?.variant ?? .unavailable
+        let isCharging = variant == .charging
+        let hasBattery = power?.hasBattery ?? true
+        let qCharge = Int(round(charge))
+        let varStr = variant.rawValue
+
+        switch style {
+        case .symbol:
+            return "pwr:symbol:\(qCharge):\(varStr):\(hasBattery)"
+        case .text:
+            return "pwr:text:\(qCharge):\(varStr)"
+        case .throughput:
+            let dWatts = Int(round(power?.powerDrawWatts ?? 0))
+            let aWatts = Int(round(power?.adapterWatts ?? 0))
+            return "pwr:tp:\(dWatts):\(aWatts)"
+        case .gauge:
+            return "pwr:gauge:\(qCharge):\(isCharging):\(varStr)"
+        case .bar:
+            return "pwr:bar:\(qCharge):\(isCharging):\(varStr)"
+        default:
+            return "pwr:symbol:\(qCharge):\(varStr):\(hasBattery)"
+        }
+    }
+
     /// Primary entry point: renders image, title, tooltip, and accessibility label for a given menu bar item configuration.
     public static func render(
         config: MenuBarItemConfig,
