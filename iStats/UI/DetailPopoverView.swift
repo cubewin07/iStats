@@ -93,17 +93,35 @@ public struct DetailPopoverView: View {
             HStack(spacing: 8) {
                 Image(systemName: "gauge.with.dots.needle.bottom.50percent")
                     .font(.system(size: 14, weight: .bold))
-                    .foregroundColor(.accentColor)
+                    .foregroundColor(preferences.isSamplingPaused ? .orange : .accentColor)
                 Text("iStats")
                     .font(.system(size: 14, weight: .bold))
                 Spacer()
-                Text("Instrument Cluster")
-                    .font(.system(size: 10.5, weight: .medium))
-                    .foregroundColor(.secondary)
+                if preferences.isSamplingPaused {
+                    HStack(spacing: 4) {
+                        Image(systemName: "pause.circle.fill")
+                            .font(.system(size: 10, weight: .bold))
+                        Text("Sampling Paused")
+                            .font(.system(size: 10, weight: .semibold))
+                    }
+                    .foregroundColor(.orange)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(Color.orange.opacity(0.14))
+                    .clipShape(Capsule())
+                } else {
+                    Text("Instrument Cluster")
+                        .font(.system(size: 10.5, weight: .medium))
+                        .foregroundColor(.secondary)
+                }
             }
             .padding(.bottom, 2)
 
             Divider()
+
+            if preferences.isSamplingPaused {
+                samplingPausedBanner
+            }
 
             // 8-Row Instrument Cluster
             ScrollView(.vertical, showsIndicators: false) {
@@ -205,6 +223,15 @@ public struct DetailPopoverView: View {
 
                 Spacer()
 
+                Button(action: {
+                    coordinator.toggleSamplingPaused()
+                }) {
+                    Image(systemName: preferences.isSamplingPaused ? "play.fill" : "pause.fill")
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .help(preferences.isSamplingPaused ? "Resume background sampling" : "Pause sampling to save battery")
+
                 Button("Preferences...") {
                     PreferencesWindowController.shared.showPreferences()
                 }
@@ -221,10 +248,55 @@ public struct DetailPopoverView: View {
         .padding(14)
         .frame(width: 330)
         .onAppear {
-            if !coordinator.isRunning && overrideCPUSample == nil && overrideMemorySample == nil && overrideGPUSample == nil && overrideNetworkSample == nil && overrideDiskSample == nil && overridePowerSample == nil && overrideThermalSample == nil && overrideFanSample == nil {
+            if !coordinator.isRunning && !preferences.isSamplingPaused && overrideCPUSample == nil && overrideMemorySample == nil && overrideGPUSample == nil && overrideNetworkSample == nil && overrideDiskSample == nil && overridePowerSample == nil && overrideThermalSample == nil && overrideFanSample == nil {
                 coordinator.start()
             }
         }
+    }
+
+    // MARK: - Sampling Paused Banner (Issue #12)
+
+    private var samplingPausedBanner: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 10) {
+                Image(systemName: "leaf.circle.fill")
+                    .font(.system(size: 24))
+                    .foregroundColor(.orange)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Battery Saver Active")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundColor(.primary)
+                    Text("All background samplers are stopped to conserve energy.")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundColor(.secondary)
+                }
+
+                Spacer()
+            }
+
+            Button(action: {
+                coordinator.resumeSampling()
+            }) {
+                HStack {
+                    Spacer()
+                    Label("Resume Sampling", systemImage: "play.fill")
+                        .font(.system(size: 11, weight: .semibold))
+                    Spacer()
+                }
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.small)
+        }
+        .padding(10)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(Color.orange.opacity(0.08))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .strokeBorder(Color.orange.opacity(0.25), lineWidth: 1)
+        )
     }
 
     // MARK: - Instrument Cluster Row

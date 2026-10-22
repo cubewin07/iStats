@@ -4,7 +4,16 @@ import iStatsCore
 // MARK: - Reusable Category Popover Footer
 
 public struct CategoryPopoverFooter: View {
-    public init() {}
+    @ObservedObject public var preferences: PreferencesStore
+    public let coordinator: MetricsCoordinator
+
+    public init(
+        preferences: PreferencesStore = .shared,
+        coordinator: MetricsCoordinator = .shared
+    ) {
+        self.preferences = preferences
+        self.coordinator = coordinator
+    }
 
     public var body: some View {
         HStack(spacing: 6) {
@@ -17,6 +26,18 @@ public struct CategoryPopoverFooter: View {
             .controlSize(.small)
 
             Spacer()
+
+            Button(action: {
+                coordinator.toggleSamplingPaused()
+            }) {
+                HStack(spacing: 4) {
+                    Image(systemName: preferences.isSamplingPaused ? "play.fill" : "pause.fill")
+                    Text(preferences.isSamplingPaused ? "Resume" : "Pause")
+                }
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            .help(preferences.isSamplingPaused ? "Resume background sampling" : "Pause sampling to save battery")
 
             Button(action: {
                 PreferencesWindowController.shared.showPreferences()

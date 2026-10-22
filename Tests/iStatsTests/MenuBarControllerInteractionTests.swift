@@ -324,4 +324,52 @@ final class MenuBarControllerInteractionTests: XCTestCase {
         XCTAssertTrue(controller.popover(for: chargeBar.id)?.contentViewController is NSHostingController<PowerBarPopoverView>)
         XCTAssertTrue(controller.popover(for: wattageHistory.id)?.contentViewController is NSHostingController<PowerHistoryPopoverView>)
     }
+
+    func testPauseSamplingStopsCoordinatorAndShowsMinimalIcon() {
+        let (defaults, prefs, coord, controller, suiteName) = makeContext()
+        defer {
+            coord.stop()
+            cleanup(defaults: defaults, controller: controller, suiteName: suiteName)
+        }
+
+        let cpuItem = MenuBarItemConfig(category: .cpu, style: .gauge)
+        let memItem = MenuBarItemConfig(category: .memory, style: .bar)
+        prefs.menuBarItems = [cpuItem, memItem]
+        controller.syncStatusItems()
+
+        coord.start()
+        XCTAssertTrue(coord.isRunning)
+        XCTAssertEqual(controller.statusItems.count, 2)
+        XCTAssertNil(controller.statusItems[MenuBarController.fallbackStatusItemId])
+
+        // 1. Pause sampling -> stops coordinator and collapses menu bar to minimal icon
+        controller.toggleSamplingPaused()
+        XCTAssertTrue(prefs.isSamplingPaused)
+        XCTAssertFalse(coord.isRunning)
+        XCTAssertEqual(controller.statusItems.count, 1)
+        XCTAssertNotNil(controller.statusItems[MenuBarController.fallbackStatusItemId])
+
+        guard let fallbackButton = controller.statusItems[MenuBarController.fallbackStatusItemId]?.button else {
+            XCTFail("Minimal fallback icon button must exist when sampling is paused")
+            return
+        }
+        XCTAssertEqual(fallbackButton.toolTip, "iStats (Sampling Paused — Click to resume or open settings)")
+
+        // 2. Clicking the minimal icon opens DetailPopoverView and does NOT auto-restart sampling while paused
+        controller.statusItemClicked(fallbackButton)
+        XCTAssertTrue(controller.currentlyShownButton === fallbackButton)
+        XCTAssertTrue(controller.popover.contentViewController is NSHostingController<DetailPopoverView>)
+        coord.start() // Simulates .onAppear guard check
+        XCTAssertFalse(coord.isRunning, "Coordinator must remain stopped while isSamplingPaused is true")
+        controller.hidePopover()
+
+        // 3. Resume sampling -> restarts coordinator and restores configured menu bar widgets
+        controller.toggleSamplingPaused()
+        XCTAssertFalse(prefs.isSamplingPaused)
+        XCTAssertTrue(coord.isRunning)
+        XCTAssertEqual(controller.statusItems.count, 2)
+        XCTAssertNil(controller.statusItems[MenuBarController.fallbackStatusItemId])
+        XCTAssertNotNil(controller.statusItems[cpuItem.id])
+        XCTAssertNotNil(controller.statusItems[memItem.id])
+    }
 }

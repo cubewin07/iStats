@@ -120,8 +120,45 @@ public final class MetricsCoordinator: ObservableObject {
 
     // MARK: - Lifecycle
 
-    /// Registers standard samplers and begins periodic background sampling.
+    /// Whether background sampling is currently paused in preferences (Issue #12).
+    public var isSamplingPaused: Bool {
+        preferencesStore.isSamplingPaused
+    }
+
+    /// Pauses background sampling and updates the persisted preference (Issue #12).
+    public func pauseSampling() {
+        setSamplingPaused(true)
+    }
+
+    /// Resumes background sampling and updates the persisted preference (Issue #12).
+    public func resumeSampling() {
+        setSamplingPaused(false)
+    }
+
+    /// Updates the sampling pause state in preferences and synchronizes the scheduler lifecycle (Issue #12).
+    public func setSamplingPaused(_ paused: Bool) {
+        if preferencesStore.isSamplingPaused != paused {
+            preferencesStore.isSamplingPaused = paused
+        }
+        if paused {
+            stop()
+        } else {
+            performStart()
+        }
+    }
+
+    /// Toggles the sampling pause state (Issue #12).
+    public func toggleSamplingPaused() {
+        setSamplingPaused(!preferencesStore.isSamplingPaused)
+    }
+
+    /// Registers standard samplers and begins periodic background sampling unless paused.
     public func start() {
+        guard !preferencesStore.isSamplingPaused else { return }
+        performStart()
+    }
+
+    private func performStart() {
         guard !isRunning else { return }
         isRunning = true
 
@@ -262,12 +299,25 @@ public final class MetricsCoordinator: ObservableObject {
                 }
             }
             .store(in: &cancellables)
+
+        preferencesStore.$isSamplingPaused
+            .dropFirst()
+            .sink { [weak self] isPaused in
+                guard let self = self else { return }
+                if isPaused {
+                    self.stop()
+                } else {
+                    self.performStart()
+                }
+            }
+            .store(in: &cancellables)
     }
 
     // MARK: - On-Demand & Event-Driven Sampling
 
     /// Triggers an immediate background sample for a specific category and updates published state.
     public func triggerImmediateSample(for category: MetricCategory) {
+        guard !preferencesStore.isSamplingPaused else { return }
         Task { [weak self] in
             guard let self = self else { return }
             if let reading = await self.scheduler.sampleOnce(category: category) {

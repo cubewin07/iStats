@@ -144,18 +144,12 @@ public final class MenuBarController: NSObject {
             }
 
             // Install or keep fallback status item with iStats app icon so user is never orphaned
-            if statusItems[Self.fallbackStatusItemId] == nil {
-                let fallbackItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-                if let button = fallbackItem.button {
-                    button.image = NSImage(systemSymbolName: "gauge.with.dots.needle.bottom.50percent", accessibilityDescription: "iStats")
-                    button.title = ""
-                    button.toolTip = "iStats (All menu items disabled - Click for settings)"
-                    button.target = self
-                    button.action = #selector(statusItemClicked(_:))
-                    button.sendAction(on: [.leftMouseUp, .rightMouseUp])
-                    button.identifier = NSUserInterfaceItemIdentifier(Self.fallbackStatusItemId)
-                }
-                statusItems[Self.fallbackStatusItemId] = fallbackItem
+            let fallbackItem: NSStatusItem
+            if let existing = statusItems[Self.fallbackStatusItemId] {
+                fallbackItem = existing
+            } else {
+                let created = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+                statusItems[Self.fallbackStatusItemId] = created
 
                 let fallbackP = NSPopover()
                 fallbackP.behavior = .transient
@@ -164,6 +158,26 @@ public final class MenuBarController: NSObject {
                     rootView: DetailPopoverView(coordinator: coordinator, preferences: preferences)
                 )
                 popovers[Self.fallbackStatusItemId] = fallbackP
+                fallbackItem = created
+            }
+
+            if let button = fallbackItem.button {
+                let isPaused = preferences.isSamplingPaused
+                let image = NSImage(
+                    systemSymbolName: "gauge.with.dots.needle.bottom.50percent",
+                    accessibilityDescription: isPaused ? "iStats (Sampling Paused)" : "iStats"
+                )
+                image?.isTemplate = true
+                button.image = image
+                button.title = ""
+                button.toolTip = isPaused
+                    ? "iStats (Sampling Paused — Click to resume or open settings)"
+                    : "iStats (All menu items disabled - Click for settings)"
+                button.setAccessibilityLabel(isPaused ? "iStats (Sampling Paused)" : "iStats")
+                button.target = self
+                button.action = #selector(statusItemClicked(_:))
+                button.sendAction(on: [.leftMouseUp, .rightMouseUp])
+                button.identifier = NSUserInterfaceItemIdentifier(Self.fallbackStatusItemId)
             }
             return
         }
@@ -207,11 +221,12 @@ public final class MenuBarController: NSObject {
     // MARK: - Subscriptions
 
     private func setupSubscriptions() {
-        // Observe configuration and display formatting changes
-        Publishers.Merge3(
+        // Observe configuration, pause state, and display formatting changes
+        Publishers.Merge4(
             preferences.$menuBarItems.map { _ in () }.eraseToAnyPublisher(),
             preferences.$enabledCategories.map { _ in () }.eraseToAnyPublisher(),
-            preferences.$menuBarDisplayMode.map { _ in () }.eraseToAnyPublisher()
+            preferences.$menuBarDisplayMode.map { _ in () }.eraseToAnyPublisher(),
+            preferences.$isSamplingPaused.map { _ in () }.eraseToAnyPublisher()
         )
         .receive(on: RunLoop.main)
         .sink { [weak self] _ in
@@ -429,6 +444,14 @@ public final class MenuBarController: NSObject {
         menu.addItem(titleItem)
         menu.addItem(NSMenuItem.separator())
 
+        let pauseTitle = preferences.isSamplingPaused
+            ? "Resume Sampling"
+            : "Pause Sampling (Save Battery)"
+        let pauseItem = NSMenuItem(title: pauseTitle, action: #selector(toggleSamplingPaused), keyEquivalent: "")
+        pauseItem.target = self
+        menu.addItem(pauseItem)
+        menu.addItem(NSMenuItem.separator())
+
         let prefItem = NSMenuItem(title: "Preferences...", action: #selector(openPreferences), keyEquivalent: ",")
         prefItem.target = self
         menu.addItem(prefItem)
@@ -444,6 +467,11 @@ public final class MenuBarController: NSObject {
         menu.addItem(quitItem)
 
         menu.popUp(positioning: nil, at: NSPoint(x: 0, y: button.bounds.height + 4), in: button)
+    }
+
+    @objc public func toggleSamplingPaused() {
+        coordinator.toggleSamplingPaused()
+        syncStatusItems()
     }
 
     @objc private func openPreferences() {

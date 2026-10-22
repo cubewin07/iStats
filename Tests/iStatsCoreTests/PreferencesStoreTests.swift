@@ -191,4 +191,32 @@ final class PreferencesStoreTests: XCTestCase {
         XCTAssertEqual(PreferencesStore.MenuBarDisplayMode.thermal.displayName, "SoC Temperature")
         XCTAssertEqual(PreferencesStore.MenuBarDisplayMode.gpu.displayName, "GPU Usage")
     }
+
+    func testSamplingPausedPersistenceActiveMenuBarItemsAndReset() {
+        let store1 = PreferencesStore(userDefaults: testDefaults)
+        XCTAssertFalse(store1.isSamplingPaused)
+        XCTAssertFalse(store1.activeMenuBarItems.isEmpty)
+        let savedItems = store1.menuBarItems
+
+        // Pause sampling -> activeMenuBarItems collapses to empty while preserving menuBarItems
+        store1.setSamplingPaused(true)
+        XCTAssertTrue(store1.isSamplingPaused)
+        XCTAssertTrue(store1.activeMenuBarItems.isEmpty)
+        XCTAssertEqual(store1.menuBarItems, savedItems)
+
+        // Persistence across instances
+        let store2 = PreferencesStore(userDefaults: testDefaults)
+        XCTAssertTrue(store2.isSamplingPaused)
+        XCTAssertTrue(store2.activeMenuBarItems.isEmpty)
+
+        // Toggle back to active
+        store2.toggleSamplingPaused()
+        XCTAssertFalse(store2.isSamplingPaused)
+        XCTAssertEqual(store2.activeMenuBarItems, savedItems)
+
+        // Reset to defaults clears pause state
+        store2.setSamplingPaused(true)
+        store2.resetToDefaults()
+        XCTAssertFalse(store2.isSamplingPaused)
+    }
 }
