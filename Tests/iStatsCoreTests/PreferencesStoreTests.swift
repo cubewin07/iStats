@@ -214,9 +214,13 @@ final class PreferencesStoreTests: XCTestCase {
         XCTAssertFalse(store2.isSamplingPaused)
         XCTAssertEqual(store2.activeMenuBarItems, savedItems)
 
-        // Reset to defaults clears pause state
+        // Reset to defaults clears pause state and restores autoPauseOnLowPowerMode
         store2.setSamplingPaused(true)
-        store2.resetToDefaults()
-        XCTAssertFalse(store2.isSamplingPaused)
+        store2.autoPauseOnLowPowerMode = false
+        let store3 = PreferencesStore(userDefaults: testDefaults)
+        XCTAssertFalse(store3.autoPauseOnLowPowerMode)
+        store3.resetToDefaults()
+        XCTAssertFalse(store3.isSamplingPaused)
+        XCTAssertTrue(store3.autoPauseOnLowPowerMode)
     }
 }

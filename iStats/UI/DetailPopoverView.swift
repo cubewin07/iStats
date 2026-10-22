@@ -264,12 +264,20 @@ public struct DetailPopoverView: View {
                     .foregroundColor(.orange)
 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Battery Saver Active")
-                        .font(.system(size: 12, weight: .bold))
-                        .foregroundColor(.primary)
-                    Text("All background samplers are stopped to conserve energy.")
-                        .font(.system(size: 10, weight: .medium))
-                        .foregroundColor(.secondary)
+                    Text(
+                        coordinator.isAutoPausedByLowPowerMode
+                            ? "Auto-Paused (Low Power Mode)"
+                            : "Battery Saver Active"
+                    )
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundColor(.primary)
+                    Text(
+                        coordinator.isAutoPausedByLowPowerMode
+                            ? "macOS Low Power Mode was detected. Sampling stays paused until you turn it back on."
+                            : "All background samplers are stopped to conserve energy."
+                    )
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundColor(.secondary)
                 }
 
                 Spacer()

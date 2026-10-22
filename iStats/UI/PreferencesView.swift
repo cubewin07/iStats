@@ -104,6 +104,42 @@ public struct PreferencesView: View {
                     }
                     .padding(.bottom, 4)
 
+                    // Auto-Pause on macOS Low Power Mode (Issue #12)
+                    HStack(spacing: 12) {
+                        Image(systemName: "battery.50")
+                            .font(.title3)
+                            .foregroundColor(coordinator.isLowPowerModeActive ? .orange : .secondary)
+                            .frame(width: 24)
+
+                        VStack(alignment: .leading, spacing: 2) {
+                            HStack(spacing: 6) {
+                                Text("Auto-Pause in Low Power Mode")
+                                    .font(.subheadline)
+                                    .fontWeight(.medium)
+                                if coordinator.isLowPowerModeActive {
+                                    Text("LOW POWER ACTIVE")
+                                        .font(.system(size: 8.5, weight: .bold))
+                                        .foregroundColor(.orange)
+                                        .padding(.horizontal, 6)
+                                        .padding(.vertical, 2)
+                                        .background(Color.orange.opacity(0.15))
+                                        .clipShape(Capsule())
+                                }
+                            }
+                            Text("Automatically pause sampling when macOS enters Low Power Mode until you manually turn it back on.")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+
+                        Spacer()
+
+                        Toggle("", isOn: $store.autoPauseOnLowPowerMode)
+                            .toggleStyle(.switch)
+                            .controlSize(.small)
+                            .labelsHidden()
+                    }
+                    .padding(.bottom, 4)
+
                     Divider()
 
                     VStack(alignment: .leading, spacing: 12) {

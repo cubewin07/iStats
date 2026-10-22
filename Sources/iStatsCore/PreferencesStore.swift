@@ -29,6 +29,7 @@ public final class PreferencesStore: ObservableObject, @unchecked Sendable {
         public static let menuBarDisplayMode = "iStats.menuBarDisplayMode"
         public static let menuBarItems = "iStats.menuBarItems"
         public static let isSamplingPaused = "iStats.isSamplingPaused"
+        public static let autoPauseOnLowPowerMode = "iStats.autoPauseOnLowPowerMode"
 
         // Notification & Alert Keys
         public static let notificationsEnabled = "iStats.notificationsEnabled"
@@ -162,6 +163,14 @@ public final class PreferencesStore: ObservableObject, @unchecked Sendable {
     @Published public var isSamplingPaused: Bool {
         didSet {
             userDefaults.set(isSamplingPaused, forKey: Keys.isSamplingPaused)
+        }
+    }
+
+    /// Whether to automatically pause sampling when macOS Low Power Mode is enabled (Issue #12).
+    /// Once auto-paused, sampling stays paused until the user explicitly turns it back on.
+    @Published public var autoPauseOnLowPowerMode: Bool {
+        didSet {
+            userDefaults.set(autoPauseOnLowPowerMode, forKey: Keys.autoPauseOnLowPowerMode)
         }
     }
 
@@ -373,8 +382,9 @@ public final class PreferencesStore: ObservableObject, @unchecked Sendable {
             self.menuBarItems = MenuBarItemConfig.defaultConfigs()
         }
 
-        // Load sampling pause state (default: false)
+        // Load sampling pause state (default: false) and Low Power Mode auto-pause (default: true)
         self.isSamplingPaused = userDefaults.bool(forKey: Keys.isSamplingPaused)
+        self.autoPauseOnLowPowerMode = userDefaults.object(forKey: Keys.autoPauseOnLowPowerMode) as? Bool ?? true
 
         // Load notifications and alert preferences
         self.notificationsEnabled = userDefaults.bool(forKey: Keys.notificationsEnabled)
@@ -499,6 +509,7 @@ public final class PreferencesStore: ObservableObject, @unchecked Sendable {
         self.menuBarDisplayMode = .cpu
         self.menuBarItems = MenuBarItemConfig.defaultConfigs()
         self.isSamplingPaused = false
+        self.autoPauseOnLowPowerMode = true
 
         self.notificationsEnabled = false
         self.cpuAlertEnabled = false

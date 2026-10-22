@@ -17,6 +17,8 @@ public final class MetricsCoordinator: ObservableObject {
 
     public let scheduler: SampleScheduler
     private let preferencesStore: PreferencesStore
+    private let lowPowerModeProvider: @Sendable () -> Bool
+    private var userOverrodeLowPowerPause: Bool = false
     private var cancellables = Set<AnyCancellable>()
     private var streamTask: Task<Void, Never>?
     nonisolated(unsafe) private var powerRunLoopSource: CFRunLoopSource?
@@ -80,6 +82,12 @@ public final class MetricsCoordinator: ObservableObject {
     /// Whether the coordinator is actively sampling.
     @Published public private(set) var isRunning: Bool = false
 
+    /// Whether macOS Low Power Mode (Battery Saving Mode) is currently active (Issue #12).
+    @Published public private(set) var isLowPowerModeActive: Bool = false
+
+    /// Whether sampling was automatically paused due to macOS Low Power Mode (Issue #12).
+    @Published public private(set) var isAutoPausedByLowPowerMode: Bool = false
+
     // MARK: - Performance Instrumentation (Stage 4 Energy Optimization)
 
     /// Count of times a batch of readings was ingested in a single pass.
@@ -101,16 +109,26 @@ public final class MetricsCoordinator: ObservableObject {
     ///   - scheduler: The `SampleScheduler` actor instance.
     ///   - store: The initial `MetricsStore`.
     ///   - preferencesStore: The preferences store to synchronize with.
+    ///   - lowPowerModeProvider: Optional closure returning whether macOS Low Power Mode is active.
     public init(
         scheduler: SampleScheduler = SampleScheduler(),
         store: MetricsStore = MetricsStore(),
-        preferencesStore: PreferencesStore = .shared
+        preferencesStore: PreferencesStore = .shared,
+        lowPowerModeProvider: (@Sendable () -> Bool)? = nil
     ) {
+        let provider = lowPowerModeProvider ?? { ProcessInfo.processInfo.isLowPowerModeEnabled }
         self.scheduler = scheduler
         self.store = store
         self.preferencesStore = preferencesStore
+        self.lowPowerModeProvider = provider
+        self.isLowPowerModeActive = provider()
 
         setupPreferencesObservation()
+        setupLowPowerModeObservation()
+
+        if lowPowerModeProvider != nil {
+            evaluateLowPowerModeState()
+        }
     }
 
     deinit {
@@ -137,6 +155,12 @@ public final class MetricsCoordinator: ObservableObject {
 
     /// Updates the sampling pause state in preferences and synchronizes the scheduler lifecycle (Issue #12).
     public func setSamplingPaused(_ paused: Bool) {
+        if !paused {
+            isAutoPausedByLowPowerMode = false
+            if lowPowerModeProvider() {
+                userOverrodeLowPowerPause = true
+            }
+        }
         if preferencesStore.isSamplingPaused != paused {
             preferencesStore.isSamplingPaused = paused
         }
@@ -150,6 +174,35 @@ public final class MetricsCoordinator: ObservableObject {
     /// Toggles the sampling pause state (Issue #12).
     public func toggleSamplingPaused() {
         setSamplingPaused(!preferencesStore.isSamplingPaused)
+    }
+
+    /// Evaluates the current macOS Low Power Mode state and auto-pauses sampling if enabled
+    /// and the user has not manually resumed sampling during the active Low Power Mode session (Issue #12).
+    public func evaluateLowPowerModeState() {
+        let currentLowPower = lowPowerModeProvider()
+        let previousLowPower = isLowPowerModeActive
+        if isLowPowerModeActive != currentLowPower {
+            isLowPowerModeActive = currentLowPower
+        }
+
+        if currentLowPower {
+            if !previousLowPower {
+                userOverrodeLowPowerPause = false
+            }
+            if preferencesStore.autoPauseOnLowPowerMode && !userOverrodeLowPowerPause {
+                pauseSamplingForLowPowerMode()
+            }
+        } else {
+            userOverrodeLowPowerPause = false
+        }
+    }
+
+    private func pauseSamplingForLowPowerMode() {
+        isAutoPausedByLowPowerMode = true
+        if !preferencesStore.isSamplingPaused {
+            preferencesStore.isSamplingPaused = true
+        }
+        stop()
     }
 
     /// Registers standard samplers and begins periodic background sampling unless paused.
@@ -307,8 +360,35 @@ public final class MetricsCoordinator: ObservableObject {
                 if isPaused {
                     self.stop()
                 } else {
+                    self.isAutoPausedByLowPowerMode = false
+                    if self.lowPowerModeProvider() {
+                        self.userOverrodeLowPowerPause = true
+                    }
                     self.performStart()
                 }
+            }
+            .store(in: &cancellables)
+
+        preferencesStore.$autoPauseOnLowPowerMode
+            .dropFirst()
+            .sink { [weak self] autoPauseEnabled in
+                guard let self = self else { return }
+                if autoPauseEnabled {
+                    self.userOverrodeLowPowerPause = false
+                    self.evaluateLowPowerModeState()
+                } else {
+                    self.isAutoPausedByLowPowerMode = false
+                }
+            }
+            .store(in: &cancellables)
+    }
+
+    private func setupLowPowerModeObservation() {
+        NotificationCenter.default
+            .publisher(for: Notification.Name.NSProcessInfoPowerStateDidChange)
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                self?.evaluateLowPowerModeState()
             }
             .store(in: &cancellables)
     }

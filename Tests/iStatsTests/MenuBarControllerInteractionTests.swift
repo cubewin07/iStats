@@ -372,4 +372,76 @@ final class MenuBarControllerInteractionTests: XCTestCase {
         XCTAssertNotNil(controller.statusItems[cpuItem.id])
         XCTAssertNotNil(controller.statusItems[memItem.id])
     }
+
+    func testLowPowerModeAutoPausesUntilUserManuallyResumes() {
+        let suiteName = "iStats.test.lowpower.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        let prefs = PreferencesStore(userDefaults: defaults)
+        let scheduler = SampleScheduler()
+        let store = MetricsStore()
+
+        final class LowPowerBox: @unchecked Sendable {
+            var isLowPower = false
+        }
+        let box = LowPowerBox()
+
+        let coord = MetricsCoordinator(
+            scheduler: scheduler,
+            store: store,
+            preferencesStore: prefs,
+            lowPowerModeProvider: { box.isLowPower }
+        )
+        let controller = MenuBarController(preferences: prefs, coordinator: coord)
+        defer {
+            coord.stop()
+            cleanup(defaults: defaults, controller: controller, suiteName: suiteName)
+        }
+
+        let cpuItem = MenuBarItemConfig(category: .cpu, style: .gauge)
+        prefs.menuBarItems = [cpuItem]
+        controller.syncStatusItems()
+
+        // 1. Start in normal power mode
+        coord.start()
+        XCTAssertTrue(coord.isRunning)
+        XCTAssertFalse(prefs.isSamplingPaused)
+        XCTAssertFalse(coord.isAutoPausedByLowPowerMode)
+
+        // 2. macOS enters Low Power Mode -> auto-pauses sampling and shows minimal icon
+        box.isLowPower = true
+        coord.evaluateLowPowerModeState()
+        controller.syncStatusItems()
+
+        XCTAssertTrue(coord.isLowPowerModeActive)
+        XCTAssertTrue(coord.isAutoPausedByLowPowerMode)
+        XCTAssertTrue(prefs.isSamplingPaused)
+        XCTAssertFalse(coord.isRunning)
+        XCTAssertNotNil(controller.statusItems[MenuBarController.fallbackStatusItemId])
+
+        // 3. User manually resumes while still in Low Power Mode -> stays running (override respected)
+        coord.resumeSampling()
+        controller.syncStatusItems()
+        XCTAssertTrue(coord.isRunning)
+        XCTAssertFalse(prefs.isSamplingPaused)
+        XCTAssertFalse(coord.isAutoPausedByLowPowerMode)
+        XCTAssertNotNil(controller.statusItems[cpuItem.id])
+
+        // Re-evaluating while still in the same Low Power Mode session does not re-pause
+        coord.evaluateLowPowerModeState()
+        XCTAssertTrue(coord.isRunning)
+        XCTAssertFalse(prefs.isSamplingPaused)
+
+        // 4. Low Power Mode turns off, then later turns back on -> auto-pauses again and stays paused even if LPM turns off until user resumes
+        box.isLowPower = false
+        coord.evaluateLowPowerModeState()
+        box.isLowPower = true
+        coord.evaluateLowPowerModeState()
+        XCTAssertTrue(prefs.isSamplingPaused)
+        XCTAssertFalse(coord.isRunning)
+
+        box.isLowPower = false
+        coord.evaluateLowPowerModeState()
+        XCTAssertTrue(prefs.isSamplingPaused, "Must remain paused until user explicitly turns it back on")
+        XCTAssertFalse(coord.isRunning)
+    }
 }
