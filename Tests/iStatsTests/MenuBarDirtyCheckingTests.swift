@@ -250,7 +250,7 @@ final class MenuBarDirtyCheckingTests: XCTestCase {
         coord.handleReading(MetricReading.wrap(category: .memory, value: memSample))
 
         let memGauge = MenuBarIconRenderer.computeVisualKey(config: MenuBarItemConfig(category: .memory, style: .gauge), coordinator: coord, preferences: prefs)
-        XCTAssertEqual(memGauge, "mem:gauge:5500")
+        XCTAssertEqual(memGauge, "mem:gauge:55:10:45:5")
 
         let memBadge = MenuBarIconRenderer.computeVisualKey(config: MenuBarItemConfig(category: .memory, style: .symbol), coordinator: coord, preferences: prefs)
         XCTAssertEqual(memBadge, "mem:badge:normal")
@@ -302,5 +302,129 @@ final class MenuBarDirtyCheckingTests: XCTestCase {
 
         let diskGauge = MenuBarIconRenderer.computeVisualKey(config: MenuBarItemConfig(category: .disk, style: .gauge), coordinator: coord, preferences: prefs)
         XCTAssertEqual(diskGauge, "disk:gauge:60")
+    }
+
+    // MARK: - 5. Regression Tests for Sub-Component & Tooltip Updates
+
+    func testPowerTextUpdatesWhenTimeRemainingOrWattsChangeAtSameCharge() {
+        let (defaults, prefs, coord, controller, suiteName) = makeContext()
+        defer { cleanup(defaults: defaults, controller: controller, suiteName: suiteName) }
+
+        let pwrItem = MenuBarItemConfig(category: .power, style: .text)
+        prefs.menuBarItems = [pwrItem]
+        controller.syncStatusItems()
+        controller.resetPerformanceCounters()
+
+        let sample1 = PowerSample(hasBattery: true, charge: 80.0, state: .discharging, timeRemaining: 2 * 3600 + 15 * 60, powerDrawWatts: 12.0)
+        coord.handleReading(MetricReading.wrap(category: .power, value: sample1))
+        controller.updateItems(for: .power)
+        let img1 = controller.statusItems[pwrItem.id]?.button?.image
+
+        // Time remaining ticks down from 2:15 to 2:10 while charge stays 80%
+        let sample2 = PowerSample(hasBattery: true, charge: 80.0, state: .discharging, timeRemaining: 2 * 3600 + 10 * 60, powerDrawWatts: 12.0)
+        coord.handleReading(MetricReading.wrap(category: .power, value: sample2))
+        controller.updateItems(for: .power)
+        let img2 = controller.statusItems[pwrItem.id]?.button?.image
+
+        XCTAssertEqual(controller.buttonMutationCount, 2, "Power .text must redraw when time remaining changes even if charge % is unchanged")
+        XCTAssertFalse(img1 === img2, "Power .text image must update when second line time changes")
+    }
+
+    func testCPUBarUpdatesWhenPerCoreLoadShiftsAtSameTotalUsage() {
+        let (defaults, prefs, coord, controller, suiteName) = makeContext()
+        defer { cleanup(defaults: defaults, controller: controller, suiteName: suiteName) }
+
+        let cpuBarItem = MenuBarItemConfig(category: .cpu, style: .bar)
+        prefs.menuBarItems = [cpuBarItem]
+        controller.syncStatusItems()
+        controller.resetPerformanceCounters()
+
+        let sample1 = CPUSample(totalUsage: 25.0, perCore: [50.0, 0.0, 50.0, 0.0], user: 15.0, system: 10.0, idle: 75.0)
+        coord.handleReading(MetricReading.wrap(category: .cpu, value: sample1))
+        controller.updateItems(for: .cpu)
+
+        // Total is still 25.0%, but core distribution changed
+        let sample2 = CPUSample(totalUsage: 25.0, perCore: [25.0, 25.0, 25.0, 25.0], user: 15.0, system: 10.0, idle: 75.0)
+        coord.handleReading(MetricReading.wrap(category: .cpu, value: sample2))
+        controller.updateItems(for: .cpu)
+
+        XCTAssertEqual(controller.buttonMutationCount, 2, "CPU .bar must redraw when per-core bars change even if total usage is identical")
+    }
+
+    func testMultiFanBarAndThroughputUpdateWhenSecondaryFanChanges() {
+        let (defaults, prefs, coord, controller, suiteName) = makeContext()
+        defer { cleanup(defaults: defaults, controller: controller, suiteName: suiteName) }
+
+        let fanBarItem = MenuBarItemConfig(category: .fan, style: .bar)
+        let fanTpItem = MenuBarItemConfig(category: .fan, style: .throughput)
+        prefs.menuBarItems = [fanBarItem, fanTpItem]
+        controller.syncStatusItems()
+        controller.resetPerformanceCounters()
+
+        let sample1 = FanSample(fans: [
+            FanReading(name: "Left", rpm: 3500, minRPM: 1200, maxRPM: 5000),
+            FanReading(name: "Right", rpm: 2000, minRPM: 1200, maxRPM: 5000)
+        ])
+        coord.handleReading(MetricReading.wrap(category: .fan, value: sample1))
+        controller.updateItems(for: .fan)
+        XCTAssertEqual(controller.buttonMutationCount, 2)
+
+        // Primary fan (Left) stays at 3500 RPM, Secondary fan (Right) rises to 2800 RPM
+        let sample2 = FanSample(fans: [
+            FanReading(name: "Left", rpm: 3500, minRPM: 1200, maxRPM: 5000),
+            FanReading(name: "Right", rpm: 2800, minRPM: 1200, maxRPM: 5000)
+        ])
+        coord.handleReading(MetricReading.wrap(category: .fan, value: sample2))
+        controller.updateItems(for: .fan)
+
+        XCTAssertEqual(controller.buttonMutationCount, 4, "Both Fan .bar and .throughput must update when secondary fan RPM changes")
+    }
+
+    func testDiskGaugeAndNetworkSymbolUpdateTooltipsWhileReusingCachedImagePointer() {
+        let (defaults, prefs, coord, controller, suiteName) = makeContext()
+        defer { cleanup(defaults: defaults, controller: controller, suiteName: suiteName) }
+
+        let diskItem = MenuBarItemConfig(category: .disk, style: .gauge)
+        let netItem = MenuBarItemConfig(category: .network, style: .symbol)
+        prefs.menuBarItems = [diskItem, netItem]
+        controller.syncStatusItems()
+
+        let disk1 = DiskSample(
+            volumes: [VolumeCapacity(name: "Macintosh HD", mountPoint: "/", total: 1_000_000, used: 600_000, free: 400_000)],
+            io: DiskIO(bytesReadPerSec: 1_024, bytesWrittenPerSec: 0, readOpsPerSec: 1, writeOpsPerSec: 0)
+        )
+        coord.handleReading(MetricReading.wrap(category: .disk, value: disk1))
+        controller.updateItems(for: .disk)
+
+        let diskBtn = controller.statusItems[diskItem.id]?.button
+        let diskImg1 = diskBtn?.image
+        let diskTip1 = diskBtn?.toolTip
+
+        // Volume remains 60% full, but Disk I/O jumps to 50 MB/s
+        let disk2 = DiskSample(
+            volumes: [VolumeCapacity(name: "Macintosh HD", mountPoint: "/", total: 1_000_000, used: 600_000, free: 400_000)],
+            io: DiskIO(bytesReadPerSec: 50_000_000, bytesWrittenPerSec: 10_000_000, readOpsPerSec: 500, writeOpsPerSec: 100)
+        )
+        coord.handleReading(MetricReading.wrap(category: .disk, value: disk2))
+        controller.updateItems(for: .disk)
+
+        XCTAssertTrue(diskBtn?.image === diskImg1, "Disk gauge NSImage pointer must be reused from cache when capacity % is unchanged")
+        XCTAssertNotEqual(diskBtn?.toolTip, diskTip1, "Disk gauge tooltip must update when live I/O rates change")
+
+        let net1 = NetworkSample(interfaces: [InterfaceThroughput(interfaceName: "en0", bytesInPerSec: 10_000, bytesOutPerSec: 0, totalBytesIn: 10_000, totalBytesOut: 0)])
+        coord.handleReading(MetricReading.wrap(category: .network, value: net1))
+        controller.updateItems(for: .network)
+
+        let netBtn = controller.statusItems[netItem.id]?.button
+        let netImg1 = netBtn?.image
+        let netTip1 = netBtn?.toolTip
+
+        // Both still > 1024 B/s (active), but rate jumped to 5 MB/s
+        let net2 = NetworkSample(interfaces: [InterfaceThroughput(interfaceName: "en0", bytesInPerSec: 5_000_000, bytesOutPerSec: 0, totalBytesIn: 5_010_000, totalBytesOut: 0)])
+        coord.handleReading(MetricReading.wrap(category: .network, value: net2))
+        controller.updateItems(for: .network)
+
+        XCTAssertTrue(netBtn?.image === netImg1, "Network arrows NSImage pointer must be reused from cache when activity state is unchanged")
+        XCTAssertNotEqual(netBtn?.toolTip, netTip1, "Network arrows tooltip must update when live throughput rate changes")
     }
 }
