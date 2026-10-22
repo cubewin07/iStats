@@ -90,4 +90,30 @@ final class PersistentSMCAndHardwareCachingTests: XCTestCase {
 
         XCTAssertNotNil(sample.deviceName)
     }
+
+    func testAppleSMCClientNumericDecoderParityAndTypeRejection() {
+        let client = AppleSMCClient()
+
+        // 1. fpe2 unsigned 14.2 fixed point (e.g., 10,000 RPM -> raw 40,000 = 0x9C40, which would be negative as Int16)
+        let fpe2Bytes: [UInt8] = [0x9C, 0x40]
+        let fpe2Val = fpe2Bytes.withUnsafeBytes { client.decodeNumericValue(buffer: $0, size: 2, type: "fpe2") }
+        XCTAssertEqual(fpe2Val, 10000.0)
+
+        // 2. sp78 signed 7.8 fixed point (e.g., 45.5°C -> 45.5 * 256 = 11648 = 0x2D80)
+        let sp78Bytes: [UInt8] = [0x2D, 0x80]
+        let sp78Val = sp78Bytes.withUnsafeBytes { client.decodeNumericValue(buffer: $0, size: 2, type: "sp78") }
+        XCTAssertEqual(sp78Val, 45.5)
+
+        // 3. flt 32-bit float (including negative value parity)
+        var negFloat: Float32 = -12.5
+        let fltVal = withUnsafeBytes(of: &negFloat) { client.decodeNumericValue(buffer: $0, size: 4, type: "flt ") }
+        XCTAssertEqual(fltVal, -12.5)
+
+        // 4. Unknown SMC types must return nil instead of guessing float or sp78
+        let unknownBytes: [UInt8] = [0x42, 0x28, 0x00, 0x00]
+        let unknown4 = unknownBytes.withUnsafeBytes { client.decodeNumericValue(buffer: $0, size: 4, type: "{pwm") }
+        XCTAssertNil(unknown4, "Unknown 4-byte SMC type must not be decoded as Float32")
+        let unknown2 = unknownBytes.withUnsafeBytes { client.decodeNumericValue(buffer: $0, size: 2, type: "flag") }
+        XCTAssertNil(unknown2, "Unknown 2-byte SMC type must not be decoded as sp78")
+    }
 }

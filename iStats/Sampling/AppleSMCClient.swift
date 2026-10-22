@@ -18,13 +18,26 @@ public final class AppleSMCClient: @unchecked Sendable {
     private let kSMCReadKey: UInt8 = 5
 
     // MARK: - Telemetry & Diagnostic Counters
-    public private(set) var openConnectionCount: Int = 0
-    public private(set) var reconnectCount: Int = 0
+    private var _openConnectionCount: Int = 0
+    private var _reconnectCount: Int = 0
+
+    public var openConnectionCount: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return _openConnectionCount
+    }
+
+    public var reconnectCount: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return _reconnectCount
+    }
 
     public func resetPerformanceCounters() {
         lock.lock()
         defer { lock.unlock() }
-        reconnectCount = 0
+        _openConnectionCount = 0
+        _reconnectCount = 0
     }
 
     public init() {}
@@ -62,7 +75,7 @@ public final class AppleSMCClient: @unchecked Sendable {
             return nil
         }
         _connection = conn
-        openConnectionCount += 1
+        _openConnectionCount += 1
         return conn
     }
 
@@ -93,7 +106,7 @@ public final class AppleSMCClient: @unchecked Sendable {
         case .transportError:
             // Retry once after reopening connection ONLY when Mach transport / user client connection died
             close()
-            reconnectCount += 1
+            _reconnectCount += 1
             guard let reconnected = getOrCreateConnection() else { return nil }
             if case .success(let val) = readNumericKeyInternal(keyStr: keyStr, connection: reconnected) {
                 return val
@@ -115,7 +128,7 @@ public final class AppleSMCClient: @unchecked Sendable {
             return nil
         case .transportError:
             close()
-            reconnectCount += 1
+            _reconnectCount += 1
             guard let reconnected = getOrCreateConnection() else { return nil }
             if case .success(let val) = readStringKeyInternal(keyStr: keyStr, connection: reconnected) {
                 return val
@@ -242,34 +255,28 @@ public final class AppleSMCClient: @unchecked Sendable {
 
     // MARK: - Value Decoders
 
-    private func decodeNumericValue(buffer: UnsafeRawBufferPointer, size: Int, type: String) -> Double? {
+    internal func decodeNumericValue(buffer: UnsafeRawBufferPointer, size: Int, type: String) -> Double? {
         guard size > 0, size <= buffer.count else { return nil }
         let rawBytes = buffer.bindMemory(to: UInt8.self)
 
         switch type {
-        case "flt ", "\0\0\0\0":
+        case "flt ":
             if size == 4 {
                 var floatVal: Float32 = 0.0
                 memcpy(&floatVal, rawBytes.baseAddress!, 4)
-                if floatVal.isFinite && floatVal >= 0 && floatVal < 100000 {
+                if floatVal.isFinite {
                     return Double(floatVal)
                 }
             }
         case "sp78":
             if size == 2 {
                 let raw = (Int16(rawBytes[0]) << 8) | Int16(rawBytes[1])
-                let scaled = Double(raw) / 256.0
-                if scaled >= 0 && scaled < 100000 {
-                    return scaled
-                }
+                return Double(raw) / 256.0
             }
         case "fpe2":
             if size == 2 {
-                let raw = (Int16(rawBytes[0]) << 8) | Int16(rawBytes[1])
-                let scaled = Double(raw) / 4.0
-                if scaled >= 0 && scaled < 100000 {
-                    return scaled
-                }
+                let raw = (UInt16(rawBytes[0]) << 8) | UInt16(rawBytes[1])
+                return Double(raw) / 4.0
             }
         case "ui8 ", "ui8":
             if size == 1 {
@@ -289,16 +296,7 @@ public final class AppleSMCClient: @unchecked Sendable {
                 return Double(raw)
             }
         default:
-            if size == 4 {
-                var floatVal: Float32 = 0.0
-                memcpy(&floatVal, rawBytes.baseAddress!, 4)
-                if floatVal.isFinite && floatVal >= 0 && floatVal < 100000 {
-                    return Double(floatVal)
-                }
-            } else if size == 2 {
-                let raw = (Int16(rawBytes[0]) << 8) | Int16(rawBytes[1])
-                return Double(raw) / 256.0
-            }
+            break
         }
 
         return nil
