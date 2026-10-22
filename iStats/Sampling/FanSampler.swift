@@ -25,10 +25,6 @@ public extension FanInfoProvider {
 /// Darwin AppleSMC implementation of `FanInfoProvider` (ADR 0003, Requirements 4.1, 4.2).
 public struct HostFanInfoProvider: FanInfoProvider {
 
-    private let kSMCGetKeyInfo: UInt8 = 9
-    private let kSMCReadKey: UInt8 = 5
-    private let kSMCHandleYPCEvent: UInt32 = 2
-
     public init() {}
 
     public func fanCount() throws -> Int {
@@ -74,12 +70,6 @@ public struct HostFanInfoProvider: FanInfoProvider {
         return results
     }
 
-    // MARK: - SMC Connection Helper
-
-    private func openSMCConnection() -> io_connect_t? {
-        AppleSMCClient.shared.connection()
-    }
-
     // MARK: - SMC Key Readers
 
     private func readFanCount() -> Int {
@@ -110,153 +100,6 @@ public struct HostFanInfoProvider: FanInfoProvider {
         } else {
             return "Fan \(index + 1)"
         }
-    }
-
-    private func readSMCKeyNumeric(keyStr: String, connection: io_connect_t) -> Double? {
-        var input = SMCParamStruct()
-        input.key = fourCharCode(keyStr)
-        input.data8 = kSMCGetKeyInfo
-
-        var output = SMCParamStruct()
-        var outSize = MemoryLayout<SMCParamStruct>.stride
-
-        var kr = IOConnectCallStructMethod(
-            connection,
-            kSMCHandleYPCEvent,
-            &input,
-            MemoryLayout<SMCParamStruct>.stride,
-            &output,
-            &outSize
-        )
-        guard kr == KERN_SUCCESS && output.result == 0 else {
-            return nil
-        }
-
-        let dataSize = output.keyInfo_dataSize
-        let dataType = output.keyInfo_dataType
-        let typeStr = fourCharCodeToString(dataType)
-
-        input.keyInfo_dataSize = dataSize
-        input.data8 = kSMCReadKey
-        outSize = MemoryLayout<SMCParamStruct>.stride
-
-        kr = IOConnectCallStructMethod(
-            connection,
-            kSMCHandleYPCEvent,
-            &input,
-            MemoryLayout<SMCParamStruct>.stride,
-            &output,
-            &outSize
-        )
-        guard kr == KERN_SUCCESS && output.result == 0 else {
-            return nil
-        }
-
-        let rawBytes: [UInt8] = withUnsafeBytes(of: output.bytes) { Array($0.prefix(Int(dataSize))) }
-        guard !rawBytes.isEmpty else { return nil }
-
-        switch typeStr {
-        case "flt ":
-            if dataSize == 4 {
-                let val = rawBytes.withUnsafeBytes { $0.load(as: Float.self) }
-                return Double(val)
-            }
-        case "sp78":
-            if dataSize == 2 {
-                let raw = (Int16(rawBytes[0]) << 8) | Int16(rawBytes[1])
-                return Double(raw) / 256.0
-            }
-        case "fpe2":
-            if dataSize == 2 {
-                let raw = (UInt16(rawBytes[0]) << 8) | UInt16(rawBytes[1])
-                return Double(raw) / 4.0
-            }
-        case "ui8 ":
-            if dataSize == 1 {
-                return Double(rawBytes[0])
-            }
-        case "ui16":
-            if dataSize == 2 {
-                let raw = (UInt16(rawBytes[0]) << 8) | UInt16(rawBytes[1])
-                return Double(raw)
-            }
-        case "ui32":
-            if dataSize == 4 {
-                let raw = (UInt32(rawBytes[0]) << 24) | (UInt32(rawBytes[1]) << 16) | (UInt32(rawBytes[2]) << 8) | UInt32(rawBytes[3])
-                return Double(raw)
-            }
-        default:
-            break
-        }
-
-        return nil
-    }
-
-    private func readSMCKeyString(keyStr: String, connection: io_connect_t) -> String? {
-        var input = SMCParamStruct()
-        input.key = fourCharCode(keyStr)
-        input.data8 = kSMCGetKeyInfo
-
-        var output = SMCParamStruct()
-        var outSize = MemoryLayout<SMCParamStruct>.stride
-
-        var kr = IOConnectCallStructMethod(
-            connection,
-            kSMCHandleYPCEvent,
-            &input,
-            MemoryLayout<SMCParamStruct>.stride,
-            &output,
-            &outSize
-        )
-        guard kr == KERN_SUCCESS && output.result == 0 else {
-            return nil
-        }
-
-        let dataSize = min(output.keyInfo_dataSize, 32)
-        guard dataSize > 0 else { return nil }
-
-        input.keyInfo_dataSize = dataSize
-        input.data8 = kSMCReadKey
-        outSize = MemoryLayout<SMCParamStruct>.stride
-
-        kr = IOConnectCallStructMethod(
-            connection,
-            kSMCHandleYPCEvent,
-            &input,
-            MemoryLayout<SMCParamStruct>.stride,
-            &output,
-            &outSize
-        )
-        guard kr == KERN_SUCCESS && output.result == 0 else {
-            return nil
-        }
-
-        let rawBytes: [UInt8] = withUnsafeBytes(of: output.bytes) { Array($0.prefix(Int(dataSize))) }
-        // Filter non-null characters and trim whitespace
-        let cleanedBytes = rawBytes.prefix(while: { $0 != 0 })
-        if let str = String(bytes: cleanedBytes, encoding: .ascii)?.trimmingCharacters(in: .whitespacesAndNewlines), !str.isEmpty {
-            return str
-        }
-
-        return nil
-    }
-
-    private func fourCharCode(_ str: String) -> UInt32 {
-        var result: UInt32 = 0
-        for char in str.utf8.prefix(4) {
-            result = (result << 8) | UInt32(char)
-        }
-        return result
-    }
-
-    private func fourCharCodeToString(_ code: UInt32) -> String {
-        let bytes: [UInt8] = [
-            UInt8((code >> 24) & 0xff),
-            UInt8((code >> 16) & 0xff),
-            UInt8((code >> 8) & 0xff),
-            UInt8(code & 0xff)
-        ]
-        return String(bytes: bytes, encoding: .ascii) ?? "????"
     }
 }
 

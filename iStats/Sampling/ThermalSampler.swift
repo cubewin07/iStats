@@ -37,28 +37,6 @@ public struct SMCParamStruct: Sendable {
     public init() {}
 }
 
-private let kSMCGetKeyInfo: UInt8 = 9
-private let kSMCReadKey: UInt8 = 5
-private let kSMCHandleYPCEvent: UInt32 = 2
-
-private func fourCharCode(_ str: String) -> UInt32 {
-    var result: UInt32 = 0
-    for char in str.utf8.prefix(4) {
-        result = (result << 8) | UInt32(char)
-    }
-    return result
-}
-
-private func fourCharCodeToString(_ code: UInt32) -> String {
-    let bytes: [UInt8] = [
-        UInt8((code >> 24) & 0xff),
-        UInt8((code >> 16) & 0xff),
-        UInt8((code >> 8) & 0xff),
-        UInt8(code & 0xff)
-    ]
-    return String(bytes: bytes, encoding: .ascii) ?? "????"
-}
-
 // MARK: - Thermal Provider Protocol
 
 /// Abstract provider for reading hardware thermal sensors and system thermal pressure.
@@ -337,9 +315,8 @@ public struct HostThermalInfoProvider: ThermalInfoProvider {
         private var activeSensors: [SMCSensorDescriptor]?
 
         func getOrDiscoverSensors(
-            connection: io_connect_t,
             candidates: [SMCSensorDescriptor],
-            reader: (String, io_connect_t) -> Double?
+            reader: (String) -> Double?
         ) -> [SMCSensorDescriptor] {
             lock.lock()
             defer { lock.unlock() }
@@ -350,7 +327,7 @@ public struct HostThermalInfoProvider: ThermalInfoProvider {
 
             var discovered: [SMCSensorDescriptor] = []
             for descriptor in candidates {
-                if let temp = reader(descriptor.key, connection), temp > 0.0 && temp < 150.0 {
+                if let temp = reader(descriptor.key), temp > 0.0 && temp < 150.0 {
                     discovered.append(descriptor)
                 }
             }
@@ -362,14 +339,13 @@ public struct HostThermalInfoProvider: ThermalInfoProvider {
     // MARK: - AppleSMC Reader
 
     private func readAppleSMCThermals() -> [SensorReading]? {
-        guard let conn = AppleSMCClient.shared.connection() else {
+        guard AppleSMCClient.shared.connection() != nil else {
             return nil
         }
 
         let activeDescriptors = SMCSensorCache.shared.getOrDiscoverSensors(
-            connection: conn,
             candidates: Self.candidateSensors,
-            reader: { key, _ in AppleSMCClient.shared.readNumericKey(key) }
+            reader: { key in AppleSMCClient.shared.readNumericKey(key) }
         )
 
         var results: [SensorReading] = []
@@ -383,81 +359,6 @@ public struct HostThermalInfoProvider: ThermalInfoProvider {
         }
 
         return results
-    }
-
-    private func readSMCKeyTemperature(keyStr: String, connection: io_connect_t) -> Double? {
-        var input = SMCParamStruct()
-        input.key = fourCharCode(keyStr)
-        input.data8 = kSMCGetKeyInfo
-
-        var output = SMCParamStruct()
-        var outSize = MemoryLayout<SMCParamStruct>.stride
-
-        var kr = IOConnectCallStructMethod(
-            connection,
-            kSMCHandleYPCEvent,
-            &input,
-            MemoryLayout<SMCParamStruct>.stride,
-            &output,
-            &outSize
-        )
-        guard kr == KERN_SUCCESS && output.result == 0 else {
-            return nil
-        }
-
-        let dataSize = output.keyInfo_dataSize
-        let dataType = output.keyInfo_dataType
-        let typeStr = fourCharCodeToString(dataType)
-
-        input.keyInfo_dataSize = dataSize
-        input.data8 = kSMCReadKey
-        outSize = MemoryLayout<SMCParamStruct>.stride
-
-        kr = IOConnectCallStructMethod(
-            connection,
-            kSMCHandleYPCEvent,
-            &input,
-            MemoryLayout<SMCParamStruct>.stride,
-            &output,
-            &outSize
-        )
-        guard kr == KERN_SUCCESS && output.result == 0 else {
-            return nil
-        }
-
-        let rawBytes: [UInt8] = withUnsafeBytes(of: output.bytes) { Array($0.prefix(Int(dataSize))) }
-        guard !rawBytes.isEmpty else { return nil }
-
-        switch typeStr {
-        case "flt ":
-            if dataSize == 4 {
-                let val = rawBytes.withUnsafeBytes { $0.load(as: Float.self) }
-                return Double(val)
-            }
-        case "sp78":
-            if dataSize == 2 {
-                let raw = (Int16(rawBytes[0]) << 8) | Int16(rawBytes[1])
-                return Double(raw) / 256.0
-            }
-        case "fpe2":
-            if dataSize == 2 {
-                let raw = (UInt16(rawBytes[0]) << 8) | UInt16(rawBytes[1])
-                return Double(raw) / 4.0
-            }
-        case "ui8 ":
-            if dataSize == 1 {
-                return Double(rawBytes[0])
-            }
-        case "ui16":
-            if dataSize == 2 {
-                let raw = (UInt16(rawBytes[0]) << 8) | UInt16(rawBytes[1])
-                return Double(raw)
-            }
-        default:
-            break
-        }
-
-        return nil
     }
 }
 
