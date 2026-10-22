@@ -182,9 +182,25 @@ public final class MetricsCoordinator: ObservableObject {
         batchIngestionCount += 1
 
         store.append(readings)
+
+        var updatedAvailability = self.categoryAvailability
+        var availabilityChanged = false
+        var updatedCategories = Set<MetricCategory>()
+
         for reading in readings {
-            self.categoryAvailability[reading.category] = reading.availability
-            updateLatest(for: reading.category)
+            if updatedAvailability[reading.category] != reading.availability {
+                updatedAvailability[reading.category] = reading.availability
+                availabilityChanged = true
+            }
+            updatedCategories.insert(reading.category)
+        }
+
+        if availabilityChanged {
+            self.categoryAvailability = updatedAvailability
+        }
+
+        for category in updatedCategories {
+            updateLatest(for: category)
         }
     }
 
@@ -192,7 +208,9 @@ public final class MetricsCoordinator: ObservableObject {
     public func handleReading(_ reading: MetricReading) {
         singleIngestionCount += 1
         store.append(reading)
-        self.categoryAvailability[reading.category] = reading.availability
+        if self.categoryAvailability[reading.category] != reading.availability {
+            self.categoryAvailability[reading.category] = reading.availability
+        }
         updateLatest(for: reading.category)
     }
 

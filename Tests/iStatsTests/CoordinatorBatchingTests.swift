@@ -12,6 +12,27 @@ private struct MockTestSampler: Sampler, @unchecked Sendable {
     }
 }
 
+private final class LockIsolatedBox<T>: @unchecked Sendable {
+    private let lock = NSLock()
+    private var _value: T
+
+    init(_ value: T) {
+        self._value = value
+    }
+
+    var value: T {
+        lock.lock()
+        defer { lock.unlock() }
+        return _value
+    }
+
+    func set(_ newValue: T) {
+        lock.lock()
+        defer { lock.unlock() }
+        _value = newValue
+    }
+}
+
 @MainActor
 final class CoordinatorBatchingTests: XCTestCase {
 
@@ -26,11 +47,11 @@ final class CoordinatorBatchingTests: XCTestCase {
         await scheduler.register(s2)
 
         let expBatch = expectation(description: "Batch received from scheduler")
-        var receivedBatch: [MetricReading]?
+        let receivedBatch = LockIsolatedBox<[MetricReading]?>(nil)
 
         let streamTask = Task {
             for await batch in scheduler.batchStream {
-                receivedBatch = batch
+                receivedBatch.set(batch)
                 expBatch.fulfill()
                 break
             }
@@ -41,9 +62,10 @@ final class CoordinatorBatchingTests: XCTestCase {
         await scheduler.stop()
         streamTask.cancel()
 
-        XCTAssertNotNil(receivedBatch)
-        XCTAssertEqual(receivedBatch?.count, 2, "Batch should contain readings from all active categories in that tick")
-        let categories = Set(receivedBatch?.map(\.category) ?? [])
+        let batch = receivedBatch.value
+        XCTAssertNotNil(batch)
+        XCTAssertEqual(batch?.count, 2, "Batch should contain readings from all active categories in that tick")
+        let categories = Set(batch?.map(\.category) ?? [])
         XCTAssertTrue(categories.contains(.cpu))
         XCTAssertTrue(categories.contains(.memory))
     }
@@ -55,11 +77,11 @@ final class CoordinatorBatchingTests: XCTestCase {
         await scheduler.register(s1)
 
         let expSingle = expectation(description: "Single reading received from legacy stream")
-        var receivedReading: MetricReading?
+        let receivedReading = LockIsolatedBox<MetricReading?>(nil)
 
         let streamTask = Task {
             for await reading in scheduler.stream {
-                receivedReading = reading
+                receivedReading.set(reading)
                 expSingle.fulfill()
                 break
             }
@@ -70,8 +92,9 @@ final class CoordinatorBatchingTests: XCTestCase {
         await scheduler.stop()
         streamTask.cancel()
 
-        XCTAssertNotNil(receivedReading)
-        XCTAssertEqual(receivedReading?.category, .cpu)
+        let reading = receivedReading.value
+        XCTAssertNotNil(reading)
+        XCTAssertEqual(reading?.category, .cpu)
     }
 
     // MARK: - 2. Coordinator Batch Ingestion Tests
@@ -163,5 +186,38 @@ final class CoordinatorBatchingTests: XCTestCase {
 
         XCTAssertEqual(coord.cpuHistory.count, 1)
         XCTAssertEqual(coord.cpuHistory.first?.value.totalUsage, 35)
+    }
+
+    func testCategoryAvailabilitySkipsRedundantPublishedMutations() {
+        let suiteName = "test.istats.coordinator.avail.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        let prefs = PreferencesStore(userDefaults: defaults)
+        let coord = MetricsCoordinator(preferencesStore: prefs)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        var availabilityEmissions = 0
+        let cancellable = coord.$categoryAvailability
+            .dropFirst()
+            .sink { _ in availabilityEmissions += 1 }
+        defer { cancellable.cancel() }
+
+        let cpu1 = CPUSample(totalUsage: 20, perCore: [], user: 10, system: 10, idle: 80)
+        let mem1 = MemorySample(total: 1000, used: 500, free: 500, wired: 100, compressed: 50, cached: 100, swapUsed: 0, pressure: .normal)
+
+        // First batch changes availability from nil -> .available (1 combined emission)
+        coord.handleReadings([
+            MetricReading.wrap(category: .cpu, value: cpu1),
+            MetricReading.wrap(category: .memory, value: mem1)
+        ])
+        XCTAssertEqual(availabilityEmissions, 1, "Initial batch should emit exactly 1 availability dictionary change")
+
+        // Second batch has identical .available status -> 0 new emissions
+        let cpu2 = CPUSample(totalUsage: 40, perCore: [], user: 20, system: 20, idle: 60)
+        coord.handleReadings([
+            MetricReading.wrap(category: .cpu, value: cpu2),
+            MetricReading.wrap(category: .memory, value: mem1)
+        ])
+        XCTAssertEqual(availabilityEmissions, 1, "Unchanged availability must not trigger redundant @Published emissions")
     }
 }
