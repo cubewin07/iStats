@@ -352,22 +352,16 @@ public struct HostGPUInfoProvider: GPUInfoProvider {
     private static func queryConnectedDisplays() -> (count: Int, descriptions: [String]) {
         var displayCount: UInt32 = 0
         var displays = [CGDirectDisplayID](repeating: 0, count: 16)
-        let err = CGGetOnlineDisplayList(16, &displays, &displayCount)
+        var err = CGGetActiveDisplayList(16, &displays, &displayCount)
+        if err != .success || displayCount == 0 {
+            err = CGGetOnlineDisplayList(16, &displays, &displayCount)
+        }
         guard err == .success, displayCount > 0 else { return (0, []) }
 
         var descriptions: [String] = []
         for i in 0..<Int(displayCount) {
             let dID = displays[i]
-            let isBuiltin = CGDisplayIsBuiltin(dID) != 0
-            let isMain = CGDisplayIsMain(dID) != 0
-            let name: String
-            if isBuiltin {
-                name = "Built-in Display"
-            } else if isMain {
-                name = "Main Display"
-            } else {
-                name = "External Display \(i + 1)"
-            }
+            let name = resolveDisplayName(for: dID, index: i)
 
             var hzStr = ""
             var resStr = "\(CGDisplayPixelsWide(dID))×\(CGDisplayPixelsHigh(dID))"
@@ -385,6 +379,46 @@ public struct HostGPUInfoProvider: GPUInfoProvider {
             descriptions.append("\(name) (\(resStr)\(hzStr))")
         }
         return (Int(displayCount), descriptions)
+    }
+
+    private static func resolveDisplayName(for dID: CGDirectDisplayID, index: Int) -> String {
+        let targetProductID = CGDisplayModelNumber(dID)
+
+        // 1. Check Apple Silicon IOMobileFramebuffer / AppleCLCD2 DisplayAttributes
+        var iter: io_iterator_t = 0
+        if IOServiceGetMatchingServices(kIOMainPortDefault, IOServiceMatching("IOMobileFramebuffer"), &iter) == KERN_SUCCESS {
+            defer { IOObjectRelease(iter) }
+            var service = IOIteratorNext(iter)
+            while service != 0 {
+                defer {
+                    IOObjectRelease(service)
+                    service = IOIteratorNext(iter)
+                }
+                var propsRef: Unmanaged<CFMutableDictionary>?
+                if IORegistryEntryCreateCFProperties(service, &propsRef, kCFAllocatorDefault, 0) == KERN_SUCCESS,
+                   let dict = propsRef?.takeRetainedValue() as? [String: Any],
+                   let dispAttrs = dict["DisplayAttributes"] as? [String: Any],
+                   let prodAttrs = dispAttrs["ProductAttributes"] as? [String: Any],
+                   let productName = prodAttrs["ProductName"] as? String,
+                   !productName.isEmpty {
+                    if let prodID = prodAttrs["ProductID"] as? UInt32, prodID == targetProductID {
+                        return productName
+                    }
+                    if CGDisplayIsBuiltin(dID) != 0 && (dict["BuiltIn"] as? Bool == true) {
+                        return productName
+                    }
+                }
+            }
+        }
+
+        // 2. Fallback to standard display labels
+        if CGDisplayIsBuiltin(dID) != 0 {
+            return "Built-in Display"
+        } else if CGDisplayIsMain(dID) != 0 {
+            return "Main Display"
+        } else {
+            return "External Display \(index + 1)"
+        }
     }
 }
 
