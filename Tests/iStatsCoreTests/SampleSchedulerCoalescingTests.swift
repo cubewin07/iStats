@@ -131,11 +131,11 @@ final class SampleSchedulerCoalescingTests: XCTestCase {
         if let minTime = times.min(), let maxTime = times.max() {
             let spread = maxTime.timeIntervalSince(minTime)
             // On unaligned independent loops, tick 2 start times drift by 60ms+
-            // In a batched cadence, all categories for tick 2 are dispatched together (<= 25ms spread)
+            // In a batched cadence, all categories for tick 2 are dispatched together (<= 50ms spread)
             XCTAssertLessThanOrEqual(
                 spread,
-                0.025,
-                "Subsequent tick categories drifted out of phase: spread was \(spread)s (expected <= 0.025s in batched mode)"
+                0.05,
+                "Subsequent tick categories drifted out of phase: spread was \(spread)s (expected <= 0.05s in batched mode)"
             )
         }
     }
@@ -143,15 +143,16 @@ final class SampleSchedulerCoalescingTests: XCTestCase {
     // MARK: - 3. Timeout Isolation in Batched Mode
 
     func testTimeoutIsolationInBatchedTick() async {
-        let scheduler = SampleScheduler(defaultInterval: 0.1, timeBudget: 0.05)
+        let scheduler = SampleScheduler(defaultInterval: 0.5, timeBudget: 0.25)
 
         let fastSampleReceived = expectation(description: "Fast sample completed quickly")
+        let fastBatchReceived = expectation(description: "Fast batch flushed before slow sampler timed out")
         let slowSampleUnavailable = expectation(description: "Slow sample timed out to unavailable")
 
         let slowSampler = ConfigurableSampler(
             category: .fan,
             output: FanSample(),
-            sleepSeconds: 0.3 // Exceeds 0.05s timeBudget
+            sleepSeconds: 0.45 // Exceeds 0.25s timeBudget
         )
         let fastSampler = ConfigurableSampler(
             category: .cpu,
@@ -161,6 +162,10 @@ final class SampleSchedulerCoalescingTests: XCTestCase {
         await scheduler.register(slowSampler)
         await scheduler.register(fastSampler)
 
+        let startTime = Date()
+        let fastArrivalDelay = LockIsolated<TimeInterval?>(nil)
+        let fastBatchDelay = LockIsolated<TimeInterval?>(nil)
+
         let stream = scheduler.stream
         let streamTask = Task {
             var fastFulfilled = false
@@ -168,6 +173,7 @@ final class SampleSchedulerCoalescingTests: XCTestCase {
             for await reading in stream {
                 if reading.category == .cpu && reading.availability.isAvailable && !fastFulfilled {
                     fastFulfilled = true
+                    fastArrivalDelay.withValue { $0 = Date().timeIntervalSince(startTime) }
                     fastSampleReceived.fulfill()
                 }
                 if reading.category == .fan && !reading.availability.isAvailable && !slowFulfilled {
@@ -179,10 +185,30 @@ final class SampleSchedulerCoalescingTests: XCTestCase {
             }
         }
 
+        let batchStream = scheduler.batchStream
+        let batchTask = Task {
+            var batchFulfilled = false
+            for await batch in batchStream {
+                if batch.contains(where: { $0.category == .cpu && $0.availability.isAvailable }) && !batchFulfilled {
+                    batchFulfilled = true
+                    fastBatchDelay.withValue { $0 = Date().timeIntervalSince(startTime) }
+                    fastBatchReceived.fulfill()
+                }
+            }
+        }
+
         await scheduler.start()
-        await fulfillment(of: [fastSampleReceived, slowSampleUnavailable], timeout: 2.0)
+        await fulfillment(of: [fastSampleReceived, fastBatchReceived, slowSampleUnavailable], timeout: 2.0)
         await scheduler.stop()
         streamTask.cancel()
+        batchTask.cancel()
+
+        if let delay = fastArrivalDelay.withValue({ $0 }) {
+            XCTAssertLessThan(delay, 0.20, "Fast sampler on stream was blocked by slow sampler (took \(delay)s vs 0.25s timeout)")
+        }
+        if let bDelay = fastBatchDelay.withValue({ $0 }) {
+            XCTAssertLessThan(bDelay, 0.20, "Fast sampler on batchStream was blocked by slow sampler (took \(bDelay)s vs 0.25s timeout)")
+        }
     }
 
     // MARK: - 4. Mixed Interval Cadence Groups

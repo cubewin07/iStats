@@ -435,9 +435,14 @@ public actor SampleScheduler {
         }
     }
 
-    private func activeCategories(for cadence: CadenceKey) -> [MetricCategory] {
-        samplers.keys.filter { category in
-            isEnabled(category: category) && CadenceKey(interval(for: category)) == cadence
+    private enum CadenceGroupEvent: Sendable {
+        case reading(MetricReading)
+        case flushWindowExpired
+    }
+
+    private func activeSamplers(for cadence: CadenceKey) -> [AnySampler] {
+        samplers.compactMap { category, sampler in
+            (isEnabled(category: category) && CadenceKey(interval(for: category)) == cadence) ? sampler : nil
         }
     }
 
@@ -453,26 +458,52 @@ public actor SampleScheduler {
             while !Task.isCancelled {
                 guard let self = self else { break }
 
-                let categories = await self.activeCategories(for: cadence)
-                guard !categories.isEmpty else { break }
+                let samplersToRun = await self.activeSamplers(for: cadence)
+                guard !samplersToRun.isEmpty else { break }
+                let timeout = await self.timeBudget
+                let flushWindowMs = max(10, min(50, Int((timeout * 500.0).rounded())))
 
-                // Batch dispatch all active categories concurrently on utility priority
-                let readings = await withTaskGroup(of: MetricReading.self) { group in
-                    for category in categories {
-                        guard let sampler = await self.samplers[category] else { continue }
-                        group.addTask {
-                            let timeout = await self.timeBudget
-                            return await self.sampleWithTimeout(sampler: sampler, timeout: timeout)
+                // Batch dispatch all active categories concurrently on utility priority,
+                // flushing fast samplers early if a sibling sampler stalls.
+                await withTaskGroup(of: CadenceGroupEvent.self) { group in
+                    for sampler in samplersToRun {
+                        group.addTask(priority: .utility) {
+                            let r = await self.sampleWithTimeout(sampler: sampler, timeout: timeout)
+                            return .reading(r)
                         }
                     }
-                    var results: [MetricReading] = []
-                    for await r in group {
-                        results.append(r)
+                    group.addTask(priority: .utility) {
+                        try? await clock.sleep(for: .milliseconds(flushWindowMs))
+                        return .flushWindowExpired
                     }
-                    return results
+
+                    let expectedCount = samplersToRun.count
+                    var receivedCount = 0
+                    var pendingBatch: [MetricReading] = []
+                    pendingBatch.reserveCapacity(expectedCount)
+
+                    for await event in group {
+                        switch event {
+                        case .reading(let reading):
+                            receivedCount += 1
+                            await self.publishIndividual(reading)
+                            pendingBatch.append(reading)
+                            if receivedCount == expectedCount {
+                                group.cancelAll()
+                            }
+                        case .flushWindowExpired:
+                            if !pendingBatch.isEmpty && receivedCount < expectedCount {
+                                await self.publishBatch(pendingBatch)
+                                pendingBatch.removeAll(keepingCapacity: true)
+                            }
+                        }
+                    }
+
+                    if !pendingBatch.isEmpty {
+                        await self.publishBatch(pendingBatch)
+                    }
                 }
 
-                await self.publish(readings)
                 nextTick = nextTick + .milliseconds(cadence.milliseconds)
                 let now = clock.now
                 if nextTick <= now {
@@ -530,34 +561,40 @@ public actor SampleScheduler {
         }
     }
 
-    private func publish(_ readings: [MetricReading]) {
-        guard !readings.isEmpty else { return }
+    private func publishIndividual(_ reading: MetricReading) {
         for continuation in continuations.values {
-            for reading in readings {
-                continuation.yield(reading)
-            }
-        }
-        for batchContinuation in batchContinuations.values {
-            batchContinuation.yield(readings)
+            continuation.yield(reading)
         }
         if let onSample = self.onSample {
-            for reading in readings {
-                onSample(reading)
-            }
-        }
-        if let onBatchSample = self.onBatchSample {
-            onBatchSample(readings)
+            onSample(reading)
         }
         if let onMainActorSample = self.onMainActorSample {
             Task { @MainActor in
-                for reading in readings {
-                    onMainActorSample(reading)
-                }
+                onMainActorSample(reading)
             }
         }
     }
 
+    private func publishBatch(_ readings: [MetricReading]) {
+        guard !readings.isEmpty else { return }
+        for batchContinuation in batchContinuations.values {
+            batchContinuation.yield(readings)
+        }
+        if let onBatchSample = self.onBatchSample {
+            onBatchSample(readings)
+        }
+    }
+
+    private func publish(_ readings: [MetricReading]) {
+        guard !readings.isEmpty else { return }
+        for reading in readings {
+            publishIndividual(reading)
+        }
+        publishBatch(readings)
+    }
+
     private func publish(_ reading: MetricReading) {
-        publish([reading])
+        publishIndividual(reading)
+        publishBatch([reading])
     }
 }

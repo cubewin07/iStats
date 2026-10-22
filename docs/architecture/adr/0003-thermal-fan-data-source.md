@@ -19,7 +19,7 @@ Temperature, fan speed, and GPU utilization metrics have historically come from 
 ## Options Evaluated During Spike
 
 1. **AppleSMC Key Access via IOKit (`IOServiceMatching("AppleSMC")`)**:
-   - **Mechanism:** Open user client connection (`IOServiceOpen`) and execute external method selector `2` (`kSMCHandleYPCEvent`) using an exact 80-byte C-compatible struct layout (`SMCParamStruct`).
+   - **Mechanism:** Maintain a shared, thread-safe persistent user client connection (`AppleSMCClient.shared`, wrapping a single `io_connect_t` opened via `IOServiceOpen`) across `FanSampler`, `ThermalSampler`, and `GPUSampler`, and execute external method selector `2` (`kSMCHandleYPCEvent`) using an exact 80-byte C-compatible struct layout (`SMCParamStruct`). On Mach transport errors or system wake notifications (`NSWorkspace.didWakeNotification`), the client invalidates and self-heals the connection, while missing keys (`output.result != 0`) return `nil` without reconnecting.
    - **Spike Findings:**
      - Fully accessible without root privileges on both Intel and Apple Silicon (tested on Apple M4 Pro / macOS 27).
      - **Fans:** Reliably exposes `FNum` (fan count), `F0Ac`/`F1Ac` (current RPM as `flt`), `F0Mn`/`F1Mn` (minimum RPM), `F0Mx`/`F1Mx` (maximum RPM), `F0Md`/`F1Md` (mode), and `F0Tg`/`F1Tg` (target RPM).
