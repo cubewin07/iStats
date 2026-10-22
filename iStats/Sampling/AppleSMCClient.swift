@@ -1,4 +1,5 @@
 import Foundation
+import AppKit
 import IOKit
 
 /// A centralized, thread-safe, persistent client for querying AppleSMC hardware keys
@@ -40,9 +41,22 @@ public final class AppleSMCClient: @unchecked Sendable {
         _reconnectCount = 0
     }
 
-    public init() {}
+    private var wakeObserver: NSObjectProtocol?
+
+    public init() {
+        wakeObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didWakeNotification,
+            object: nil,
+            queue: nil
+        ) { [weak self] _ in
+            self?.invalidate()
+        }
+    }
 
     deinit {
+        if let observer = wakeObserver {
+            NSWorkspace.shared.notificationCenter.removeObserver(observer)
+        }
         close()
     }
 

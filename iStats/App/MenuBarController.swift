@@ -231,6 +231,17 @@ public final class MenuBarController: NSObject {
         }
         .store(in: &cancellables)
 
+        // Clear cached non-template menu bar icons and render states when macOS switches Light/Dark appearance
+        DistributedNotificationCenter.default()
+            .publisher(for: Notification.Name("AppleInterfaceThemeChangedNotification"))
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                MenuBarIconRenderer.clearImageCache()
+                self?.previousRenderStates.removeAll()
+                self?.updateAllStatusItems()
+            }
+            .store(in: &cancellables)
+
         // Observe telemetry streams and update matching category items
         coordinator.$latestCPU
             .receive(on: RunLoop.main)

@@ -79,7 +79,7 @@ Copy a row from [`docs/specs/tasks.md`](./specs/tasks.md) when you start it. Lea
 | 6.3 | Persist all preferences across launches | **done** | [`docs/handoffs/06-6.3-summary.md`](./handoffs/06-6.3-summary.md), `swift test` (120 passed), `xcodebuild test -scheme iStatsApp` (151 passed) |
 | 6.4 | Performance pass | **done** | [`docs/handoffs/06-6.4-summary.md`](./handoffs/06-6.4-summary.md), `xcodebuild test -scheme iStatsApp` (155 passed), `swift test` (120 passed) |
 | 6.5 | Finalize docs/ADRs + write Phase 6 report and README | **done** | [`docs/handoffs/06-6.5-summary.md`](./handoffs/06-6.5-summary.md), [`docs/phases/phase-06-polish-prefs/report.md`](./phases/phase-06-polish-prefs/report.md), `xcodebuild test -scheme iStatsApp` (155 passed), `swift test` (120 passed) |
-| 6.6 | Energy optimization pass (Stages 1–4 audit & impl) | **done** | [`docs/reports/energy-impact-and-optimization-audit.md`](./reports/energy-impact-and-optimization-audit.md), `swift test` (142 passed), `xcodebuild test -scheme iStatsApp` (269 passed) |
+| 6.6 | Energy optimization pass (Stages 1–4 audit & impl) | **done** | [`docs/reports/energy-impact-and-optimization-audit.md`](./reports/energy-impact-and-optimization-audit.md), `swift test` (142 passed), `xcodebuild test -scheme iStatsApp` (282 passed) |
 
 When a task is done, set Status to `done` and put the handoff summary path (or test command) in Evidence.
 
