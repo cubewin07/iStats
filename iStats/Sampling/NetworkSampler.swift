@@ -184,7 +184,7 @@ public struct HostNetworkInfoProvider: NetworkInfoProvider {
         var routerIPv4: String? = nil
         var primaryDNS: String? = nil
 
-        if let store = SCDynamicStoreCreate(nil, "iStatsNetworkSampler" as CFString, nil, nil) {
+        if let store = Self.getSCStore() {
             if let ipv4 = SCDynamicStoreCopyValue(store, "State:/Network/Global/IPv4" as CFString) as? [String: Any] {
                 primaryInterface = ipv4["PrimaryInterface"] as? String
                 routerIPv4 = ipv4["Router"] as? String
@@ -216,41 +216,7 @@ public struct HostNetworkInfoProvider: NetworkInfoProvider {
             }
         }
 
-        var wifiTelemetry: WiFiLinkTelemetry? = nil
-        if let iface = CWWiFiClient.shared().interface(), iface.powerOn() {
-            let rawRssi = iface.rssiValue()
-            let rssi: Int? = rawRssi != 0 ? rawRssi : nil
-            let rawNoise = iface.noiseMeasurement()
-            let noise: Int? = rawNoise != 0 ? rawNoise : nil
-            let rawRate = iface.transmitRate()
-            let txRate: Double? = rawRate > 0 ? rawRate : nil
-            let channelNum = iface.wlanChannel()?.channelNumber
-            let rawBand = iface.wlanChannel()?.channelBand
-            let bandStr: String?
-            if let band = rawBand {
-                switch band {
-                case .band2GHz: bandStr = "2.4 GHz"
-                case .band5GHz: bandStr = "5 GHz"
-                case .band6GHz: bandStr = "6 GHz"
-                default: bandStr = nil
-                }
-            } else {
-                bandStr = nil
-            }
-            let rawSSID = iface.ssid()
-            let ssid: String? = (rawSSID != nil && !rawSSID!.trimmingCharacters(in: .whitespaces).isEmpty) ? rawSSID : nil
-
-            if rssi != nil || txRate != nil || channelNum != nil {
-                wifiTelemetry = WiFiLinkTelemetry(
-                    ssid: ssid,
-                    rssi: rssi,
-                    noise: noise,
-                    txRate: txRate,
-                    channel: channelNum,
-                    band: bandStr
-                )
-            }
-        }
+        let wifiTelemetry = Self.queryWiFiTelemetryThrottled()
 
         return RawNetworkConnectivity(
             primaryInterface: primaryInterface,
@@ -259,6 +225,82 @@ public struct HostNetworkInfoProvider: NetworkInfoProvider {
             interfaceIPs: interfaceIPs,
             wifiTelemetry: wifiTelemetry
         )
+    }
+
+    // MARK: - Caching & Throttling Helpers
+
+    private static let scStoreLock = NSLock()
+    nonisolated(unsafe) private static var cachedSCStore: SCDynamicStore? = {
+        SCDynamicStoreCreate(nil, "iStatsNetworkSampler" as CFString, nil, nil)
+    }()
+
+    private static func getSCStore() -> SCDynamicStore? {
+        scStoreLock.lock()
+        defer { scStoreLock.unlock() }
+        if let store = cachedSCStore {
+            return store
+        }
+        let store = SCDynamicStoreCreate(nil, "iStatsNetworkSampler" as CFString, nil, nil)
+        cachedSCStore = store
+        return store
+    }
+
+    private static let wifiCacheLock = NSLock()
+    nonisolated(unsafe) private static var lastWiFiQuery: Date?
+    nonisolated(unsafe) private static var cachedWiFiTelemetry: WiFiLinkTelemetry?
+
+    private static func queryWiFiTelemetryThrottled() -> WiFiLinkTelemetry? {
+        wifiCacheLock.lock()
+        defer { wifiCacheLock.unlock() }
+
+        let now = Date()
+        if let last = lastWiFiQuery, now.timeIntervalSince(last) < 10.0 {
+            return cachedWiFiTelemetry
+        }
+
+        let telemetry = queryWiFiTelemetryDirect()
+        cachedWiFiTelemetry = telemetry
+        lastWiFiQuery = now
+        return telemetry
+    }
+
+    private static func queryWiFiTelemetryDirect() -> WiFiLinkTelemetry? {
+        guard let iface = CWWiFiClient.shared().interface(), iface.powerOn() else {
+            return nil
+        }
+        let rawRssi = iface.rssiValue()
+        let rssi: Int? = rawRssi != 0 ? rawRssi : nil
+        let rawNoise = iface.noiseMeasurement()
+        let noise: Int? = rawNoise != 0 ? rawNoise : nil
+        let rawRate = iface.transmitRate()
+        let txRate: Double? = rawRate > 0 ? rawRate : nil
+        let channelNum = iface.wlanChannel()?.channelNumber
+        let rawBand = iface.wlanChannel()?.channelBand
+        let bandStr: String?
+        if let band = rawBand {
+            switch band {
+            case .band2GHz: bandStr = "2.4 GHz"
+            case .band5GHz: bandStr = "5 GHz"
+            case .band6GHz: bandStr = "6 GHz"
+            default: bandStr = nil
+            }
+        } else {
+            bandStr = nil
+        }
+        let rawSSID = iface.ssid()
+        let ssid: String? = (rawSSID != nil && !rawSSID!.trimmingCharacters(in: .whitespaces).isEmpty) ? rawSSID : nil
+
+        if rssi != nil || txRate != nil || channelNum != nil {
+            return WiFiLinkTelemetry(
+                ssid: ssid,
+                rssi: rssi,
+                noise: noise,
+                txRate: txRate,
+                channel: channelNum,
+                band: bandStr
+            )
+        }
+        return nil
     }
 }
 

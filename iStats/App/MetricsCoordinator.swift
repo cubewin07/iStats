@@ -50,35 +50,49 @@ public final class MetricsCoordinator: ObservableObject {
     /// The latest available GPU sample.
     @Published public private(set) var latestGPU: Sample<GPUSample>?
 
-    /// Rolling chronological history of CPU samples.
-    @Published public private(set) var cpuHistory: [Sample<CPUSample>] = []
+    /// Rolling chronological history of CPU samples queried on-demand from backing store.
+    public var cpuHistory: [Sample<CPUSample>] { store.cpuHistory() }
 
-    /// Rolling chronological history of Memory samples.
-    @Published public private(set) var memoryHistory: [Sample<MemorySample>] = []
+    /// Rolling chronological history of Memory samples queried on-demand from backing store.
+    public var memoryHistory: [Sample<MemorySample>] { store.memoryHistory() }
 
-    /// Rolling chronological history of Network samples.
-    @Published public private(set) var networkHistory: [Sample<NetworkSample>] = []
+    /// Rolling chronological history of Network samples queried on-demand from backing store.
+    public var networkHistory: [Sample<NetworkSample>] { store.networkHistory() }
 
-    /// Rolling chronological history of Disk samples.
-    @Published public private(set) var diskHistory: [Sample<DiskSample>] = []
+    /// Rolling chronological history of Disk samples queried on-demand from backing store.
+    public var diskHistory: [Sample<DiskSample>] { store.diskHistory() }
 
-    /// Rolling chronological history of Power samples.
-    @Published public private(set) var powerHistory: [Sample<PowerSample>] = []
+    /// Rolling chronological history of Power samples queried on-demand from backing store.
+    public var powerHistory: [Sample<PowerSample>] { store.powerHistory() }
 
-    /// Rolling chronological history of Thermal samples.
-    @Published public private(set) var thermalHistory: [Sample<ThermalSample>] = []
+    /// Rolling chronological history of Thermal samples queried on-demand from backing store.
+    public var thermalHistory: [Sample<ThermalSample>] { store.thermalHistory() }
 
-    /// Rolling chronological history of Fan samples.
-    @Published public private(set) var fanHistory: [Sample<FanSample>] = []
+    /// Rolling chronological history of Fan samples queried on-demand from backing store.
+    public var fanHistory: [Sample<FanSample>] { store.fanHistory() }
 
-    /// Rolling chronological history of GPU samples.
-    @Published public private(set) var gpuHistory: [Sample<GPUSample>] = []
+    /// Rolling chronological history of GPU samples queried on-demand from backing store.
+    public var gpuHistory: [Sample<GPUSample>] { store.gpuHistory() }
 
     /// Live availability status per metric category.
     @Published public private(set) var categoryAvailability: [MetricCategory: Availability] = [:]
 
     /// Whether the coordinator is actively sampling.
     @Published public private(set) var isRunning: Bool = false
+
+    // MARK: - Performance Instrumentation (Stage 4 Energy Optimization)
+
+    /// Count of times a batch of readings was ingested in a single pass.
+    public private(set) var batchIngestionCount: Int = 0
+
+    /// Count of times a single reading was ingested (legacy / direct path).
+    public private(set) var singleIngestionCount: Int = 0
+
+    /// Resets ingestion telemetry counters (primarily for tests).
+    public func resetPerformanceCounters() {
+        batchIngestionCount = 0
+        singleIngestionCount = 0
+    }
 
     // MARK: - Initialization
 
@@ -152,46 +166,72 @@ public final class MetricsCoordinator: ObservableObject {
 
     private func startListeningToStream() {
         streamTask?.cancel()
-        let stream = scheduler.stream
+        let batchStream = scheduler.batchStream
 
         streamTask = Task { [weak self] in
-            for await reading in stream {
+            for await batch in batchStream {
                 guard !Task.isCancelled else { break }
-                self?.handleReading(reading)
+                self?.handleReadings(batch)
             }
         }
     }
 
-    /// Handles a new reading from the sampling layer and updates published properties.
-    public func handleReading(_ reading: MetricReading) {
-        store.append(reading)
-        self.categoryAvailability[reading.category] = reading.availability
+    /// Handles a batch of readings in a single atomic `@MainActor` pass, minimizing `@Published` churn.
+    public func handleReadings(_ readings: [MetricReading]) {
+        guard !readings.isEmpty else { return }
+        batchIngestionCount += 1
 
-        switch reading.category {
+        store.append(readings)
+
+        var updatedAvailability = self.categoryAvailability
+        var availabilityChanged = false
+        var updatedCategories = Set<MetricCategory>()
+
+        for reading in readings {
+            if updatedAvailability[reading.category] != reading.availability {
+                updatedAvailability[reading.category] = reading.availability
+                availabilityChanged = true
+            }
+            updatedCategories.insert(reading.category)
+        }
+
+        if availabilityChanged {
+            self.categoryAvailability = updatedAvailability
+        }
+
+        for category in updatedCategories {
+            updateLatest(for: category)
+        }
+    }
+
+    /// Handles a single reading from the sampling layer (backward compatibility).
+    public func handleReading(_ reading: MetricReading) {
+        singleIngestionCount += 1
+        store.append(reading)
+        if self.categoryAvailability[reading.category] != reading.availability {
+            self.categoryAvailability[reading.category] = reading.availability
+        }
+        updateLatest(for: reading.category)
+    }
+
+    private func updateLatest(for category: MetricCategory) {
+        switch category {
         case .cpu:
             self.latestCPU = store.latestCPU()
-            self.cpuHistory = store.cpuHistory()
         case .memory:
             self.latestMemory = store.latestMemory()
-            self.memoryHistory = store.memoryHistory()
         case .network:
             self.latestNetwork = store.latestNetwork()
-            self.networkHistory = store.networkHistory()
         case .disk:
             self.latestDisk = store.latestDisk()
-            self.diskHistory = store.diskHistory()
         case .power:
             self.latestPower = store.latestPower()
-            self.powerHistory = store.powerHistory()
         case .thermal:
             self.latestThermal = store.latestThermal()
-            self.thermalHistory = store.thermalHistory()
         case .fan:
             self.latestFan = store.latestFan()
-            self.fanHistory = store.fanHistory()
         case .gpu:
             self.latestGPU = store.latestGPU()
-            self.gpuHistory = store.gpuHistory()
         default:
             break
         }

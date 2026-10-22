@@ -2,7 +2,7 @@ import Foundation
 import Darwin
 import IOKit
 import Metal
-import AppKit
+import CoreGraphics
 import iStatsCore
 
 // MARK: - Raw GPU Statistics
@@ -224,7 +224,7 @@ public struct HostGPUInfoProvider: GPUInfoProvider {
         }
 
         // Metal device enrichment (name, unified memory, recommended working set, raytracing, feature set)
-        let metalDevice = MTLCopyAllDevices().first
+        let metalDevice = Self.cachedMetalDevice
         if bestName == nil {
             bestName = metalDevice?.name
         }
@@ -234,7 +234,7 @@ public struct HostGPUInfoProvider: GPUInfoProvider {
         let metalVersion: String? = metalDevice.map { dev in
             dev.supportsFamily(.metal3) ? "Metal 3" : "Metal 2"
         }
-        let (dispCount, dispDescs) = Self.queryConnectedDisplays()
+        let (dispCount, dispDescs) = Self.cachedConnectedDisplays()
 
         guard foundAny || bestUtilization != nil || bestMemoryUsed != nil || bestTemp != nil || bestPower != nil || bestCoreCount != nil else {
             return fallbackSMCGPUStats()
@@ -287,20 +287,12 @@ public struct HostGPUInfoProvider: GPUInfoProvider {
     // MARK: - SMC GPU Thermal Fallback
 
     private func readSMCGPUTemperature() -> Double? {
-        let service = IOServiceGetMatchingService(kIOMainPortDefault, IOServiceMatching("AppleSMC"))
-        guard service != 0 else { return nil }
-        defer { IOObjectRelease(service) }
-
-        var conn: io_connect_t = 0
-        guard IOServiceOpen(service, mach_task_self_, 0, &conn) == KERN_SUCCESS else {
-            return nil
-        }
-        defer { IOServiceClose(conn) }
+        guard AppleSMCClient.shared.connection() != nil else { return nil }
 
         // Candidate Apple Silicon & Intel GPU thermal keys
         let candidateKeys = ["Tg05", "Tg0S", "TG0P", "TG0D", "TG0T", "TG0B"]
         for keyStr in candidateKeys {
-            if let temp = readSMCKeyNumeric(keyStr: keyStr, connection: conn), temp > 0.0, temp < 150.0 {
+            if let temp = AppleSMCClient.shared.readNumericKey(keyStr), temp > 0.0, temp < 150.0 {
                 return temp
             }
         }
@@ -309,8 +301,8 @@ public struct HostGPUInfoProvider: GPUInfoProvider {
 
     private func fallbackSMCGPUStats() -> RawGPUStatistics? {
         let temp = readSMCGPUTemperature()
-        let metalDevice = MTLCopyAllDevices().first
-        let (dispCount, dispDescs) = Self.queryConnectedDisplays()
+        let metalDevice = Self.cachedMetalDevice
+        let (dispCount, dispDescs) = Self.cachedConnectedDisplays()
         let supportsRT = metalDevice?.supportsRaytracing
         let metalVersion: String? = metalDevice.map { dev in
             dev.supportsFamily(.metal3) ? "Metal 3" : "Metal 2"
@@ -332,142 +324,101 @@ public struct HostGPUInfoProvider: GPUInfoProvider {
         )
     }
 
+    // MARK: - Hardware Caching Helpers
+
+    private static let cachedMetalDevice: MTLDevice? = MTLCopyAllDevices().first
+
+    private static let displayCacheLock = NSLock()
+    nonisolated(unsafe) private static var lastDisplayCheck: Date?
+    nonisolated(unsafe) private static var cachedDisplayData: (count: Int, descriptions: [String]) = (0, [])
+
+    private static func cachedConnectedDisplays() -> (count: Int, descriptions: [String]) {
+        displayCacheLock.lock()
+        defer { displayCacheLock.unlock() }
+
+        let now = Date()
+        if let last = lastDisplayCheck, now.timeIntervalSince(last) < 30.0 {
+            return cachedDisplayData
+        }
+
+        let data = queryConnectedDisplays()
+        cachedDisplayData = data
+        lastDisplayCheck = now
+        return data
+    }
+
     // MARK: - Display Outputs Helper
 
     private static func queryConnectedDisplays() -> (count: Int, descriptions: [String]) {
-        let screens = NSScreen.screens
-        guard !screens.isEmpty else { return (0, []) }
+        var displayCount: UInt32 = 0
+        var displays = [CGDirectDisplayID](repeating: 0, count: 16)
+        var err = CGGetActiveDisplayList(16, &displays, &displayCount)
+        if err != .success || displayCount == 0 {
+            err = CGGetOnlineDisplayList(16, &displays, &displayCount)
+        }
+        guard err == .success, displayCount > 0 else { return (0, []) }
 
         var descriptions: [String] = []
-        for screen in screens {
-            let name = screen.localizedName
+        for i in 0..<Int(displayCount) {
+            let dID = displays[i]
+            let name = resolveDisplayName(for: dID, index: i)
+
             var hzStr = ""
-            var resStr = "\(Int(screen.frame.width * screen.backingScaleFactor))×\(Int(screen.frame.height * screen.backingScaleFactor))"
-            if let idNum = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber {
-                let dID = CGDirectDisplayID(idNum.uint32Value)
-                if let mode = CGDisplayCopyDisplayMode(dID) {
-                    let w = mode.width
-                    let h = mode.height
-                    let rate = mode.refreshRate
-                    if w > 0 && h > 0 {
-                        resStr = "\(w)×\(h)"
-                    }
-                    if rate > 0 {
-                        hzStr = " @ \(Int(round(rate)))Hz"
-                    }
+            var resStr = "\(CGDisplayPixelsWide(dID))×\(CGDisplayPixelsHigh(dID))"
+            if let mode = CGDisplayCopyDisplayMode(dID) {
+                let w = mode.width
+                let h = mode.height
+                let rate = mode.refreshRate
+                if w > 0 && h > 0 {
+                    resStr = "\(w)×\(h)"
+                }
+                if rate > 0 {
+                    hzStr = " @ \(Int(round(rate)))Hz"
                 }
             }
             descriptions.append("\(name) (\(resStr)\(hzStr))")
         }
-        return (screens.count, descriptions)
+        return (Int(displayCount), descriptions)
     }
 
-    private func readSMCKeyNumeric(keyStr: String, connection: io_connect_t) -> Double? {
-        var input = SMCParamStruct()
-        input.key = fourCharCode(keyStr)
-        input.data8 = 9 // kSMCGetKeyInfo
+    private static func resolveDisplayName(for dID: CGDirectDisplayID, index: Int) -> String {
+        let targetProductID = CGDisplayModelNumber(dID)
 
-        var output = SMCParamStruct()
-        var outSize = MemoryLayout<SMCParamStruct>.stride
-        var kr = IOConnectCallStructMethod(connection, 2, &input, MemoryLayout<SMCParamStruct>.stride, &output, &outSize)
-        guard kr == KERN_SUCCESS, output.result == 0 else {
-            return nil
-        }
-
-        let dataSize = output.keyInfo_dataSize
-        let dataType = output.keyInfo_dataType
-
-        input.keyInfo_dataSize = dataSize
-        input.data8 = 5 // kSMCReadKey
-
-        kr = IOConnectCallStructMethod(connection, 2, &input, MemoryLayout<SMCParamStruct>.stride, &output, &outSize)
-        guard kr == KERN_SUCCESS, output.result == 0 else {
-            return nil
-        }
-
-        let typeStr = fourCharCodeToString(dataType)
-        return decodeNumericValue(bytes: output.bytes, size: Int(dataSize), type: typeStr)
-    }
-
-    private func decodeNumericValue(bytes: Any, size: Int, type: String) -> Double? {
-        var rawBytes = [UInt8](repeating: 0, count: 32)
-        withUnsafeBytes(of: bytes) { rawBytesPtr in
-            for i in 0..<min(32, rawBytesPtr.count) {
-                rawBytes[i] = rawBytesPtr[i]
-            }
-        }
-
-        guard size > 0, size <= 32 else { return nil }
-
-        switch type {
-        case "flt ", "\0\0\0\0":
-            if size == 4 {
-                var floatVal: Float32 = 0.0
-                memcpy(&floatVal, rawBytes, 4)
-                return Double(floatVal)
-            }
-        case "sp78":
-            if size == 2 {
-                let raw = (Int16(rawBytes[0]) << 8) | Int16(rawBytes[1])
-                return Double(raw) / 256.0
-            }
-        case "fpe2":
-            if size == 2 {
-                let raw = (Int16(rawBytes[0]) << 8) | Int16(rawBytes[1])
-                return Double(raw) / 4.0
-            }
-        case "ui8 ", "ui8":
-            if size == 1 {
-                return Double(rawBytes[0])
-            }
-        case "ui16":
-            if size == 2 {
-                let raw = (UInt16(rawBytes[0]) << 8) | UInt16(rawBytes[1])
-                return Double(raw)
-            }
-        case "ui32":
-            if size == 4 {
-                let raw = (UInt32(rawBytes[0]) << 24) |
-                          (UInt32(rawBytes[1]) << 16) |
-                          (UInt32(rawBytes[2]) << 8) |
-                          UInt32(rawBytes[3])
-                return Double(raw)
-            }
-        default:
-            if size == 4 {
-                var floatVal: Float32 = 0.0
-                memcpy(&floatVal, rawBytes, 4)
-                if floatVal.isFinite && floatVal > 0 && floatVal < 200 {
-                    return Double(floatVal)
+        // 1. Check Apple Silicon IOMobileFramebuffer / AppleCLCD2 DisplayAttributes
+        var iter: io_iterator_t = 0
+        if IOServiceGetMatchingServices(kIOMainPortDefault, IOServiceMatching("IOMobileFramebuffer"), &iter) == KERN_SUCCESS {
+            defer { IOObjectRelease(iter) }
+            var service = IOIteratorNext(iter)
+            while service != 0 {
+                defer {
+                    IOObjectRelease(service)
+                    service = IOIteratorNext(iter)
                 }
-            } else if size == 2 {
-                let raw = (Int16(rawBytes[0]) << 8) | Int16(rawBytes[1])
-                let scaled = Double(raw) / 256.0
-                if scaled > 0 && scaled < 200 {
-                    return scaled
+                var propsRef: Unmanaged<CFMutableDictionary>?
+                if IORegistryEntryCreateCFProperties(service, &propsRef, kCFAllocatorDefault, 0) == KERN_SUCCESS,
+                   let dict = propsRef?.takeRetainedValue() as? [String: Any],
+                   let dispAttrs = dict["DisplayAttributes"] as? [String: Any],
+                   let prodAttrs = dispAttrs["ProductAttributes"] as? [String: Any],
+                   let productName = prodAttrs["ProductName"] as? String,
+                   !productName.isEmpty {
+                    if let prodID = prodAttrs["ProductID"] as? UInt32, prodID == targetProductID {
+                        return productName
+                    }
+                    if CGDisplayIsBuiltin(dID) != 0 && (dict["BuiltIn"] as? Bool == true) {
+                        return productName
+                    }
                 }
             }
         }
 
-        return nil
-    }
-
-    private func fourCharCode(_ str: String) -> UInt32 {
-        var result: UInt32 = 0
-        for char in str.utf8.prefix(4) {
-            result = (result << 8) | UInt32(char)
+        // 2. Fallback to standard display labels
+        if CGDisplayIsBuiltin(dID) != 0 {
+            return "Built-in Display"
+        } else if CGDisplayIsMain(dID) != 0 {
+            return "Main Display"
+        } else {
+            return "External Display \(index + 1)"
         }
-        return result
-    }
-
-    private func fourCharCodeToString(_ code: UInt32) -> String {
-        let bytes: [UInt8] = [
-            UInt8((code >> 24) & 0xff),
-            UInt8((code >> 16) & 0xff),
-            UInt8((code >> 8) & 0xff),
-            UInt8(code & 0xff)
-        ]
-        return String(bytes: bytes, encoding: .ascii) ?? "????"
     }
 }
 

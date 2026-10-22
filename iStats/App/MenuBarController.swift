@@ -19,6 +19,47 @@ public final class MenuBarController: NSObject {
     private var cancellables = Set<AnyCancellable>()
     public private(set) var currentlyShownButton: NSStatusBarButton?
 
+    // MARK: - Render State & Performance Instrumentation (Stage 3 Energy Optimization)
+
+    public struct ItemRenderState: Equatable {
+        public let title: String
+        public let toolTip: String
+        public let accessibilityLabel: String
+        public let imagePosition: NSControl.ImagePosition
+        public let imageRef: ObjectIdentifier?
+        public let visualKey: String?
+
+        public init(
+            title: String,
+            toolTip: String,
+            accessibilityLabel: String,
+            imagePosition: NSControl.ImagePosition,
+            imageRef: ObjectIdentifier?,
+            visualKey: String? = nil
+        ) {
+            self.title = title
+            self.toolTip = toolTip
+            self.accessibilityLabel = accessibilityLabel
+            self.imagePosition = imagePosition
+            self.imageRef = imageRef
+            self.visualKey = visualKey
+        }
+    }
+
+    public private(set) var previousRenderStates: [String: ItemRenderState] = [:]
+
+    /// Count of times a status item button was actually modified in AppKit.
+    public private(set) var buttonMutationCount: Int = 0
+
+    /// Count of times dirty-checking bypassed AppKit button modifications.
+    public private(set) var dirtyCheckBypassCount: Int = 0
+
+    /// Resets mutation/bypass telemetry counters (primarily for tests).
+    public func resetPerformanceCounters() {
+        buttonMutationCount = 0
+        dirtyCheckBypassCount = 0
+    }
+
     /// Returns the currently active popover, or the popover matching currentlyShownButton,
     /// or fallback/primary popover for backward compatibility.
     public var popover: NSPopover {
@@ -96,6 +137,7 @@ public final class MenuBarController: NSObject {
             for (id, item) in statusItems where id != Self.fallbackStatusItemId {
                 NSStatusBar.system.removeStatusItem(item)
                 statusItems.removeValue(forKey: id)
+                previousRenderStates.removeValue(forKey: id)
                 if let p = popovers.removeValue(forKey: id), p.isShown {
                     p.performClose(nil)
                 }
@@ -129,6 +171,7 @@ public final class MenuBarController: NSObject {
         // Active items exist: clean up fallback item if present
         if let fallbackItem = statusItems.removeValue(forKey: Self.fallbackStatusItemId) {
             NSStatusBar.system.removeStatusItem(fallbackItem)
+            previousRenderStates.removeValue(forKey: Self.fallbackStatusItemId)
             if let p = popovers.removeValue(forKey: Self.fallbackStatusItemId), p.isShown {
                 p.performClose(nil)
             }
@@ -138,6 +181,7 @@ public final class MenuBarController: NSObject {
         for (id, item) in statusItems where !activeIds.contains(id) {
             NSStatusBar.system.removeStatusItem(item)
             statusItems.removeValue(forKey: id)
+            previousRenderStates.removeValue(forKey: id)
             if let p = popovers.removeValue(forKey: id), p.isShown {
                 p.performClose(nil)
             }
@@ -182,9 +226,21 @@ public final class MenuBarController: NSObject {
         )
         .receive(on: RunLoop.main)
         .sink { [weak self] _ in
+            self?.previousRenderStates.removeAll()
             self?.updateAllStatusItems()
         }
         .store(in: &cancellables)
+
+        // Clear cached non-template menu bar icons and render states when macOS switches Light/Dark appearance
+        DistributedNotificationCenter.default()
+            .publisher(for: Notification.Name("AppleInterfaceThemeChangedNotification"))
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                MenuBarIconRenderer.clearImageCache()
+                self?.previousRenderStates.removeAll()
+                self?.updateAllStatusItems()
+            }
+            .store(in: &cancellables)
 
         // Observe telemetry streams and update matching category items
         coordinator.$latestCPU
@@ -248,23 +304,71 @@ public final class MenuBarController: NSObject {
     private func updateStatusItem(config: MenuBarItemConfig) {
         guard let item = statusItems[config.id], let button = item.button else { return }
 
-        let result = MenuBarIconRenderer.render(
+        let visualKey = MenuBarIconRenderer.computeVisualKey(
             config: config,
             coordinator: coordinator,
             preferences: preferences
         )
 
-        button.image = result.image
-        button.title = result.title
-        button.toolTip = result.toolTip
-        button.setAccessibilityLabel(result.accessibilityLabel)
+        let result = MenuBarIconRenderer.render(
+            config: config,
+            coordinator: coordinator,
+            preferences: preferences,
+            visualKey: visualKey
+        )
 
+        let targetPosition: NSControl.ImagePosition
         if result.image != nil && !result.title.isEmpty {
-            button.imagePosition = .imageLeading
+            targetPosition = .imageLeading
         } else if result.image != nil {
-            button.imagePosition = .imageOnly
+            targetPosition = .imageOnly
         } else {
-            button.imagePosition = .noImage
+            targetPosition = .noImage
+        }
+
+        let imageRef = result.image.map { ObjectIdentifier($0) }
+        let newState = ItemRenderState(
+            title: result.title,
+            toolTip: result.toolTip,
+            accessibilityLabel: result.accessibilityLabel,
+            imagePosition: targetPosition,
+            imageRef: imageRef,
+            visualKey: result.visualKey
+        )
+
+        // Dirty checking: if image, title, tooltip, and accessibility label match the previous render state,
+        // bypass AppKit mutations completely.
+        if let previous = previousRenderStates[config.id] {
+            let imageUnchanged = (previous.imageRef == newState.imageRef) ||
+                (previous.visualKey != nil && previous.visualKey == newState.visualKey)
+
+            if imageUnchanged &&
+               previous.title == newState.title &&
+               previous.toolTip == newState.toolTip &&
+               previous.accessibilityLabel == newState.accessibilityLabel &&
+               previous.imagePosition == newState.imagePosition {
+                dirtyCheckBypassCount += 1
+                return
+            }
+        }
+
+        previousRenderStates[config.id] = newState
+        buttonMutationCount += 1
+
+        if button.image !== result.image {
+            button.image = result.image
+        }
+        if button.title != result.title {
+            button.title = result.title
+        }
+        if button.toolTip != result.toolTip {
+            button.toolTip = result.toolTip
+        }
+        if button.accessibilityLabel() != result.accessibilityLabel {
+            button.setAccessibilityLabel(result.accessibilityLabel)
+        }
+        if button.imagePosition != targetPosition {
+            button.imagePosition = targetPosition
         }
     }
 
