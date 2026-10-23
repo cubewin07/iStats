@@ -124,7 +124,7 @@ public struct HostThermalInfoProvider: ThermalInfoProvider {
             lock.lock()
             defer { lock.unlock() }
 
-            if let cached = cachedServices {
+            if let cached = cachedServices, !cached.isEmpty {
                 return cached
             }
 
@@ -141,13 +141,21 @@ public struct HostThermalInfoProvider: ThermalInfoProvider {
                 }
             }
 
-            cachedServices = matchingServices
+            if !matchingServices.isEmpty {
+                cachedServices = matchingServices
+            }
             return matchingServices
+        }
+
+        func invalidate() {
+            lock.lock()
+            defer { lock.unlock() }
+            cachedServices = nil
         }
     }
 
     /// Sensor definition describing an SMC key and its canonical human-readable label.
-    private struct SMCSensorDescriptor {
+    internal struct SMCSensorDescriptor: Equatable {
         let key: String
         let label: String
     }
@@ -309,10 +317,12 @@ public struct HostThermalInfoProvider: ThermalInfoProvider {
 
     // MARK: - SMC Sensor Discovery Cache
 
-    private final class SMCSensorCache: @unchecked Sendable {
+    internal final class SMCSensorCache: @unchecked Sendable {
         static let shared = SMCSensorCache()
         private let lock = NSLock()
         private var activeSensors: [SMCSensorDescriptor]?
+
+        init() {}
 
         func getOrDiscoverSensors(
             candidates: [SMCSensorDescriptor],
@@ -321,7 +331,7 @@ public struct HostThermalInfoProvider: ThermalInfoProvider {
             lock.lock()
             defer { lock.unlock() }
 
-            if let cached = activeSensors {
+            if let cached = activeSensors, !cached.isEmpty {
                 return cached
             }
 
@@ -331,8 +341,16 @@ public struct HostThermalInfoProvider: ThermalInfoProvider {
                     discovered.append(descriptor)
                 }
             }
-            activeSensors = discovered
+            if !discovered.isEmpty {
+                activeSensors = discovered
+            }
             return discovered
+        }
+
+        func invalidate() {
+            lock.lock()
+            defer { lock.unlock() }
+            activeSensors = nil
         }
     }
 
