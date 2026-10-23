@@ -444,4 +444,18 @@ final class MenuBarControllerInteractionTests: XCTestCase {
         XCTAssertTrue(prefs.isSamplingPaused, "Must remain paused until user explicitly turns it back on")
         XCTAssertFalse(coord.isRunning)
     }
+
+    func testRapidStartStopDoesNotLeaveSchedulerRunningAndPreservesSamplers() async {
+        let (defaults, prefs, coord, controller, suiteName) = makeContext()
+        defer { cleanup(defaults: defaults, controller: controller, suiteName: suiteName) }
+
+        // Rapidly start and immediately pause/stop before async registration finishes
+        coord.start()
+        coord.pauseSampling()
+
+        try? await Task.sleep(nanoseconds: 100_000_000)
+        let runningAfterRapidStop = await coord.scheduler.isRunning
+        XCTAssertFalse(coord.isRunning)
+        XCTAssertFalse(runningAfterRapidStop, "Scheduler must not remain running after rapid start() -> pauseSampling()")
+    }
 }

@@ -20,13 +20,14 @@ public final class MetricsCoordinator: ObservableObject {
     private let lowPowerModeProvider: @Sendable () -> Bool
     private var userOverrodeLowPowerPause: Bool = false
     private var cancellables = Set<AnyCancellable>()
+    private var startTask: Task<Void, Never>?
     private var streamTask: Task<Void, Never>?
     nonisolated(unsafe) private var powerRunLoopSource: CFRunLoopSource?
 
     // MARK: - Published State
 
     /// In-memory ring buffer store holding live telemetry history.
-    @Published public private(set) var store: MetricsStore
+    public private(set) var store: MetricsStore
 
     /// The latest available CPU sample.
     @Published public private(set) var latestCPU: Sample<CPUSample>?
@@ -132,6 +133,7 @@ public final class MetricsCoordinator: ObservableObject {
     }
 
     deinit {
+        startTask?.cancel()
         streamTask?.cancel()
         teardownPowerNotifications()
     }
@@ -215,38 +217,65 @@ public final class MetricsCoordinator: ObservableObject {
         guard !isRunning else { return }
         isRunning = true
 
-        // Register default concrete samplers
-        Task {
-            await scheduler.register(CPUSampler())
-            await scheduler.register(MemorySampler())
-            await scheduler.register(NetworkSampler())
-            await scheduler.register(DiskSampler())
-            await scheduler.register(PowerSampler())
-            await scheduler.register(ThermalSampler())
-            await scheduler.register(FanSampler())
-            await scheduler.register(GPUSampler())
-            await scheduler.setDefaultInterval(preferencesStore.refreshInterval)
+        startListeningToStream()
+        setupPowerNotifications()
+
+        let interval = preferencesStore.refreshInterval
+        let enabledCategories = preferencesStore.enabledCategories
+        let scheduler = self.scheduler
+
+        startTask?.cancel()
+        startTask = Task { [weak self] in
+            if !(await scheduler.isRegistered(category: .cpu)) {
+                await scheduler.register(CPUSampler())
+            }
+            if !(await scheduler.isRegistered(category: .memory)) {
+                await scheduler.register(MemorySampler())
+            }
+            if !(await scheduler.isRegistered(category: .network)) {
+                await scheduler.register(NetworkSampler())
+            }
+            if !(await scheduler.isRegistered(category: .disk)) {
+                await scheduler.register(DiskSampler())
+            }
+            if !(await scheduler.isRegistered(category: .power)) {
+                await scheduler.register(PowerSampler())
+            }
+            if !(await scheduler.isRegistered(category: .thermal)) {
+                await scheduler.register(ThermalSampler())
+            }
+            if !(await scheduler.isRegistered(category: .fan)) {
+                await scheduler.register(FanSampler())
+            }
+            if !(await scheduler.isRegistered(category: .gpu)) {
+                await scheduler.register(GPUSampler())
+            }
+            await scheduler.setDefaultInterval(interval)
 
             for category in MetricCategory.allCases {
-                let enabled = preferencesStore.isCategoryEnabled(category)
+                let enabled = enabledCategories.contains(category)
                 await scheduler.setEnabled(category: category, isEnabled: enabled)
             }
 
+            guard !Task.isCancelled, let self = self, self.isRunning else {
+                await scheduler.stop()
+                return
+            }
             await scheduler.start()
         }
-
-        startListeningToStream()
-        setupPowerNotifications()
     }
 
     /// Stops background sampling and stream observation.
     public func stop() {
         guard isRunning else { return }
         isRunning = false
+        startTask?.cancel()
+        startTask = nil
         streamTask?.cancel()
         streamTask = nil
         teardownPowerNotifications()
 
+        let scheduler = self.scheduler
         Task {
             await scheduler.stop()
         }
@@ -322,8 +351,6 @@ public final class MetricsCoordinator: ObservableObject {
             self.latestFan = store.latestFan()
         case .gpu:
             self.latestGPU = store.latestGPU()
-        default:
-            break
         }
     }
 
