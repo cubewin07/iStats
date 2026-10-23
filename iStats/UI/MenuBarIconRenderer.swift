@@ -162,15 +162,15 @@ public struct MenuBarIconRenderer {
         let util = gpu?.utilization ?? 0.0
         let valStr = gpu?.utilization != nil ? String(format: "%.0f%%", util) : "--%"
         let qUtil = Int(round(util))
-        let qTemp = Int(round(gpu?.tempCelsius ?? 0.0))
+        let tempToken = gpu?.tempCelsius != nil ? "\(Int(round(gpu!.tempCelsius!)))" : "nil"
 
         switch style {
         case .gauge:
-            return "gpu:gauge:\(qUtil):\(qTemp)"
+            return "gpu:gauge:\(qUtil):\(tempToken)"
         case .bar:
             return "gpu:bar:\(qUtil)"
         case .symbol:
-            return "gpu:symbol:\(qUtil):\(qTemp)"
+            return "gpu:symbol:\(qUtil):\(tempToken)"
         case .text:
             return "gpu:text:\(valStr)"
         default:
@@ -250,14 +250,14 @@ public struct MenuBarIconRenderer {
 
         switch style {
         case .gauge:
-            return "fan:gauge:\(qPct):\(rpm)"
+            return "fan:gauge:\(qPct):\(rpm > 0 || pct > 0.0)"
         case .bar:
             if fans.count >= 2 {
                 let qPct0 = Int(round(fanPercentage(for: fans[0])))
                 let qPct1 = Int(round(fanPercentage(for: fans[1])))
-                return "fan:bar:\(qPct0):\(fans[0].rpm):\(qPct1):\(fans[1].rpm)"
+                return "fan:bar:\(qPct0):\(qPct1)"
             }
-            return "fan:bar:\(qPct):\(rpm)"
+            return "fan:bar:\(qPct)"
         case .text:
             return "fan:text:\(valStr)"
         case .throughput:
@@ -351,11 +351,12 @@ public struct MenuBarIconRenderer {
         let isCharging = variant == .charging
         let hasBattery = power?.hasBattery ?? true
         let qCharge = Int(round(charge))
+        let chargeToken = power?.charge != nil ? "\(qCharge)" : "nil"
         let varStr = variant.rawValue
 
         switch style {
         case .symbol:
-            return "pwr:symbol:\(qCharge):\(varStr):\(hasBattery)"
+            return "pwr:symbol:\(chargeToken):\(varStr):\(hasBattery)"
         case .text:
             let lines = powerStackedTextLines(
                 charge: power?.charge,
@@ -363,17 +364,17 @@ public struct MenuBarIconRenderer {
                 timeRemaining: power?.timeRemaining,
                 watts: power?.powerDrawWatts
             )
-            return "pwr:text:\(qCharge):\(varStr):\(lines.line1):\(lines.line2)"
+            return "pwr:text:\(chargeToken):\(varStr):\(lines.line1):\(lines.line2)"
         case .throughput:
-            let dWatts = Int(round(power?.powerDrawWatts ?? 0))
-            let aWatts = Int(round(power?.adapterWatts ?? 0))
-            return "pwr:tp:\(dWatts):\(aWatts)"
+            let drawStr = power?.powerDrawWatts != nil ? String(format: "%.0fW", power!.powerDrawWatts!) : "--W"
+            let adaptStr = power?.adapterWatts != nil ? String(format: "%.0fW", power!.adapterWatts!) : "AC"
+            return "pwr:tp:\(drawStr):\(adaptStr)"
         case .gauge:
-            return "pwr:gauge:\(qCharge):\(isCharging):\(varStr)"
+            return "pwr:gauge:\(chargeToken):\(isCharging):\(varStr)"
         case .bar:
-            return "pwr:bar:\(qCharge):\(isCharging):\(varStr)"
+            return "pwr:bar:\(chargeToken):\(isCharging):\(varStr)"
         default:
-            return "pwr:symbol:\(qCharge):\(varStr):\(hasBattery)"
+            return "pwr:symbol:\(chargeToken):\(varStr):\(hasBattery)"
         }
     }
 
@@ -464,9 +465,7 @@ public struct MenuBarIconRenderer {
         switch style {
         case .gauge:
             // Segmented Donut Pie (User vs Kernel load) with vibrant signature colors
-            let img = cachedOrDraw(visualKey: visualKey) {
-                drawCPUDonutPie(user: cpu?.user ?? usage, system: cpu?.system ?? 0.0)
-            }
+            let img = drawCPUDonutPie(user: cpu?.user ?? usage, system: cpu?.system ?? 0.0)
             return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y, visualKey: visualKey)
         case .bar:
             // Live Per-Core Micro-Bar Cluster (or stacked bar)
@@ -480,14 +479,10 @@ public struct MenuBarIconRenderer {
             return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y)
         case .text:
             // Invariant Jitter-Free Stacked Text (CPU over Usage%)
-            let img = cachedOrDraw(visualKey: visualKey) {
-                drawCategoryStackedText(title: "CPU", value: valStr, fixedWidth: 32.0)
-            }
+            let img = drawCategoryStackedText(title: "CPU", value: valStr, fixedWidth: 32.0)
             return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y, visualKey: visualKey)
         default:
-            let img = cachedOrDraw(visualKey: visualKey) {
-                drawCategoryStackedText(title: "CPU", value: valStr, fixedWidth: 32.0)
-            }
+            let img = drawCategoryStackedText(title: "CPU", value: valStr, fixedWidth: 32.0)
             return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y, visualKey: visualKey)
         }
     }
@@ -535,20 +530,14 @@ public struct MenuBarIconRenderer {
             return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y)
         case .symbol:
             // Dedicated 3-state Pressure Badge / Pill (OK / WARN / CRIT)
-            let img = cachedOrDraw(visualKey: visualKey) {
-                drawMemoryPressureBadge(pressure: memory?.pressure)
-            }
+            let img = drawMemoryPressureBadge(pressure: memory?.pressure)
             return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y, visualKey: visualKey)
         case .text:
             // Two-Line Jitter-Free Stacked Text (MEM / Used %)
-            let img = cachedOrDraw(visualKey: visualKey) {
-                drawCategoryStackedText(title: "MEM", value: valStr, fixedWidth: 32.0)
-            }
+            let img = drawCategoryStackedText(title: "MEM", value: valStr, fixedWidth: 32.0)
             return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y, visualKey: visualKey)
         default:
-            let img = cachedOrDraw(visualKey: visualKey) {
-                drawCategoryStackedText(title: "MEM", value: valStr, fixedWidth: 32.0)
-            }
+            let img = drawCategoryStackedText(title: "MEM", value: valStr, fixedWidth: 32.0)
             return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y, visualKey: visualKey)
         }
     }
@@ -588,14 +577,10 @@ public struct MenuBarIconRenderer {
             }
             return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y, visualKey: visualKey)
         case .text:
-            let img = cachedOrDraw(visualKey: visualKey) {
-                drawCategoryStackedText(title: "GPU", value: valStr, fixedWidth: 32.0)
-            }
+            let img = drawCategoryStackedText(title: "GPU", value: valStr, fixedWidth: 32.0)
             return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y, visualKey: visualKey)
         default:
-            let img = cachedOrDraw(visualKey: visualKey) {
-                drawCategoryStackedText(title: "GPU", value: valStr, fixedWidth: 32.0)
-            }
+            let img = drawCategoryStackedText(title: "GPU", value: valStr, fixedWidth: 32.0)
             return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y, visualKey: visualKey)
         }
     }
@@ -651,14 +636,10 @@ public struct MenuBarIconRenderer {
             }
             return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y, visualKey: visualKey)
         case .cpuTemp, .gpuTemp, .memoryTemp, .storageTemp, .batteryTemp, .text:
-            let img = cachedOrDraw(visualKey: visualKey) {
-                drawCategoryStackedText(title: title, value: valStr, fixedWidth: 32.0)
-            }
+            let img = drawCategoryStackedText(title: title, value: valStr, fixedWidth: 32.0)
             return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y, visualKey: visualKey)
         default:
-            let img = cachedOrDraw(visualKey: visualKey) {
-                drawCategoryStackedText(title: title, value: valStr, fixedWidth: 32.0)
-            }
+            let img = drawCategoryStackedText(title: title, value: valStr, fixedWidth: 32.0)
             return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y, visualKey: visualKey)
         }
     }
@@ -717,9 +698,7 @@ public struct MenuBarIconRenderer {
             let img = drawFanSparkline(history: history)
             return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y)
         case .text:
-            let img = cachedOrDraw(visualKey: visualKey) {
-                drawCategoryStackedText(title: "FAN", value: valStr, fixedWidth: 32.0)
-            }
+            let img = drawCategoryStackedText(title: "FAN", value: valStr, fixedWidth: 32.0)
             return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y, visualKey: visualKey)
         case .throughput:
             let img = cachedOrDraw(visualKey: visualKey) {
@@ -733,9 +712,7 @@ public struct MenuBarIconRenderer {
             }
             return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y, visualKey: visualKey)
         default:
-            let img = cachedOrDraw(visualKey: visualKey) {
-                drawCategoryStackedText(title: "FAN", value: valStr, fixedWidth: 32.0)
-            }
+            let img = drawCategoryStackedText(title: "FAN", value: valStr, fixedWidth: 32.0)
             return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y, visualKey: visualKey)
         }
     }
@@ -810,9 +787,7 @@ public struct MenuBarIconRenderer {
             return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y)
         case .symbol:
             // Dynamic Read / Write Activity LEDs
-            let img = cachedOrDraw(visualKey: visualKey) {
-                drawDiskActivityLeds(readBytes: readBytes, writeBytes: writeBytes)
-            }
+            let img = drawDiskActivityLeds(readBytes: readBytes, writeBytes: writeBytes)
             return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y, visualKey: visualKey)
         case .gauge:
             // Volume Capacity Donut Ring (Boot volume used %)
@@ -1628,8 +1603,8 @@ public struct MenuBarIconRenderer {
             NSColor.secondaryLabelColor.withAlphaComponent(0.20).setStroke()
             track.stroke()
 
-            let uClamped = min(max(user, 0.0), 100.0)
-            let sClamped = min(max(system, 0.0), 100.0 - uClamped)
+            let uClamped = Double(qUser)
+            let sClamped = Double(qSys)
 
             // User Space slice (Starts at 12 o'clock, sweeps clockwise) - System Blue
             if uClamped > 0 {
@@ -1832,7 +1807,8 @@ public struct MenuBarIconRenderer {
         let size = NSSize(width: 25, height: 16)
         let image = NSImage(size: size, flipped: false) { bounds in
             if hasBattery && activeVariant != .acDesktop {
-                let isCritical = activeVariant == .lowBattery && (charge ?? 0.0) <= 10.0
+                let roundedCharge = round(charge ?? 0.0)
+                let isCritical = activeVariant == .lowBattery && roundedCharge <= 10.0
 
                 // Battery Body Frame
                 let bodyRect = NSRect(x: 1.0, y: 2.0, width: 19.5, height: 12.0)
@@ -1874,7 +1850,8 @@ public struct MenuBarIconRenderer {
                     case .charging, .charged:
                         fillColor = NSColor.systemGreen
                     case .discharging:
-                        fillColor = clamped <= 20.0 ? NSColor.systemRed : (clamped <= 40.0 ? NSColor.systemYellow : NSColor.systemGreen)
+                        let qClamped = round(clamped)
+                        fillColor = qClamped <= 20.0 ? NSColor.systemRed : (qClamped <= 40.0 ? NSColor.systemYellow : NSColor.systemGreen)
                     case .acDesktop, .unavailable:
                         fillColor = NSColor.systemGreen
                     }
@@ -2257,7 +2234,7 @@ public struct MenuBarIconRenderer {
             dieClip.fill()
 
             // Active core utilization fill from bottom up
-            let col = (tempCelsius != nil) ? thermalColor(for: tempCelsius!) : NSColor.systemPurple
+            let col = (tempCelsius != nil) ? thermalColor(for: round(tempCelsius!)) : NSColor.systemPurple
             if util > 0 {
                 let fillH = max(dieRect.height * CGFloat(util / 100.0), 1.5)
                 let fillRect = NSRect(x: dieRect.minX, y: dieRect.minY, width: dieRect.width, height: fillH)
@@ -2307,7 +2284,7 @@ public struct MenuBarIconRenderer {
                 arc.lineWidth = lineWidth
                 arc.lineCapStyle = .round
 
-                let strokeColor = (tempCelsius != nil) ? thermalColor(for: tempCelsius!) : NSColor.systemPurple
+                let strokeColor = (tempCelsius != nil) ? thermalColor(for: round(tempCelsius!)) : NSColor.systemPurple
                 strokeColor.setStroke()
                 arc.stroke()
             }
@@ -2361,7 +2338,7 @@ public struct MenuBarIconRenderer {
                 arc.appendArc(withCenter: center, radius: radius, startAngle: 90.0, endAngle: 90.0 - CGFloat(360.0 * (clamped / 100.0)), clockwise: true)
                 arc.lineWidth = lineWidth
                 arc.lineCapStyle = .round
-                let c = celsius ?? (30.0 + (clamped / 100.0) * 70.0)
+                let c = round(celsius ?? (30.0 + (clamped / 100.0) * 70.0))
                 thermalColor(for: c).setStroke()
                 arc.stroke()
             }
@@ -2372,7 +2349,7 @@ public struct MenuBarIconRenderer {
     }
 
     public static func drawThermalBar(percentage: Double, celsius: Double? = nil) -> NSImage {
-        let c = celsius ?? (30.0 + (min(max(percentage, 0.0), 100.0) / 100.0) * 70.0)
+        let c = round(celsius ?? (30.0 + (min(max(percentage, 0.0), 100.0) / 100.0) * 70.0))
         let col = thermalColor(for: c)
         return drawSingleCapsuleBar(label: "TMP", percentage: percentage, barColor: col)
     }
@@ -2754,7 +2731,8 @@ public struct MenuBarIconRenderer {
             color = NSColor.systemGreen
             label = "PWR"
         case .discharging, .acDesktop, .unavailable:
-            color = clamped <= 20.0 ? NSColor.systemRed : (clamped <= 40.0 ? NSColor.systemYellow : NSColor.systemGreen)
+            let qClamped = round(clamped)
+            color = qClamped <= 20.0 ? NSColor.systemRed : (qClamped <= 40.0 ? NSColor.systemYellow : NSColor.systemGreen)
             label = "BAT"
         }
         return drawSingleCapsuleBar(label: label, percentage: percentage, barColor: color)
