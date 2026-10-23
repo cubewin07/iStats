@@ -516,4 +516,32 @@ final class MenuBarControllerInteractionTests: XCTestCase {
         XCTAssertTrue(coord2.isAutoPausedByLowPowerMode, "Auto-paused banner reason must survive app relaunch")
         coord2.stop()
     }
+
+    func testFallbackPopoverDelegateClearsCurrentlyShownButtonOnTransientClose() {
+        let (defaults, prefs, _, controller, suiteName) = makeContext()
+        defer { cleanup(defaults: defaults, controller: controller, suiteName: suiteName) }
+
+        prefs.menuBarItems = []
+        controller.syncStatusItems()
+
+        guard let fallbackButton = controller.statusItems[MenuBarController.fallbackStatusItemId]?.button,
+              let fallbackPopover = controller.popover(for: MenuBarController.fallbackStatusItemId) else {
+            XCTFail("Fallback status item and popover must exist")
+            return
+        }
+
+        XCTAssertTrue(fallbackPopover.delegate === controller, "Fallback popover must set controller as delegate")
+
+        // 1. Click fallback button -> opens popover
+        controller.statusItemClicked(fallbackButton)
+        XCTAssertTrue(controller.currentlyShownButton === fallbackButton)
+
+        // 2. Simulate transient close when user clicks outside popover
+        controller.popoverDidClose(Notification(name: NSPopover.didCloseNotification, object: fallbackPopover))
+        XCTAssertNil(controller.currentlyShownButton, "popoverDidClose must clear currentlyShownButton")
+
+        // 3. Next click on fallback button must re-open popover instead of being swallowed
+        controller.statusItemClicked(fallbackButton)
+        XCTAssertTrue(controller.currentlyShownButton === fallbackButton)
+    }
 }

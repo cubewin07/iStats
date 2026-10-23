@@ -17,6 +17,8 @@ public final class MenuBarController: NSObject {
     public let coordinator: MetricsCoordinator
 
     private var cancellables = Set<AnyCancellable>()
+    private var pendingCategories = Set<MetricCategory>()
+    private var isCategoryUpdateScheduled = false
     public private(set) var currentlyShownButton: NSStatusBarButton?
 
     // MARK: - Render State & Performance Instrumentation (Stage 3 Energy Optimization)
@@ -66,17 +68,30 @@ public final class MenuBarController: NSObject {
         if let button = currentlyShownButton,
            let rawId = button.identifier?.rawValue,
            let p = popovers[rawId] {
+            ensurePopoverContent(for: rawId, popover: p)
             return p
         }
-        for (_, p) in popovers where p.isShown {
+        for (id, p) in popovers where p.isShown {
+            ensurePopoverContent(for: id, popover: p)
             return p
         }
-        return popovers[Self.fallbackStatusItemId] ?? popovers.values.first ?? fallbackPopover
+        if let fallbackP = popovers[Self.fallbackStatusItemId] {
+            ensurePopoverContent(for: Self.fallbackStatusItemId, popover: fallbackP)
+            return fallbackP
+        }
+        if let (firstId, firstP) = popovers.first {
+            ensurePopoverContent(for: firstId, popover: firstP)
+            return firstP
+        }
+        ensurePopoverContent(for: Self.fallbackStatusItemId, popover: fallbackPopover)
+        return fallbackPopover
     }
 
     /// Helper to retrieve the dedicated popover for a specific category config ID.
     public func popover(for configId: String) -> NSPopover? {
-        popovers[configId]
+        guard let p = popovers[configId] else { return nil }
+        ensurePopoverContent(for: configId, popover: p)
+        return p
     }
 
     public init(
@@ -121,8 +136,37 @@ public final class MenuBarController: NSObject {
         p.behavior = .transient
         p.animates = true
         p.delegate = self
-        p.contentViewController = makeHostingController(for: config)
         return p
+    }
+
+    private func createFallbackPopover() -> NSPopover {
+        let p = NSPopover()
+        p.behavior = .transient
+        p.animates = true
+        p.delegate = self
+        return p
+    }
+
+    private func ensurePopoverContent(for configId: String, popover: NSPopover) {
+        guard popover.contentViewController == nil else { return }
+        if configId == Self.fallbackStatusItemId {
+            popover.contentViewController = NSHostingController(
+                rootView: DetailPopoverView(coordinator: coordinator, preferences: preferences)
+            )
+            return
+        }
+        if let activeConfig = preferences.menuBarItems.first(where: { $0.id == configId }) {
+            popover.contentViewController = makeHostingController(for: activeConfig)
+            return
+        }
+        let parts = configId.components(separatedBy: ".")
+        let categoryRaw = parts.first ?? configId
+        let styleRaw = parts.dropFirst().joined(separator: ".")
+        if let category = MetricCategory(rawValue: categoryRaw) {
+            let style = MetricDisplayStyle(rawValue: styleRaw) ?? .text
+            let config = MenuBarItemConfig(category: category, style: style)
+            popover.contentViewController = makeHostingController(for: config)
+        }
     }
 
     // MARK: - Status Item Lifecycle & Synchronization (ADR 0007)
@@ -147,17 +191,13 @@ public final class MenuBarController: NSObject {
             let fallbackItem: NSStatusItem
             if let existing = statusItems[Self.fallbackStatusItemId] {
                 fallbackItem = existing
+                if popovers[Self.fallbackStatusItemId] == nil {
+                    popovers[Self.fallbackStatusItemId] = createFallbackPopover()
+                }
             } else {
                 let created = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
                 statusItems[Self.fallbackStatusItemId] = created
-
-                let fallbackP = NSPopover()
-                fallbackP.behavior = .transient
-                fallbackP.animates = true
-                fallbackP.contentViewController = NSHostingController(
-                    rootView: DetailPopoverView(coordinator: coordinator, preferences: preferences)
-                )
-                popovers[Self.fallbackStatusItemId] = fallbackP
+                popovers[Self.fallbackStatusItemId] = createFallbackPopover()
                 fallbackItem = created
             }
 
@@ -257,52 +297,74 @@ public final class MenuBarController: NSObject {
             }
             .store(in: &cancellables)
 
-        // Observe telemetry streams and update matching category items
+        // Observe telemetry streams and coalesce updates into a single main runloop pass per batch
         coordinator.$latestCPU
-            .receive(on: RunLoop.main)
-            .sink { [weak self] _ in self?.updateItems(for: .cpu) }
+            .dropFirst()
+            .sink { [weak self] _ in self?.scheduleCategoryUpdate(.cpu) }
             .store(in: &cancellables)
 
         coordinator.$latestMemory
-            .receive(on: RunLoop.main)
-            .sink { [weak self] _ in self?.updateItems(for: .memory) }
+            .dropFirst()
+            .sink { [weak self] _ in self?.scheduleCategoryUpdate(.memory) }
             .store(in: &cancellables)
 
         coordinator.$latestGPU
-            .receive(on: RunLoop.main)
-            .sink { [weak self] _ in self?.updateItems(for: .gpu) }
+            .dropFirst()
+            .sink { [weak self] _ in self?.scheduleCategoryUpdate(.gpu) }
             .store(in: &cancellables)
 
         coordinator.$latestThermal
-            .receive(on: RunLoop.main)
-            .sink { [weak self] _ in self?.updateItems(for: .thermal) }
+            .dropFirst()
+            .sink { [weak self] _ in self?.scheduleCategoryUpdate(.thermal) }
             .store(in: &cancellables)
 
         coordinator.$latestFan
-            .receive(on: RunLoop.main)
-            .sink { [weak self] _ in self?.updateItems(for: .fan) }
+            .dropFirst()
+            .sink { [weak self] _ in self?.scheduleCategoryUpdate(.fan) }
             .store(in: &cancellables)
 
         coordinator.$latestNetwork
-            .receive(on: RunLoop.main)
-            .sink { [weak self] _ in self?.updateItems(for: .network) }
+            .dropFirst()
+            .sink { [weak self] _ in self?.scheduleCategoryUpdate(.network) }
             .store(in: &cancellables)
 
         coordinator.$latestDisk
-            .receive(on: RunLoop.main)
-            .sink { [weak self] _ in self?.updateItems(for: .disk) }
+            .dropFirst()
+            .sink { [weak self] _ in self?.scheduleCategoryUpdate(.disk) }
             .store(in: &cancellables)
 
         coordinator.$latestPower
-            .receive(on: RunLoop.main)
-            .sink { [weak self] _ in self?.updateItems(for: .power) }
+            .dropFirst()
+            .sink { [weak self] _ in self?.scheduleCategoryUpdate(.power) }
             .store(in: &cancellables)
+    }
+
+    private func scheduleCategoryUpdate(_ category: MetricCategory) {
+        pendingCategories.insert(category)
+        guard !isCategoryUpdateScheduled else { return }
+        isCategoryUpdateScheduled = true
+        RunLoop.main.perform { [weak self] in
+            MainActor.assumeIsolated {
+                self?.flushPendingCategoryUpdates()
+            }
+        }
+    }
+
+    private func flushPendingCategoryUpdates() {
+        isCategoryUpdateScheduled = false
+        guard !pendingCategories.isEmpty else { return }
+        let categories = pendingCategories
+        pendingCategories.removeAll()
+        for config in preferences.activeMenuBarItems where categories.contains(config.category) {
+            updateStatusItem(config: config)
+        }
     }
 
     // MARK: - Rendering & Updates
 
     /// Updates all active status item representations.
     public func updateAllStatusItems() {
+        pendingCategories.removeAll()
         for config in preferences.activeMenuBarItems {
             updateStatusItem(config: config)
         }
@@ -310,6 +372,7 @@ public final class MenuBarController: NSObject {
 
     /// Updates all active status items belonging to a specific metric category.
     public func updateItems(for category: MetricCategory) {
+        pendingCategories.remove(category)
         let matching = preferences.activeMenuBarItems.filter { $0.category == category }
         for config in matching {
             updateStatusItem(config: config)
@@ -430,6 +493,7 @@ public final class MenuBarController: NSObject {
         }
 
         hidePopover()
+        ensurePopoverContent(for: rawId, popover: targetPopover)
         currentlyShownButton = button
         targetPopover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
         targetPopover.contentViewController?.view.window?.makeKey()
@@ -502,6 +566,7 @@ public final class MenuBarController: NSObject {
             targetPopover = p
         }
         hidePopover()
+        ensurePopoverContent(for: rawId, popover: targetPopover)
         currentlyShownButton = button
         targetPopover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
         targetPopover.contentViewController?.view.window?.makeKey()
@@ -513,31 +578,34 @@ public final class MenuBarController: NSObject {
         if let existing = popovers[Self.fallbackStatusItemId] {
             targetPopover = existing
         } else {
-            let p = NSPopover()
-            p.behavior = .transient
-            p.animates = true
-            p.contentViewController = NSHostingController(
-                rootView: DetailPopoverView(
-                    coordinator: coordinator,
-                    preferences: preferences
-                )
-            )
+            let p = createFallbackPopover()
             popovers[Self.fallbackStatusItemId] = p
             targetPopover = p
         }
         hidePopover()
+        ensurePopoverContent(for: Self.fallbackStatusItemId, popover: targetPopover)
         currentlyShownButton = button
         targetPopover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
         targetPopover.contentViewController?.view.window?.makeKey()
     }
 
     public func hidePopover() {
+        if let button = currentlyShownButton,
+           let rawId = button.identifier?.rawValue,
+           let activePopover = popovers[rawId] {
+            if activePopover.isShown {
+                activePopover.performClose(nil)
+            }
+            activePopover.contentViewController = nil
+        }
         for (_, p) in popovers where p.isShown {
             p.performClose(nil)
+            p.contentViewController = nil
         }
         if fallbackPopover.isShown {
             fallbackPopover.performClose(nil)
         }
+        fallbackPopover.contentViewController = nil
         currentlyShownButton = nil
     }
 
@@ -660,6 +728,7 @@ public final class MenuBarController: NSObject {
 extension MenuBarController: NSPopoverDelegate {
     public func popoverDidClose(_ notification: Notification) {
         if let closed = notification.object as? NSPopover {
+            closed.contentViewController = nil
             if let button = currentlyShownButton,
                let rawId = button.identifier?.rawValue,
                popovers[rawId] === closed || fallbackPopover === closed {
