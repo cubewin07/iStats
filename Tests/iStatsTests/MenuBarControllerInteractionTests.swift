@@ -458,4 +458,62 @@ final class MenuBarControllerInteractionTests: XCTestCase {
         XCTAssertFalse(coord.isRunning)
         XCTAssertFalse(runningAfterRapidStop, "Scheduler must not remain running after rapid start() -> pauseSampling()")
     }
+
+    func testDisablingAutoPauseWhileAutoPausedResumesSampling() {
+        let suiteName = "iStats.test.autopause.disable.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        let prefs = PreferencesStore(userDefaults: defaults)
+        let coord = MetricsCoordinator(
+            scheduler: SampleScheduler(),
+            store: MetricsStore(),
+            preferencesStore: prefs,
+            lowPowerModeProvider: { true }
+        )
+        let controller = MenuBarController(preferences: prefs, coordinator: coord)
+        defer {
+            coord.stop()
+            cleanup(defaults: defaults, controller: controller, suiteName: suiteName)
+        }
+
+        // Starts auto-paused because Low Power Mode is active
+        XCTAssertTrue(prefs.isSamplingPaused)
+        XCTAssertTrue(coord.isAutoPausedByLowPowerMode)
+        XCTAssertFalse(coord.isRunning)
+
+        // User unchecks "Auto-pause on macOS Low Power Mode" -> should immediately resume sampling
+        prefs.autoPauseOnLowPowerMode = false
+        XCTAssertFalse(coord.isAutoPausedByLowPowerMode)
+        XCTAssertFalse(prefs.isSamplingPaused)
+        XCTAssertTrue(coord.isRunning)
+    }
+
+    func testAutoPausedStatePersistsAcrossCoordinatorRelaunch() {
+        let suiteName = "iStats.test.autopause.persist.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let prefs1 = PreferencesStore(userDefaults: defaults)
+        let coord1 = MetricsCoordinator(
+            scheduler: SampleScheduler(),
+            store: MetricsStore(),
+            preferencesStore: prefs1,
+            lowPowerModeProvider: { true }
+        )
+        XCTAssertTrue(prefs1.isSamplingPaused)
+        XCTAssertTrue(prefs1.isAutoPausedByLowPowerMode)
+        XCTAssertTrue(coord1.isAutoPausedByLowPowerMode)
+        coord1.stop()
+
+        // Relaunch with new PreferencesStore & MetricsCoordinator after LPM turned off
+        let prefs2 = PreferencesStore(userDefaults: defaults)
+        let coord2 = MetricsCoordinator(
+            scheduler: SampleScheduler(),
+            store: MetricsStore(),
+            preferencesStore: prefs2,
+            lowPowerModeProvider: { false }
+        )
+        XCTAssertTrue(prefs2.isSamplingPaused)
+        XCTAssertTrue(coord2.isAutoPausedByLowPowerMode, "Auto-paused banner reason must survive app relaunch")
+        coord2.stop()
+    }
 }

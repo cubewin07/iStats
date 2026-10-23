@@ -122,13 +122,16 @@ public final class MetricsCoordinator: ObservableObject {
         self.store = store
         self.preferencesStore = preferencesStore
         self.lowPowerModeProvider = provider
-        self.isLowPowerModeActive = provider()
+        self.isLowPowerModeActive = false
+        self.isAutoPausedByLowPowerMode = preferencesStore.isSamplingPaused && preferencesStore.isAutoPausedByLowPowerMode
 
         setupPreferencesObservation()
         setupLowPowerModeObservation()
 
-        if lowPowerModeProvider != nil {
+        if lowPowerModeProvider != nil || preferencesStore === PreferencesStore.shared {
             evaluateLowPowerModeState()
+        } else {
+            self.isLowPowerModeActive = provider()
         }
     }
 
@@ -157,11 +160,12 @@ public final class MetricsCoordinator: ObservableObject {
 
     /// Updates the sampling pause state in preferences and synchronizes the scheduler lifecycle (Issue #12).
     public func setSamplingPaused(_ paused: Bool) {
-        if !paused {
-            isAutoPausedByLowPowerMode = false
-            if lowPowerModeProvider() {
-                userOverrodeLowPowerPause = true
-            }
+        isAutoPausedByLowPowerMode = false
+        if preferencesStore.isAutoPausedByLowPowerMode {
+            preferencesStore.isAutoPausedByLowPowerMode = false
+        }
+        if !paused && lowPowerModeProvider() {
+            userOverrodeLowPowerPause = true
         }
         if preferencesStore.isSamplingPaused != paused {
             preferencesStore.isSamplingPaused = paused
@@ -201,6 +205,9 @@ public final class MetricsCoordinator: ObservableObject {
 
     private func pauseSamplingForLowPowerMode() {
         isAutoPausedByLowPowerMode = true
+        if !preferencesStore.isAutoPausedByLowPowerMode {
+            preferencesStore.isAutoPausedByLowPowerMode = true
+        }
         if !preferencesStore.isSamplingPaused {
             preferencesStore.isSamplingPaused = true
         }
@@ -388,6 +395,9 @@ public final class MetricsCoordinator: ObservableObject {
                     self.stop()
                 } else {
                     self.isAutoPausedByLowPowerMode = false
+                    if self.preferencesStore.isAutoPausedByLowPowerMode {
+                        self.preferencesStore.isAutoPausedByLowPowerMode = false
+                    }
                     if self.lowPowerModeProvider() {
                         self.userOverrodeLowPowerPause = true
                     }
@@ -404,7 +414,14 @@ public final class MetricsCoordinator: ObservableObject {
                     self.userOverrodeLowPowerPause = false
                     self.evaluateLowPowerModeState()
                 } else {
+                    let wasAutoPaused = self.isAutoPausedByLowPowerMode || self.preferencesStore.isAutoPausedByLowPowerMode
                     self.isAutoPausedByLowPowerMode = false
+                    if self.preferencesStore.isAutoPausedByLowPowerMode {
+                        self.preferencesStore.isAutoPausedByLowPowerMode = false
+                    }
+                    if wasAutoPaused && self.preferencesStore.isSamplingPaused {
+                        self.resumeSampling()
+                    }
                 }
             }
             .store(in: &cancellables)
