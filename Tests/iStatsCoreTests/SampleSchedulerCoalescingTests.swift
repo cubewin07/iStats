@@ -253,6 +253,48 @@ final class SampleSchedulerCoalescingTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(fastCount, 3)
         XCTAssertGreaterThanOrEqual(slowCount, 1)
     }
+
+    func testEnablingCategoryOnExistingCadenceTriggersImmediateSample() async {
+        // Use a long interval (10s) so the cadence loop sleeps after tick 1
+        let scheduler = SampleScheduler(defaultInterval: 10.0)
+        let cpuObserved = expectation(description: "Initial CPU sample")
+        let gpuObservedImmediately = expectation(description: "Newly enabled GPU sampled immediately without waiting 10s")
+
+        await scheduler.register(ConfigurableSampler(
+            category: .cpu,
+            output: CPUSample(totalUsage: 10, perCore: [10], user: 5, system: 5, idle: 90)
+        ))
+        await scheduler.register(ConfigurableSampler(
+            category: .gpu,
+            output: GPUSample(utilization: 42.0)
+        ))
+        await scheduler.setEnabled(category: .gpu, isEnabled: false)
+
+        let stream = scheduler.stream
+        let streamTask = Task {
+            var cpuDone = false
+            var gpuDone = false
+            for await reading in stream {
+                if reading.category == .cpu && !cpuDone {
+                    cpuDone = true
+                    cpuObserved.fulfill()
+                } else if reading.category == .gpu && !gpuDone {
+                    gpuDone = true
+                    gpuObservedImmediately.fulfill()
+                }
+            }
+        }
+
+        await scheduler.start()
+        await fulfillment(of: [cpuObserved], timeout: 1.0)
+
+        // Now enable GPU while the 10s cadence loop is already sleeping
+        await scheduler.setEnabled(category: .gpu, isEnabled: true)
+        await fulfillment(of: [gpuObservedImmediately], timeout: 1.0)
+
+        await scheduler.stop()
+        streamTask.cancel()
+    }
 }
 
 // Thread-safe wrapper for test state assertions
