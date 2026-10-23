@@ -29,6 +29,7 @@ public final class PreferencesStore: ObservableObject, @unchecked Sendable {
         public static let menuBarDisplayMode = "iStats.menuBarDisplayMode"
         public static let menuBarItems = "iStats.menuBarItems"
         public static let isSamplingPaused = "iStats.isSamplingPaused"
+        public static let isAutoPausedByLowPowerMode = "iStats.isAutoPausedByLowPowerMode"
         public static let autoPauseOnLowPowerMode = "iStats.autoPauseOnLowPowerMode"
 
         // Notification & Alert Keys
@@ -163,6 +164,16 @@ public final class PreferencesStore: ObservableObject, @unchecked Sendable {
     @Published public var isSamplingPaused: Bool {
         didSet {
             userDefaults.set(isSamplingPaused, forKey: Keys.isSamplingPaused)
+            if !isSamplingPaused && isAutoPausedByLowPowerMode {
+                isAutoPausedByLowPowerMode = false
+            }
+        }
+    }
+
+    /// Whether the current sampling pause was triggered automatically by macOS Low Power Mode (Issue #12).
+    @Published public var isAutoPausedByLowPowerMode: Bool {
+        didSet {
+            userDefaults.set(isAutoPausedByLowPowerMode, forKey: Keys.isAutoPausedByLowPowerMode)
         }
     }
 
@@ -383,7 +394,9 @@ public final class PreferencesStore: ObservableObject, @unchecked Sendable {
         }
 
         // Load sampling pause state (default: false) and Low Power Mode auto-pause (default: true)
-        self.isSamplingPaused = userDefaults.bool(forKey: Keys.isSamplingPaused)
+        let paused = userDefaults.bool(forKey: Keys.isSamplingPaused)
+        self.isSamplingPaused = paused
+        self.isAutoPausedByLowPowerMode = paused && userDefaults.bool(forKey: Keys.isAutoPausedByLowPowerMode)
         self.autoPauseOnLowPowerMode = userDefaults.object(forKey: Keys.autoPauseOnLowPowerMode) as? Bool ?? true
 
         // Load notifications and alert preferences
@@ -508,6 +521,7 @@ public final class PreferencesStore: ObservableObject, @unchecked Sendable {
         self.launchAtLogin = false
         self.menuBarDisplayMode = .cpu
         self.menuBarItems = MenuBarItemConfig.defaultConfigs()
+        self.isAutoPausedByLowPowerMode = false
         self.isSamplingPaused = false
         self.autoPauseOnLowPowerMode = true
 

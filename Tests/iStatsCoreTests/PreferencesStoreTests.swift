@@ -216,11 +216,22 @@ final class PreferencesStoreTests: XCTestCase {
 
         // Reset to defaults clears pause state and restores autoPauseOnLowPowerMode
         store2.setSamplingPaused(true)
+        store2.isAutoPausedByLowPowerMode = true
         store2.autoPauseOnLowPowerMode = false
         let store3 = PreferencesStore(userDefaults: testDefaults)
+        XCTAssertTrue(store3.isSamplingPaused)
+        XCTAssertTrue(store3.isAutoPausedByLowPowerMode)
         XCTAssertFalse(store3.autoPauseOnLowPowerMode)
+
+        // Resuming automatically clears isAutoPausedByLowPowerMode
+        store3.setSamplingPaused(false)
+        XCTAssertFalse(store3.isAutoPausedByLowPowerMode)
+
+        store3.setSamplingPaused(true)
+        store3.isAutoPausedByLowPowerMode = true
         store3.resetToDefaults()
         XCTAssertFalse(store3.isSamplingPaused)
+        XCTAssertFalse(store3.isAutoPausedByLowPowerMode)
         XCTAssertTrue(store3.autoPauseOnLowPowerMode)
     }
 }
