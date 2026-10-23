@@ -231,6 +231,7 @@ public struct DetailPopoverView: View {
                 .buttonStyle(.bordered)
                 .controlSize(.small)
                 .help(preferences.isSamplingPaused ? "Resume background sampling" : "Pause sampling to save battery")
+                .accessibilityLabel(preferences.isSamplingPaused ? "Resume Sampling" : "Pause Sampling")
 
                 Button("Preferences...") {
                     PreferencesWindowController.shared.showPreferences()
