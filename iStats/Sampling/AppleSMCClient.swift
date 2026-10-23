@@ -9,7 +9,15 @@ import IOKit
 public final class AppleSMCClient: @unchecked Sendable {
 
     /// Shared singleton instance.
-    public static let shared = AppleSMCClient()
+    public static let shared = AppleSMCClient(observeWake: true)
+
+    private static let wakeQueue: OperationQueue = {
+        let queue = OperationQueue()
+        queue.name = "com.istats.applesmc.wake"
+        queue.maxConcurrentOperationCount = 1
+        queue.qualityOfService = .utility
+        return queue
+    }()
 
     private let lock = NSLock()
     private var _connection: io_connect_t = 0
@@ -43,13 +51,15 @@ public final class AppleSMCClient: @unchecked Sendable {
 
     private var wakeObserver: NSObjectProtocol?
 
-    public init() {
-        wakeObserver = NSWorkspace.shared.notificationCenter.addObserver(
-            forName: NSWorkspace.didWakeNotification,
-            object: nil,
-            queue: nil
-        ) { [weak self] _ in
-            self?.invalidate()
+    public init(observeWake: Bool = false) {
+        if observeWake {
+            wakeObserver = NSWorkspace.shared.notificationCenter.addObserver(
+                forName: NSWorkspace.didWakeNotification,
+                object: nil,
+                queue: Self.wakeQueue
+            ) { [weak self] _ in
+                self?.invalidate()
+            }
         }
     }
 
