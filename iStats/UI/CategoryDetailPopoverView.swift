@@ -228,12 +228,12 @@ public struct SubsystemThermalPopoverView: View {
 
             Divider()
 
-            CategoryPopoverFooter()
+            CategoryPopoverFooter(preferences: preferences, coordinator: coordinator)
         }
         .padding(14)
         .frame(width: 330)
         .onAppear {
-            if !coordinator.isRunning {
+            if !coordinator.isRunning && !preferences.isSamplingPaused {
                 coordinator.start()
             }
         }
@@ -429,12 +429,12 @@ public struct ThermalPopoverView: View {
                 temperatureUnit: preferences.temperatureUnit
             )
             Divider()
-            CategoryPopoverFooter()
+            CategoryPopoverFooter(preferences: preferences, coordinator: coordinator)
         }
         .padding(14)
         .frame(width: 330)
         .onAppear {
-            if !coordinator.isRunning {
+            if !coordinator.isRunning && !preferences.isSamplingPaused {
                 coordinator.start()
             }
         }
@@ -608,11 +608,11 @@ public struct ThermalCPUPopoverView: View {
             }
 
             Divider()
-            CategoryPopoverFooter()
+            CategoryPopoverFooter(preferences: preferences, coordinator: coordinator)
         }
         .padding(14)
         .frame(width: 330)
-        .onAppear { if !coordinator.isRunning { coordinator.start() } }
+        .onAppear { if !coordinator.isRunning && !preferences.isSamplingPaused { coordinator.start() } }
         .onReceive(coordinator.$latestThermal) { newSample in
             sample = newSample?.value
             history = coordinator.thermalHistory
@@ -781,11 +781,11 @@ public struct ThermalGPUPopoverView: View {
             }
 
             Divider()
-            CategoryPopoverFooter()
+            CategoryPopoverFooter(preferences: preferences, coordinator: coordinator)
         }
         .padding(14)
         .frame(width: 330)
-        .onAppear { if !coordinator.isRunning { coordinator.start() } }
+        .onAppear { if !coordinator.isRunning && !preferences.isSamplingPaused { coordinator.start() } }
         .onReceive(coordinator.$latestThermal) { newSample in
             sample = newSample?.value
             history = coordinator.thermalHistory
@@ -910,11 +910,11 @@ public struct ThermalMemoryPopoverView: View {
             }
 
             Divider()
-            CategoryPopoverFooter()
+            CategoryPopoverFooter(preferences: preferences, coordinator: coordinator)
         }
         .padding(14)
         .frame(width: 330)
-        .onAppear { if !coordinator.isRunning { coordinator.start() } }
+        .onAppear { if !coordinator.isRunning && !preferences.isSamplingPaused { coordinator.start() } }
         .onReceive(coordinator.$latestThermal) { newSample in
             sample = newSample?.value
             history = coordinator.thermalHistory
@@ -1046,11 +1046,11 @@ public struct ThermalStoragePopoverView: View {
             }
 
             Divider()
-            CategoryPopoverFooter()
+            CategoryPopoverFooter(preferences: preferences, coordinator: coordinator)
         }
         .padding(14)
         .frame(width: 330)
-        .onAppear { if !coordinator.isRunning { coordinator.start() } }
+        .onAppear { if !coordinator.isRunning && !preferences.isSamplingPaused { coordinator.start() } }
         .onReceive(coordinator.$latestThermal) { newSample in
             sample = newSample?.value
             history = coordinator.thermalHistory
@@ -1184,11 +1184,11 @@ public struct ThermalBatteryPopoverView: View {
             }
 
             Divider()
-            CategoryPopoverFooter()
+            CategoryPopoverFooter(preferences: preferences, coordinator: coordinator)
         }
         .padding(14)
         .frame(width: 330)
-        .onAppear { if !coordinator.isRunning { coordinator.start() } }
+        .onAppear { if !coordinator.isRunning && !preferences.isSamplingPaused { coordinator.start() } }
         .onReceive(coordinator.$latestThermal) { newSample in
             sample = newSample?.value
             history = coordinator.thermalHistory
@@ -1286,11 +1286,11 @@ public struct ThermalRingPopoverView: View {
             }
 
             Divider()
-            CategoryPopoverFooter()
+            CategoryPopoverFooter(preferences: preferences, coordinator: coordinator)
         }
         .padding(14)
         .frame(width: 330)
-        .onAppear { if !coordinator.isRunning { coordinator.start() } }
+        .onAppear { if !coordinator.isRunning && !preferences.isSamplingPaused { coordinator.start() } }
         .onReceive(coordinator.$latestThermal) { newSample in
             sample = newSample?.value
             history = coordinator.thermalHistory
@@ -1470,11 +1470,11 @@ public struct ThermalHistoryPopoverView: View {
             }
 
             Divider()
-            CategoryPopoverFooter()
+            CategoryPopoverFooter(preferences: preferences, coordinator: coordinator)
         }
         .padding(14)
         .frame(width: 330)
-        .onAppear { if !coordinator.isRunning { coordinator.start() } }
+        .onAppear { if !coordinator.isRunning && !preferences.isSamplingPaused { coordinator.start() } }
         .onReceive(coordinator.$latestThermal) { newSample in
             sample = newSample?.value
             history = coordinator.thermalHistory
@@ -1513,12 +1513,12 @@ public struct CPUPopoverView: View {
             Divider()
             CPUSummaryView(sample: sample, history: history)
             Divider()
-            CategoryPopoverFooter()
+            CategoryPopoverFooter(preferences: preferences, coordinator: coordinator)
         }
         .padding(14)
         .frame(width: 330)
         .onAppear {
-            if !coordinator.isRunning {
+            if !coordinator.isRunning && !preferences.isSamplingPaused {
                 coordinator.start()
             }
         }
@@ -1630,12 +1630,12 @@ public struct CPUUserSystemPopoverView: View {
             }
 
             Divider()
-            CategoryPopoverFooter()
+            CategoryPopoverFooter(preferences: preferences, coordinator: coordinator)
         }
         .padding(14)
         .frame(width: 330)
         .onAppear {
-            if !coordinator.isRunning { coordinator.start() }
+            if !coordinator.isRunning && !preferences.isSamplingPaused { coordinator.start() }
         }
         .onReceive(coordinator.$latestCPU) { newSample in
             sample = newSample?.value
@@ -1772,12 +1772,12 @@ public struct CPUClusterPopoverView: View {
             }
 
             Divider()
-            CategoryPopoverFooter()
+            CategoryPopoverFooter(preferences: preferences, coordinator: coordinator)
         }
         .padding(14)
         .frame(width: 330)
         .onAppear {
-            if !coordinator.isRunning { coordinator.start() }
+            if !coordinator.isRunning && !preferences.isSamplingPaused { coordinator.start() }
         }
         .onReceive(coordinator.$latestCPU) { newSample in
             sample = newSample?.value
@@ -1884,12 +1884,12 @@ public struct CPUHistoryPopoverView: View {
             }
 
             Divider()
-            CategoryPopoverFooter()
+            CategoryPopoverFooter(preferences: preferences, coordinator: coordinator)
         }
         .padding(14)
         .frame(width: 330)
         .onAppear {
-            if !coordinator.isRunning { coordinator.start() }
+            if !coordinator.isRunning && !preferences.isSamplingPaused { coordinator.start() }
         }
         .onReceive(coordinator.$latestCPU) { newSample in
             sample = newSample?.value
@@ -1936,12 +1936,12 @@ public struct MemoryPopoverView: View {
                 byteStandard: preferences.byteUnitStandard
             )
             Divider()
-            CategoryPopoverFooter()
+            CategoryPopoverFooter(preferences: preferences, coordinator: coordinator)
         }
         .padding(14)
         .frame(width: 330)
         .onAppear {
-            if !coordinator.isRunning { coordinator.start() }
+            if !coordinator.isRunning && !preferences.isSamplingPaused { coordinator.start() }
         }
         .onReceive(coordinator.$latestMemory) { newSample in
             if overrideSample == nil {
@@ -2013,11 +2013,11 @@ public struct MemoryCompositionPopoverView: View {
             }
 
             Divider()
-            CategoryPopoverFooter()
+            CategoryPopoverFooter(preferences: preferences, coordinator: coordinator)
         }
         .padding(14)
         .frame(width: 330)
-        .onAppear { if !coordinator.isRunning { coordinator.start() } }
+        .onAppear { if !coordinator.isRunning && !preferences.isSamplingPaused { coordinator.start() } }
         .onReceive(coordinator.$latestMemory) { newSample in
             sample = newSample?.value
             history = coordinator.memoryHistory
@@ -2109,11 +2109,11 @@ public struct MemoryAllocationPopoverView: View {
             }
 
             Divider()
-            CategoryPopoverFooter()
+            CategoryPopoverFooter(preferences: preferences, coordinator: coordinator)
         }
         .padding(14)
         .frame(width: 330)
-        .onAppear { if !coordinator.isRunning { coordinator.start() } }
+        .onAppear { if !coordinator.isRunning && !preferences.isSamplingPaused { coordinator.start() } }
         .onReceive(coordinator.$latestMemory) { newSample in
             sample = newSample?.value
             history = coordinator.memoryHistory
@@ -2212,11 +2212,11 @@ public struct MemoryPressurePopoverView: View {
             .clipShape(RoundedRectangle(cornerRadius: 8))
 
             Divider()
-            CategoryPopoverFooter()
+            CategoryPopoverFooter(preferences: preferences, coordinator: coordinator)
         }
         .padding(14)
         .frame(width: 330)
-        .onAppear { if !coordinator.isRunning { coordinator.start() } }
+        .onAppear { if !coordinator.isRunning && !preferences.isSamplingPaused { coordinator.start() } }
         .onReceive(coordinator.$latestMemory) { newSample in
             sample = newSample?.value
             history = coordinator.memoryHistory
@@ -2325,11 +2325,11 @@ public struct MemoryHistoryPopoverView: View {
             }
 
             Divider()
-            CategoryPopoverFooter()
+            CategoryPopoverFooter(preferences: preferences, coordinator: coordinator)
         }
         .padding(14)
         .frame(width: 330)
-        .onAppear { if !coordinator.isRunning { coordinator.start() } }
+        .onAppear { if !coordinator.isRunning && !preferences.isSamplingPaused { coordinator.start() } }
         .onReceive(coordinator.$latestMemory) { newSample in
             sample = newSample?.value
             history = coordinator.memoryHistory
@@ -2375,11 +2375,11 @@ public struct GPUPopoverView: View {
                 byteStandard: preferences.byteUnitStandard
             )
             Divider()
-            CategoryPopoverFooter()
+            CategoryPopoverFooter(preferences: preferences, coordinator: coordinator)
         }
         .padding(14)
         .frame(width: 330)
-        .onAppear { if !coordinator.isRunning { coordinator.start() } }
+        .onAppear { if !coordinator.isRunning && !preferences.isSamplingPaused { coordinator.start() } }
         .onReceive(coordinator.$latestGPU) { newSample in
             if overrideSample == nil {
                 sample = newSample?.value
@@ -2489,11 +2489,11 @@ public struct GPULoadRingPopoverView: View {
             }
 
             Divider()
-            CategoryPopoverFooter()
+            CategoryPopoverFooter(preferences: preferences, coordinator: coordinator)
         }
         .padding(14)
         .frame(width: 330)
-        .onAppear { if !coordinator.isRunning { coordinator.start() } }
+        .onAppear { if !coordinator.isRunning && !preferences.isSamplingPaused { coordinator.start() } }
         .onReceive(coordinator.$latestGPU) { newSample in
             sample = newSample?.value
             history = coordinator.gpuHistory
@@ -2537,11 +2537,11 @@ public struct GPUEnginePopoverView: View {
             .clipShape(RoundedRectangle(cornerRadius: 8))
 
             Divider()
-            CategoryPopoverFooter()
+            CategoryPopoverFooter(preferences: preferences, coordinator: coordinator)
         }
         .padding(14)
         .frame(width: 330)
-        .onAppear { if !coordinator.isRunning { coordinator.start() } }
+        .onAppear { if !coordinator.isRunning && !preferences.isSamplingPaused { coordinator.start() } }
         .onReceive(coordinator.$latestGPU) { newSample in
             sample = newSample?.value
             history = coordinator.gpuHistory
@@ -2639,11 +2639,11 @@ public struct GPUDiePopoverView: View {
             .clipShape(RoundedRectangle(cornerRadius: 10))
 
             Divider()
-            CategoryPopoverFooter()
+            CategoryPopoverFooter(preferences: preferences, coordinator: coordinator)
         }
         .padding(14)
         .frame(width: 330)
-        .onAppear { if !coordinator.isRunning { coordinator.start() } }
+        .onAppear { if !coordinator.isRunning && !preferences.isSamplingPaused { coordinator.start() } }
         .onReceive(coordinator.$latestGPU) { newSample in
             sample = newSample?.value
             history = coordinator.gpuHistory
@@ -2736,11 +2736,11 @@ public struct GPUHistoryPopoverView: View {
             }
 
             Divider()
-            CategoryPopoverFooter()
+            CategoryPopoverFooter(preferences: preferences, coordinator: coordinator)
         }
         .padding(14)
         .frame(width: 330)
-        .onAppear { if !coordinator.isRunning { coordinator.start() } }
+        .onAppear { if !coordinator.isRunning && !preferences.isSamplingPaused { coordinator.start() } }
         .onReceive(coordinator.$latestGPU) { newSample in
             sample = newSample?.value
             history = coordinator.gpuHistory
@@ -2754,16 +2754,19 @@ public struct GPUHistoryPopoverView: View {
 
 public struct FanPopoverView: View {
     public let coordinator: MetricsCoordinator
+    @ObservedObject public var preferences: PreferencesStore
     public let overrideSample: FanSample?
     @State private var sample: FanSample?
     @State private var history: [Sample<FanSample>]
 
     public init(
         coordinator: MetricsCoordinator = .shared,
+        preferences: PreferencesStore = .shared,
         sample: FanSample? = nil,
         history: [Sample<FanSample>]? = nil
     ) {
         self.coordinator = coordinator
+        self.preferences = preferences
         self.overrideSample = sample
         _sample = State(initialValue: sample ?? coordinator.latestFan?.value)
         _history = State(initialValue: history ?? coordinator.fanHistory)
@@ -2775,11 +2778,11 @@ public struct FanPopoverView: View {
             Divider()
             FanSummaryView(sample: sample, history: history)
             Divider()
-            CategoryPopoverFooter()
+            CategoryPopoverFooter(preferences: preferences, coordinator: coordinator)
         }
         .padding(14)
         .frame(width: 330)
-        .onAppear { if !coordinator.isRunning { coordinator.start() } }
+        .onAppear { if !coordinator.isRunning && !preferences.isSamplingPaused { coordinator.start() } }
         .onReceive(coordinator.$latestFan) { newSample in
             if overrideSample == nil {
                 sample = newSample?.value
@@ -2880,11 +2883,11 @@ public struct FanDualRPMPopoverView: View {
             .padding(.horizontal, 4)
 
             Divider()
-            CategoryPopoverFooter()
+            CategoryPopoverFooter(preferences: preferences, coordinator: coordinator)
         }
         .padding(14)
         .frame(width: 330)
-        .onAppear { if !coordinator.isRunning { coordinator.start() } }
+        .onAppear { if !coordinator.isRunning && !preferences.isSamplingPaused { coordinator.start() } }
         .onReceive(coordinator.$latestFan) { newSample in
             sample = newSample?.value
             history = coordinator.fanHistory
@@ -2957,11 +2960,11 @@ public struct FanTachometerPopoverView: View {
             .clipShape(RoundedRectangle(cornerRadius: 10))
 
             Divider()
-            CategoryPopoverFooter()
+            CategoryPopoverFooter(preferences: preferences, coordinator: coordinator)
         }
         .padding(14)
         .frame(width: 330)
-        .onAppear { if !coordinator.isRunning { coordinator.start() } }
+        .onAppear { if !coordinator.isRunning && !preferences.isSamplingPaused { coordinator.start() } }
         .onReceive(coordinator.$latestFan) { newSample in
             sample = newSample?.value
             history = coordinator.fanHistory
@@ -3040,11 +3043,11 @@ public struct FanBladesPopoverView: View {
             .clipShape(RoundedRectangle(cornerRadius: 10))
 
             Divider()
-            CategoryPopoverFooter()
+            CategoryPopoverFooter(preferences: preferences, coordinator: coordinator)
         }
         .padding(14)
         .frame(width: 330)
-        .onAppear { if !coordinator.isRunning { coordinator.start() } }
+        .onAppear { if !coordinator.isRunning && !preferences.isSamplingPaused { coordinator.start() } }
         .onReceive(coordinator.$latestFan) { newSample in
             sample = newSample?.value
             history = coordinator.fanHistory
@@ -3114,11 +3117,11 @@ public struct FanBarsPopoverView: View {
             }
 
             Divider()
-            CategoryPopoverFooter()
+            CategoryPopoverFooter(preferences: preferences, coordinator: coordinator)
         }
         .padding(14)
         .frame(width: 330)
-        .onAppear { if !coordinator.isRunning { coordinator.start() } }
+        .onAppear { if !coordinator.isRunning && !preferences.isSamplingPaused { coordinator.start() } }
         .onReceive(coordinator.$latestFan) { newSample in
             sample = newSample?.value
             history = coordinator.fanHistory
@@ -3215,11 +3218,11 @@ public struct FanHistoryPopoverView: View {
             }
 
             Divider()
-            CategoryPopoverFooter()
+            CategoryPopoverFooter(preferences: preferences, coordinator: coordinator)
         }
         .padding(14)
         .frame(width: 330)
-        .onAppear { if !coordinator.isRunning { coordinator.start() } }
+        .onAppear { if !coordinator.isRunning && !preferences.isSamplingPaused { coordinator.start() } }
         .onReceive(coordinator.$latestFan) { newSample in
             sample = newSample?.value
             history = coordinator.fanHistory
@@ -3269,11 +3272,11 @@ public struct NetworkPopoverView: View {
                 byteStandard: preferences.byteUnitStandard
             )
             Divider()
-            CategoryPopoverFooter()
+            CategoryPopoverFooter(preferences: preferences, coordinator: coordinator)
         }
         .padding(14)
         .frame(width: 330)
-        .onAppear { if !coordinator.isRunning { coordinator.start() } }
+        .onAppear { if !coordinator.isRunning && !preferences.isSamplingPaused { coordinator.start() } }
         .onReceive(coordinator.$latestNetwork) { newSample in
             if overrideSample == nil {
                 sample = newSample?.value
@@ -3357,11 +3360,11 @@ public struct NetworkBarsPopoverView: View {
             .padding(.horizontal, 4)
 
             Divider()
-            CategoryPopoverFooter()
+            CategoryPopoverFooter(preferences: preferences, coordinator: coordinator)
         }
         .padding(14)
         .frame(width: 330)
-        .onAppear { if !coordinator.isRunning { coordinator.start() } }
+        .onAppear { if !coordinator.isRunning && !preferences.isSamplingPaused { coordinator.start() } }
         .onReceive(coordinator.$latestNetwork) { newSample in
             sample = newSample?.value
             history = coordinator.networkHistory
@@ -3434,11 +3437,11 @@ public struct NetworkDuplexHistoryPopoverView: View {
             .clipShape(RoundedRectangle(cornerRadius: 8))
 
             Divider()
-            CategoryPopoverFooter()
+            CategoryPopoverFooter(preferences: preferences, coordinator: coordinator)
         }
         .padding(14)
         .frame(width: 330)
-        .onAppear { if !coordinator.isRunning { coordinator.start() } }
+        .onAppear { if !coordinator.isRunning && !preferences.isSamplingPaused { coordinator.start() } }
         .onReceive(coordinator.$latestNetwork) { newSample in
             sample = newSample?.value
             history = coordinator.networkHistory
@@ -3483,11 +3486,11 @@ public struct NetworkDiagnosticsPopoverView: View {
             .clipShape(RoundedRectangle(cornerRadius: 8))
 
             Divider()
-            CategoryPopoverFooter()
+            CategoryPopoverFooter(preferences: preferences, coordinator: coordinator)
         }
         .padding(14)
         .frame(width: 330)
-        .onAppear { if !coordinator.isRunning { coordinator.start() } }
+        .onAppear { if !coordinator.isRunning && !preferences.isSamplingPaused { coordinator.start() } }
         .onReceive(coordinator.$latestNetwork) { newSample in
             sample = newSample?.value
             history = coordinator.networkHistory
@@ -3540,11 +3543,11 @@ public struct DiskPopoverView: View {
                 byteStandard: preferences.byteUnitStandard
             )
             Divider()
-            CategoryPopoverFooter()
+            CategoryPopoverFooter(preferences: preferences, coordinator: coordinator)
         }
         .padding(14)
         .frame(width: 330)
-        .onAppear { if !coordinator.isRunning { coordinator.start() } }
+        .onAppear { if !coordinator.isRunning && !preferences.isSamplingPaused { coordinator.start() } }
         .onReceive(coordinator.$latestDisk) { newSample in
             if overrideSample == nil {
                 sample = newSample?.value
@@ -3649,11 +3652,11 @@ public struct DiskStorageRingPopoverView: View {
             }
 
             Divider()
-            CategoryPopoverFooter()
+            CategoryPopoverFooter(preferences: preferences, coordinator: coordinator)
         }
         .padding(14)
         .frame(width: 330)
-        .onAppear { if !coordinator.isRunning { coordinator.start() } }
+        .onAppear { if !coordinator.isRunning && !preferences.isSamplingPaused { coordinator.start() } }
         .onReceive(coordinator.$latestDisk) { newSample in
             sample = newSample?.value
             history = coordinator.diskHistory
@@ -3724,11 +3727,11 @@ public struct DiskStorageTanksPopoverView: View {
             }
 
             Divider()
-            CategoryPopoverFooter()
+            CategoryPopoverFooter(preferences: preferences, coordinator: coordinator)
         }
         .padding(14)
         .frame(width: 330)
-        .onAppear { if !coordinator.isRunning { coordinator.start() } }
+        .onAppear { if !coordinator.isRunning && !preferences.isSamplingPaused { coordinator.start() } }
         .onReceive(coordinator.$latestDisk) { newSample in
             sample = newSample?.value
             history = coordinator.diskHistory
@@ -3801,11 +3804,11 @@ public struct DiskHistoryPopoverView: View {
             .clipShape(RoundedRectangle(cornerRadius: 8))
 
             Divider()
-            CategoryPopoverFooter()
+            CategoryPopoverFooter(preferences: preferences, coordinator: coordinator)
         }
         .padding(14)
         .frame(width: 330)
-        .onAppear { if !coordinator.isRunning { coordinator.start() } }
+        .onAppear { if !coordinator.isRunning && !preferences.isSamplingPaused { coordinator.start() } }
         .onReceive(coordinator.$latestDisk) { newSample in
             sample = newSample?.value
             history = coordinator.diskHistory
@@ -3906,11 +3909,11 @@ public struct DiskActivityLEDsPopoverView: View {
             }
 
             Divider()
-            CategoryPopoverFooter()
+            CategoryPopoverFooter(preferences: preferences, coordinator: coordinator)
         }
         .padding(14)
         .frame(width: 330)
-        .onAppear { if !coordinator.isRunning { coordinator.start() } }
+        .onAppear { if !coordinator.isRunning && !preferences.isSamplingPaused { coordinator.start() } }
         .onReceive(coordinator.$latestDisk) { newSample in
             sample = newSample?.value
             history = coordinator.diskHistory
@@ -3924,16 +3927,19 @@ public struct DiskActivityLEDsPopoverView: View {
 
 public struct PowerPopoverView: View {
     public let coordinator: MetricsCoordinator
+    @ObservedObject public var preferences: PreferencesStore
     public let overrideSample: PowerSample?
     @State private var sample: PowerSample?
     @State private var history: [Sample<PowerSample>]
 
     public init(
         coordinator: MetricsCoordinator = .shared,
+        preferences: PreferencesStore = .shared,
         sample: PowerSample? = nil,
         history: [Sample<PowerSample>]? = nil
     ) {
         self.coordinator = coordinator
+        self.preferences = preferences
         self.overrideSample = sample
         _sample = State(initialValue: sample ?? coordinator.latestPower?.value)
         _history = State(initialValue: history ?? coordinator.powerHistory)
@@ -3951,11 +3957,11 @@ public struct PowerPopoverView: View {
                 history: history
             )
             Divider()
-            CategoryPopoverFooter()
+            CategoryPopoverFooter(preferences: preferences, coordinator: coordinator)
         }
         .padding(14)
         .frame(width: 330)
-        .onAppear { if !coordinator.isRunning { coordinator.start() } }
+        .onAppear { if !coordinator.isRunning && !preferences.isSamplingPaused { coordinator.start() } }
         .onReceive(coordinator.$latestPower) { newSample in
             if overrideSample == nil {
                 sample = newSample?.value
@@ -4100,11 +4106,11 @@ public struct PowerWattagePopoverView: View {
             .clipShape(RoundedRectangle(cornerRadius: 8))
 
             Divider()
-            CategoryPopoverFooter()
+            CategoryPopoverFooter(preferences: preferences, coordinator: coordinator)
         }
         .padding(14)
         .frame(width: 330)
-        .onAppear { if !coordinator.isRunning { coordinator.start() } }
+        .onAppear { if !coordinator.isRunning && !preferences.isSamplingPaused { coordinator.start() } }
         .onReceive(coordinator.$latestPower) { newSample in
             sample = newSample?.value
             history = coordinator.powerHistory
@@ -4215,11 +4221,11 @@ public struct PowerChargeRingPopoverView: View {
             }
 
             Divider()
-            CategoryPopoverFooter()
+            CategoryPopoverFooter(preferences: preferences, coordinator: coordinator)
         }
         .padding(14)
         .frame(width: 330)
-        .onAppear { if !coordinator.isRunning { coordinator.start() } }
+        .onAppear { if !coordinator.isRunning && !preferences.isSamplingPaused { coordinator.start() } }
         .onReceive(coordinator.$latestPower) { newSample in
             sample = newSample?.value
             history = coordinator.powerHistory
@@ -4346,11 +4352,11 @@ public struct PowerBarPopoverView: View {
             .clipShape(RoundedRectangle(cornerRadius: 8))
 
             Divider()
-            CategoryPopoverFooter()
+            CategoryPopoverFooter(preferences: preferences, coordinator: coordinator)
         }
         .padding(14)
         .frame(width: 330)
-        .onAppear { if !coordinator.isRunning { coordinator.start() } }
+        .onAppear { if !coordinator.isRunning && !preferences.isSamplingPaused { coordinator.start() } }
         .onReceive(coordinator.$latestPower) { newSample in
             sample = newSample?.value
             history = coordinator.powerHistory
@@ -4503,11 +4509,11 @@ public struct PowerBudgetIllustrationPopoverView: View {
             .clipShape(RoundedRectangle(cornerRadius: 8))
 
             Divider()
-            CategoryPopoverFooter()
+            CategoryPopoverFooter(preferences: preferences, coordinator: coordinator)
         }
         .padding(14)
         .frame(width: 330)
-        .onAppear { if !coordinator.isRunning { coordinator.start() } }
+        .onAppear { if !coordinator.isRunning && !preferences.isSamplingPaused { coordinator.start() } }
         .onReceive(coordinator.$latestPower) { newSample in
             sample = newSample?.value
             history = coordinator.powerHistory
@@ -4602,11 +4608,11 @@ public struct PowerHistoryPopoverView: View {
             }
 
             Divider()
-            CategoryPopoverFooter()
+            CategoryPopoverFooter(preferences: preferences, coordinator: coordinator)
         }
         .padding(14)
         .frame(width: 330)
-        .onAppear { if !coordinator.isRunning { coordinator.start() } }
+        .onAppear { if !coordinator.isRunning && !preferences.isSamplingPaused { coordinator.start() } }
         .onReceive(coordinator.$latestPower) { newSample in
             sample = newSample?.value
             history = coordinator.powerHistory
@@ -4691,7 +4697,7 @@ public enum ConfigPopoverFactory {
         case (.fan, .sparkline):
             FanHistoryPopoverView(coordinator: coordinator, preferences: preferences)
         case (.fan, _):
-            FanPopoverView(coordinator: coordinator)
+            FanPopoverView(coordinator: coordinator, preferences: preferences)
 
         // MARK: Network Custom Popovers
         case (.network, .bar):
@@ -4723,13 +4729,13 @@ public enum ConfigPopoverFactory {
         case (.power, .bar):
             PowerBarPopoverView(coordinator: coordinator, preferences: preferences)
         case (.power, .symbol):
-            PowerPopoverView(coordinator: coordinator)
+            PowerPopoverView(coordinator: coordinator, preferences: preferences)
         case (.power, .sparkline):
             PowerHistoryPopoverView(coordinator: coordinator, preferences: preferences)
         case (.power, .text):
             PowerBudgetIllustrationPopoverView(coordinator: coordinator, preferences: preferences)
         case (.power, _):
-            PowerPopoverView(coordinator: coordinator)
+            PowerPopoverView(coordinator: coordinator, preferences: preferences)
         }
     }
 
@@ -4804,7 +4810,7 @@ public enum ConfigPopoverFactory {
         case (.fan, .sparkline):
             return NSHostingController(rootView: FanHistoryPopoverView(coordinator: coordinator, preferences: preferences))
         case (.fan, _):
-            return NSHostingController(rootView: FanPopoverView(coordinator: coordinator))
+            return NSHostingController(rootView: FanPopoverView(coordinator: coordinator, preferences: preferences))
 
         // MARK: Network Custom Popovers
         case (.network, .bar):
@@ -4836,13 +4842,13 @@ public enum ConfigPopoverFactory {
         case (.power, .bar):
             return NSHostingController(rootView: PowerBarPopoverView(coordinator: coordinator, preferences: preferences))
         case (.power, .symbol):
-            return NSHostingController(rootView: PowerPopoverView(coordinator: coordinator))
+            return NSHostingController(rootView: PowerPopoverView(coordinator: coordinator, preferences: preferences))
         case (.power, .sparkline):
             return NSHostingController(rootView: PowerHistoryPopoverView(coordinator: coordinator, preferences: preferences))
         case (.power, .text):
             return NSHostingController(rootView: PowerBudgetIllustrationPopoverView(coordinator: coordinator, preferences: preferences))
         case (.power, _):
-            return NSHostingController(rootView: PowerPopoverView(coordinator: coordinator))
+            return NSHostingController(rootView: PowerPopoverView(coordinator: coordinator, preferences: preferences))
         }
     }
 }
@@ -4923,6 +4929,7 @@ public struct CategoryDetailPopoverView: View {
         case .fan:
             FanPopoverView(
                 coordinator: coordinator,
+                preferences: preferences,
                 sample: overrideFanSample
             )
         case .network:
@@ -4940,6 +4947,7 @@ public struct CategoryDetailPopoverView: View {
         case .power:
             PowerPopoverView(
                 coordinator: coordinator,
+                preferences: preferences,
                 sample: overridePowerSample
             )
         }
