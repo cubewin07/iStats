@@ -191,4 +191,47 @@ final class PreferencesStoreTests: XCTestCase {
         XCTAssertEqual(PreferencesStore.MenuBarDisplayMode.thermal.displayName, "SoC Temperature")
         XCTAssertEqual(PreferencesStore.MenuBarDisplayMode.gpu.displayName, "GPU Usage")
     }
+
+    func testSamplingPausedPersistenceActiveMenuBarItemsAndReset() {
+        let store1 = PreferencesStore(userDefaults: testDefaults)
+        XCTAssertFalse(store1.isSamplingPaused)
+        XCTAssertFalse(store1.activeMenuBarItems.isEmpty)
+        let savedItems = store1.menuBarItems
+
+        // Pause sampling -> activeMenuBarItems collapses to empty while preserving menuBarItems
+        store1.setSamplingPaused(true)
+        XCTAssertTrue(store1.isSamplingPaused)
+        XCTAssertTrue(store1.activeMenuBarItems.isEmpty)
+        XCTAssertEqual(store1.menuBarItems, savedItems)
+
+        // Persistence across instances
+        let store2 = PreferencesStore(userDefaults: testDefaults)
+        XCTAssertTrue(store2.isSamplingPaused)
+        XCTAssertTrue(store2.activeMenuBarItems.isEmpty)
+
+        // Toggle back to active
+        store2.toggleSamplingPaused()
+        XCTAssertFalse(store2.isSamplingPaused)
+        XCTAssertEqual(store2.activeMenuBarItems, savedItems)
+
+        // Reset to defaults clears pause state and restores autoPauseOnLowPowerMode
+        store2.setSamplingPaused(true)
+        store2.isAutoPausedByLowPowerMode = true
+        store2.autoPauseOnLowPowerMode = false
+        let store3 = PreferencesStore(userDefaults: testDefaults)
+        XCTAssertTrue(store3.isSamplingPaused)
+        XCTAssertTrue(store3.isAutoPausedByLowPowerMode)
+        XCTAssertFalse(store3.autoPauseOnLowPowerMode)
+
+        // Resuming automatically clears isAutoPausedByLowPowerMode
+        store3.setSamplingPaused(false)
+        XCTAssertFalse(store3.isAutoPausedByLowPowerMode)
+
+        store3.setSamplingPaused(true)
+        store3.isAutoPausedByLowPowerMode = true
+        store3.resetToDefaults()
+        XCTAssertFalse(store3.isSamplingPaused)
+        XCTAssertFalse(store3.isAutoPausedByLowPowerMode)
+        XCTAssertTrue(store3.autoPauseOnLowPowerMode)
+    }
 }

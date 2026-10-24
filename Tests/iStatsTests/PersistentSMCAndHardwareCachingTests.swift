@@ -116,4 +116,32 @@ final class PersistentSMCAndHardwareCachingTests: XCTestCase {
         let unknown2 = unknownBytes.withUnsafeBytes { client.decodeNumericValue(buffer: $0, size: 2, type: "flag") }
         XCTAssertNil(unknown2, "Unknown 2-byte SMC type must not be decoded as sp78")
     }
+
+    func testSMCSensorCacheRetriesWhenInitialDiscoveryIsEmpty() {
+        let cache = HostThermalInfoProvider.SMCSensorCache()
+        let candidates = [
+            HostThermalInfoProvider.SMCSensorDescriptor(key: "Te05", label: "Efficiency Cores Cluster")
+        ]
+
+        // 1. Initial call fails / returns nil -> empty result should NOT be permanently cached
+        let firstAttempt = cache.getOrDiscoverSensors(candidates: candidates) { _ in nil }
+        XCTAssertTrue(firstAttempt.isEmpty)
+
+        // 2. Subsequent call when SMC becomes ready must re-run discovery and cache valid sensors
+        var readCount = 0
+        let secondAttempt = cache.getOrDiscoverSensors(candidates: candidates) { _ in
+            readCount += 1
+            return 45.0
+        }
+        XCTAssertEqual(secondAttempt.count, 1)
+        XCTAssertEqual(readCount, 1)
+
+        // 3. Third call uses cached active sensors without re-probing inside getOrDiscoverSensors
+        let thirdAttempt = cache.getOrDiscoverSensors(candidates: candidates) { _ in
+            readCount += 1
+            return 46.0
+        }
+        XCTAssertEqual(thirdAttempt.count, 1)
+        XCTAssertEqual(readCount, 1)
+    }
 }

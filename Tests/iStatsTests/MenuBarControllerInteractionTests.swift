@@ -324,4 +324,224 @@ final class MenuBarControllerInteractionTests: XCTestCase {
         XCTAssertTrue(controller.popover(for: chargeBar.id)?.contentViewController is NSHostingController<PowerBarPopoverView>)
         XCTAssertTrue(controller.popover(for: wattageHistory.id)?.contentViewController is NSHostingController<PowerHistoryPopoverView>)
     }
+
+    func testPauseSamplingStopsCoordinatorAndShowsMinimalIcon() {
+        let (defaults, prefs, coord, controller, suiteName) = makeContext()
+        defer {
+            coord.stop()
+            cleanup(defaults: defaults, controller: controller, suiteName: suiteName)
+        }
+
+        let cpuItem = MenuBarItemConfig(category: .cpu, style: .gauge)
+        let memItem = MenuBarItemConfig(category: .memory, style: .bar)
+        prefs.menuBarItems = [cpuItem, memItem]
+        controller.syncStatusItems()
+
+        coord.start()
+        XCTAssertTrue(coord.isRunning)
+        XCTAssertEqual(controller.statusItems.count, 2)
+        XCTAssertNil(controller.statusItems[MenuBarController.fallbackStatusItemId])
+
+        // 1. Pause sampling -> stops coordinator and collapses menu bar to minimal icon
+        controller.toggleSamplingPaused()
+        XCTAssertTrue(prefs.isSamplingPaused)
+        XCTAssertFalse(coord.isRunning)
+        XCTAssertEqual(controller.statusItems.count, 1)
+        XCTAssertNotNil(controller.statusItems[MenuBarController.fallbackStatusItemId])
+
+        guard let fallbackButton = controller.statusItems[MenuBarController.fallbackStatusItemId]?.button else {
+            XCTFail("Minimal fallback icon button must exist when sampling is paused")
+            return
+        }
+        XCTAssertEqual(fallbackButton.toolTip, "iStats (Sampling Paused — Click to resume or open settings)")
+
+        // 2. Clicking the minimal icon opens DetailPopoverView and does NOT auto-restart sampling while paused
+        controller.statusItemClicked(fallbackButton)
+        XCTAssertTrue(controller.currentlyShownButton === fallbackButton)
+        XCTAssertTrue(controller.popover.contentViewController is NSHostingController<DetailPopoverView>)
+        coord.start() // Simulates .onAppear guard check
+        XCTAssertFalse(coord.isRunning, "Coordinator must remain stopped while isSamplingPaused is true")
+        controller.hidePopover()
+
+        // 3. Resume sampling -> restarts coordinator and restores configured menu bar widgets
+        controller.toggleSamplingPaused()
+        XCTAssertFalse(prefs.isSamplingPaused)
+        XCTAssertTrue(coord.isRunning)
+        XCTAssertEqual(controller.statusItems.count, 2)
+        XCTAssertNil(controller.statusItems[MenuBarController.fallbackStatusItemId])
+        XCTAssertNotNil(controller.statusItems[cpuItem.id])
+        XCTAssertNotNil(controller.statusItems[memItem.id])
+    }
+
+    func testLowPowerModeAutoPausesUntilUserManuallyResumes() {
+        let suiteName = "iStats.test.lowpower.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        let prefs = PreferencesStore(userDefaults: defaults)
+        let scheduler = SampleScheduler()
+        let store = MetricsStore()
+
+        final class LowPowerBox: @unchecked Sendable {
+            var isLowPower = false
+        }
+        let box = LowPowerBox()
+
+        let coord = MetricsCoordinator(
+            scheduler: scheduler,
+            store: store,
+            preferencesStore: prefs,
+            lowPowerModeProvider: { box.isLowPower }
+        )
+        let controller = MenuBarController(preferences: prefs, coordinator: coord)
+        defer {
+            coord.stop()
+            cleanup(defaults: defaults, controller: controller, suiteName: suiteName)
+        }
+
+        let cpuItem = MenuBarItemConfig(category: .cpu, style: .gauge)
+        prefs.menuBarItems = [cpuItem]
+        controller.syncStatusItems()
+
+        // 1. Start in normal power mode
+        coord.start()
+        XCTAssertTrue(coord.isRunning)
+        XCTAssertFalse(prefs.isSamplingPaused)
+        XCTAssertFalse(coord.isAutoPausedByLowPowerMode)
+
+        // 2. macOS enters Low Power Mode -> auto-pauses sampling and shows minimal icon
+        box.isLowPower = true
+        coord.evaluateLowPowerModeState()
+        controller.syncStatusItems()
+
+        XCTAssertTrue(coord.isLowPowerModeActive)
+        XCTAssertTrue(coord.isAutoPausedByLowPowerMode)
+        XCTAssertTrue(prefs.isSamplingPaused)
+        XCTAssertFalse(coord.isRunning)
+        XCTAssertNotNil(controller.statusItems[MenuBarController.fallbackStatusItemId])
+
+        // 3. User manually resumes while still in Low Power Mode -> stays running (override respected)
+        coord.resumeSampling()
+        controller.syncStatusItems()
+        XCTAssertTrue(coord.isRunning)
+        XCTAssertFalse(prefs.isSamplingPaused)
+        XCTAssertFalse(coord.isAutoPausedByLowPowerMode)
+        XCTAssertNotNil(controller.statusItems[cpuItem.id])
+
+        // Re-evaluating while still in the same Low Power Mode session does not re-pause
+        coord.evaluateLowPowerModeState()
+        XCTAssertTrue(coord.isRunning)
+        XCTAssertFalse(prefs.isSamplingPaused)
+
+        // 4. Low Power Mode turns off, then later turns back on -> auto-pauses again and stays paused even if LPM turns off until user resumes
+        box.isLowPower = false
+        coord.evaluateLowPowerModeState()
+        box.isLowPower = true
+        coord.evaluateLowPowerModeState()
+        XCTAssertTrue(prefs.isSamplingPaused)
+        XCTAssertFalse(coord.isRunning)
+
+        box.isLowPower = false
+        coord.evaluateLowPowerModeState()
+        XCTAssertTrue(prefs.isSamplingPaused, "Must remain paused until user explicitly turns it back on")
+        XCTAssertFalse(coord.isRunning)
+    }
+
+    func testRapidStartStopDoesNotLeaveSchedulerRunningAndPreservesSamplers() async {
+        let (defaults, prefs, coord, controller, suiteName) = makeContext()
+        defer { cleanup(defaults: defaults, controller: controller, suiteName: suiteName) }
+
+        // Rapidly start and immediately pause/stop before async registration finishes
+        coord.start()
+        coord.pauseSampling()
+
+        try? await Task.sleep(nanoseconds: 100_000_000)
+        let runningAfterRapidStop = await coord.scheduler.isRunning
+        XCTAssertFalse(coord.isRunning)
+        XCTAssertFalse(runningAfterRapidStop, "Scheduler must not remain running after rapid start() -> pauseSampling()")
+    }
+
+    func testDisablingAutoPauseWhileAutoPausedResumesSampling() {
+        let suiteName = "iStats.test.autopause.disable.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        let prefs = PreferencesStore(userDefaults: defaults)
+        let coord = MetricsCoordinator(
+            scheduler: SampleScheduler(),
+            store: MetricsStore(),
+            preferencesStore: prefs,
+            lowPowerModeProvider: { true }
+        )
+        let controller = MenuBarController(preferences: prefs, coordinator: coord)
+        defer {
+            coord.stop()
+            cleanup(defaults: defaults, controller: controller, suiteName: suiteName)
+        }
+
+        // Starts auto-paused because Low Power Mode is active
+        XCTAssertTrue(prefs.isSamplingPaused)
+        XCTAssertTrue(coord.isAutoPausedByLowPowerMode)
+        XCTAssertFalse(coord.isRunning)
+
+        // User unchecks "Auto-pause on macOS Low Power Mode" -> should immediately resume sampling
+        prefs.autoPauseOnLowPowerMode = false
+        XCTAssertFalse(coord.isAutoPausedByLowPowerMode)
+        XCTAssertFalse(prefs.isSamplingPaused)
+        XCTAssertTrue(coord.isRunning)
+    }
+
+    func testAutoPausedStatePersistsAcrossCoordinatorRelaunch() {
+        let suiteName = "iStats.test.autopause.persist.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let prefs1 = PreferencesStore(userDefaults: defaults)
+        let coord1 = MetricsCoordinator(
+            scheduler: SampleScheduler(),
+            store: MetricsStore(),
+            preferencesStore: prefs1,
+            lowPowerModeProvider: { true }
+        )
+        XCTAssertTrue(prefs1.isSamplingPaused)
+        XCTAssertTrue(prefs1.isAutoPausedByLowPowerMode)
+        XCTAssertTrue(coord1.isAutoPausedByLowPowerMode)
+        coord1.stop()
+
+        // Relaunch with new PreferencesStore & MetricsCoordinator after LPM turned off
+        let prefs2 = PreferencesStore(userDefaults: defaults)
+        let coord2 = MetricsCoordinator(
+            scheduler: SampleScheduler(),
+            store: MetricsStore(),
+            preferencesStore: prefs2,
+            lowPowerModeProvider: { false }
+        )
+        XCTAssertTrue(prefs2.isSamplingPaused)
+        XCTAssertTrue(coord2.isAutoPausedByLowPowerMode, "Auto-paused banner reason must survive app relaunch")
+        coord2.stop()
+    }
+
+    func testFallbackPopoverDelegateClearsCurrentlyShownButtonOnTransientClose() {
+        let (defaults, prefs, _, controller, suiteName) = makeContext()
+        defer { cleanup(defaults: defaults, controller: controller, suiteName: suiteName) }
+
+        prefs.menuBarItems = []
+        controller.syncStatusItems()
+
+        guard let fallbackButton = controller.statusItems[MenuBarController.fallbackStatusItemId]?.button,
+              let fallbackPopover = controller.popover(for: MenuBarController.fallbackStatusItemId) else {
+            XCTFail("Fallback status item and popover must exist")
+            return
+        }
+
+        XCTAssertTrue(fallbackPopover.delegate === controller, "Fallback popover must set controller as delegate")
+
+        // 1. Click fallback button -> opens popover
+        controller.statusItemClicked(fallbackButton)
+        XCTAssertTrue(controller.currentlyShownButton === fallbackButton)
+
+        // 2. Simulate transient close when user clicks outside popover
+        controller.popoverDidClose(Notification(name: NSPopover.didCloseNotification, object: fallbackPopover))
+        XCTAssertNil(controller.currentlyShownButton, "popoverDidClose must clear currentlyShownButton")
+
+        // 3. Next click on fallback button must re-open popover instead of being swallowed
+        controller.statusItemClicked(fallbackButton)
+        XCTAssertTrue(controller.currentlyShownButton === fallbackButton)
+    }
 }

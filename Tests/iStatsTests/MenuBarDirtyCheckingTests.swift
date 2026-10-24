@@ -427,4 +427,57 @@ final class MenuBarDirtyCheckingTests: XCTestCase {
         XCTAssertTrue(netBtn?.image === netImg1, "Network arrows NSImage pointer must be reused from cache when activity state is unchanged")
         XCTAssertNotEqual(netBtn?.toolTip, netTip1, "Network arrows tooltip must update when live throughput rate changes")
     }
+
+    func testVisualKeyDistinguishesNilFromZeroForPowerAndGPU() {
+        let pwrTpNil = MenuBarIconRenderer.visualKeyForPower(
+            style: .throughput,
+            power: PowerSample(hasBattery: true, powerDrawWatts: nil, adapterWatts: nil)
+        )
+        let pwrTpZero = MenuBarIconRenderer.visualKeyForPower(
+            style: .throughput,
+            power: PowerSample(hasBattery: true, powerDrawWatts: 0.0, adapterWatts: 0.0)
+        )
+        XCTAssertNotEqual(pwrTpNil, pwrTpZero, "Power .throughput visualKey must distinguish nil ('--W'/'AC') from 0.0 ('0W'/'0W')")
+
+        let pwrSymNil = MenuBarIconRenderer.visualKeyForPower(
+            style: .symbol,
+            power: PowerSample(hasBattery: true, charge: nil, state: .unknown)
+        )
+        let pwrSymZero = MenuBarIconRenderer.visualKeyForPower(
+            style: .symbol,
+            power: PowerSample(hasBattery: true, charge: 0.0, state: .unknown)
+        )
+        XCTAssertNotEqual(pwrSymNil, pwrSymZero, "Power .symbol visualKey must distinguish nil charge from 0% charge")
+
+        let gpuGaugeNil = MenuBarIconRenderer.visualKeyForGPU(
+            style: .gauge,
+            gpu: GPUSample(utilization: 30.0, tempCelsius: nil)
+        )
+        let gpuGaugeZero = MenuBarIconRenderer.visualKeyForGPU(
+            style: .gauge,
+            gpu: GPUSample(utilization: 30.0, tempCelsius: 0.0)
+        )
+        XCTAssertNotEqual(gpuGaugeNil, gpuGaugeZero, "GPU .gauge visualKey must distinguish nil temp (purple) from 0°C (green)")
+    }
+
+    func testFanGaugeAndBarIgnoreSingleRPMJitterAtSamePercentage() {
+        let fan1 = FanSample(fans: [FanReading(name: "Fan 1", rpm: 2100, minRPM: 1200, maxRPM: 5000)])
+        let fan2 = FanSample(fans: [FanReading(name: "Fan 1", rpm: 2101, minRPM: 1200, maxRPM: 5000)])
+
+        XCTAssertEqual(
+            MenuBarIconRenderer.visualKeyForFan(style: .gauge, fan: fan1),
+            MenuBarIconRenderer.visualKeyForFan(style: .gauge, fan: fan2),
+            "Fan .gauge visualKey must not churn on 1 RPM jitter when rounded percentage is unchanged"
+        )
+        XCTAssertEqual(
+            MenuBarIconRenderer.visualKeyForFan(style: .bar, fan: fan1),
+            MenuBarIconRenderer.visualKeyForFan(style: .bar, fan: fan2),
+            "Fan .bar visualKey must not churn on 1 RPM jitter when rounded percentage is unchanged"
+        )
+        XCTAssertNotEqual(
+            MenuBarIconRenderer.visualKeyForFan(style: .throughput, fan: fan1),
+            MenuBarIconRenderer.visualKeyForFan(style: .throughput, fan: fan2),
+            "Fan .throughput visualKey must still update on exact RPM change"
+        )
+    }
 }

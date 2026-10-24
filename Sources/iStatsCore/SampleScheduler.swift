@@ -325,13 +325,24 @@ public actor SampleScheduler {
 
     /// Enables or disables sampling for a specific metric category.
     public func setEnabled(category: MetricCategory, isEnabled: Bool) {
+        let wasEnabled = enabledCategories.contains(category)
         if isEnabled {
             enabledCategories.insert(category)
         } else {
             enabledCategories.remove(category)
         }
         if isRunning {
+            let cadence = CadenceKey(interval(for: category))
+            let cadenceAlreadyRunning = cadenceTasks[cadence] != nil
             syncCadenceLoops()
+            if isEnabled && !wasEnabled && cadenceAlreadyRunning && samplers[category] != nil {
+                Task(priority: .utility) { [weak self] in
+                    guard let self = self else { return }
+                    if let reading = await self.sampleOnce(category: category) {
+                        await self.publish(reading)
+                    }
+                }
+            }
         }
     }
 
@@ -438,6 +449,7 @@ public actor SampleScheduler {
     private enum CadenceGroupEvent: Sendable {
         case reading(MetricReading)
         case flushWindowExpired
+        case timeoutExpired
     }
 
     private func activeSamplers(for cadence: CadenceKey) -> [AnySampler] {
@@ -462,13 +474,14 @@ public actor SampleScheduler {
                 guard !samplersToRun.isEmpty else { break }
                 let timeout = await self.timeBudget
                 let flushWindowMs = max(10, min(50, Int((timeout * 500.0).rounded())))
+                let timeoutMs = max(1, Int((timeout * 1000.0).rounded()))
 
                 // Batch dispatch all active categories concurrently on utility priority,
-                // flushing fast samplers early if a sibling sampler stalls.
+                // flushing fast samplers early if a sibling sampler stalls, with a single batch timeout watchdog.
                 await withTaskGroup(of: CadenceGroupEvent.self) { group in
                     for sampler in samplersToRun {
                         group.addTask(priority: .utility) {
-                            let r = await self.sampleWithTimeout(sampler: sampler, timeout: timeout)
+                            let r = Self.sampleDirect(sampler: sampler, timeout: timeout)
                             return .reading(r)
                         }
                     }
@@ -476,15 +489,22 @@ public actor SampleScheduler {
                         try? await clock.sleep(for: .milliseconds(flushWindowMs))
                         return .flushWindowExpired
                     }
+                    group.addTask(priority: .utility) {
+                        try? await clock.sleep(for: .milliseconds(timeoutMs))
+                        return .timeoutExpired
+                    }
 
                     let expectedCount = samplersToRun.count
                     var receivedCount = 0
+                    var completedCategories = Set<MetricCategory>()
                     var pendingBatch: [MetricReading] = []
                     pendingBatch.reserveCapacity(expectedCount)
 
                     for await event in group {
                         switch event {
                         case .reading(let reading):
+                            guard !completedCategories.contains(reading.category) else { continue }
+                            completedCategories.insert(reading.category)
                             receivedCount += 1
                             await self.publishIndividual(reading)
                             pendingBatch.append(reading)
@@ -495,6 +515,22 @@ public actor SampleScheduler {
                             if !pendingBatch.isEmpty && receivedCount < expectedCount {
                                 await self.publishBatch(pendingBatch)
                                 pendingBatch.removeAll(keepingCapacity: true)
+                            }
+                        case .timeoutExpired:
+                            if receivedCount < expectedCount {
+                                let now = Date()
+                                for sampler in samplersToRun where !completedCategories.contains(sampler.category) {
+                                    completedCategories.insert(sampler.category)
+                                    receivedCount += 1
+                                    let timedOutReading = MetricReading.unavailable(
+                                        category: sampler.category,
+                                        reason: "Sample timed out after \(timeout)s",
+                                        timestamp: now
+                                    )
+                                    await self.publishIndividual(timedOutReading)
+                                    pendingBatch.append(timedOutReading)
+                                }
+                                group.cancelAll()
                             }
                         }
                     }
@@ -523,6 +559,40 @@ public actor SampleScheduler {
         }
     }
 
+    private nonisolated static func sampleDirect(
+        sampler: AnySampler,
+        timestamp: Date = Date(),
+        timeout: TimeInterval = 2.0
+    ) -> MetricReading {
+        let category = sampler.category
+        do {
+            let output = try sampler.sample()
+            return MetricReading.wrap(category: category, value: output, timestamp: timestamp)
+        } catch let error as SamplerError {
+            return wrapError(error, category: category, timestamp: timestamp, timeout: timeout)
+        } catch {
+            return .unavailable(category: category, reason: error.localizedDescription, timestamp: timestamp)
+        }
+    }
+
+    private nonisolated static func wrapError(
+        _ error: SamplerError,
+        category: MetricCategory,
+        timestamp: Date,
+        timeout: TimeInterval
+    ) -> MetricReading {
+        let reason: String
+        switch error {
+        case .unsupported(let msg):
+            reason = "Unsupported: \(msg)"
+        case .systemCallFailed(let msg):
+            reason = "System call failed: \(msg)"
+        case .timedOut:
+            reason = "Sample timed out after \(timeout)s"
+        }
+        return .unavailable(category: category, reason: reason, timestamp: timestamp)
+    }
+
     private func sampleWithTimeout(sampler: AnySampler, timeout: TimeInterval) async -> MetricReading {
         let category = sampler.category
         let timestamp = Date()
@@ -546,16 +616,7 @@ public actor SampleScheduler {
             }
             return MetricReading.wrap(category: category, value: output, timestamp: timestamp)
         } catch let error as SamplerError {
-            let reason: String
-            switch error {
-            case .unsupported(let msg):
-                reason = "Unsupported: \(msg)"
-            case .systemCallFailed(let msg):
-                reason = "System call failed: \(msg)"
-            case .timedOut:
-                reason = "Sample timed out after \(timeout)s"
-            }
-            return .unavailable(category: category, reason: reason, timestamp: timestamp)
+            return Self.wrapError(error, category: category, timestamp: timestamp, timeout: timeout)
         } catch {
             return .unavailable(category: category, reason: error.localizedDescription, timestamp: timestamp)
         }
