@@ -17,6 +17,9 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         // Register system notifications delegate and sync status
         NotificationManager.shared.register()
 
+        // Evaluate macOS Low Power Mode before starting background metrics collection
+        MetricsCoordinator.shared.evaluateLowPowerModeState()
+
         // Start background metrics collection
         MetricsCoordinator.shared.start()
 

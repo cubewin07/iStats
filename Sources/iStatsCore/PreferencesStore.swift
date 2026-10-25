@@ -28,6 +28,9 @@ public final class PreferencesStore: ObservableObject, @unchecked Sendable {
         public static let launchAtLogin = "iStats.launchAtLogin"
         public static let menuBarDisplayMode = "iStats.menuBarDisplayMode"
         public static let menuBarItems = "iStats.menuBarItems"
+        public static let isSamplingPaused = "iStats.isSamplingPaused"
+        public static let isAutoPausedByLowPowerMode = "iStats.isAutoPausedByLowPowerMode"
+        public static let autoPauseOnLowPowerMode = "iStats.autoPauseOnLowPowerMode"
 
         // Notification & Alert Keys
         public static let notificationsEnabled = "iStats.notificationsEnabled"
@@ -153,6 +156,32 @@ public final class PreferencesStore: ObservableObject, @unchecked Sendable {
             if let data = try? JSONEncoder().encode(menuBarItems) {
                 userDefaults.set(data, forKey: Keys.menuBarItems)
             }
+        }
+    }
+
+    /// Whether background hardware sampling is paused to save battery (Issue #12).
+    /// When true, all background samplers stop and the menu bar shows a single minimal app icon.
+    @Published public var isSamplingPaused: Bool {
+        didSet {
+            userDefaults.set(isSamplingPaused, forKey: Keys.isSamplingPaused)
+            if !isSamplingPaused && isAutoPausedByLowPowerMode {
+                isAutoPausedByLowPowerMode = false
+            }
+        }
+    }
+
+    /// Whether the current sampling pause was triggered automatically by macOS Low Power Mode (Issue #12).
+    @Published public var isAutoPausedByLowPowerMode: Bool {
+        didSet {
+            userDefaults.set(isAutoPausedByLowPowerMode, forKey: Keys.isAutoPausedByLowPowerMode)
+        }
+    }
+
+    /// Whether to automatically pause sampling when macOS Low Power Mode is enabled (Issue #12).
+    /// Once auto-paused, sampling stays paused until the user explicitly turns it back on.
+    @Published public var autoPauseOnLowPowerMode: Bool {
+        didSet {
+            userDefaults.set(autoPauseOnLowPowerMode, forKey: Keys.autoPauseOnLowPowerMode)
         }
     }
 
@@ -364,6 +393,12 @@ public final class PreferencesStore: ObservableObject, @unchecked Sendable {
             self.menuBarItems = MenuBarItemConfig.defaultConfigs()
         }
 
+        // Load sampling pause state (default: false) and Low Power Mode auto-pause (default: true)
+        let paused = userDefaults.bool(forKey: Keys.isSamplingPaused)
+        self.isSamplingPaused = paused
+        self.isAutoPausedByLowPowerMode = paused && userDefaults.bool(forKey: Keys.isAutoPausedByLowPowerMode)
+        self.autoPauseOnLowPowerMode = userDefaults.object(forKey: Keys.autoPauseOnLowPowerMode) as? Bool ?? true
+
         // Load notifications and alert preferences
         self.notificationsEnabled = userDefaults.bool(forKey: Keys.notificationsEnabled)
         self.cpuAlertEnabled = userDefaults.bool(forKey: Keys.cpuAlertEnabled)
@@ -453,8 +488,21 @@ public final class PreferencesStore: ObservableObject, @unchecked Sendable {
     }
 
     /// Returns all active menu bar items whose parent category is currently enabled.
+    /// When sampling is paused (`isSamplingPaused == true`), returns an empty array so the
+    /// menu bar collapses to the single minimal app icon.
     public var activeMenuBarItems: [MenuBarItemConfig] {
-        menuBarItems.filter { isCategoryEnabled($0.category) }
+        guard !isSamplingPaused else { return [] }
+        return menuBarItems.filter { isCategoryEnabled($0.category) }
+    }
+
+    /// Sets whether background sampling is paused.
+    public func setSamplingPaused(_ paused: Bool) {
+        isSamplingPaused = paused
+    }
+
+    /// Toggles whether background sampling is paused.
+    public func toggleSamplingPaused() {
+        isSamplingPaused.toggle()
     }
 
     /// Returns all enabled items for a specific category.
@@ -473,6 +521,9 @@ public final class PreferencesStore: ObservableObject, @unchecked Sendable {
         self.launchAtLogin = false
         self.menuBarDisplayMode = .cpu
         self.menuBarItems = MenuBarItemConfig.defaultConfigs()
+        self.isAutoPausedByLowPowerMode = false
+        self.isSamplingPaused = false
+        self.autoPauseOnLowPowerMode = true
 
         self.notificationsEnabled = false
         self.cpuAlertEnabled = false

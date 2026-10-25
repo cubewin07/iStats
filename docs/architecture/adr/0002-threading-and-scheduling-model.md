@@ -6,7 +6,7 @@
 Some system reads (notably SMC/IOKit) can be slow or occasionally stall. The menu bar UI must stay responsive, the app's own footprint must stay low, and a failure in one sensor must not affect others (Requirements 12.1–12.4).
 
 ## Decision
-Use a central **`SampleScheduler`** that runs samplers on a **background queue / Swift concurrency tasks**, one timer per metric category (categories may have different intervals). Each `sampler.sample()` call is wrapped in error handling and a time budget; results are published to the **`@MainActor`** layer via `AsyncStream`/`@Published`. The UI thread never performs a system call.
+Use a central **`SampleScheduler`** that groups enabled samplers by cadence (`CadenceKey`) and runs them on background Swift concurrency tasks clamped to **`.utility` priority** (Efficiency cores) with **`ContinuousClock` tolerance** (15% leeway by default for kernel timer coalescing). Within each cadence tick, active samplers execute concurrently inside a `TaskGroup`, where each `sampler.sample()` call is wrapped in error handling and a time budget. Individual stream consumers receive each reading immediately as it completes, while `batchStream` coalesces fast readings within a short flush window (~50ms max) so a stalled or slow sampler never delays fast metrics before timing out. Results are published to the **`@MainActor`** layer via `AsyncStream`/`@Published`. The UI thread never performs a system call.
 
 ## Options considered
 - **Central background scheduler with per-sampler isolation (chosen)** — clean separation, easy to throttle, resilient.
