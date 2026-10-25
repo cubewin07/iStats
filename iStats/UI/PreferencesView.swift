@@ -67,53 +67,132 @@ public struct PreferencesView: View {
         Form {
             Section {
                 VStack(alignment: .leading, spacing: 12) {
-                    HStack {
-                        Text("Sampling Refresh Interval:")
-                            .font(.headline)
-                        Spacer()
-                        Text(String(format: "%.1f s", store.refreshInterval))
-                            .font(.system(.body, design: .monospaced))
-                            .fontWeight(.semibold)
-                            .foregroundColor(.accentColor)
-                    }
+                    // Battery Saver / Pause Sampling Control (Issue #12)
+                    HStack(spacing: 12) {
+                        Image(systemName: store.isSamplingPaused ? "pause.circle.fill" : "leaf.circle.fill")
+                            .font(.title2)
+                            .foregroundColor(store.isSamplingPaused ? .orange : .green)
 
-                    // Continuous Slider bounded to [minRefreshInterval, maxRefreshInterval]
-                    Slider(
-                        value: $store.refreshInterval,
-                        in: PreferencesStore.minRefreshInterval...PreferencesStore.maxRefreshInterval,
-                        step: 0.5
-                    ) {
-                        Text("Refresh Interval")
-                    } minimumValueLabel: {
-                        Text("0.5s")
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
-                    } maximumValueLabel: {
-                        Text("60s")
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
-                    }
-
-                    // Preset Buttons
-                    HStack(spacing: 6) {
-                        Text("Presets:")
+                        VStack(alignment: .leading, spacing: 2) {
+                            HStack(spacing: 6) {
+                                Text("Pause Sampling to Save Battery")
+                                    .font(.headline)
+                                if store.isSamplingPaused {
+                                    Text("PAUSED")
+                                        .font(.system(size: 9, weight: .bold))
+                                        .foregroundColor(.orange)
+                                        .padding(.horizontal, 6)
+                                        .padding(.vertical, 2)
+                                        .background(Color.orange.opacity(0.15))
+                                        .clipShape(Capsule())
+                                }
+                            }
+                            Text(
+                                store.isSamplingPaused
+                                    ? "Sampling is stopped. Only a minimal iStats icon is shown in the menu bar."
+                                    : "Stop all background hardware samplers and collapse the menu bar to a minimal icon."
+                            )
                             .font(.caption)
                             .foregroundColor(.secondary)
-                        ForEach(presetIntervals, id: \.self) { preset in
-                            Button(action: {
-                                store.refreshInterval = preset
-                            }) {
-                                Text(preset < 1.0 ? "\(preset, specifier: "%.1f")s" : "\(Int(preset))s")
-                                    .font(.caption)
-                            }
-                            .buttonStyle(.bordered)
-                            .tint(store.refreshInterval == preset ? .accentColor : nil)
                         }
-                    }
 
-                    Text("Higher refresh intervals reduce CPU overhead and power consumption (Requirement 12.4).")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+                        Spacer()
+
+                        Toggle("", isOn: $store.isSamplingPaused)
+                            .toggleStyle(.switch)
+                            .labelsHidden()
+                    }
+                    .padding(.bottom, 4)
+
+                    // Auto-Pause on macOS Low Power Mode (Issue #12)
+                    HStack(spacing: 12) {
+                        Image(systemName: "battery.50")
+                            .font(.title3)
+                            .foregroundColor(coordinator.isLowPowerModeActive ? .orange : .secondary)
+                            .frame(width: 24)
+
+                        VStack(alignment: .leading, spacing: 2) {
+                            HStack(spacing: 6) {
+                                Text("Auto-Pause in Low Power Mode")
+                                    .font(.subheadline)
+                                    .fontWeight(.medium)
+                                if coordinator.isLowPowerModeActive {
+                                    Text("LOW POWER ACTIVE")
+                                        .font(.system(size: 8.5, weight: .bold))
+                                        .foregroundColor(.orange)
+                                        .padding(.horizontal, 6)
+                                        .padding(.vertical, 2)
+                                        .background(Color.orange.opacity(0.15))
+                                        .clipShape(Capsule())
+                                }
+                            }
+                            Text("Automatically pause sampling when macOS enters Low Power Mode until you manually turn it back on.")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+
+                        Spacer()
+
+                        Toggle("", isOn: $store.autoPauseOnLowPowerMode)
+                            .toggleStyle(.switch)
+                            .controlSize(.small)
+                            .labelsHidden()
+                    }
+                    .padding(.bottom, 4)
+
+                    Divider()
+
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack {
+                            Text("Sampling Refresh Interval:")
+                                .font(.headline)
+                            Spacer()
+                            Text(store.isSamplingPaused ? "Paused" : String(format: "%.1f s", store.refreshInterval))
+                                .font(.system(.body, design: .monospaced))
+                                .fontWeight(.semibold)
+                                .foregroundColor(store.isSamplingPaused ? .orange : .accentColor)
+                        }
+
+                        // Continuous Slider bounded to [minRefreshInterval, maxRefreshInterval]
+                        Slider(
+                            value: $store.refreshInterval,
+                            in: PreferencesStore.minRefreshInterval...PreferencesStore.maxRefreshInterval,
+                            step: 0.5
+                        ) {
+                            Text("Refresh Interval")
+                        } minimumValueLabel: {
+                            Text("0.5s")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                        } maximumValueLabel: {
+                            Text("60s")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                        }
+
+                        // Preset Buttons
+                        HStack(spacing: 6) {
+                            Text("Presets:")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            ForEach(presetIntervals, id: \.self) { preset in
+                                Button(action: {
+                                    store.refreshInterval = preset
+                                }) {
+                                    Text(preset < 1.0 ? "\(preset, specifier: "%.1f")s" : "\(Int(preset))s")
+                                        .font(.caption)
+                                }
+                                .buttonStyle(.bordered)
+                                .tint(store.refreshInterval == preset ? .accentColor : nil)
+                            }
+                        }
+
+                        Text("Higher refresh intervals reduce CPU overhead and power consumption (Requirement 12.4).")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    .disabled(store.isSamplingPaused)
+                    .opacity(store.isSamplingPaused ? 0.55 : 1.0)
                 }
                 .padding(.vertical, 4)
             } header: {

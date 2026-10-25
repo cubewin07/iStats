@@ -347,6 +347,12 @@ public struct HostGPUInfoProvider: GPUInfoProvider {
         return data
     }
 
+    public static func invalidateDisplayCache() {
+        displayCacheLock.lock()
+        defer { displayCacheLock.unlock() }
+        lastDisplayCheck = nil
+    }
+
     // MARK: - Display Outputs Helper
 
     private static func queryConnectedDisplays() -> (count: Int, descriptions: [String]) {
@@ -401,7 +407,8 @@ public struct HostGPUInfoProvider: GPUInfoProvider {
                    let prodAttrs = dispAttrs["ProductAttributes"] as? [String: Any],
                    let productName = prodAttrs["ProductName"] as? String,
                    !productName.isEmpty {
-                    if let prodID = prodAttrs["ProductID"] as? UInt32, prodID == targetProductID {
+                    let prodID = (prodAttrs["ProductID"] as? NSNumber)?.uint32Value ?? (prodAttrs["ProductID"] as? UInt32)
+                    if let prodID = prodID, prodID == targetProductID {
                         return productName
                     }
                     if CGDisplayIsBuiltin(dID) != 0 && (dict["BuiltIn"] as? Bool == true) {
