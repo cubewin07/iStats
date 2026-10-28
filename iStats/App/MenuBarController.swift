@@ -21,6 +21,8 @@ public final class MenuBarController: NSObject {
     private var isCategoryUpdateScheduled = false
     public private(set) var currentlyShownButton: NSStatusBarButton?
     private var lastConfiguredPopoverStyles: [String: PopoverStyle] = [:]
+    private var globalMouseMonitor: Any?
+    private var localMouseMonitor: Any?
 
     // MARK: - Render State & Performance Instrumentation (Stage 3 Energy Optimization)
 
@@ -110,6 +112,10 @@ public final class MenuBarController: NSObject {
 
         syncStatusItems()
         setupSubscriptions()
+    }
+
+    isolated deinit {
+        stopScrubbingMonitor()
     }
 
     /// Identifier for the fallback status item displayed when all menu items are disabled.
@@ -487,37 +493,12 @@ public final class MenuBarController: NSObject {
             return
         }
 
-        if currentlyShownButton == button {
+        if currentlyShownButton === button {
             hidePopover()
             return
         }
 
-        if rawId == Self.fallbackStatusItemId {
-            showUniversalPopover(relativeTo: button)
-            return
-        }
-
-        let targetPopover: NSPopover
-        if let existing = popovers[rawId] {
-            targetPopover = existing
-        } else {
-            let parts = rawId.components(separatedBy: ".")
-            let categoryRaw = parts.first ?? rawId
-            let styleRaw = parts.dropFirst().joined(separator: ".")
-            guard let category = MetricCategory(rawValue: categoryRaw) else { return }
-            let style = MetricDisplayStyle(rawValue: styleRaw) ?? .text
-            let popoverStyle = preferences.popoverStyle(for: category, widgetStyle: style)
-            let config = MenuBarItemConfig(category: category, style: style, popoverStyle: popoverStyle)
-            let p = createPopover(for: config)
-            popovers[rawId] = p
-            targetPopover = p
-        }
-
-        hidePopover()
-        ensurePopoverContent(for: rawId, popover: targetPopover)
-        currentlyShownButton = button
-        targetPopover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
-        targetPopover.contentViewController?.view.window?.makeKey()
+        showPopover(forConfigId: rawId, relativeTo: button, animated: true)
     }
 
     /// Shows a standard macOS context menu on right-click.
@@ -574,61 +555,129 @@ public final class MenuBarController: NSObject {
     /// Shows the dedicated popover for a specific category anchored to a menu bar button.
     public func showPopover(for category: MetricCategory, relativeTo button: NSStatusBarButton) {
         let rawId = button.identifier?.rawValue ?? category.rawValue
-        let targetPopover: NSPopover
-        if let existing = popovers[rawId] {
-            targetPopover = existing
-        } else {
-            let parts = rawId.components(separatedBy: ".")
-            let styleRaw = parts.dropFirst().joined(separator: ".")
-            let style = MetricDisplayStyle(rawValue: styleRaw) ?? .text
-            let popoverStyle = preferences.popoverStyle(for: category, widgetStyle: style)
-            let config = MenuBarItemConfig(category: category, style: style, popoverStyle: popoverStyle)
-            let p = createPopover(for: config)
-            popovers[rawId] = p
-            targetPopover = p
-        }
-        hidePopover()
-        ensurePopoverContent(for: rawId, popover: targetPopover)
-        currentlyShownButton = button
-        targetPopover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
-        targetPopover.contentViewController?.view.window?.makeKey()
+        showPopover(forConfigId: rawId, relativeTo: button, animated: true)
     }
 
     /// Shows the universal popover displaying all metrics or app overview.
     public func showUniversalPopover(relativeTo button: NSStatusBarButton) {
+        showPopover(forConfigId: Self.fallbackStatusItemId, relativeTo: button, animated: true)
+    }
+
+    /// Dedicated popover presenter with optional animation (disabled during hover scrubbing for instantaneous switching).
+    public func showPopover(forConfigId rawId: String, relativeTo button: NSStatusBarButton, animated: Bool = true) {
         let targetPopover: NSPopover
-        if let existing = popovers[Self.fallbackStatusItemId] {
+        if let existing = popovers[rawId] {
             targetPopover = existing
-        } else {
+        } else if rawId == Self.fallbackStatusItemId {
             let p = createFallbackPopover()
-            popovers[Self.fallbackStatusItemId] = p
+            popovers[rawId] = p
             targetPopover = p
+        } else {
+            let parts = rawId.components(separatedBy: ".")
+            let categoryRaw = parts.first ?? rawId
+            let styleRaw = parts.dropFirst().joined(separator: ".")
+            if let category = MetricCategory(rawValue: categoryRaw) {
+                let style = MetricDisplayStyle(rawValue: styleRaw) ?? .text
+                let popoverStyle = preferences.popoverStyle(for: category, widgetStyle: style)
+                let config = MenuBarItemConfig(category: category, style: style, popoverStyle: popoverStyle)
+                let p = createPopover(for: config)
+                popovers[rawId] = p
+                targetPopover = p
+            } else {
+                let p = createFallbackPopover()
+                popovers[rawId] = p
+                targetPopover = p
+            }
         }
-        hidePopover()
-        ensurePopoverContent(for: Self.fallbackStatusItemId, popover: targetPopover)
+
+        // Close any currently visible popover without destroying view controllers
+        for (_, p) in popovers where p !== targetPopover && p.isShown {
+            p.animates = animated
+            p.performClose(nil)
+            p.animates = true
+        }
+        if fallbackPopover !== targetPopover && fallbackPopover.isShown {
+            fallbackPopover.animates = animated
+            fallbackPopover.performClose(nil)
+            fallbackPopover.animates = true
+        }
+
+        ensurePopoverContent(for: rawId, popover: targetPopover)
         currentlyShownButton = button
+        targetPopover.animates = animated
         targetPopover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
         targetPopover.contentViewController?.view.window?.makeKey()
+        targetPopover.animates = true
+
+        startScrubbingMonitor()
     }
 
     public func hidePopover() {
+        stopScrubbingMonitor()
         if let button = currentlyShownButton,
            let rawId = button.identifier?.rawValue,
            let activePopover = popovers[rawId] {
             if activePopover.isShown {
                 activePopover.performClose(nil)
             }
-            activePopover.contentViewController = nil
         }
         for (_, p) in popovers where p.isShown {
             p.performClose(nil)
-            p.contentViewController = nil
         }
         if fallbackPopover.isShown {
             fallbackPopover.performClose(nil)
         }
-        fallbackPopover.contentViewController = nil
         currentlyShownButton = nil
+    }
+
+    // MARK: - Menu Bar Scrubbing (ADR 0007 & iStat Parity)
+
+    /// Handles cursor motion across status item buttons when a popover is actively presented.
+    public func handleMouseMovedDuringScrubbing(to mouseLocation: NSPoint) {
+        guard let currentButton = currentlyShownButton else {
+            stopScrubbingMonitor()
+            return
+        }
+
+        for (id, item) in statusItems {
+            guard let button = item.button, button !== currentButton, let window = button.window else {
+                continue
+            }
+            let buttonScreenRect = window.convertToScreen(button.convert(button.bounds, to: nil))
+            let hitRect = buttonScreenRect.insetBy(dx: 0, dy: -6)
+            if hitRect.contains(mouseLocation) {
+                showPopover(forConfigId: id, relativeTo: button, animated: false)
+                break
+            }
+        }
+    }
+
+    private func startScrubbingMonitor() {
+        guard globalMouseMonitor == nil && localMouseMonitor == nil else { return }
+
+        globalMouseMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.mouseMoved, .leftMouseDragged]) { [weak self] _ in
+            MainActor.assumeIsolated {
+                self?.handleMouseMovedDuringScrubbing(to: NSEvent.mouseLocation)
+            }
+        }
+
+        localMouseMonitor = NSEvent.addLocalMonitorForEvents(matching: [.mouseMoved, .leftMouseDragged]) { [weak self] event in
+            MainActor.assumeIsolated {
+                self?.handleMouseMovedDuringScrubbing(to: NSEvent.mouseLocation)
+            }
+            return event
+        }
+    }
+
+    private func stopScrubbingMonitor() {
+        if let monitor = globalMouseMonitor {
+            NSEvent.removeMonitor(monitor)
+            globalMouseMonitor = nil
+        }
+        if let monitor = localMouseMonitor {
+            NSEvent.removeMonitor(monitor)
+            localMouseMonitor = nil
+        }
     }
 
     // MARK: - Legacy Formatting Helpers (Preserved for compatibility)
@@ -750,11 +799,12 @@ public final class MenuBarController: NSObject {
 extension MenuBarController: NSPopoverDelegate {
     public func popoverDidClose(_ notification: Notification) {
         if let closed = notification.object as? NSPopover {
-            closed.contentViewController = nil
+            // Keep contentViewController warm across closes for instantaneous reopening.
             if let button = currentlyShownButton,
                let rawId = button.identifier?.rawValue,
                popovers[rawId] === closed || fallbackPopover === closed {
                 currentlyShownButton = nil
+                stopScrubbingMonitor()
             }
         }
     }

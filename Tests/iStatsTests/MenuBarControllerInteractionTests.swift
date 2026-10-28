@@ -243,6 +243,57 @@ final class MenuBarControllerInteractionTests: XCTestCase {
         XCTAssertNil(controller.currentlyShownButton)
     }
 
+    func testWarmControllerCachingAndHoverScrubbing() {
+        let (defaults, prefs, _, controller, suiteName) = makeContext()
+        defer { cleanup(defaults: defaults, controller: controller, suiteName: suiteName) }
+
+        let cpuItem = MenuBarItemConfig(category: .cpu, style: .gauge)
+        let memItem = MenuBarItemConfig(category: .memory, style: .bar)
+        prefs.menuBarItems = [cpuItem, memItem]
+        controller.syncStatusItems()
+
+        guard let cpuButton = controller.statusItems[cpuItem.id]?.button,
+              let memButton = controller.statusItems[memItem.id]?.button else {
+            XCTFail("Status item buttons must exist")
+            return
+        }
+
+        // 1. Open CPU popover and verify initial controller creation
+        controller.statusItemClicked(cpuButton)
+        XCTAssertTrue(controller.currentlyShownButton === cpuButton)
+        guard let cpuVC = controller.popover.contentViewController else {
+            XCTFail("CPU popover contentViewController should exist")
+            return
+        }
+
+        // 2. Hide popover: contentViewController must remain warm/cached across closes
+        controller.hidePopover()
+        XCTAssertNil(controller.currentlyShownButton)
+        XCTAssertTrue(controller.popover(for: cpuItem.id)?.contentViewController === cpuVC,
+                      "contentViewController must stay cached across closes rather than being destroyed")
+
+        // 3. Re-open CPU popover: identical warm controller instance reused
+        controller.statusItemClicked(cpuButton)
+        XCTAssertTrue(controller.currentlyShownButton === cpuButton)
+        XCTAssertTrue(controller.popover.contentViewController === cpuVC,
+                      "Warm contentViewController instance must be reused")
+
+        // 4. Hover Scrubbing: simulate cursor moving over memButton screen rect
+        if let window = memButton.window {
+            let memScreenRect = window.convertToScreen(memButton.convert(memButton.bounds, to: nil))
+            let hoverPoint = NSPoint(x: memScreenRect.midX, y: memScreenRect.midY)
+            controller.handleMouseMovedDuringScrubbing(to: hoverPoint)
+
+            XCTAssertTrue(controller.currentlyShownButton === memButton,
+                          "Hover scrubbing must smoothly switch currentlyShownButton to memButton")
+            XCTAssertTrue(controller.popover === controller.popover(for: memItem.id))
+        }
+
+        // 5. Clean up
+        controller.hidePopover()
+        XCTAssertNil(controller.currentlyShownButton)
+    }
+
     func testDedicatedPopoversPerCategoryConfigLifecycle() {
         let (defaults, prefs, _, controller, suiteName) = makeContext()
         defer { cleanup(defaults: defaults, controller: controller, suiteName: suiteName) }
@@ -489,7 +540,7 @@ final class MenuBarControllerInteractionTests: XCTestCase {
     }
 
     func testRapidStartStopDoesNotLeaveSchedulerRunningAndPreservesSamplers() async {
-        let (defaults, prefs, coord, controller, suiteName) = makeContext()
+        let (defaults, _, coord, controller, suiteName) = makeContext()
         defer { cleanup(defaults: defaults, controller: controller, suiteName: suiteName) }
 
         // Rapidly start and immediately pause/stop before async registration finishes
