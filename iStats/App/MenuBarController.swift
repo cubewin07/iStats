@@ -20,6 +20,7 @@ public final class MenuBarController: NSObject {
     private var pendingCategories = Set<MetricCategory>()
     private var isCategoryUpdateScheduled = false
     public private(set) var currentlyShownButton: NSStatusBarButton?
+    private var lastConfiguredPopoverStyles: [String: PopoverStyle] = [:]
 
     // MARK: - Render State & Performance Instrumentation (Stage 3 Energy Optimization)
 
@@ -164,7 +165,8 @@ public final class MenuBarController: NSObject {
         let styleRaw = parts.dropFirst().joined(separator: ".")
         if let category = MetricCategory(rawValue: categoryRaw) {
             let style = MetricDisplayStyle(rawValue: styleRaw) ?? .text
-            let config = MenuBarItemConfig(category: category, style: style)
+            let popoverStyle = preferences.popoverStyle(for: category, widgetStyle: style)
+            let config = MenuBarItemConfig(category: category, style: style, popoverStyle: popoverStyle)
             popover.contentViewController = makeHostingController(for: config)
         }
     }
@@ -254,7 +256,18 @@ public final class MenuBarController: NSObject {
             popovers[config.id] = createPopover(for: config)
         }
 
-        // 3. Re-render all active status items
+        // 3. Invalidate cached popover content if custom popover style was updated
+        for config in activeConfigs {
+            let resolved = preferences.resolvedPopoverStyle(for: config.category, widgetStyle: config.style)
+            if lastConfiguredPopoverStyles[config.id] != resolved {
+                lastConfiguredPopoverStyles[config.id] = resolved
+                if let p = popovers[config.id] {
+                    p.contentViewController = nil
+                }
+            }
+        }
+
+        // 4. Re-render all active status items
         updateAllStatusItems()
     }
 
@@ -262,8 +275,9 @@ public final class MenuBarController: NSObject {
 
     private func setupSubscriptions() {
         // Observe configuration, pause state, and display formatting changes
-        Publishers.Merge4(
+        Publishers.Merge5(
             preferences.$menuBarItems.map { _ in () }.eraseToAnyPublisher(),
+            preferences.$widgetPopoverStyles.map { _ in () }.eraseToAnyPublisher(),
             preferences.$enabledCategories.map { _ in () }.eraseToAnyPublisher(),
             preferences.$menuBarDisplayMode.map { _ in () }.eraseToAnyPublisher(),
             preferences.$isSamplingPaused.map { _ in () }.eraseToAnyPublisher()
@@ -486,7 +500,8 @@ public final class MenuBarController: NSObject {
             let styleRaw = parts.dropFirst().joined(separator: ".")
             guard let category = MetricCategory(rawValue: categoryRaw) else { return }
             let style = MetricDisplayStyle(rawValue: styleRaw) ?? .text
-            let config = MenuBarItemConfig(category: category, style: style)
+            let popoverStyle = preferences.popoverStyle(for: category, widgetStyle: style)
+            let config = MenuBarItemConfig(category: category, style: style, popoverStyle: popoverStyle)
             let p = createPopover(for: config)
             popovers[rawId] = p
             targetPopover = p
@@ -560,7 +575,8 @@ public final class MenuBarController: NSObject {
             let parts = rawId.components(separatedBy: ".")
             let styleRaw = parts.dropFirst().joined(separator: ".")
             let style = MetricDisplayStyle(rawValue: styleRaw) ?? .text
-            let config = MenuBarItemConfig(category: category, style: style)
+            let popoverStyle = preferences.popoverStyle(for: category, widgetStyle: style)
+            let config = MenuBarItemConfig(category: category, style: style, popoverStyle: popoverStyle)
             let p = createPopover(for: config)
             popovers[rawId] = p
             targetPopover = p

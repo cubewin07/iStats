@@ -4621,10 +4621,123 @@ public struct PowerHistoryPopoverView: View {
 }
 
 // MARK: - =======================================================
-// MARK: - CONFIG POPOVER FACTORY (ADR 0007)
+// MARK: - CONFIG POPOVER FACTORY (ADR 0007 Decoupled Popover Customization)
 // MARK: - =======================================================
 
 public enum ConfigPopoverFactory {
+    @MainActor
+    @ViewBuilder
+    public static func makePopoverView(
+        category: MetricCategory,
+        popoverStyle: PopoverStyle,
+        coordinator: MetricsCoordinator = .shared,
+        preferences: PreferencesStore = .shared
+    ) -> some View {
+        switch (category, popoverStyle) {
+        // MARK: Thermal Custom Popovers
+        case (.thermal, .thermalCPU):
+            ThermalCPUPopoverView(coordinator: coordinator, preferences: preferences)
+        case (.thermal, .thermalGPU):
+            ThermalGPUPopoverView(coordinator: coordinator, preferences: preferences)
+        case (.thermal, .thermalMemory):
+            ThermalMemoryPopoverView(coordinator: coordinator, preferences: preferences)
+        case (.thermal, .thermalStorage):
+            ThermalStoragePopoverView(coordinator: coordinator, preferences: preferences)
+        case (.thermal, .thermalBattery):
+            ThermalBatteryPopoverView(coordinator: coordinator, preferences: preferences)
+        case (.thermal, .thermalRing):
+            ThermalRingPopoverView(coordinator: coordinator, preferences: preferences)
+        case (.thermal, .history):
+            ThermalHistoryPopoverView(coordinator: coordinator, preferences: preferences)
+        case (.thermal, _):
+            ThermalPopoverView(coordinator: coordinator, preferences: preferences)
+
+        // MARK: CPU Custom Popovers
+        case (.cpu, .cpuUserSystem):
+            CPUUserSystemPopoverView(coordinator: coordinator, preferences: preferences)
+        case (.cpu, .cpuCluster):
+            CPUClusterPopoverView(coordinator: coordinator, preferences: preferences)
+        case (.cpu, .history):
+            CPUHistoryPopoverView(coordinator: coordinator, preferences: preferences)
+        case (.cpu, _):
+            CPUPopoverView(coordinator: coordinator, preferences: preferences)
+
+        // MARK: Memory Custom Popovers
+        case (.memory, .memoryComposition):
+            MemoryCompositionPopoverView(coordinator: coordinator, preferences: preferences)
+        case (.memory, .memoryAllocation):
+            MemoryAllocationPopoverView(coordinator: coordinator, preferences: preferences)
+        case (.memory, .memoryPressure):
+            MemoryPressurePopoverView(coordinator: coordinator, preferences: preferences)
+        case (.memory, .history):
+            MemoryHistoryPopoverView(coordinator: coordinator, preferences: preferences)
+        case (.memory, _):
+            MemoryPopoverView(coordinator: coordinator, preferences: preferences)
+
+        // MARK: GPU Custom Popovers
+        case (.gpu, .gpuLoadRing):
+            GPULoadRingPopoverView(coordinator: coordinator, preferences: preferences)
+        case (.gpu, .gpuEngine):
+            GPUEnginePopoverView(coordinator: coordinator, preferences: preferences)
+        case (.gpu, .gpuDie):
+            GPUDiePopoverView(coordinator: coordinator, preferences: preferences)
+        case (.gpu, .history):
+            GPUHistoryPopoverView(coordinator: coordinator, preferences: preferences)
+        case (.gpu, _):
+            GPUPopoverView(coordinator: coordinator, preferences: preferences)
+
+        // MARK: Fan Custom Popovers
+        case (.fan, .fanDualRPM):
+            FanDualRPMPopoverView(coordinator: coordinator, preferences: preferences)
+        case (.fan, .fanTachometer):
+            FanTachometerPopoverView(coordinator: coordinator, preferences: preferences)
+        case (.fan, .fanBlades):
+            FanBladesPopoverView(coordinator: coordinator, preferences: preferences)
+        case (.fan, .fanBars):
+            FanBarsPopoverView(coordinator: coordinator, preferences: preferences)
+        case (.fan, .history):
+            FanHistoryPopoverView(coordinator: coordinator, preferences: preferences)
+        case (.fan, _):
+            FanPopoverView(coordinator: coordinator, preferences: preferences)
+
+        // MARK: Network Custom Popovers
+        case (.network, .networkBars):
+            NetworkBarsPopoverView(coordinator: coordinator, preferences: preferences)
+        case (.network, .networkDiagnostics):
+            NetworkDiagnosticsPopoverView(coordinator: coordinator, preferences: preferences)
+        case (.network, .history):
+            NetworkDuplexHistoryPopoverView(coordinator: coordinator, preferences: preferences)
+        case (.network, _):
+            NetworkPopoverView(coordinator: coordinator, preferences: preferences)
+
+        // MARK: Disk Custom Popovers
+        case (.disk, .diskStorageRing):
+            DiskStorageRingPopoverView(coordinator: coordinator, preferences: preferences)
+        case (.disk, .diskStorageTanks):
+            DiskStorageTanksPopoverView(coordinator: coordinator, preferences: preferences)
+        case (.disk, .diskActivityLEDs):
+            DiskActivityLEDsPopoverView(coordinator: coordinator, preferences: preferences)
+        case (.disk, .history):
+            DiskHistoryPopoverView(coordinator: coordinator, preferences: preferences)
+        case (.disk, _):
+            DiskPopoverView(coordinator: coordinator, preferences: preferences)
+
+        // MARK: Power Custom Popovers
+        case (.power, .powerBudget):
+            PowerBudgetIllustrationPopoverView(coordinator: coordinator, preferences: preferences)
+        case (.power, .powerWattage):
+            PowerWattagePopoverView(coordinator: coordinator, preferences: preferences)
+        case (.power, .powerChargeRing):
+            PowerChargeRingPopoverView(coordinator: coordinator, preferences: preferences)
+        case (.power, .powerBar):
+            PowerBarPopoverView(coordinator: coordinator, preferences: preferences)
+        case (.power, .history):
+            PowerHistoryPopoverView(coordinator: coordinator, preferences: preferences)
+        case (.power, _):
+            PowerPopoverView(coordinator: coordinator, preferences: preferences)
+        }
+    }
+
     @MainActor
     @ViewBuilder
     public static func makePopoverView(
@@ -4632,110 +4745,126 @@ public enum ConfigPopoverFactory {
         coordinator: MetricsCoordinator = .shared,
         preferences: PreferencesStore = .shared
     ) -> some View {
-        switch (config.category, config.style) {
-        // MARK: Thermal Subsystem Custom Popovers
-        case (.thermal, .cpuTemp):
-            ThermalCPUPopoverView(coordinator: coordinator, preferences: preferences)
-        case (.thermal, .gpuTemp):
-            ThermalGPUPopoverView(coordinator: coordinator, preferences: preferences)
-        case (.thermal, .memoryTemp):
-            ThermalMemoryPopoverView(coordinator: coordinator, preferences: preferences)
-        case (.thermal, .storageTemp):
-            ThermalStoragePopoverView(coordinator: coordinator, preferences: preferences)
-        case (.thermal, .batteryTemp):
-            ThermalBatteryPopoverView(coordinator: coordinator, preferences: preferences)
-        case (.thermal, .gauge):
-            ThermalRingPopoverView(coordinator: coordinator, preferences: preferences)
-        case (.thermal, .sparkline):
-            ThermalHistoryPopoverView(coordinator: coordinator, preferences: preferences)
+        let popover = config.popoverStyle
+            ?? preferences.popoverStyle(for: config.category, widgetStyle: config.style)
+            ?? PopoverStyle.defaultStyle(for: config.category, widgetStyle: config.style)
+        makePopoverView(
+            category: config.category,
+            popoverStyle: popover,
+            coordinator: coordinator,
+            preferences: preferences
+        )
+    }
+
+    @MainActor
+    public static func makeHostingController(
+        category: MetricCategory,
+        popoverStyle: PopoverStyle,
+        coordinator: MetricsCoordinator = .shared,
+        preferences: PreferencesStore = .shared
+    ) -> NSViewController {
+        switch (category, popoverStyle) {
+        // MARK: Thermal Custom Popovers
+        case (.thermal, .thermalCPU):
+            return NSHostingController(rootView: ThermalCPUPopoverView(coordinator: coordinator, preferences: preferences))
+        case (.thermal, .thermalGPU):
+            return NSHostingController(rootView: ThermalGPUPopoverView(coordinator: coordinator, preferences: preferences))
+        case (.thermal, .thermalMemory):
+            return NSHostingController(rootView: ThermalMemoryPopoverView(coordinator: coordinator, preferences: preferences))
+        case (.thermal, .thermalStorage):
+            return NSHostingController(rootView: ThermalStoragePopoverView(coordinator: coordinator, preferences: preferences))
+        case (.thermal, .thermalBattery):
+            return NSHostingController(rootView: ThermalBatteryPopoverView(coordinator: coordinator, preferences: preferences))
+        case (.thermal, .thermalRing):
+            return NSHostingController(rootView: ThermalRingPopoverView(coordinator: coordinator, preferences: preferences))
+        case (.thermal, .history):
+            return NSHostingController(rootView: ThermalHistoryPopoverView(coordinator: coordinator, preferences: preferences))
         case (.thermal, _):
-            ThermalPopoverView(coordinator: coordinator, preferences: preferences)
+            return NSHostingController(rootView: ThermalPopoverView(coordinator: coordinator, preferences: preferences))
 
         // MARK: CPU Custom Popovers
-        case (.cpu, .gauge):
-            CPUUserSystemPopoverView(coordinator: coordinator, preferences: preferences)
-        case (.cpu, .bar):
-            CPUClusterPopoverView(coordinator: coordinator, preferences: preferences)
-        case (.cpu, .sparkline):
-            CPUHistoryPopoverView(coordinator: coordinator, preferences: preferences)
+        case (.cpu, .cpuUserSystem):
+            return NSHostingController(rootView: CPUUserSystemPopoverView(coordinator: coordinator, preferences: preferences))
+        case (.cpu, .cpuCluster):
+            return NSHostingController(rootView: CPUClusterPopoverView(coordinator: coordinator, preferences: preferences))
+        case (.cpu, .history):
+            return NSHostingController(rootView: CPUHistoryPopoverView(coordinator: coordinator, preferences: preferences))
         case (.cpu, _):
-            CPUPopoverView(coordinator: coordinator, preferences: preferences)
+            return NSHostingController(rootView: CPUPopoverView(coordinator: coordinator, preferences: preferences))
 
         // MARK: Memory Custom Popovers
-        case (.memory, .gauge):
-            MemoryCompositionPopoverView(coordinator: coordinator, preferences: preferences)
-        case (.memory, .bar):
-            MemoryAllocationPopoverView(coordinator: coordinator, preferences: preferences)
-        case (.memory, .symbol):
-            MemoryPressurePopoverView(coordinator: coordinator, preferences: preferences)
-        case (.memory, .sparkline):
-            MemoryHistoryPopoverView(coordinator: coordinator, preferences: preferences)
+        case (.memory, .memoryComposition):
+            return NSHostingController(rootView: MemoryCompositionPopoverView(coordinator: coordinator, preferences: preferences))
+        case (.memory, .memoryAllocation):
+            return NSHostingController(rootView: MemoryAllocationPopoverView(coordinator: coordinator, preferences: preferences))
+        case (.memory, .memoryPressure):
+            return NSHostingController(rootView: MemoryPressurePopoverView(coordinator: coordinator, preferences: preferences))
+        case (.memory, .history):
+            return NSHostingController(rootView: MemoryHistoryPopoverView(coordinator: coordinator, preferences: preferences))
         case (.memory, _):
-            MemoryPopoverView(coordinator: coordinator, preferences: preferences)
+            return NSHostingController(rootView: MemoryPopoverView(coordinator: coordinator, preferences: preferences))
 
         // MARK: GPU Custom Popovers
-        case (.gpu, .gauge):
-            GPULoadRingPopoverView(coordinator: coordinator, preferences: preferences)
-        case (.gpu, .bar):
-            GPUEnginePopoverView(coordinator: coordinator, preferences: preferences)
-        case (.gpu, .symbol):
-            GPUDiePopoverView(coordinator: coordinator, preferences: preferences)
-        case (.gpu, .sparkline):
-            GPUHistoryPopoverView(coordinator: coordinator, preferences: preferences)
+        case (.gpu, .gpuLoadRing):
+            return NSHostingController(rootView: GPULoadRingPopoverView(coordinator: coordinator, preferences: preferences))
+        case (.gpu, .gpuEngine):
+            return NSHostingController(rootView: GPUEnginePopoverView(coordinator: coordinator, preferences: preferences))
+        case (.gpu, .gpuDie):
+            return NSHostingController(rootView: GPUDiePopoverView(coordinator: coordinator, preferences: preferences))
+        case (.gpu, .history):
+            return NSHostingController(rootView: GPUHistoryPopoverView(coordinator: coordinator, preferences: preferences))
         case (.gpu, _):
-            GPUPopoverView(coordinator: coordinator, preferences: preferences)
+            return NSHostingController(rootView: GPUPopoverView(coordinator: coordinator, preferences: preferences))
 
         // MARK: Fan Custom Popovers
-        case (.fan, .throughput):
-            FanDualRPMPopoverView(coordinator: coordinator, preferences: preferences)
-        case (.fan, .gauge):
-            FanTachometerPopoverView(coordinator: coordinator, preferences: preferences)
-        case (.fan, .symbol):
-            FanBladesPopoverView(coordinator: coordinator, preferences: preferences)
-        case (.fan, .bar):
-            FanBarsPopoverView(coordinator: coordinator, preferences: preferences)
-        case (.fan, .sparkline):
-            FanHistoryPopoverView(coordinator: coordinator, preferences: preferences)
+        case (.fan, .fanDualRPM):
+            return NSHostingController(rootView: FanDualRPMPopoverView(coordinator: coordinator, preferences: preferences))
+        case (.fan, .fanTachometer):
+            return NSHostingController(rootView: FanTachometerPopoverView(coordinator: coordinator, preferences: preferences))
+        case (.fan, .fanBlades):
+            return NSHostingController(rootView: FanBladesPopoverView(coordinator: coordinator, preferences: preferences))
+        case (.fan, .fanBars):
+            return NSHostingController(rootView: FanBarsPopoverView(coordinator: coordinator, preferences: preferences))
+        case (.fan, .history):
+            return NSHostingController(rootView: FanHistoryPopoverView(coordinator: coordinator, preferences: preferences))
         case (.fan, _):
-            FanPopoverView(coordinator: coordinator, preferences: preferences)
+            return NSHostingController(rootView: FanPopoverView(coordinator: coordinator, preferences: preferences))
 
         // MARK: Network Custom Popovers
-        case (.network, .bar):
-            NetworkBarsPopoverView(coordinator: coordinator, preferences: preferences)
-        case (.network, .sparkline):
-            NetworkDuplexHistoryPopoverView(coordinator: coordinator, preferences: preferences)
-        case (.network, .symbol):
-            NetworkDiagnosticsPopoverView(coordinator: coordinator, preferences: preferences)
+        case (.network, .networkBars):
+            return NSHostingController(rootView: NetworkBarsPopoverView(coordinator: coordinator, preferences: preferences))
+        case (.network, .networkDiagnostics):
+            return NSHostingController(rootView: NetworkDiagnosticsPopoverView(coordinator: coordinator, preferences: preferences))
+        case (.network, .history):
+            return NSHostingController(rootView: NetworkDuplexHistoryPopoverView(coordinator: coordinator, preferences: preferences))
         case (.network, _):
-            NetworkPopoverView(coordinator: coordinator, preferences: preferences)
+            return NSHostingController(rootView: NetworkPopoverView(coordinator: coordinator, preferences: preferences))
 
         // MARK: Disk Custom Popovers
-        case (.disk, .gauge):
-            DiskStorageRingPopoverView(coordinator: coordinator, preferences: preferences)
-        case (.disk, .bar):
-            DiskStorageTanksPopoverView(coordinator: coordinator, preferences: preferences)
-        case (.disk, .sparkline):
-            DiskHistoryPopoverView(coordinator: coordinator, preferences: preferences)
-        case (.disk, .symbol):
-            DiskActivityLEDsPopoverView(coordinator: coordinator, preferences: preferences)
+        case (.disk, .diskStorageRing):
+            return NSHostingController(rootView: DiskStorageRingPopoverView(coordinator: coordinator, preferences: preferences))
+        case (.disk, .diskStorageTanks):
+            return NSHostingController(rootView: DiskStorageTanksPopoverView(coordinator: coordinator, preferences: preferences))
+        case (.disk, .diskActivityLEDs):
+            return NSHostingController(rootView: DiskActivityLEDsPopoverView(coordinator: coordinator, preferences: preferences))
+        case (.disk, .history):
+            return NSHostingController(rootView: DiskHistoryPopoverView(coordinator: coordinator, preferences: preferences))
         case (.disk, _):
-            DiskPopoverView(coordinator: coordinator, preferences: preferences)
+            return NSHostingController(rootView: DiskPopoverView(coordinator: coordinator, preferences: preferences))
 
         // MARK: Power Custom Popovers
-        case (.power, .throughput):
-            PowerWattagePopoverView(coordinator: coordinator, preferences: preferences)
-        case (.power, .gauge):
-            PowerChargeRingPopoverView(coordinator: coordinator, preferences: preferences)
-        case (.power, .bar):
-            PowerBarPopoverView(coordinator: coordinator, preferences: preferences)
-        case (.power, .symbol):
-            PowerPopoverView(coordinator: coordinator, preferences: preferences)
-        case (.power, .sparkline):
-            PowerHistoryPopoverView(coordinator: coordinator, preferences: preferences)
-        case (.power, .text):
-            PowerBudgetIllustrationPopoverView(coordinator: coordinator, preferences: preferences)
+        case (.power, .powerBudget):
+            return NSHostingController(rootView: PowerBudgetIllustrationPopoverView(coordinator: coordinator, preferences: preferences))
+        case (.power, .powerWattage):
+            return NSHostingController(rootView: PowerWattagePopoverView(coordinator: coordinator, preferences: preferences))
+        case (.power, .powerChargeRing):
+            return NSHostingController(rootView: PowerChargeRingPopoverView(coordinator: coordinator, preferences: preferences))
+        case (.power, .powerBar):
+            return NSHostingController(rootView: PowerBarPopoverView(coordinator: coordinator, preferences: preferences))
+        case (.power, .history):
+            return NSHostingController(rootView: PowerHistoryPopoverView(coordinator: coordinator, preferences: preferences))
         case (.power, _):
-            PowerPopoverView(coordinator: coordinator, preferences: preferences)
+            return NSHostingController(rootView: PowerPopoverView(coordinator: coordinator, preferences: preferences))
         }
     }
 
@@ -4745,111 +4874,15 @@ public enum ConfigPopoverFactory {
         coordinator: MetricsCoordinator = .shared,
         preferences: PreferencesStore = .shared
     ) -> NSViewController {
-        switch (config.category, config.style) {
-        // MARK: Thermal Subsystem Custom Popovers
-        case (.thermal, .cpuTemp):
-            return NSHostingController(rootView: ThermalCPUPopoverView(coordinator: coordinator, preferences: preferences))
-        case (.thermal, .gpuTemp):
-            return NSHostingController(rootView: ThermalGPUPopoverView(coordinator: coordinator, preferences: preferences))
-        case (.thermal, .memoryTemp):
-            return NSHostingController(rootView: ThermalMemoryPopoverView(coordinator: coordinator, preferences: preferences))
-        case (.thermal, .storageTemp):
-            return NSHostingController(rootView: ThermalStoragePopoverView(coordinator: coordinator, preferences: preferences))
-        case (.thermal, .batteryTemp):
-            return NSHostingController(rootView: ThermalBatteryPopoverView(coordinator: coordinator, preferences: preferences))
-        case (.thermal, .gauge):
-            return NSHostingController(rootView: ThermalRingPopoverView(coordinator: coordinator, preferences: preferences))
-        case (.thermal, .sparkline):
-            return NSHostingController(rootView: ThermalHistoryPopoverView(coordinator: coordinator, preferences: preferences))
-        case (.thermal, _):
-            return NSHostingController(rootView: ThermalPopoverView(coordinator: coordinator, preferences: preferences))
-
-        // MARK: CPU Custom Popovers
-        case (.cpu, .gauge):
-            return NSHostingController(rootView: CPUUserSystemPopoverView(coordinator: coordinator, preferences: preferences))
-        case (.cpu, .bar):
-            return NSHostingController(rootView: CPUClusterPopoverView(coordinator: coordinator, preferences: preferences))
-        case (.cpu, .sparkline):
-            return NSHostingController(rootView: CPUHistoryPopoverView(coordinator: coordinator, preferences: preferences))
-        case (.cpu, _):
-            return NSHostingController(rootView: CPUPopoverView(coordinator: coordinator, preferences: preferences))
-
-        // MARK: Memory Custom Popovers
-        case (.memory, .gauge):
-            return NSHostingController(rootView: MemoryCompositionPopoverView(coordinator: coordinator, preferences: preferences))
-        case (.memory, .bar):
-            return NSHostingController(rootView: MemoryAllocationPopoverView(coordinator: coordinator, preferences: preferences))
-        case (.memory, .symbol):
-            return NSHostingController(rootView: MemoryPressurePopoverView(coordinator: coordinator, preferences: preferences))
-        case (.memory, .sparkline):
-            return NSHostingController(rootView: MemoryHistoryPopoverView(coordinator: coordinator, preferences: preferences))
-        case (.memory, _):
-            return NSHostingController(rootView: MemoryPopoverView(coordinator: coordinator, preferences: preferences))
-
-        // MARK: GPU Custom Popovers
-        case (.gpu, .gauge):
-            return NSHostingController(rootView: GPULoadRingPopoverView(coordinator: coordinator, preferences: preferences))
-        case (.gpu, .bar):
-            return NSHostingController(rootView: GPUEnginePopoverView(coordinator: coordinator, preferences: preferences))
-        case (.gpu, .symbol):
-            return NSHostingController(rootView: GPUDiePopoverView(coordinator: coordinator, preferences: preferences))
-        case (.gpu, .sparkline):
-            return NSHostingController(rootView: GPUHistoryPopoverView(coordinator: coordinator, preferences: preferences))
-        case (.gpu, _):
-            return NSHostingController(rootView: GPUPopoverView(coordinator: coordinator, preferences: preferences))
-
-        // MARK: Fan Custom Popovers
-        case (.fan, .throughput):
-            return NSHostingController(rootView: FanDualRPMPopoverView(coordinator: coordinator, preferences: preferences))
-        case (.fan, .gauge):
-            return NSHostingController(rootView: FanTachometerPopoverView(coordinator: coordinator, preferences: preferences))
-        case (.fan, .symbol):
-            return NSHostingController(rootView: FanBladesPopoverView(coordinator: coordinator, preferences: preferences))
-        case (.fan, .bar):
-            return NSHostingController(rootView: FanBarsPopoverView(coordinator: coordinator, preferences: preferences))
-        case (.fan, .sparkline):
-            return NSHostingController(rootView: FanHistoryPopoverView(coordinator: coordinator, preferences: preferences))
-        case (.fan, _):
-            return NSHostingController(rootView: FanPopoverView(coordinator: coordinator, preferences: preferences))
-
-        // MARK: Network Custom Popovers
-        case (.network, .bar):
-            return NSHostingController(rootView: NetworkBarsPopoverView(coordinator: coordinator, preferences: preferences))
-        case (.network, .sparkline):
-            return NSHostingController(rootView: NetworkDuplexHistoryPopoverView(coordinator: coordinator, preferences: preferences))
-        case (.network, .symbol):
-            return NSHostingController(rootView: NetworkDiagnosticsPopoverView(coordinator: coordinator, preferences: preferences))
-        case (.network, _):
-            return NSHostingController(rootView: NetworkPopoverView(coordinator: coordinator, preferences: preferences))
-
-        // MARK: Disk Custom Popovers
-        case (.disk, .gauge):
-            return NSHostingController(rootView: DiskStorageRingPopoverView(coordinator: coordinator, preferences: preferences))
-        case (.disk, .bar):
-            return NSHostingController(rootView: DiskStorageTanksPopoverView(coordinator: coordinator, preferences: preferences))
-        case (.disk, .sparkline):
-            return NSHostingController(rootView: DiskHistoryPopoverView(coordinator: coordinator, preferences: preferences))
-        case (.disk, .symbol):
-            return NSHostingController(rootView: DiskActivityLEDsPopoverView(coordinator: coordinator, preferences: preferences))
-        case (.disk, _):
-            return NSHostingController(rootView: DiskPopoverView(coordinator: coordinator, preferences: preferences))
-
-        // MARK: Power Custom Popovers
-        case (.power, .throughput):
-            return NSHostingController(rootView: PowerWattagePopoverView(coordinator: coordinator, preferences: preferences))
-        case (.power, .gauge):
-            return NSHostingController(rootView: PowerChargeRingPopoverView(coordinator: coordinator, preferences: preferences))
-        case (.power, .bar):
-            return NSHostingController(rootView: PowerBarPopoverView(coordinator: coordinator, preferences: preferences))
-        case (.power, .symbol):
-            return NSHostingController(rootView: PowerPopoverView(coordinator: coordinator, preferences: preferences))
-        case (.power, .sparkline):
-            return NSHostingController(rootView: PowerHistoryPopoverView(coordinator: coordinator, preferences: preferences))
-        case (.power, .text):
-            return NSHostingController(rootView: PowerBudgetIllustrationPopoverView(coordinator: coordinator, preferences: preferences))
-        case (.power, _):
-            return NSHostingController(rootView: PowerPopoverView(coordinator: coordinator, preferences: preferences))
-        }
+        let popover = config.popoverStyle
+            ?? preferences.popoverStyle(for: config.category, widgetStyle: config.style)
+            ?? PopoverStyle.defaultStyle(for: config.category, widgetStyle: config.style)
+        return makeHostingController(
+            category: config.category,
+            popoverStyle: popover,
+            coordinator: coordinator,
+            preferences: preferences
+        )
     }
 }
 

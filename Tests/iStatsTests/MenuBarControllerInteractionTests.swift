@@ -303,6 +303,49 @@ final class MenuBarControllerInteractionTests: XCTestCase {
         XCTAssertTrue(controller.popover(for: histTemp.id)?.contentViewController is NSHostingController<ThermalHistoryPopoverView>)
     }
 
+    func testCustomPopoverSelectionRouting() {
+        let (defaults, prefs, _, controller, suiteName) = makeContext()
+        defer { cleanup(defaults: defaults, controller: controller, suiteName: suiteName) }
+
+        // 1. CPU Bar starts with default popover (CPUClusterPopoverView)
+        let cpuBar = MenuBarItemConfig(category: .cpu, style: .bar)
+        prefs.menuBarItems = [cpuBar]
+        controller.syncStatusItems()
+
+        guard let button = controller.statusItems[cpuBar.id]?.button else {
+            XCTFail("Button must exist")
+            return
+        }
+
+        controller.statusItemClicked(button)
+        XCTAssertTrue(controller.popover.contentViewController is NSHostingController<CPUClusterPopoverView>)
+        controller.hidePopover()
+
+        // 2. Customize CPU Bar to open Category Overview (CPUPopoverView)
+        prefs.setPopoverStyle(.categoryDefault, for: .cpu, widgetStyle: .bar)
+        controller.syncStatusItems()
+
+        controller.statusItemClicked(button)
+        XCTAssertTrue(controller.popover.contentViewController is NSHostingController<CPUPopoverView>)
+        controller.hidePopover()
+
+        // 3. Customize CPU Bar to open History (CPUHistoryPopoverView)
+        prefs.setPopoverStyle(.history, for: .cpu, widgetStyle: .bar)
+        controller.syncStatusItems()
+
+        controller.statusItemClicked(button)
+        XCTAssertTrue(controller.popover.contentViewController is NSHostingController<CPUHistoryPopoverView>)
+        controller.hidePopover()
+
+        // 4. Reset popover style back to default (nil) -> restores CPUClusterPopoverView
+        prefs.setPopoverStyle(nil, for: .cpu, widgetStyle: .bar)
+        controller.syncStatusItems()
+
+        controller.statusItemClicked(button)
+        XCTAssertTrue(controller.popover.contentViewController is NSHostingController<CPUClusterPopoverView>)
+        controller.hidePopover()
+    }
+
     func testPowerOffersHaveDedicatedPopovers() {
         let (defaults, prefs, _, controller, suiteName) = makeContext()
         defer { cleanup(defaults: defaults, controller: controller, suiteName: suiteName) }
