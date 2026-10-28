@@ -309,7 +309,7 @@ public struct SubsystemThermalPopoverView: View {
             )
 
             HStack {
-                Text("last 2 min (\(subsystem.title.lowercased()) history)")
+                Text("last \(Units.formatHistoryDuration(sampleCount: 60, interval: preferences.refreshInterval)) (\(subsystem.title.lowercased()) history)")
                     .font(.system(size: 9, weight: .medium))
                     .foregroundColor(.secondary)
 
@@ -537,20 +537,25 @@ public struct ThermalCPUPopoverView: View {
             .clipShape(RoundedRectangle(cornerRadius: 10))
 
             // TJMax Headroom Card
+            let peakC = peakCPUSensor?.celsius ?? 45.0
+            let throttleMarginC = max(0.0, 105.0 - peakC)
+            let isFahrenheit = preferences.temperatureUnit == .fahrenheit
+            let marginVal = isFahrenheit ? (throttleMarginC * 1.8) : throttleMarginC
+            let tjMaxLabel = Units.formatTemperature(105.0, unit: preferences.temperatureUnit, fractionDigits: 0)
+
             VStack(alignment: .leading, spacing: 5) {
                 HStack {
-                    Text("THROTTLE HEADROOM (105°C TJMAX)")
+                    Text("THROTTLE HEADROOM (\(tjMaxLabel) TJMAX)")
                         .font(.system(size: 8, weight: .bold, design: .monospaced))
                         .foregroundColor(.secondary)
                     Spacer()
-                    Text(String(format: "+%.1f°C Margin", throttleMargin))
+                    Text(String(format: "+%.1f°%@ Margin", marginVal, isFahrenheit ? "F" : "C"))
                         .font(.system(size: 10, weight: .bold, design: .monospaced))
-                        .foregroundColor(throttleMargin > 25 ? .green : (throttleMargin > 15 ? .orange : .red))
+                        .foregroundColor(throttleMarginC > 25 ? .green : (throttleMarginC > 15 ? .orange : .red))
                 }
 
                 GeometryReader { g in
-                    let peak = peakCPUSensor?.celsius ?? 45.0
-                    let pct = min(1.0, max(0.0, peak / 105.0))
+                    let pct = min(1.0, max(0.0, peakC / 105.0))
                     ZStack(alignment: .leading) {
                         RoundedRectangle(cornerRadius: 3).fill(Color.primary.opacity(0.08))
                         RoundedRectangle(cornerRadius: 3)
@@ -995,21 +1000,25 @@ public struct ThermalStoragePopoverView: View {
 
             // Flash Thermal Limit Card
             let peakC = peakStorageSensor?.celsius ?? 35.0
-            let limit = 70.0
-            let margin = max(0.0, limit - peakC)
+            let limitC = 70.0
+            let marginC = max(0.0, limitC - peakC)
+            let isFahrenheit = preferences.temperatureUnit == .fahrenheit
+            let marginVal = isFahrenheit ? (marginC * 1.8) : marginC
+            let limitLabel = Units.formatTemperature(limitC, unit: preferences.temperatureUnit, fractionDigits: 0)
+
             VStack(alignment: .leading, spacing: 5) {
                 HStack {
-                    Text("NAND ENDURANCE LIMIT (70°C)")
+                    Text("NAND ENDURANCE LIMIT (\(limitLabel))")
                         .font(.system(size: 8, weight: .bold, design: .monospaced))
                         .foregroundColor(.secondary)
                     Spacer()
-                    Text(String(format: "+%.1f°C Headroom", margin))
+                    Text(String(format: "+%.1f°%@ Headroom", marginVal, isFahrenheit ? "F" : "C"))
                         .font(.system(size: 10, weight: .bold, design: .monospaced))
-                        .foregroundColor(margin > 20 ? .teal : (margin > 10 ? .orange : .red))
+                        .foregroundColor(marginC > 20 ? .teal : (marginC > 10 ? .orange : .red))
                 }
 
                 GeometryReader { g in
-                    let pct = min(1.0, max(0.0, peakC / limit))
+                    let pct = min(1.0, max(0.0, peakC / limitC))
                     ZStack(alignment: .leading) {
                         RoundedRectangle(cornerRadius: 3).fill(Color.primary.opacity(0.08))
                         RoundedRectangle(cornerRadius: 3)
@@ -1261,7 +1270,8 @@ public struct ThermalRingPopoverView: View {
                     VStack(spacing: 0) {
                         Text(Units.formatTemperature(peakC, unit: preferences.temperatureUnit, fractionDigits: 0))
                             .font(.system(size: 20, weight: .bold, design: .rounded))
-                        Text(String(format: "+%.0f° headroom", throttleMargin))
+                        let marginDisplay = preferences.temperatureUnit == .fahrenheit ? (throttleMargin * 1.8) : throttleMargin
+                        Text(String(format: "+%.0f° headroom", marginDisplay))
                             .font(.system(size: 9, weight: .semibold))
                             .foregroundColor(.secondary)
                     }
@@ -1309,14 +1319,15 @@ public struct ThermalRingPopoverView: View {
             }
 
             if let t = temp {
-                let margin = max(0.0, limit - t)
+                let marginC = max(0.0, limit - t)
+                let marginVal = preferences.temperatureUnit == .fahrenheit ? (marginC * 1.8) : marginC
                 HStack(alignment: .firstTextBaseline) {
                     Text(Units.formatTemperature(t, unit: preferences.temperatureUnit, fractionDigits: 0))
                         .font(.system(size: 14, weight: .bold, design: .rounded))
                     Spacer()
-                    Text(String(format: "+%.0f°", margin))
+                    Text(String(format: "+%.0f°", marginVal))
                         .font(.system(size: 9, weight: .bold, design: .monospaced))
-                        .foregroundColor(margin > 20 ? .green : (margin > 10 ? .orange : .red))
+                        .foregroundColor(marginC > 20 ? .green : (marginC > 10 ? .orange : .red))
                 }
             } else {
                 Text("--")
@@ -1355,7 +1366,9 @@ public struct ThermalHistoryPopoverView: View {
         guard historyPeakTemps.count >= 10 else { return 0.0 }
         let recent = historyPeakTemps.suffix(5).reduce(0.0, +) / 5.0
         let older = historyPeakTemps.prefix(5).reduce(0.0, +) / 5.0
-        return (recent - older) * 12.0
+        let timeDeltaSeconds = max(1.0, Double(historyPeakTemps.count - 5) * preferences.refreshInterval)
+        let ratePerMinC = ((recent - older) / timeDeltaSeconds) * 60.0
+        return preferences.temperatureUnit == .fahrenheit ? (ratePerMinC * 1.8) : ratePerMinC
     }
 
     public var body: some View {
@@ -1973,6 +1986,8 @@ public struct MemoryCompositionPopoverView: View {
                 subtitle: "App Memory, Wired, Compressed & Free Pools",
                 verdict: VerdictEvaluator.evaluateMemory(sample, standard: preferences.byteUnitStandard)
             )
+            Divider()
+
             if let s = sample {
                 let total = max(1, Double(s.total))
                 let appPct = Double(s.appMemory ?? 0) / total
@@ -1986,8 +2001,8 @@ public struct MemoryCompositionPopoverView: View {
                     GeometryReader { g in
                         HStack(spacing: 2) {
                             RoundedRectangle(cornerRadius: 2).fill(Color.blue).frame(width: g.size.width * CGFloat(appPct))
-                            RoundedRectangle(cornerRadius: 2).fill(Color.orange).frame(width: g.size.width * CGFloat(wiredPct))
-                            RoundedRectangle(cornerRadius: 2).fill(Color.purple).frame(width: g.size.width * CGFloat(compPct))
+                            RoundedRectangle(cornerRadius: 2).fill(Color.purple).frame(width: g.size.width * CGFloat(wiredPct))
+                            RoundedRectangle(cornerRadius: 2).fill(Color.orange).frame(width: g.size.width * CGFloat(compPct))
                             RoundedRectangle(cornerRadius: 2).fill(Color.green).frame(width: g.size.width * CGFloat(cachedPct))
                             RoundedRectangle(cornerRadius: 2).fill(Color.secondary.opacity(0.2)).frame(width: g.size.width * CGFloat(freePct))
                         }
@@ -2002,8 +2017,8 @@ public struct MemoryCompositionPopoverView: View {
                 // Breakdown list
                 VStack(spacing: 6) {
                     compRow(name: "App Memory", bytes: s.appMemory ?? 0, total: s.total, color: .blue)
-                    compRow(name: "Wired Memory", bytes: s.wired, total: s.total, color: .orange)
-                    compRow(name: "Compressed", bytes: s.compressed, total: s.total, color: .purple)
+                    compRow(name: "Wired Memory", bytes: s.wired, total: s.total, color: .purple)
+                    compRow(name: "Compressed", bytes: s.compressed, total: s.total, color: .orange)
                     compRow(name: "Cached Files", bytes: s.cached, total: s.total, color: .green)
                     compRow(name: "Free Memory", bytes: s.free, total: s.total, color: .secondary)
                 }
@@ -2524,13 +2539,37 @@ public struct GPUEnginePopoverView: View {
             )
             Divider()
 
-            let load = sample?.utilization ?? 0.0
+            let totalLoad = sample?.utilization ?? 0.0
+            let rendererLoad = sample?.rendererUtilization ?? totalLoad
+            let tilerLoad = sample?.tilerUtilization ?? 0.0
+            let metalFeature = sample?.metalFeatureSet ?? "Metal 3 Hardware Acceleration"
+            let raytracing = sample?.supportsRaytracing == true ? "Supported" : "N/A"
 
             VStack(spacing: 8) {
-                engineRow(name: "3D Render Engine", pct: load, color: .purple)
-                engineRow(name: "Video Decoder (Hardware)", pct: min(100.0, load * 0.4), color: .indigo)
-                engineRow(name: "Video Encoder (ProRes)", pct: 0.0, color: .blue)
-                engineRow(name: "Neural Engine (ANE)", pct: min(100.0, load * 0.6), color: .pink)
+                engineRow(name: "Total GPU Compute", pct: totalLoad, color: .purple)
+                engineRow(name: "3D Render Pipeline", pct: rendererLoad, color: .blue)
+                if sample?.tilerUtilization != nil || tilerLoad > 0 {
+                    engineRow(name: "Apple Silicon GPU Tiler", pct: tilerLoad, color: .teal)
+                }
+
+                HStack {
+                    Text("Metal Feature Set")
+                        .font(.system(size: 11, weight: .medium))
+                    Spacer()
+                    Text(metalFeature)
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundColor(.secondary)
+                }
+                .padding(.top, 2)
+
+                HStack {
+                    Text("Hardware Ray Tracing")
+                        .font(.system(size: 11, weight: .medium))
+                    Spacer()
+                    Text(raytracing)
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundColor(sample?.supportsRaytracing == true ? .green : .secondary)
+                }
             }
             .padding(10)
             .background(Color(nsColor: .controlBackgroundColor).opacity(0.5))
@@ -3473,10 +3512,13 @@ public struct NetworkDiagnosticsPopoverView: View {
             Divider()
 
             VStack(spacing: 8) {
-                diagRow(label: "Interface", val: sample?.primaryInterface ?? "en0")
-                diagRow(label: "IPv4 Address", val: sample?.localIPv4 ?? "192.168.1.100")
+                diagRow(label: "Interface", val: sample?.primaryInterface ?? "Disconnected")
+                diagRow(label: "IPv4 Address", val: sample?.localIPv4 ?? "—")
                 if let gw = sample?.gatewayIPv4 {
                     diagRow(label: "Gateway IPv4", val: gw)
+                }
+                if let dns = sample?.primaryDNS {
+                    diagRow(label: "DNS Server", val: dns)
                 }
                 diagRow(label: "Session Inbound", val: Units.formatBytes(sample?.totalBytesIn ?? 0, standard: preferences.byteUnitStandard))
                 diagRow(label: "Session Outbound", val: Units.formatBytes(sample?.totalBytesOut ?? 0, standard: preferences.byteUnitStandard))
@@ -4141,9 +4183,10 @@ public struct PowerChargeRingPopoverView: View {
             )
             Divider()
 
-            let charge = sample?.charge ?? 100.0
-            let pct = min(1.0, max(0.0, charge / 100.0))
-            let variant = sample?.variant ?? .acDesktop
+            let hasBat = sample?.hasBattery ?? false
+            let charge = sample?.charge ?? (hasBat ? 100.0 : 0.0)
+            let pct = hasBat ? min(1.0, max(0.0, charge / 100.0)) : 1.0
+            let variant = sample?.variant ?? (hasBat ? .charged : .acDesktop)
 
             // Large Radial Charge Ring
             VStack(spacing: 8) {
@@ -4165,13 +4208,18 @@ public struct PowerChargeRingPopoverView: View {
                         Image(systemName: variant.systemImageName)
                             .font(.system(size: 14, weight: .bold))
                             .foregroundColor(ringColor(for: variant))
-                        Text(String(format: "%.0f%%", charge))
-                            .font(.system(size: 20, weight: .bold, design: .rounded))
+                        if hasBat {
+                            Text(String(format: "%.0f%%", charge))
+                                .font(.system(size: 20, weight: .bold, design: .rounded))
+                        } else {
+                            Text("AC")
+                                .font(.system(size: 20, weight: .bold, design: .rounded))
+                        }
                     }
                 }
                 .padding(.top, 4)
 
-                Text(variant.displayName)
+                Text(hasBat ? variant.displayName : "Continuous AC Power")
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundColor(ringColor(for: variant))
             }
@@ -4183,18 +4231,24 @@ public struct PowerChargeRingPopoverView: View {
             // Time Remaining & Quick Stats
             HStack(spacing: 10) {
                 VStack(alignment: .leading, spacing: 3) {
-                    Text("TIME ESTIMATE")
+                    Text(hasBat ? "TIME ESTIMATE" : "POWER SOURCE")
                         .font(.system(size: 8, weight: .bold, design: .monospaced))
                         .foregroundColor(.secondary)
-                    if let t = sample?.timeRemaining, t > 0 {
-                        let hours = Int(t) / 3600
-                        let mins = (Int(t) % 3600) / 60
-                        Text("\(hours)h \(mins)m")
-                            .font(.system(size: 14, weight: .bold, design: .rounded))
-                    } else if sample?.state == .charging {
-                        Text("Calculating...")
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundColor(.secondary)
+                    if hasBat {
+                        if let t = sample?.timeRemaining, t > 0 {
+                            let hours = Int(t) / 3600
+                            let mins = (Int(t) % 3600) / 60
+                            Text("\(hours)h \(mins)m")
+                                .font(.system(size: 14, weight: .bold, design: .rounded))
+                        } else if sample?.state == .charging {
+                            Text("Calculating...")
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundColor(.secondary)
+                        } else {
+                            Text("Connected")
+                                .font(.system(size: 14, weight: .bold, design: .rounded))
+                                .foregroundColor(.green)
+                        }
                     } else {
                         Text("Connected")
                             .font(.system(size: 14, weight: .bold, design: .rounded))
@@ -4207,10 +4261,10 @@ public struct PowerChargeRingPopoverView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 8))
 
                 VStack(alignment: .leading, spacing: 3) {
-                    Text("BATTERY HEALTH")
+                    Text(hasBat ? "BATTERY HEALTH" : "HARDWARE")
                         .font(.system(size: 8, weight: .bold, design: .monospaced))
                         .foregroundColor(.secondary)
-                    Text(sample?.condition ?? "Normal")
+                    Text(hasBat ? (sample?.condition ?? "Normal") : "Desktop Mac")
                         .font(.system(size: 14, weight: .bold, design: .rounded))
                         .foregroundColor(.green)
                 }
@@ -4281,39 +4335,42 @@ public struct PowerBarPopoverView: View {
             )
             Divider()
 
-            let charge = sample?.charge ?? 100.0
-            let pct = min(1.0, max(0.0, charge / 100.0))
+            let hasBat = sample?.hasBattery ?? false
+            let charge = sample?.charge ?? (hasBat ? 100.0 : 0.0)
+            let pct = hasBat ? min(1.0, max(0.0, charge / 100.0)) : 1.0
 
             // Horizontal Capacity Bar Card
             VStack(alignment: .leading, spacing: 6) {
                 HStack {
-                    Text("BATTERY CAPACITY")
+                    Text(hasBat ? "BATTERY CAPACITY" : "POWER SOURCE")
                         .font(.system(size: 8, weight: .bold, design: .monospaced))
                         .foregroundColor(.secondary)
                     Spacer()
-                    Text(String(format: "%.0f%%", charge))
+                    Text(hasBat ? String(format: "%.0f%%", charge) : "Continuous AC Power")
                         .font(.system(size: 13, weight: .bold, design: .rounded))
                 }
 
-                GeometryReader { g in
-                    ZStack(alignment: .leading) {
-                        RoundedRectangle(cornerRadius: 4).fill(Color.primary.opacity(0.08))
-                        RoundedRectangle(cornerRadius: 4)
-                            .fill(LinearGradient(colors: [charge <= 20 ? .red : .green, .mint], startPoint: .leading, endPoint: .trailing))
-                            .frame(width: g.size.width * CGFloat(pct))
+                if hasBat {
+                    GeometryReader { g in
+                        ZStack(alignment: .leading) {
+                            RoundedRectangle(cornerRadius: 4).fill(Color.primary.opacity(0.08))
+                            RoundedRectangle(cornerRadius: 4)
+                                .fill(LinearGradient(colors: [charge <= 20 ? .red : .green, .mint], startPoint: .leading, endPoint: .trailing))
+                                .frame(width: g.size.width * CGFloat(pct))
+                        }
                     }
-                }
-                .frame(height: 10)
+                    .frame(height: 10)
 
-                // Marker labels (0%, 20%, 80%, 100%)
-                HStack {
-                    Text("0%").font(.system(size: 8, design: .monospaced)).foregroundColor(.secondary)
-                    Spacer()
-                    Text("20% (Low)").font(.system(size: 8, design: .monospaced)).foregroundColor(.secondary)
-                    Spacer()
-                    Text("80% (Optimized)").font(.system(size: 8, design: .monospaced)).foregroundColor(.secondary)
-                    Spacer()
-                    Text("100%").font(.system(size: 8, design: .monospaced)).foregroundColor(.secondary)
+                    // Marker labels (0%, 20%, 80%, 100%)
+                    HStack {
+                        Text("0%").font(.system(size: 8, design: .monospaced)).foregroundColor(.secondary)
+                        Spacer()
+                        Text("20% (Low)").font(.system(size: 8, design: .monospaced)).foregroundColor(.secondary)
+                        Spacer()
+                        Text("80% (Optimized)").font(.system(size: 8, design: .monospaced)).foregroundColor(.secondary)
+                        Spacer()
+                        Text("100%").font(.system(size: 8, design: .monospaced)).foregroundColor(.secondary)
+                    }
                 }
             }
             .padding(10)
@@ -4322,6 +4379,9 @@ public struct PowerBarPopoverView: View {
 
             // Charge Phase Status Card
             let phaseInfo: (String, String, Color) = {
+                guard hasBat else {
+                    return ("Continuous AC Power", "Operating on wall power. No internal lithium-ion battery.", .green)
+                }
                 if charge < 80.0 && sample?.state == .charging {
                     return ("Fast Charge Phase", "Charging at maximum current up to 80% capacity.", .green)
                 } else if charge >= 80.0 && sample?.state == .charging {
@@ -4387,14 +4447,17 @@ public struct PowerBudgetIllustrationPopoverView: View {
             )
             Divider()
 
-            // Current Charge & Time Status Row
-            if let sample = sample {
-                let chargePct = Int(round(sample.charge ?? 100.0))
+            let hasBat = sample?.hasBattery ?? false
+            if hasBat, let sample = sample {
+                // Battery Illustration & Charge Row
                 HStack(spacing: 12) {
+                    PowerBudgetIllustrationView(sample: sample, size: CGSize(width: 48, height: 48))
+
                     VStack(alignment: .leading, spacing: 2) {
                         Text("CURRENT CHARGE")
                             .font(.system(size: 8, weight: .bold, design: .monospaced))
                             .foregroundColor(.secondary)
+                        let chargePct = Int(round(sample.charge ?? 100.0))
                         Text("\(chargePct)%")
                             .font(.system(size: 20, weight: .bold, design: .rounded))
                             .foregroundColor(chargePct <= 20 ? .red : .primary)
@@ -4419,94 +4482,136 @@ public struct PowerBudgetIllustrationPopoverView: View {
                 .padding(10)
                 .background(Color(nsColor: .controlBackgroundColor).opacity(0.5))
                 .clipShape(RoundedRectangle(cornerRadius: 10))
-            }
 
-            // Condition Hero Card
-            HStack(spacing: 12) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 10)
-                        .fill(Color.green.opacity(0.15))
-                        .frame(width: 52, height: 52)
-                    Image(systemName: "checkmark.shield.fill")
-                        .font(.system(size: 24, weight: .bold))
-                        .foregroundColor(.green)
-                }
+                // Condition Hero Card
+                let condition = sample.condition ?? "Normal"
+                let isConditionNormal = condition == "Normal"
+                let condColor: Color = isConditionNormal ? .green : (condition.contains("Service") ? .red : .orange)
+                let condIcon = isConditionNormal ? "checkmark.shield.fill" : "exclamationmark.shield.fill"
 
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("BATTERY CONDITION")
-                        .font(.system(size: 9, weight: .bold, design: .monospaced))
-                        .foregroundColor(.secondary)
-                    Text(sample?.condition ?? "Normal")
-                        .font(.system(size: 18, weight: .bold, design: .rounded))
-                        .foregroundColor(.green)
-                    Text("Chemical cells operating within nominal parameters")
-                        .font(.system(size: 9))
-                        .foregroundColor(.secondary)
-                }
-            }
-            .padding(10)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color(nsColor: .controlBackgroundColor).opacity(0.5))
-            .clipShape(RoundedRectangle(cornerRadius: 10))
+                HStack(spacing: 12) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 10)
+                            .fill(condColor.opacity(0.15))
+                            .frame(width: 52, height: 52)
+                        Image(systemName: condIcon)
+                            .font(.system(size: 24, weight: .bold))
+                            .foregroundColor(condColor)
+                    }
 
-            // Capacity Retention Card
-            let maxCap = sample?.currentMaxCapacity ?? 6000
-            let designCap = max(1, sample?.designCapacity ?? 6000)
-            let healthPct = min(100.0, max(0.0, (Double(maxCap) / Double(designCap)) * 100.0))
-
-            VStack(alignment: .leading, spacing: 5) {
-                HStack {
-                    Text("MAXIMUM CAPACITY RETENTION")
-                        .font(.system(size: 8, weight: .bold, design: .monospaced))
-                        .foregroundColor(.secondary)
-                    Spacer()
-                    Text(String(format: "%.1f%% Health", healthPct))
-                        .font(.system(size: 10, weight: .bold, design: .monospaced))
-                        .foregroundColor(.green)
-                }
-
-                GeometryReader { g in
-                    ZStack(alignment: .leading) {
-                        RoundedRectangle(cornerRadius: 3).fill(Color.primary.opacity(0.08))
-                        RoundedRectangle(cornerRadius: 3).fill(Color.green)
-                            .frame(width: g.size.width * CGFloat(min(1.0, healthPct / 100.0)))
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("BATTERY CONDITION")
+                            .font(.system(size: 9, weight: .bold, design: .monospaced))
+                            .foregroundColor(.secondary)
+                        Text(condition)
+                            .font(.system(size: 18, weight: .bold, design: .rounded))
+                            .foregroundColor(condColor)
+                        Text(isConditionNormal ? "Chemical cells operating within nominal parameters" : "Battery performance degraded. Service recommended.")
+                            .font(.system(size: 9))
+                            .foregroundColor(.secondary)
                     }
                 }
-                .frame(height: 6)
+                .padding(10)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color(nsColor: .controlBackgroundColor).opacity(0.5))
+                .clipShape(RoundedRectangle(cornerRadius: 10))
 
+                // Capacity Retention Card
+                if let maxCap = sample.currentMaxCapacity, let designCap = sample.designCapacity, designCap > 0 {
+                    let healthPct = min(100.0, max(0.0, (Double(maxCap) / Double(designCap)) * 100.0))
+
+                    VStack(alignment: .leading, spacing: 5) {
+                        HStack {
+                            Text("MAXIMUM CAPACITY RETENTION")
+                                .font(.system(size: 8, weight: .bold, design: .monospaced))
+                                .foregroundColor(.secondary)
+                            Spacer()
+                            Text(String(format: "%.1f%% Health", healthPct))
+                                .font(.system(size: 10, weight: .bold, design: .monospaced))
+                                .foregroundColor(healthPct >= 80 ? .green : .orange)
+                        }
+
+                        GeometryReader { g in
+                            ZStack(alignment: .leading) {
+                                RoundedRectangle(cornerRadius: 3).fill(Color.primary.opacity(0.08))
+                                RoundedRectangle(cornerRadius: 3).fill(healthPct >= 80 ? Color.green : Color.orange)
+                                    .frame(width: g.size.width * CGFloat(min(1.0, healthPct / 100.0)))
+                            }
+                        }
+                        .frame(height: 6)
+
+                        HStack {
+                            Text("\(maxCap) mAh Available")
+                                .font(.system(size: 9))
+                                .foregroundColor(.secondary)
+                            Spacer()
+                            Text("\(designCap) mAh Factory Design")
+                                .font(.system(size: 9))
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                    .padding(10)
+                    .background(Color(nsColor: .controlBackgroundColor).opacity(0.4))
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                }
+
+                // Cycle Count Card
+                let cycles = sample.cycleCount ?? 0
+                let designCycles = sample.designCycleCount ?? 1000
                 HStack {
-                    Text("\(maxCap) mAh Available")
-                        .font(.system(size: 9))
-                        .foregroundColor(.secondary)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("CYCLE COUNT")
+                            .font(.system(size: 8, weight: .bold, design: .monospaced))
+                            .foregroundColor(.secondary)
+                        Text("\(cycles) / \(designCycles)")
+                            .font(.system(size: 14, weight: .bold, design: .rounded))
+                    }
                     Spacer()
-                    Text("\(designCap) mAh Factory Design")
-                        .font(.system(size: 9))
+                    Text(String(format: "%.0f%% rated life used", (Double(cycles) / Double(max(1, designCycles))) * 100.0))
+                        .font(.system(size: 9, weight: .medium))
                         .foregroundColor(.secondary)
                 }
-            }
-            .padding(10)
-            .background(Color(nsColor: .controlBackgroundColor).opacity(0.4))
-            .clipShape(RoundedRectangle(cornerRadius: 8))
+                .padding(8)
+                .background(Color(nsColor: .controlBackgroundColor).opacity(0.3))
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+            } else {
+                // Desktop Mac or AC Power Card
+                HStack(spacing: 12) {
+                    PowerBudgetIllustrationView(sample: sample, size: CGSize(width: 48, height: 48))
 
-            // Cycle Count Card
-            let cycles = sample?.cycleCount ?? 0
-            let designCycles = sample?.designCycleCount ?? 1000
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("CYCLE COUNT")
-                        .font(.system(size: 8, weight: .bold, design: .monospaced))
-                        .foregroundColor(.secondary)
-                    Text("\(cycles) / \(designCycles)")
-                        .font(.system(size: 14, weight: .bold, design: .rounded))
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("DESKTOP POWER ARCHITECTURE")
+                            .font(.system(size: 9, weight: .bold, design: .monospaced))
+                            .foregroundColor(.secondary)
+                        Text("Continuous AC Power")
+                            .font(.system(size: 16, weight: .bold, design: .rounded))
+                            .foregroundColor(.blue)
+                        Text("Powered via external PSU / Wall Outlet. No battery.")
+                            .font(.system(size: 9))
+                            .foregroundColor(.secondary)
+                    }
                 }
-                Spacer()
-                Text(String(format: "%.0f%% rated life used", (Double(cycles) / Double(max(1, designCycles))) * 100.0))
-                    .font(.system(size: 9, weight: .medium))
-                    .foregroundColor(.secondary)
+                .padding(10)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color(nsColor: .controlBackgroundColor).opacity(0.5))
+                .clipShape(RoundedRectangle(cornerRadius: 10))
+
+                if let watts = sample?.powerDrawWatts {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("SYSTEM POWER DRAW")
+                                .font(.system(size: 8, weight: .bold, design: .monospaced))
+                                .foregroundColor(.secondary)
+                            Text(String(format: "%.1f W", watts))
+                                .font(.system(size: 16, weight: .bold, design: .rounded))
+                        }
+                        Spacer()
+                    }
+                    .padding(10)
+                    .background(Color(nsColor: .controlBackgroundColor).opacity(0.4))
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                }
             }
-            .padding(8)
-            .background(Color(nsColor: .controlBackgroundColor).opacity(0.3))
-            .clipShape(RoundedRectangle(cornerRadius: 8))
 
             Divider()
             CategoryPopoverFooter(preferences: preferences, coordinator: coordinator)
