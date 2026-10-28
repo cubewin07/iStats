@@ -12,20 +12,24 @@ public struct NetworkSummaryView: View {
     public let history: [Sample<NetworkSample>]
     public let networkUnit: Units.NetworkUnit
     public let byteStandard: Units.ByteUnitStandard
+    public let refreshInterval: TimeInterval
 
     @State private var isInterfacesExpanded: Bool = false
     @State private var copiedLabel: String? = nil
+    @State private var copyToken: Int = 0
 
     public init(
         sample: NetworkSample? = nil,
         history: [Sample<NetworkSample>] = [],
         networkUnit: Units.NetworkUnit = .bytesPerSecond,
-        byteStandard: Units.ByteUnitStandard = .iec
+        byteStandard: Units.ByteUnitStandard = .iec,
+        refreshInterval: TimeInterval = 2.0
     ) {
         self.sample = sample
         self.history = history
         self.networkUnit = networkUnit
         self.byteStandard = byteStandard
+        self.refreshInterval = refreshInterval
     }
 
     private var verdict: MetricVerdict {
@@ -161,6 +165,9 @@ public struct NetworkSummaryView: View {
                                 .font(.system(size: 8.5, weight: .medium))
                                 .foregroundColor(.secondary)
                         }
+                        Text("· last \(Units.formatHistoryDuration(sampleCount: 60, interval: refreshInterval))")
+                            .font(.system(size: 8.5, weight: .medium))
+                            .foregroundColor(.secondary)
                     }
 
                     Spacer()
@@ -275,8 +282,10 @@ public struct NetworkSummaryView: View {
             NSPasteboard.general.clearContents()
             NSPasteboard.general.setString(value, forType: .string)
             copiedLabel = label
+            copyToken += 1
+            let currentToken = copyToken
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-                if copiedLabel == label {
+                if copyToken == currentToken {
                     copiedLabel = nil
                 }
             }

@@ -8,12 +8,14 @@ import iStatsCore
 public struct FanSummaryView: View {
     public let sample: FanSample?
     public let history: [Sample<FanSample>]
+    public let refreshInterval: TimeInterval
 
     @State private var isDetailsExpanded: Bool = false
 
-    public init(sample: FanSample? = nil, history: [Sample<FanSample>] = []) {
+    public init(sample: FanSample? = nil, history: [Sample<FanSample>] = [], refreshInterval: TimeInterval = 2.0) {
         self.sample = sample
         self.history = history
+        self.refreshInterval = refreshInterval
     }
 
     private var verdict: MetricVerdict {
@@ -99,7 +101,7 @@ public struct FanSummaryView: View {
                     )
 
                     HStack {
-                        Text("last \(Units.formatHistoryDuration(sampleCount: 60, interval: PreferencesStore.shared.refreshInterval))")
+                        Text("last \(Units.formatHistoryDuration(sampleCount: 60, interval: refreshInterval))")
                             .font(.system(size: 9, weight: .medium))
                             .foregroundColor(.secondary)
 

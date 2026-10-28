@@ -9,17 +9,20 @@ public struct DiskSummaryView: View {
     public let sample: DiskSample?
     public let history: [Sample<DiskSample>]
     public let byteStandard: Units.ByteUnitStandard
+    public let refreshInterval: TimeInterval
 
     @State private var isVolumesExpanded: Bool = false
 
     public init(
         sample: DiskSample? = nil,
         history: [Sample<DiskSample>] = [],
-        byteStandard: Units.ByteUnitStandard = .iec
+        byteStandard: Units.ByteUnitStandard = .iec,
+        refreshInterval: TimeInterval = 2.0
     ) {
         self.sample = sample
         self.history = history
         self.byteStandard = byteStandard
+        self.refreshInterval = refreshInterval
     }
 
     private var verdict: MetricVerdict {
@@ -36,21 +39,6 @@ public struct DiskSummaryView: View {
 
     private var historyWriteRates: [Double] {
         history.map { $0.value.io?.bytesWrittenPerSec ?? 0.0 }
-    }
-
-    private var historyIORates: [Double] {
-        history.map { s in
-            if let io = s.value.io {
-                return io.bytesReadPerSec + io.bytesWrittenPerSec
-            }
-            return 0.0
-        }
-    }
-
-    private var peakIORate: Double {
-        let maxHist = historyIORates.max() ?? 0.0
-        let cur = (sample?.io?.bytesReadPerSec ?? 0) + (sample?.io?.bytesWrittenPerSec ?? 0)
-        return max(maxHist, cur, 1.0)
     }
 
     public var body: some View {
@@ -133,6 +121,9 @@ public struct DiskSummaryView: View {
                                     .font(.system(size: 8.5, weight: .medium))
                                     .foregroundColor(.secondary)
                             }
+                            Text("· last \(Units.formatHistoryDuration(sampleCount: 60, interval: refreshInterval))")
+                                .font(.system(size: 8.5, weight: .medium))
+                                .foregroundColor(.secondary)
                         }
 
                         Spacer()
@@ -279,7 +270,7 @@ public struct DiskSummaryView: View {
                     }
                 }
             }
-            .frame(maxHeight: 180)
+            .frame(maxHeight: min(CGFloat(sample.volumes.count) * 36 + 8, 180))
         }
         .padding(.top, 4)
     }

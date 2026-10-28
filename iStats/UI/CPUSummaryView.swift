@@ -120,7 +120,7 @@ public struct CPUSummaryView: View {
                         VStack(spacing: 4) {
                             HStack {
                                 HStack(spacing: 4) {
-                                    Circle().fill(systemColor).frame(width: 6, height: 6)
+                                    Circle().fill(Color.teal).frame(width: 6, height: 6)
                                     Text("Efficiency Cores")
                                         .font(.system(size: 10, weight: .medium))
                                         .foregroundColor(.secondary)
@@ -133,7 +133,7 @@ public struct CPUSummaryView: View {
 
                             HStack {
                                 HStack(spacing: 4) {
-                                    Circle().fill(userColor).frame(width: 6, height: 6)
+                                    Circle().fill(Color.blue).frame(width: 6, height: 6)
                                     Text("Performance Cores")
                                         .font(.system(size: 10, weight: .medium))
                                         .foregroundColor(.secondary)

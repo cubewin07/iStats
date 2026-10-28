@@ -426,7 +426,8 @@ public struct ThermalPopoverView: View {
             ThermalSummaryView(
                 sample: sample,
                 history: history,
-                temperatureUnit: preferences.temperatureUnit
+                temperatureUnit: preferences.temperatureUnit,
+                refreshInterval: preferences.refreshInterval
             )
             Divider()
             CategoryPopoverFooter(preferences: preferences, coordinator: coordinator)
@@ -1946,7 +1947,8 @@ public struct MemoryPopoverView: View {
             MemorySummaryView(
                 sample: sample,
                 history: history,
-                byteStandard: preferences.byteUnitStandard
+                byteStandard: preferences.byteUnitStandard,
+                refreshInterval: preferences.refreshInterval
             )
             Divider()
             CategoryPopoverFooter(preferences: preferences, coordinator: coordinator)
@@ -2387,7 +2389,8 @@ public struct GPUPopoverView: View {
                 sample: sample,
                 history: history,
                 temperatureUnit: preferences.temperatureUnit,
-                byteStandard: preferences.byteUnitStandard
+                byteStandard: preferences.byteUnitStandard,
+                refreshInterval: preferences.refreshInterval
             )
             Divider()
             CategoryPopoverFooter(preferences: preferences, coordinator: coordinator)
@@ -2815,7 +2818,7 @@ public struct FanPopoverView: View {
         VStack(alignment: .leading, spacing: 10) {
             PopoverHeaderView(category: .fan, verdict: VerdictEvaluator.evaluateFan(sample))
             Divider()
-            FanSummaryView(sample: sample, history: history)
+            FanSummaryView(sample: sample, history: history, refreshInterval: preferences.refreshInterval)
             Divider()
             CategoryPopoverFooter(preferences: preferences, coordinator: coordinator)
         }
@@ -3308,7 +3311,8 @@ public struct NetworkPopoverView: View {
                 sample: sample,
                 history: history,
                 networkUnit: preferences.networkUnit,
-                byteStandard: preferences.byteUnitStandard
+                byteStandard: preferences.byteUnitStandard,
+                refreshInterval: preferences.refreshInterval
             )
             Divider()
             CategoryPopoverFooter(preferences: preferences, coordinator: coordinator)
@@ -3582,7 +3586,8 @@ public struct DiskPopoverView: View {
             DiskSummaryView(
                 sample: sample,
                 history: history,
-                byteStandard: preferences.byteUnitStandard
+                byteStandard: preferences.byteUnitStandard,
+                refreshInterval: preferences.refreshInterval
             )
             Divider()
             CategoryPopoverFooter(preferences: preferences, coordinator: coordinator)
@@ -3996,7 +4001,8 @@ public struct PowerPopoverView: View {
             Divider()
             PowerSummaryView(
                 sample: sample,
-                history: history
+                history: history,
+                refreshInterval: preferences.refreshInterval
             )
             Divider()
             CategoryPopoverFooter(preferences: preferences, coordinator: coordinator)

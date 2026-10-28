@@ -9,17 +9,20 @@ public struct ThermalSummaryView: View {
     public let sample: ThermalSample?
     public let history: [Sample<ThermalSample>]
     public let temperatureUnit: Units.TemperatureUnit
+    public let refreshInterval: TimeInterval
 
     @State private var isSensorsExpanded: Bool = false
 
     public init(
         sample: ThermalSample? = nil,
         history: [Sample<ThermalSample>] = [],
-        temperatureUnit: Units.TemperatureUnit = .celsius
+        temperatureUnit: Units.TemperatureUnit = .celsius,
+        refreshInterval: TimeInterval = 2.0
     ) {
         self.sample = sample
         self.history = history
         self.temperatureUnit = temperatureUnit
+        self.refreshInterval = refreshInterval
     }
 
     private var verdict: MetricVerdict {
@@ -123,7 +126,7 @@ public struct ThermalSummaryView: View {
                 )
 
                 HStack {
-                    Text("last \(Units.formatHistoryDuration(sampleCount: 60, interval: PreferencesStore.shared.refreshInterval)) (peak history)")
+                    Text("last \(Units.formatHistoryDuration(sampleCount: 60, interval: refreshInterval)) (peak history)")
                         .font(.system(size: 9, weight: .medium))
                         .foregroundColor(.secondary)
 
@@ -190,7 +193,7 @@ public struct ThermalSummaryView: View {
             }
             .padding(.horizontal, 2)
         }
-        .frame(maxHeight: 180)
+        .frame(maxHeight: min(CGFloat(sample.sensors.count) * 26 + 8, 180))
         .padding(.top, 4)
     }
 

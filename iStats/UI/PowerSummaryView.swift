@@ -8,15 +8,18 @@ import iStatsCore
 public struct PowerSummaryView: View {
     public let sample: PowerSample?
     public let history: [Sample<PowerSample>]
+    public let refreshInterval: TimeInterval
 
     @State private var isHealthExpanded: Bool = false
 
     public init(
         sample: PowerSample? = nil,
-        history: [Sample<PowerSample>] = []
+        history: [Sample<PowerSample>] = [],
+        refreshInterval: TimeInterval = 2.0
     ) {
         self.sample = sample
         self.history = history
+        self.refreshInterval = refreshInterval
     }
 
     private var verdict: MetricVerdict {
@@ -479,7 +482,7 @@ public struct PowerSummaryView: View {
             )
 
             HStack {
-                Text("last \(Units.formatHistoryDuration(sampleCount: 60, interval: PreferencesStore.shared.refreshInterval)) (draw)")
+                Text("last \(Units.formatHistoryDuration(sampleCount: 60, interval: refreshInterval)) (draw)")
                     .font(.system(size: 9, weight: .medium))
                     .foregroundColor(.secondary)
 

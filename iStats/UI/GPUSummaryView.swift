@@ -13,6 +13,7 @@ public struct GPUSummaryView: View {
     public let history: [Sample<GPUSample>]
     public let temperatureUnit: Units.TemperatureUnit
     public let byteStandard: Units.ByteUnitStandard
+    public let refreshInterval: TimeInterval
 
     @State private var isDetailsExpanded: Bool = false
 
@@ -20,12 +21,14 @@ public struct GPUSummaryView: View {
         sample: GPUSample? = nil,
         history: [Sample<GPUSample>] = [],
         temperatureUnit: Units.TemperatureUnit = .celsius,
-        byteStandard: Units.ByteUnitStandard = .iec
+        byteStandard: Units.ByteUnitStandard = .iec,
+        refreshInterval: TimeInterval = 2.0
     ) {
         self.sample = sample
         self.history = history
         self.temperatureUnit = temperatureUnit
         self.byteStandard = byteStandard
+        self.refreshInterval = refreshInterval
     }
 
     private var verdict: MetricVerdict {
@@ -257,7 +260,7 @@ public struct GPUSummaryView: View {
                     )
 
                     HStack {
-                        Text("last \(Units.formatHistoryDuration(sampleCount: 60, interval: PreferencesStore.shared.refreshInterval))")
+                        Text("last \(Units.formatHistoryDuration(sampleCount: 60, interval: refreshInterval))")
                             .font(.system(size: 9, weight: .medium))
                             .foregroundColor(.secondary)
 

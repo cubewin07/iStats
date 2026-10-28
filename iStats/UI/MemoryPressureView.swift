@@ -86,17 +86,20 @@ public struct MemorySummaryView: View {
     public let sample: MemorySample?
     public let history: [Sample<MemorySample>]
     public let byteStandard: Units.ByteUnitStandard
+    public let refreshInterval: TimeInterval
 
     @State private var isDetailsExpanded: Bool = false
 
     public init(
         sample: MemorySample?,
         history: [Sample<MemorySample>] = [],
-        byteStandard: Units.ByteUnitStandard = .iec
+        byteStandard: Units.ByteUnitStandard = .iec,
+        refreshInterval: TimeInterval = 2.0
     ) {
         self.sample = sample
         self.history = history
         self.byteStandard = byteStandard
+        self.refreshInterval = refreshInterval
     }
 
     private var historyPercentages: [Double] {
@@ -196,7 +199,7 @@ public struct MemorySummaryView: View {
                 )
 
                 HStack {
-                    Text("last \(Units.formatHistoryDuration(sampleCount: 60, interval: PreferencesStore.shared.refreshInterval))")
+                    Text("last \(Units.formatHistoryDuration(sampleCount: 60, interval: refreshInterval))")
                         .font(.system(size: 9, weight: .medium))
                         .foregroundColor(.secondary)
 
