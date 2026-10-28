@@ -590,7 +590,11 @@ public final class MenuBarController: NSObject {
             }
         }
 
-        // Close any currently visible popover without destroying view controllers
+        // Update active button first so synchronous performClose notifications during scrubbing
+        // recognize that a new popover is actively being displayed.
+        currentlyShownButton = button
+
+        // Close any currently visible popover without tearing down controllers during scrubbing
         for (_, p) in popovers where p !== targetPopover && p.isShown {
             p.animates = animated
             p.performClose(nil)
@@ -603,7 +607,6 @@ public final class MenuBarController: NSObject {
         }
 
         ensurePopoverContent(for: rawId, popover: targetPopover)
-        currentlyShownButton = button
         targetPopover.animates = animated
         targetPopover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
         targetPopover.contentViewController?.view.window?.makeKey()
@@ -628,6 +631,18 @@ public final class MenuBarController: NSObject {
             fallbackPopover.performClose(nil)
         }
         currentlyShownButton = nil
+        teardownInactivePopoverControllers()
+    }
+
+    /// Releases cached NSHostingControllers when all popovers are closed to ensure zero background SwiftUI re-evaluation during sampling passes.
+    private func teardownInactivePopoverControllers() {
+        guard currentlyShownButton == nil else { return }
+        for (_, p) in popovers where !p.isShown {
+            p.contentViewController = nil
+        }
+        if !fallbackPopover.isShown {
+            fallbackPopover.contentViewController = nil
+        }
     }
 
     // MARK: - Menu Bar Scrubbing (ADR 0007 & iStat Parity)
@@ -799,12 +814,13 @@ public final class MenuBarController: NSObject {
 extension MenuBarController: NSPopoverDelegate {
     public func popoverDidClose(_ notification: Notification) {
         if let closed = notification.object as? NSPopover {
-            // Keep contentViewController warm across closes for instantaneous reopening.
+            // When the active popover closes without transitioning to another item, the popover session ends.
             if let button = currentlyShownButton,
                let rawId = button.identifier?.rawValue,
                popovers[rawId] === closed || fallbackPopover === closed {
                 currentlyShownButton = nil
                 stopScrubbingMonitor()
+                teardownInactivePopoverControllers()
             }
         }
     }

@@ -266,19 +266,7 @@ final class MenuBarControllerInteractionTests: XCTestCase {
             return
         }
 
-        // 2. Hide popover: contentViewController must remain warm/cached across closes
-        controller.hidePopover()
-        XCTAssertNil(controller.currentlyShownButton)
-        XCTAssertTrue(controller.popover(for: cpuItem.id)?.contentViewController === cpuVC,
-                      "contentViewController must stay cached across closes rather than being destroyed")
-
-        // 3. Re-open CPU popover: identical warm controller instance reused
-        controller.statusItemClicked(cpuButton)
-        XCTAssertTrue(controller.currentlyShownButton === cpuButton)
-        XCTAssertTrue(controller.popover.contentViewController === cpuVC,
-                      "Warm contentViewController instance must be reused")
-
-        // 4. Hover Scrubbing: simulate cursor moving over memButton screen rect
+        // 2. Hover Scrubbing: simulate cursor moving over memButton screen rect
         if let window = memButton.window {
             let memScreenRect = window.convertToScreen(memButton.convert(memButton.bounds, to: nil))
             let hoverPoint = NSPoint(x: memScreenRect.midX, y: memScreenRect.midY)
@@ -287,11 +275,28 @@ final class MenuBarControllerInteractionTests: XCTestCase {
             XCTAssertTrue(controller.currentlyShownButton === memButton,
                           "Hover scrubbing must smoothly switch currentlyShownButton to memButton")
             XCTAssertTrue(controller.popover === controller.popover(for: memItem.id))
+
+            // CPU popover's controller must stay warm during the active scrubbing session
+            XCTAssertTrue(controller.popover(for: cpuItem.id)?.contentViewController === cpuVC,
+                          "CPU popover contentViewController must remain warm during scrubbing")
+
+            // 3. Scrub back to CPU popover: identical warm controller instance reused
+            if let cpuWindow = cpuButton.window {
+                let cpuScreenRect = cpuWindow.convertToScreen(cpuButton.convert(cpuButton.bounds, to: nil))
+                let cpuHoverPoint = NSPoint(x: cpuScreenRect.midX, y: cpuScreenRect.midY)
+                controller.handleMouseMovedDuringScrubbing(to: cpuHoverPoint)
+
+                XCTAssertTrue(controller.currentlyShownButton === cpuButton)
+                XCTAssertTrue(controller.popover.contentViewController === cpuVC,
+                              "Warm contentViewController instance must be reused on scrub back")
+            }
         }
 
-        // 5. Clean up
+        // 4. Session ends (hidePopover): controllers are torn down for zero background SwiftUI overhead
         controller.hidePopover()
         XCTAssertNil(controller.currentlyShownButton)
+        XCTAssertNil(controller.popovers[cpuItem.id]?.contentViewController,
+                     "Closed popovers must tear down contentViewController when session ends to prevent background CPU usage")
     }
 
     func testDedicatedPopoversPerCategoryConfigLifecycle() {
