@@ -270,6 +270,24 @@ public enum Units {
             return "\(max(1, minutes))m"
         }
     }
+
+    // MARK: - History Duration Window
+
+    /// Formats the time window represented by a sample buffer given sample count and refresh interval
+    /// (e.g. sampleCount: 60, interval: 2.0 -> "2 min", interval: 1.0 -> "1 min", interval: 0.5 -> "30s", interval: 5.0 -> "5 min").
+    public static func formatHistoryDuration(sampleCount: Int = 60, interval: TimeInterval = 2.0) -> String {
+        guard interval > 0 && interval.isFinite else { return "2 min" }
+        let totalSeconds = Int(round(Double(sampleCount) * interval))
+        if totalSeconds < 60 {
+            return "\(totalSeconds)s"
+        } else if totalSeconds % 60 == 0 {
+            return "\(totalSeconds / 60) min"
+        } else {
+            let mins = totalSeconds / 60
+            let secs = totalSeconds % 60
+            return "\(mins)m \(secs)s"
+        }
+    }
 }
 
 
