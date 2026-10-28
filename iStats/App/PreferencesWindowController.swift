@@ -28,11 +28,12 @@ public final class PreferencesWindowController: NSObject, NSWindowDelegate {
         let hostingController = NSHostingController(rootView: preferencesView)
 
         let newWindow = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 520, height: 420),
-            styleMask: [.titled, .closable, .miniaturizable],
+            contentRect: NSRect(x: 0, y: 0, width: 880, height: 620),
+            styleMask: [.titled, .closable, .miniaturizable, .resizable],
             backing: .buffered,
             defer: false
         )
+        newWindow.minSize = NSSize(width: 820, height: 560)
 
         newWindow.center()
         newWindow.setFrameAutosaveName("iStatsPreferencesWindow")

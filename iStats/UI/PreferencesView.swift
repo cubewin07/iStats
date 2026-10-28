@@ -8,6 +8,11 @@ public struct PreferencesView: View {
     @ObservedObject public var coordinator: MetricsCoordinator
     @ObservedObject private var notificationManager = NotificationManager.shared
 
+    // MARK: - Popover Preview State
+    @State private var selectedCategory: MetricCategory = .cpu
+    @State private var selectedWidgetStyle: MetricDisplayStyle? = .bar
+    @State private var selectedPopoverStyle: PopoverStyle = .cpuCluster
+
     private let presetIntervals: [TimeInterval] = [0.5, 1.0, 2.0, 5.0, 10.0, 30.0, 60.0]
     private let cooldownOptions: [(label: String, seconds: TimeInterval)] = [
         ("1 minute", 60.0),
@@ -57,7 +62,7 @@ public struct PreferencesView: View {
                 }
                 .tag(4)
         }
-        .frame(width: 580, height: 530)
+        .frame(minWidth: 860, minHeight: 600)
         .padding(16)
     }
 
@@ -244,11 +249,12 @@ public struct PreferencesView: View {
         .formStyle(.grouped)
     }
 
-    // MARK: - Menu Bar Tab (ADR 0007)
+    // MARK: - Menu Bar Tab (ADR 0007 Decoupled Popover Customization & Interactive Preview)
 
     private var menuBarTab: some View {
-        Form {
-            Section {
+        HSplitView {
+            // Left Column: Category & Widget Configurator
+            VStack(spacing: 0) {
                 List {
                     ForEach(MetricCategory.allCases, id: \.self) { category in
                         VStack(alignment: .leading, spacing: 10) {
@@ -276,64 +282,172 @@ public struct PreferencesView: View {
                                 .labelsHidden()
                             }
 
-                            // Available Widget Styles with Live Previews
+                            // Available Widget Styles with Live Previews & Popover Selectors
                             if store.isCategoryEnabled(category) {
                                 let hasBattery = coordinator.latestPower?.value.hasBattery ?? true
                                 VStack(spacing: 8) {
                                     ForEach(MetricDisplayStyle.supportedStyles(for: category, hasBattery: hasBattery)) { style in
-                                        widgetStyleRow(category: category, style: style)
+                                        widgetStyleRow(category: category, style: style, hasBattery: hasBattery)
                                     }
                                 }
-                                .padding(.leading, 36)
+                                .padding(.leading, 28)
                             }
                         }
                         .padding(.vertical, 6)
                     }
                 }
-            } header: {
-                Text("Customizable Menu Bar Icons & Widgets")
-            } footer: {
-                Text("Live previews reflect real-time telemetry. Toggle any widget style to show it in your macOS menu bar. Clicking any item opens its popover.")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+                .listStyle(.inset)
             }
+            .frame(minWidth: 440)
+
+            // Right Column: Live Interactive Popover Preview Stage
+            VStack(spacing: 0) {
+                // Header Bar with Popover Style Switcher and Widget Assignment
+                HStack(spacing: 8) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("\(selectedCategory.displayName) Popover")
+                            .font(.system(size: 13, weight: .semibold))
+                        Text(selectedPopoverStyle.displayName(for: selectedCategory))
+                            .font(.system(size: 11))
+                            .foregroundColor(.secondary)
+                    }
+
+                    Spacer()
+
+                    let hasBattery = coordinator.latestPower?.value.hasBattery ?? true
+                    Picker("Popover Style", selection: $selectedPopoverStyle) {
+                        ForEach(PopoverStyle.supportedPopovers(for: selectedCategory, hasBattery: hasBattery)) { pStyle in
+                            Text(pStyle.displayName(for: selectedCategory)).tag(pStyle)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .controlSize(.small)
+                    .frame(width: 150)
+
+                    if let style = selectedWidgetStyle {
+                        Button(action: {
+                            store.setPopoverStyle(selectedPopoverStyle, for: selectedCategory, widgetStyle: style)
+                        }) {
+                            Text("Set on Widget")
+                                .font(.system(size: 11, weight: .medium))
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.small)
+                        .help("Assign this popover design to \(style.displayName(for: selectedCategory))")
+                    }
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+                .background(Color(nsColor: .controlBackgroundColor))
+
+                Divider()
+
+                // Interactive Popover View Canvas
+                ScrollView {
+                    VStack(spacing: 0) {
+                        ConfigPopoverFactory.makePopoverView(
+                            category: selectedCategory,
+                            popoverStyle: selectedPopoverStyle,
+                            coordinator: coordinator,
+                            preferences: store
+                        )
+                        .frame(width: 330)
+                        .background(Color(nsColor: .windowBackgroundColor))
+                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 10)
+                                .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
+                        )
+                        .shadow(color: Color.black.opacity(0.12), radius: 6, x: 0, y: 3)
+                        .padding(.vertical, 16)
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+                .background(Color(nsColor: .underPageBackgroundColor).opacity(0.5))
+            }
+            .frame(minWidth: 360)
         }
-        .formStyle(.grouped)
     }
 
-    private func widgetStyleRow(category: MetricCategory, style: MetricDisplayStyle) -> some View {
+    private func widgetStyleRow(category: MetricCategory, style: MetricDisplayStyle, hasBattery: Bool) -> some View {
         let renderResult = MenuBarIconRenderer.render(
             config: MenuBarItemConfig(category: category, style: style),
             coordinator: coordinator,
             preferences: store
         )
+        let isSelected = (selectedCategory == category && selectedWidgetStyle == style)
+        let defaultStyle = PopoverStyle.defaultStyle(for: category, widgetStyle: style)
+        let currentCustomStyle = store.popoverStyle(for: category, widgetStyle: style)
+        let resolvedStyle = store.resolvedPopoverStyle(for: category, widgetStyle: style)
 
-        return HStack(spacing: 12) {
+        return HStack(spacing: 8) {
             // Live Preview Badge
-            HStack(spacing: 5) {
+            HStack(spacing: 4) {
                 if let img = renderResult.image {
                     Image(nsImage: img)
                         .renderingMode(img.isTemplate ? .template : .original)
                 }
                 if !renderResult.title.isEmpty {
                     Text(renderResult.title)
-                        .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                        .font(.system(size: 10, weight: .semibold, design: .monospaced))
                 }
             }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .frame(minWidth: 48, minHeight: 22)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 3)
+            .frame(minWidth: 44, minHeight: 20)
             .background(Color.secondary.opacity(0.12))
-            .clipShape(RoundedRectangle(cornerRadius: 6))
+            .clipShape(RoundedRectangle(cornerRadius: 5))
 
-            VStack(alignment: .leading, spacing: 2) {
+            // Widget Name
+            VStack(alignment: .leading, spacing: 1) {
                 Text(style.displayName(for: category))
-                    .font(.subheadline)
-                    .fontWeight(.medium)
+                    .font(.system(size: 12, weight: .medium))
             }
+            .frame(minWidth: 85, alignment: .leading)
 
             Spacer()
 
+            // Popover Picker Dropdown
+            Picker("", selection: Binding(
+                get: {
+                    currentCustomStyle ?? defaultStyle
+                },
+                set: { newValue in
+                    if newValue == defaultStyle {
+                        store.setPopoverStyle(nil, for: category, widgetStyle: style)
+                    } else {
+                        store.setPopoverStyle(newValue, for: category, widgetStyle: style)
+                    }
+                    selectedCategory = category
+                    selectedWidgetStyle = style
+                    selectedPopoverStyle = newValue
+                }
+            )) {
+                Text("Default (\(defaultStyle.displayName(for: category)))")
+                    .tag(defaultStyle)
+                Divider()
+                ForEach(PopoverStyle.supportedPopovers(for: category, hasBattery: hasBattery)) { popStyle in
+                    Text(popStyle.displayName(for: category))
+                        .tag(popStyle)
+                }
+            }
+            .pickerStyle(.menu)
+            .controlSize(.small)
+            .frame(width: 135)
+
+            // Preview Selection Eye Button
+            Button(action: {
+                selectedCategory = category
+                selectedWidgetStyle = style
+                selectedPopoverStyle = resolvedStyle
+            }) {
+                Image(systemName: isSelected ? "eye.fill" : "eye")
+                    .foregroundColor(isSelected ? .accentColor : .secondary)
+            }
+            .buttonStyle(.borderless)
+            .help("Preview this popover in the live stage")
+
+            // Enable/Disable Toggle
             Toggle("", isOn: Binding(
                 get: { store.isItemEnabled(category: category, style: style) },
                 set: { store.setItemEnabled(category: category, style: style, isEnabled: $0) }
@@ -342,10 +456,14 @@ public struct PreferencesView: View {
             .controlSize(.small)
             .labelsHidden()
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 5)
-        .background(Color.secondary.opacity(0.05))
-        .cornerRadius(8)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(isSelected ? Color.accentColor.opacity(0.08) : Color.secondary.opacity(0.04))
+        .cornerRadius(6)
+        .overlay(
+            RoundedRectangle(cornerRadius: 6)
+                .stroke(isSelected ? Color.accentColor.opacity(0.3) : Color.clear, lineWidth: 1)
+        )
     }
 
     // MARK: - Units Tab
