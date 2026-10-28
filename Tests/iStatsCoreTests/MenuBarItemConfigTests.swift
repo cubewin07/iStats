@@ -272,6 +272,25 @@ final class MenuBarItemConfigTests: XCTestCase {
         XCTAssertTrue(store.isItemEnabled(category: .cpu, style: .bar))
         XCTAssertEqual(store.menuBarItems.first(where: { $0.id == "cpu.bar" })?.popoverStyle, .categoryDefault)
 
+        // Setting default style explicitly normalizes custom override to nil
+        store.setPopoverStyle(.categoryDefault, for: .cpu, widgetStyle: .bar)
+        XCTAssertEqual(store.popoverStyle(for: .cpu, widgetStyle: .bar), .categoryDefault)
+        store.setPopoverStyle(.cpuCluster, for: .cpu, widgetStyle: .bar)
+        XCTAssertNil(store.popoverStyle(for: .cpu, widgetStyle: .bar))
+        XCTAssertEqual(store.resolvedPopoverStyle(for: .cpu, widgetStyle: .bar), .cpuCluster)
+
+        // Setting an unsupported popover style for a category normalizes to nil
+        store.setPopoverStyle(.thermalCPU, for: .cpu, widgetStyle: .bar)
+        XCTAssertNil(store.popoverStyle(for: .cpu, widgetStyle: .bar))
+        XCTAssertEqual(store.resolvedPopoverStyle(for: .cpu, widgetStyle: .bar), .cpuCluster)
+
+        // Relaunching PreferencesStore restores persisted popover styles
+        store.setPopoverStyle(.history, for: .cpu, widgetStyle: .bar)
+        let reloadedStore = PreferencesStore(userDefaults: defaults)
+        XCTAssertEqual(reloadedStore.popoverStyle(for: .cpu, widgetStyle: .bar), .history)
+        XCTAssertEqual(reloadedStore.resolvedPopoverStyle(for: .cpu, widgetStyle: .bar), .history)
+        XCTAssertEqual(reloadedStore.menuBarItems.first(where: { $0.id == "cpu.bar" })?.popoverStyle, .history)
+
         // Reset to defaults clears customizations
         store.resetToDefaults()
         XCTAssertNil(store.popoverStyle(for: .cpu, widgetStyle: .bar))

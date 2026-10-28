@@ -239,6 +239,9 @@ public struct PreferencesView: View {
                 Spacer()
                 Button("Reset to Defaults", role: .destructive) {
                     store.resetToDefaults()
+                    selectedCategory = .cpu
+                    selectedWidgetStyle = .bar
+                    selectedPopoverStyle = .cpuCluster
                     DockIconManager.shared.setDockIconVisible(store.showDockIcon)
                     LaunchAtLoginManager.shared.setLaunchAtLogin(enabled: store.launchAtLogin)
                 }
@@ -252,7 +255,7 @@ public struct PreferencesView: View {
     // MARK: - Menu Bar Tab (ADR 0007 Decoupled Popover Customization & Interactive Preview)
 
     private var menuBarTab: some View {
-        HSplitView {
+        HStack(spacing: 0) {
             // Left Column: Category & Widget Configurator
             VStack(spacing: 0) {
                 List {
@@ -281,6 +284,18 @@ public struct PreferencesView: View {
                                 ))
                                 .labelsHidden()
                             }
+                            .contentShape(Rectangle())
+                            .onTapGesture {
+                                selectedCategory = category
+                                let hasBattery = coordinator.latestPower?.value.hasBattery ?? true
+                                let firstStyle = MetricDisplayStyle.supportedStyles(for: category, hasBattery: hasBattery).first
+                                selectedWidgetStyle = firstStyle
+                                if let firstStyle {
+                                    selectedPopoverStyle = store.resolvedPopoverStyle(for: category, widgetStyle: firstStyle)
+                                } else {
+                                    selectedPopoverStyle = .categoryDefault
+                                }
+                            }
 
                             // Available Widget Styles with Live Previews & Popover Selectors
                             if store.isCategoryEnabled(category) {
@@ -298,15 +313,23 @@ public struct PreferencesView: View {
                 }
                 .listStyle(.inset)
             }
-            .frame(minWidth: 440)
+            .frame(minWidth: 440, maxWidth: .infinity)
+
+            Divider()
 
             // Right Column: Live Interactive Popover Preview Stage
             VStack(spacing: 0) {
                 // Header Bar with Popover Style Switcher and Widget Assignment
                 HStack(spacing: 8) {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("\(selectedCategory.displayName) Popover")
-                            .font(.system(size: 13, weight: .semibold))
+                        if let style = selectedWidgetStyle,
+                           MetricDisplayStyle.supportedStyles(for: selectedCategory).contains(style) {
+                            Text("\(selectedCategory.displayName) • \(style.displayName(for: selectedCategory))")
+                                .font(.system(size: 13, weight: .semibold))
+                        } else {
+                            Text("\(selectedCategory.displayName) Popover")
+                                .font(.system(size: 13, weight: .semibold))
+                        }
                         Text(selectedPopoverStyle.displayName(for: selectedCategory))
                             .font(.system(size: 11))
                             .foregroundColor(.secondary)
@@ -324,15 +347,18 @@ public struct PreferencesView: View {
                     .controlSize(.small)
                     .frame(width: 150)
 
-                    if let style = selectedWidgetStyle {
+                    if let style = selectedWidgetStyle,
+                       MetricDisplayStyle.supportedStyles(for: selectedCategory, hasBattery: hasBattery).contains(style) {
+                        let isAlreadyAssigned = store.resolvedPopoverStyle(for: selectedCategory, widgetStyle: style) == selectedPopoverStyle
                         Button(action: {
                             store.setPopoverStyle(selectedPopoverStyle, for: selectedCategory, widgetStyle: style)
                         }) {
-                            Text("Set on Widget")
+                            Text(isAlreadyAssigned ? "Assigned ✓" : "Set on Widget")
                                 .font(.system(size: 11, weight: .medium))
                         }
                         .buttonStyle(.borderedProminent)
                         .controlSize(.small)
+                        .disabled(isAlreadyAssigned)
                         .help("Assign this popover design to \(style.displayName(for: selectedCategory))")
                     }
                 }
@@ -407,28 +433,24 @@ public struct PreferencesView: View {
 
             Spacer()
 
-            // Popover Picker Dropdown
-            Picker("", selection: Binding(
+            // Popover Picker Dropdown (Unique tags via Optional<PopoverStyle>)
+            Picker("", selection: Binding<PopoverStyle?>(
                 get: {
-                    currentCustomStyle ?? defaultStyle
+                    currentCustomStyle
                 },
                 set: { newValue in
-                    if newValue == defaultStyle {
-                        store.setPopoverStyle(nil, for: category, widgetStyle: style)
-                    } else {
-                        store.setPopoverStyle(newValue, for: category, widgetStyle: style)
-                    }
+                    store.setPopoverStyle(newValue, for: category, widgetStyle: style)
                     selectedCategory = category
                     selectedWidgetStyle = style
-                    selectedPopoverStyle = newValue
+                    selectedPopoverStyle = newValue ?? defaultStyle
                 }
             )) {
                 Text("Default (\(defaultStyle.displayName(for: category)))")
-                    .tag(defaultStyle)
+                    .tag(PopoverStyle?.none)
                 Divider()
-                ForEach(PopoverStyle.supportedPopovers(for: category, hasBattery: hasBattery)) { popStyle in
+                ForEach(PopoverStyle.supportedPopovers(for: category, hasBattery: hasBattery).filter { $0 != defaultStyle }) { popStyle in
                     Text(popStyle.displayName(for: category))
-                        .tag(popStyle)
+                        .tag(PopoverStyle?.some(popStyle))
                 }
             }
             .pickerStyle(.menu)

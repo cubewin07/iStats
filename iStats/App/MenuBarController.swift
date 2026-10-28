@@ -184,6 +184,7 @@ public final class MenuBarController: NSObject {
                 NSStatusBar.system.removeStatusItem(item)
                 statusItems.removeValue(forKey: id)
                 previousRenderStates.removeValue(forKey: id)
+                lastConfiguredPopoverStyles.removeValue(forKey: id)
                 if let p = popovers.removeValue(forKey: id), p.isShown {
                     p.performClose(nil)
                 }
@@ -238,6 +239,7 @@ public final class MenuBarController: NSObject {
             NSStatusBar.system.removeStatusItem(item)
             statusItems.removeValue(forKey: id)
             previousRenderStates.removeValue(forKey: id)
+            lastConfiguredPopoverStyles.removeValue(forKey: id)
             if let p = popovers.removeValue(forKey: id), p.isShown {
                 p.performClose(nil)
             }
@@ -256,13 +258,17 @@ public final class MenuBarController: NSObject {
             popovers[config.id] = createPopover(for: config)
         }
 
-        // 3. Invalidate cached popover content if custom popover style was updated
+        // 3. Invalidate or swap cached popover content if custom popover style was updated
         for config in activeConfigs {
             let resolved = preferences.resolvedPopoverStyle(for: config.category, widgetStyle: config.style)
             if lastConfiguredPopoverStyles[config.id] != resolved {
                 lastConfiguredPopoverStyles[config.id] = resolved
                 if let p = popovers[config.id] {
-                    p.contentViewController = nil
+                    if p.isShown {
+                        p.contentViewController = makeHostingController(for: config)
+                    } else {
+                        p.contentViewController = nil
+                    }
                 }
             }
         }
