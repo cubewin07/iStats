@@ -99,7 +99,7 @@ public struct FanSummaryView: View {
                     )
 
                     HStack {
-                        Text("last 2 min")
+                        Text("last \(Units.formatHistoryDuration(sampleCount: 60, interval: PreferencesStore.shared.refreshInterval))")
                             .font(.system(size: 9, weight: .medium))
                             .foregroundColor(.secondary)
 

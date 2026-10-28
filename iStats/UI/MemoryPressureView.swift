@@ -196,7 +196,7 @@ public struct MemorySummaryView: View {
                 )
 
                 HStack {
-                    Text("last 2 min")
+                    Text("last \(Units.formatHistoryDuration(sampleCount: 60, interval: PreferencesStore.shared.refreshInterval))")
                         .font(.system(size: 9, weight: .medium))
                         .foregroundColor(.secondary)
 
@@ -247,34 +247,36 @@ public struct MemorySummaryView: View {
             let free = Double(sample.free)
 
             let sum = max(total, app + wired + compressed + cached + free)
-            let w = geo.size.width
+            let spacing: CGFloat = 1.5
+            let totalSpacing: CGFloat = spacing * 4
+            let availableWidth = max(0, geo.size.width - totalSpacing)
 
-            let appW = max(0, w * CGFloat(app / sum))
-            let wiredW = max(0, w * CGFloat(wired / sum))
-            let compW = max(0, w * CGFloat(compressed / sum))
-            let cachedW = max(0, w * CGFloat(cached / sum))
-            let freeW = max(0, w - appW - wiredW - compW - cachedW)
+            let appW = availableWidth * CGFloat(app / sum)
+            let wiredW = availableWidth * CGFloat(wired / sum)
+            let compW = availableWidth * CGFloat(compressed / sum)
+            let cachedW = availableWidth * CGFloat(cached / sum)
+            let freeW = max(0, availableWidth - appW - wiredW - compW - cachedW)
 
-            HStack(spacing: 1.5) {
+            HStack(spacing: spacing) {
                 // Apps (Blue)
                 RoundedRectangle(cornerRadius: 2)
                     .fill(appColor)
-                    .frame(width: max(0, appW - 1))
+                    .frame(width: max(0, appW))
 
                 // Wired (Purple)
                 RoundedRectangle(cornerRadius: 2)
                     .fill(wiredColor)
-                    .frame(width: max(0, wiredW - 1))
+                    .frame(width: max(0, wiredW))
 
                 // Compressed (Orange)
                 RoundedRectangle(cornerRadius: 2)
                     .fill(compressedColor)
-                    .frame(width: max(0, compW - 1))
+                    .frame(width: max(0, compW))
 
                 // Cached (Teal)
                 RoundedRectangle(cornerRadius: 2)
                     .fill(cachedColor)
-                    .frame(width: max(0, cachedW - 1))
+                    .frame(width: max(0, cachedW))
 
                 // Free (Empty well)
                 RoundedRectangle(cornerRadius: 2)

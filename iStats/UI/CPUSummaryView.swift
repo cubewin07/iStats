@@ -31,11 +31,11 @@ public struct CPUSummaryView: View {
         VStack(spacing: 8) {
             // MARK: - Top Card: Stacked History Graph & User/System Legend
             VStack(alignment: .leading, spacing: 8) {
-                // Header inside the card: "CPU" and Clock / Load
+                // Header inside the card: Activity Title and Clock / Load
                 HStack(alignment: .firstTextBaseline) {
-                    Text("CPU")
-                        .font(.system(size: 13, weight: .bold))
-                        .foregroundColor(userColor)
+                    Text("ACTIVITY & LOAD")
+                        .font(.system(size: 11, weight: .bold, design: .monospaced))
+                        .foregroundColor(.secondary)
 
                     Spacer()
 
@@ -222,29 +222,32 @@ public struct CPUSummaryView: View {
     private func coreRingsCluster(sample: CPUSample) -> some View {
         let eCount = sample.efficiencyCoreCount ?? 0
         let count = sample.perCore.count
-        let ringSize: CGFloat = count > 16 ? 16 : (count > 10 ? 18 : 22)
+        let columnsCount = count > 16 ? 8 : (count > 10 ? 6 : count)
+        let ringSize: CGFloat = count > 16 ? 18 : (count > 10 ? 20 : 22)
 
-        return HStack(spacing: count > 12 ? 3 : 5) {
-            ForEach(0..<count, id: \.self) { index in
-                let usage = sample.perCore[index]
-                let isE = index < eCount
-                let ringColor = isE ? systemColor : userColor
+        return VStack(spacing: 4) {
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 4), count: min(count, max(1, columnsCount))), spacing: 4) {
+                ForEach(0..<count, id: \.self) { index in
+                    let usage = sample.perCore[index]
+                    let isE = index < eCount
+                    let ringColor = isE ? Color.teal : Color.blue
 
-                ZStack {
-                    // Background ring track
-                    Circle()
-                        .stroke(Color.secondary.opacity(0.2), lineWidth: ringSize * 0.2)
+                    ZStack {
+                        // Background ring track
+                        Circle()
+                            .stroke(Color.secondary.opacity(0.2), lineWidth: ringSize * 0.18)
 
-                    // Active load arc
-                    Circle()
-                        .trim(from: 0.0, to: CGFloat(min(max(usage / 100.0, 0.0), 1.0)))
-                        .stroke(
-                            ringColor,
-                            style: StrokeStyle(lineWidth: ringSize * 0.2, lineCap: .round)
-                        )
-                        .rotationEffect(.degrees(-90))
+                        // Active load arc
+                        Circle()
+                            .trim(from: 0.0, to: CGFloat(min(max(usage / 100.0, 0.0), 1.0)))
+                            .stroke(
+                                ringColor,
+                                style: StrokeStyle(lineWidth: ringSize * 0.18, lineCap: .round)
+                            )
+                            .rotationEffect(.degrees(-90))
+                    }
+                    .frame(width: ringSize, height: ringSize)
                 }
-                .frame(width: ringSize, height: ringSize)
             }
         }
         .frame(maxWidth: .infinity, alignment: .center)

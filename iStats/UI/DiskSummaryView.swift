@@ -30,6 +30,14 @@ public struct DiskSummaryView: View {
         sample?.volumes.first(where: { $0.mountPoint == "/" }) ?? sample?.volumes.first
     }
 
+    private var historyReadRates: [Double] {
+        history.map { $0.value.io?.bytesReadPerSec ?? 0.0 }
+    }
+
+    private var historyWriteRates: [Double] {
+        history.map { $0.value.io?.bytesWrittenPerSec ?? 0.0 }
+    }
+
     private var historyIORates: [Double] {
         history.map { s in
             if let io = s.value.io {
@@ -94,32 +102,54 @@ public struct DiskSummaryView: View {
             // MARK: - Live I/O Activity Cards (Read & Write)
             if let io = sample?.io {
                 HStack(spacing: 8) {
-                    ioRateCard(title: "Read", rate: io.bytesReadPerSec, icon: "arrow.down", color: .indigo)
-                    ioRateCard(title: "Write", rate: io.bytesWrittenPerSec, icon: "arrow.up", color: .purple)
+                    ioRateCard(title: "Read", rate: io.bytesReadPerSec, icon: "arrow.down", color: .cyan)
+                    ioRateCard(title: "Write", rate: io.bytesWrittenPerSec, icon: "arrow.up", color: .orange)
                 }
 
-                // 60-Sample I/O Sparkline
+                // 60-Sample Dual Read/Write Sparkline
                 VStack(alignment: .leading, spacing: 4) {
-                    RollingGraphView(
-                        values: historyIORates,
-                        minValue: 0.0,
-                        maxValue: peakIORate * 1.1,
-                        tintColor: .indigo,
-                        capacity: 60,
-                        height: 38,
-                        showGrid: true
+                    DualTraceRollingGraphView(
+                        primaryValues: historyReadRates,
+                        secondaryValues: historyWriteRates,
+                        primaryColor: .cyan,
+                        secondaryColor: .orange,
+                        primaryLabel: "Read",
+                        secondaryLabel: "Write",
+                        height: 40,
+                        capacity: 60
                     )
 
                     HStack {
-                        Text("last 2 min (I/O)")
-                            .font(.system(size: 9, weight: .medium))
-                            .foregroundColor(.secondary)
+                        HStack(spacing: 8) {
+                            HStack(spacing: 3) {
+                                Circle().fill(Color.cyan).frame(width: 5, height: 5)
+                                Text("Read")
+                                    .font(.system(size: 8.5, weight: .medium))
+                                    .foregroundColor(.secondary)
+                            }
+                            HStack(spacing: 3) {
+                                Circle().fill(Color.orange).frame(width: 5, height: 5)
+                                Text("Write")
+                                    .font(.system(size: 8.5, weight: .medium))
+                                    .foregroundColor(.secondary)
+                            }
+                        }
 
                         Spacer()
 
-                        Text("peak \(Units.formatBytes(UInt64(max(0, peakIORate)), standard: byteStandard))/s")
-                            .font(.system(size: 9, weight: .bold, design: .monospaced))
-                            .foregroundColor(.secondary)
+                        let peakR = historyReadRates.max() ?? 0
+                        let peakW = historyWriteRates.max() ?? 0
+                        HStack(spacing: 5) {
+                            Text("Peak:")
+                                .font(.system(size: 8.5, weight: .medium))
+                                .foregroundColor(.secondary)
+                            Text("R:" + Units.formatDiskRate(peakR, standard: byteStandard))
+                                .font(.system(size: 8.5, weight: .bold, design: .monospaced))
+                                .foregroundColor(.cyan)
+                            Text("W:" + Units.formatDiskRate(peakW, standard: byteStandard))
+                                .font(.system(size: 8.5, weight: .bold, design: .monospaced))
+                                .foregroundColor(.orange)
+                        }
                     }
                     .padding(.horizontal, 2)
                 }
@@ -199,40 +229,57 @@ public struct DiskSummaryView: View {
                 .background(RoundedRectangle(cornerRadius: 4).fill(Color.secondary.opacity(0.04)))
             }
 
-            // All Mounted Volumes
-            ForEach(sample.volumes, id: \.mountPoint) { vol in
-                HStack {
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text(vol.name)
-                            .font(.system(size: 9.5, weight: .medium))
-                            .foregroundColor(.primary)
-                            .lineLimit(1)
+            // All Mounted Volumes (Click to open in Finder)
+            ScrollView(.vertical, showsIndicators: sample.volumes.count > 4) {
+                VStack(spacing: 4) {
+                    ForEach(sample.volumes, id: \.mountPoint) { vol in
+                        Button(action: {
+                            NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: vol.mountPoint)
+                        }) {
+                            HStack {
+                                VStack(alignment: .leading, spacing: 1) {
+                                    HStack(spacing: 4) {
+                                        Image(systemName: "internaldrive")
+                                            .font(.system(size: 8, weight: .semibold))
+                                            .foregroundColor(.cyan)
+                                        Text(vol.name)
+                                            .font(.system(size: 9.5, weight: .medium))
+                                            .foregroundColor(.primary)
+                                            .lineLimit(1)
+                                    }
 
-                        Text(vol.mountPoint)
-                            .font(.system(size: 8, weight: .regular, design: .monospaced))
-                            .foregroundColor(.secondary)
-                    }
+                                    Text(vol.mountPoint)
+                                        .font(.system(size: 8, weight: .regular, design: .monospaced))
+                                        .foregroundColor(.secondary)
+                                }
 
-                    Spacer()
+                                Spacer()
 
-                    let usedPct = vol.total > 0 ? (Double(vol.used) / Double(vol.total)) * 100.0 : 0.0
-                    VStack(alignment: .trailing, spacing: 1) {
-                        Text("\(Units.formatBytes(vol.free, standard: byteStandard)) free")
-                            .font(.system(size: 9.5, weight: .semibold, design: .monospaced))
-                            .foregroundColor(.primary)
+                                let usedPct = vol.total > 0 ? (Double(vol.used) / Double(vol.total)) * 100.0 : 0.0
+                                VStack(alignment: .trailing, spacing: 1) {
+                                    Text("\(Units.formatBytes(vol.free, standard: byteStandard)) free")
+                                        .font(.system(size: 9.5, weight: .semibold, design: .monospaced))
+                                        .foregroundColor(.primary)
 
-                        Text("of \(Units.formatBytes(vol.total, standard: byteStandard)) (\(String(format: "%.0f%%", usedPct)))")
-                            .font(.system(size: 8, weight: .regular))
-                            .foregroundColor(.secondary)
+                                    Text("of \(Units.formatBytes(vol.total, standard: byteStandard)) (\(String(format: "%.0f%%", usedPct)))")
+                                        .font(.system(size: 8, weight: .regular))
+                                        .foregroundColor(.secondary)
+                                }
+                            }
+                            .padding(.vertical, 3)
+                            .padding(.horizontal, 6)
+                            .background(
+                                RoundedRectangle(cornerRadius: 4)
+                                    .fill(Color.secondary.opacity(0.04))
+                            )
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .help("Click to open \(vol.name) in Finder")
                     }
                 }
-                .padding(.vertical, 2)
-                .padding(.horizontal, 6)
-                .background(
-                    RoundedRectangle(cornerRadius: 4)
-                        .fill(Color.secondary.opacity(0.04))
-                )
             }
+            .frame(maxHeight: 180)
         }
         .padding(.top, 4)
     }

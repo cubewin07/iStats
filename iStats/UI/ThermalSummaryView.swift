@@ -123,7 +123,7 @@ public struct ThermalSummaryView: View {
                 )
 
                 HStack {
-                    Text("last 2 min (peak history)")
+                    Text("last \(Units.formatHistoryDuration(sampleCount: 60, interval: PreferencesStore.shared.refreshInterval)) (peak history)")
                         .font(.system(size: 9, weight: .medium))
                         .foregroundColor(.secondary)
 
@@ -165,28 +165,32 @@ public struct ThermalSummaryView: View {
 
     @ViewBuilder
     private func sensorsList(sample: ThermalSample) -> some View {
-        VStack(spacing: 3) {
-            ForEach(sample.sensors.sorted(by: { $0.celsius > $1.celsius }), id: \.name) { sensor in
-                HStack {
-                    Text(cleanSensorName(sensor.name))
-                        .font(.system(size: 9.5, weight: .medium))
-                        .foregroundColor(.primary)
-                        .lineLimit(1)
+        ScrollView(.vertical, showsIndicators: sample.sensors.count > 6) {
+            VStack(spacing: 3) {
+                ForEach(sample.sensors.sorted(by: { $0.celsius > $1.celsius }), id: \.name) { sensor in
+                    HStack {
+                        Text(cleanSensorName(sensor.name))
+                            .font(.system(size: 9.5, weight: .medium))
+                            .foregroundColor(.primary)
+                            .lineLimit(1)
 
-                    Spacer()
+                        Spacer()
 
-                    Text(Units.formatTemperature(sensor.celsius, unit: temperatureUnit, fractionDigits: 1))
-                        .font(.system(size: 9.5, weight: .semibold, design: .monospaced))
-                        .foregroundColor(sensorColor(sensor.celsius))
+                        Text(Units.formatTemperature(sensor.celsius, unit: temperatureUnit, fractionDigits: 1))
+                            .font(.system(size: 9.5, weight: .semibold, design: .monospaced))
+                            .foregroundColor(sensorColor(sensor.celsius))
+                    }
+                    .padding(.vertical, 2)
+                    .padding(.horizontal, 6)
+                    .background(
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(Color.secondary.opacity(0.04))
+                    )
                 }
-                .padding(.vertical, 1.5)
-                .padding(.horizontal, 6)
-                .background(
-                    RoundedRectangle(cornerRadius: 4)
-                        .fill(Color.secondary.opacity(0.04))
-                )
             }
+            .padding(.horizontal, 2)
         }
+        .frame(maxHeight: 180)
         .padding(.top, 4)
     }
 
