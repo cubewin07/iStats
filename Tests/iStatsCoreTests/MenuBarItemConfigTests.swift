@@ -199,5 +199,85 @@ final class MenuBarItemConfigTests: XCTestCase {
 
         defaults.removePersistentDomain(forName: suiteName)
     }
+
+    func testPopoverStyleSupportedAndDefaultStyles() {
+        // Supported popovers per category
+        let cpuPopovers = PopoverStyle.supportedPopovers(for: .cpu)
+        XCTAssertTrue(cpuPopovers.contains(.categoryDefault))
+        XCTAssertTrue(cpuPopovers.contains(.cpuUserSystem))
+        XCTAssertTrue(cpuPopovers.contains(.cpuCluster))
+        XCTAssertTrue(cpuPopovers.contains(.history))
+
+        let thermalPopovers = PopoverStyle.supportedPopovers(for: .thermal, hasBattery: true)
+        XCTAssertTrue(thermalPopovers.contains(.thermalCPU))
+        XCTAssertTrue(thermalPopovers.contains(.thermalGPU))
+        XCTAssertTrue(thermalPopovers.contains(.thermalBattery))
+
+        // Default style resolution
+        XCTAssertEqual(PopoverStyle.defaultStyle(for: .cpu, widgetStyle: .bar), .cpuCluster)
+        XCTAssertEqual(PopoverStyle.defaultStyle(for: .cpu, widgetStyle: .gauge), .cpuUserSystem)
+        XCTAssertEqual(PopoverStyle.defaultStyle(for: .cpu, widgetStyle: .text), .categoryDefault)
+        XCTAssertEqual(PopoverStyle.defaultStyle(for: .thermal, widgetStyle: .cpuTemp), .thermalCPU)
+        XCTAssertEqual(PopoverStyle.defaultStyle(for: .thermal, widgetStyle: .gpuTemp), .thermalGPU)
+        XCTAssertEqual(PopoverStyle.defaultStyle(for: .power, widgetStyle: .throughput), .powerWattage)
+    }
+
+    func testMenuBarItemConfigPopoverStyleResolutionAndCodable() throws {
+        // Default (unset popoverStyle) resolves to defaultStyle
+        let config1 = MenuBarItemConfig(category: .cpu, style: .bar)
+        XCTAssertNil(config1.popoverStyle)
+        XCTAssertEqual(config1.resolvedPopoverStyle, .cpuCluster)
+
+        // Explicit popoverStyle overrides defaultStyle
+        let config2 = MenuBarItemConfig(category: .cpu, style: .bar, popoverStyle: .categoryDefault)
+        XCTAssertEqual(config2.popoverStyle, .categoryDefault)
+        XCTAssertEqual(config2.resolvedPopoverStyle, .categoryDefault)
+
+        // Codable roundtrip with popoverStyle
+        let data = try JSONEncoder().encode(config2)
+        let decoded = try JSONDecoder().decode(MenuBarItemConfig.self, from: data)
+        XCTAssertEqual(decoded.popoverStyle, .categoryDefault)
+        XCTAssertEqual(decoded.resolvedPopoverStyle, .categoryDefault)
+
+        // Decoding legacy JSON without popoverStyle sets it to nil
+        let legacyJSON = """
+        {"category":"cpu","style":"bar"}
+        """.data(using: .utf8)!
+        let decodedLegacy = try JSONDecoder().decode(MenuBarItemConfig.self, from: legacyJSON)
+        XCTAssertNil(decodedLegacy.popoverStyle)
+        XCTAssertEqual(decodedLegacy.resolvedPopoverStyle, .cpuCluster)
+    }
+
+    func testPreferencesStorePopoverStyleCustomizationPersistence() {
+        let suiteName = "test.istats.popovers.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        let store = PreferencesStore(userDefaults: defaults)
+
+        // Default unresolved style is nil / resolves to defaultStyle
+        XCTAssertNil(store.popoverStyle(for: .cpu, widgetStyle: .bar))
+        XCTAssertEqual(store.resolvedPopoverStyle(for: .cpu, widgetStyle: .bar), .cpuCluster)
+
+        // Customize popover style
+        store.setPopoverStyle(.categoryDefault, for: .cpu, widgetStyle: .bar)
+        XCTAssertEqual(store.popoverStyle(for: .cpu, widgetStyle: .bar), .categoryDefault)
+        XCTAssertEqual(store.resolvedPopoverStyle(for: .cpu, widgetStyle: .bar), .categoryDefault)
+        XCTAssertEqual(store.menuBarItems.first(where: { $0.id == "cpu.bar" })?.popoverStyle, .categoryDefault)
+
+        // Toggling item off and on preserves custom popover style
+        store.setItemEnabled(category: .cpu, style: .bar, isEnabled: false)
+        XCTAssertFalse(store.isItemEnabled(category: .cpu, style: .bar))
+        XCTAssertEqual(store.popoverStyle(for: .cpu, widgetStyle: .bar), .categoryDefault)
+
+        store.setItemEnabled(category: .cpu, style: .bar, isEnabled: true)
+        XCTAssertTrue(store.isItemEnabled(category: .cpu, style: .bar))
+        XCTAssertEqual(store.menuBarItems.first(where: { $0.id == "cpu.bar" })?.popoverStyle, .categoryDefault)
+
+        // Reset to defaults clears customizations
+        store.resetToDefaults()
+        XCTAssertNil(store.popoverStyle(for: .cpu, widgetStyle: .bar))
+        XCTAssertEqual(store.resolvedPopoverStyle(for: .cpu, widgetStyle: .bar), .cpuCluster)
+
+        defaults.removePersistentDomain(forName: suiteName)
+    }
 }
 
