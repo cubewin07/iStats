@@ -372,7 +372,7 @@ public struct SubsystemThermalPopoverView: View {
                 }
                 .padding(.top, 2)
             }
-            .frame(maxHeight: 140)
+            .frame(height: min(CGFloat(matchingSensors.count) * 26 + 6, 140))
         }
         .padding(10)
         .background(
@@ -490,11 +490,6 @@ public struct ThermalCPUPopoverView: View {
         return eCoreSensors.map(\.celsius).reduce(0.0, +) / Double(eCoreSensors.count)
     }
 
-    private var throttleMargin: Double {
-        let peak = peakCPUSensor?.celsius ?? 45.0
-        return max(0.0, 105.0 - peak)
-    }
-
     public var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             PopoverHeaderView(
@@ -521,14 +516,23 @@ public struct ThermalCPUPopoverView: View {
                         .font(.system(size: 9, weight: .bold, design: .monospaced))
                         .foregroundColor(.secondary)
                     HStack(alignment: .firstTextBaseline, spacing: 6) {
-                        let peakVal = peakCPUSensor?.celsius ?? 0.0
-                        Text(Units.formatTemperature(peakVal, unit: preferences.temperatureUnit, fractionDigits: 1))
-                            .font(.system(size: 24, weight: .bold, design: .rounded))
-                            .foregroundColor(tempColor(peakVal))
-                        Text(peakCPUSensor?.name ?? "CPU Package")
-                            .font(.system(size: 10, weight: .medium))
-                            .foregroundColor(.secondary)
-                            .lineLimit(1)
+                        if let sensor = peakCPUSensor {
+                            Text(Units.formatTemperature(sensor.celsius, unit: preferences.temperatureUnit, fractionDigits: 1))
+                                .font(.system(size: 24, weight: .bold, design: .rounded))
+                                .foregroundColor(tempColor(sensor.celsius))
+                            Text(sensor.name)
+                                .font(.system(size: 10, weight: .medium))
+                                .foregroundColor(.secondary)
+                                .lineLimit(1)
+                        } else {
+                            Text("—")
+                                .font(.system(size: 24, weight: .bold, design: .rounded))
+                                .foregroundColor(.secondary)
+                            Text("Unavailable")
+                                .font(.system(size: 10, weight: .medium))
+                                .foregroundColor(.secondary)
+                                .lineLimit(1)
+                        }
                     }
                 }
             }
@@ -538,10 +542,10 @@ public struct ThermalCPUPopoverView: View {
             .clipShape(RoundedRectangle(cornerRadius: 10))
 
             // TJMax Headroom Card
-            let peakC = peakCPUSensor?.celsius ?? 45.0
-            let throttleMarginC = max(0.0, 105.0 - peakC)
+            let peakC = peakCPUSensor?.celsius
+            let throttleMarginC = peakC.map { max(0.0, 105.0 - $0) }
             let isFahrenheit = preferences.temperatureUnit == .fahrenheit
-            let marginVal = isFahrenheit ? (throttleMarginC * 1.8) : throttleMarginC
+            let marginVal = throttleMarginC.map { isFahrenheit ? ($0 * 1.8) : $0 }
             let tjMaxLabel = Units.formatTemperature(105.0, unit: preferences.temperatureUnit, fractionDigits: 0)
 
             VStack(alignment: .leading, spacing: 5) {
@@ -550,13 +554,19 @@ public struct ThermalCPUPopoverView: View {
                         .font(.system(size: 8, weight: .bold, design: .monospaced))
                         .foregroundColor(.secondary)
                     Spacer()
-                    Text(String(format: "+%.1f°%@ Margin", marginVal, isFahrenheit ? "F" : "C"))
-                        .font(.system(size: 10, weight: .bold, design: .monospaced))
-                        .foregroundColor(throttleMarginC > 25 ? .green : (throttleMarginC > 15 ? .orange : .red))
+                    if let margin = marginVal, let mC = throttleMarginC {
+                        Text(String(format: "+%.1f°%@ Margin", margin, isFahrenheit ? "F" : "C"))
+                            .font(.system(size: 10, weight: .bold, design: .monospaced))
+                            .foregroundColor(mC > 25 ? .green : (mC > 15 ? .orange : .red))
+                    } else {
+                        Text("—")
+                            .font(.system(size: 10, weight: .bold, design: .monospaced))
+                            .foregroundColor(.secondary)
+                    }
                 }
 
                 GeometryReader { g in
-                    let pct = min(1.0, max(0.0, peakC / 105.0))
+                    let pct = peakC.map { min(1.0, max(0.0, $0 / 105.0)) } ?? 0.0
                     ZStack(alignment: .leading) {
                         RoundedRectangle(cornerRadius: 3).fill(Color.primary.opacity(0.08))
                         RoundedRectangle(cornerRadius: 3)
@@ -581,7 +591,7 @@ public struct ThermalCPUPopoverView: View {
                             .font(.system(size: 14, weight: .bold, design: .rounded))
                             .foregroundColor(tempColor(avgP))
                     } else {
-                        Text("--").font(.system(size: 14, weight: .bold)).foregroundColor(.secondary)
+                        Text("—").font(.system(size: 14, weight: .bold)).foregroundColor(.secondary)
                     }
                     Text("\(pCoreSensors.count) active sensors")
                         .font(.system(size: 9))
@@ -601,7 +611,7 @@ public struct ThermalCPUPopoverView: View {
                             .font(.system(size: 14, weight: .bold, design: .rounded))
                             .foregroundColor(tempColor(avgE))
                     } else {
-                        Text("--").font(.system(size: 14, weight: .bold)).foregroundColor(.secondary)
+                        Text("—").font(.system(size: 14, weight: .bold)).foregroundColor(.secondary)
                     }
                     Text("\(eCoreSensors.count) active sensors")
                         .font(.system(size: 9))
@@ -633,7 +643,9 @@ public struct ThermalCPUPopoverView: View {
     }
 
     private func evaluateVerdict() -> MetricVerdict {
-        let peak = peakCPUSensor?.celsius ?? 0.0
+        guard let peak = peakCPUSensor?.celsius else {
+            return MetricVerdict(level: .fine, badgeText: "Unavailable", dadSentence: "CPU temperature unavailable", primaryValue: "—")
+        }
         let level: StatusLevel
         let dad: String
         if peak >= 90.0 {
@@ -706,14 +718,23 @@ public struct ThermalGPUPopoverView: View {
                         .font(.system(size: 9, weight: .bold, design: .monospaced))
                         .foregroundColor(.secondary)
                     HStack(alignment: .firstTextBaseline, spacing: 6) {
-                        let peakVal = peakGPUSensor?.celsius ?? 0.0
-                        Text(Units.formatTemperature(peakVal, unit: preferences.temperatureUnit, fractionDigits: 1))
-                            .font(.system(size: 24, weight: .bold, design: .rounded))
-                            .foregroundColor(peakVal >= 85 ? .red : (peakVal >= 70 ? .orange : .purple))
-                        Text(peakGPUSensor?.name ?? "GPU Die")
-                            .font(.system(size: 10, weight: .medium))
-                            .foregroundColor(.secondary)
-                            .lineLimit(1)
+                        if let sensor = peakGPUSensor {
+                            Text(Units.formatTemperature(sensor.celsius, unit: preferences.temperatureUnit, fractionDigits: 1))
+                                .font(.system(size: 24, weight: .bold, design: .rounded))
+                                .foregroundColor(sensor.celsius >= 85 ? .red : (sensor.celsius >= 70 ? .orange : .purple))
+                            Text(sensor.name)
+                                .font(.system(size: 10, weight: .medium))
+                                .foregroundColor(.secondary)
+                                .lineLimit(1)
+                        } else {
+                            Text("—")
+                                .font(.system(size: 24, weight: .bold, design: .rounded))
+                                .foregroundColor(.secondary)
+                            Text("Unavailable")
+                                .font(.system(size: 10, weight: .medium))
+                                .foregroundColor(.secondary)
+                                .lineLimit(1)
+                        }
                     }
                 }
             }
@@ -728,10 +749,15 @@ public struct ThermalGPUPopoverView: View {
                     Text("GPU SHADERS")
                         .font(.system(size: 8, weight: .bold, design: .monospaced))
                         .foregroundColor(.secondary)
-                    let pVal = peakGPUSensor?.celsius ?? 0.0
-                    Text(Units.formatTemperature(pVal, unit: preferences.temperatureUnit, fractionDigits: 1))
-                        .font(.system(size: 14, weight: .bold, design: .rounded))
-                        .foregroundColor(.purple)
+                    if let sensor = peakGPUSensor {
+                        Text(Units.formatTemperature(sensor.celsius, unit: preferences.temperatureUnit, fractionDigits: 1))
+                            .font(.system(size: 14, weight: .bold, design: .rounded))
+                            .foregroundColor(.purple)
+                    } else {
+                        Text("—")
+                            .font(.system(size: 14, weight: .bold, design: .rounded))
+                            .foregroundColor(.secondary)
+                    }
                     Text("\(gpuSensors.count) GPU clusters")
                         .font(.system(size: 9))
                         .foregroundColor(.secondary)
@@ -750,7 +776,7 @@ public struct ThermalGPUPopoverView: View {
                             .font(.system(size: 14, weight: .bold, design: .rounded))
                             .foregroundColor(.indigo)
                     } else {
-                        Text("Nominal")
+                        Text("—")
                             .font(.system(size: 14, weight: .bold))
                             .foregroundColor(.secondary)
                     }
@@ -799,7 +825,9 @@ public struct ThermalGPUPopoverView: View {
     }
 
     private func evaluateVerdict() -> MetricVerdict {
-        let peak = peakGPUSensor?.celsius ?? 0.0
+        guard let peak = peakGPUSensor?.celsius else {
+            return MetricVerdict(level: .fine, badgeText: "Unavailable", dadSentence: "GPU temperature unavailable", primaryValue: "—")
+        }
         let level: StatusLevel = peak >= 85 ? .critical : (peak >= 70 ? .warning : .fine)
         let valStr = Units.formatTemperature(peak, unit: preferences.temperatureUnit, fractionDigits: 0)
         return MetricVerdict(level: level, badgeText: valStr, dadSentence: "Metal graphics & compute rendering", primaryValue: valStr)
@@ -854,14 +882,23 @@ public struct ThermalMemoryPopoverView: View {
                         .font(.system(size: 9, weight: .bold, design: .monospaced))
                         .foregroundColor(.secondary)
                     HStack(alignment: .firstTextBaseline, spacing: 6) {
-                        let peakVal = peakMemSensor?.celsius ?? 0.0
-                        Text(Units.formatTemperature(peakVal, unit: preferences.temperatureUnit, fractionDigits: 1))
-                            .font(.system(size: 24, weight: .bold, design: .rounded))
-                            .foregroundColor(peakVal >= 85 ? .red : (peakVal >= 70 ? .orange : .green))
-                        Text(peakMemSensor?.name ?? "Unified DRAM")
-                            .font(.system(size: 10, weight: .medium))
-                            .foregroundColor(.secondary)
-                            .lineLimit(1)
+                        if let sensor = peakMemSensor {
+                            Text(Units.formatTemperature(sensor.celsius, unit: preferences.temperatureUnit, fractionDigits: 1))
+                                .font(.system(size: 24, weight: .bold, design: .rounded))
+                                .foregroundColor(sensor.celsius >= 85 ? .red : (sensor.celsius >= 70 ? .orange : .green))
+                            Text(sensor.name)
+                                .font(.system(size: 10, weight: .medium))
+                                .foregroundColor(.secondary)
+                                .lineLimit(1)
+                        } else {
+                            Text("—")
+                                .font(.system(size: 24, weight: .bold, design: .rounded))
+                                .foregroundColor(.secondary)
+                            Text("Unavailable")
+                                .font(.system(size: 10, weight: .medium))
+                                .foregroundColor(.secondary)
+                                .lineLimit(1)
+                        }
                     }
                 }
             }
@@ -871,21 +908,30 @@ public struct ThermalMemoryPopoverView: View {
             .clipShape(RoundedRectangle(cornerRadius: 10))
 
             // LPDDR Refresh Mode Status Card
-            let peakC = peakMemSensor?.celsius ?? 40.0
-            let isHighTempRefresh = peakC >= 85.0
+            let peakC = peakMemSensor?.celsius
+            let thresholdLabel = Units.formatTemperature(85.0, unit: preferences.temperatureUnit, fractionDigits: 0)
+            let isHighTempRefresh = (peakC ?? 40.0) >= 85.0
             VStack(alignment: .leading, spacing: 4) {
                 HStack {
                     Text("REFRESH CYCLE POLICY")
                         .font(.system(size: 8, weight: .bold, design: .monospaced))
                         .foregroundColor(.secondary)
                     Spacer()
-                    Text(isHighTempRefresh ? "2x Refresh Rate" : "1x Standard Rate")
-                        .font(.system(size: 9, weight: .bold, design: .monospaced))
-                        .foregroundColor(isHighTempRefresh ? .orange : .green)
+                    if peakC != nil {
+                        Text(isHighTempRefresh ? "2x Refresh Rate" : "1x Standard Rate")
+                            .font(.system(size: 9, weight: .bold, design: .monospaced))
+                            .foregroundColor(isHighTempRefresh ? .orange : .green)
+                    } else {
+                        Text("—")
+                            .font(.system(size: 9, weight: .bold, design: .monospaced))
+                            .foregroundColor(.secondary)
+                    }
                 }
-                Text(isHighTempRefresh
-                    ? "DRAM operating >= 85°C. Memory controller doubles self-refresh rate to prevent cell bit-flips."
-                    : "DRAM operating in optimal thermal window (< 85°C). Normal power consumption.")
+                Text(peakC != nil
+                    ? (isHighTempRefresh
+                        ? "DRAM operating >= \(thresholdLabel). Memory controller doubles self-refresh rate to prevent cell bit-flips."
+                        : "DRAM operating in optimal thermal window (< \(thresholdLabel)). Normal power consumption.")
+                    : "DRAM thermal sensor reading unavailable.")
                     .font(.system(size: 9))
                     .foregroundColor(.secondary)
             }
@@ -928,7 +974,9 @@ public struct ThermalMemoryPopoverView: View {
     }
 
     private func evaluateVerdict() -> MetricVerdict {
-        let peak = peakMemSensor?.celsius ?? 0.0
+        guard let peak = peakMemSensor?.celsius else {
+            return MetricVerdict(level: .fine, badgeText: "Unavailable", dadSentence: "Memory temperature unavailable", primaryValue: "—")
+        }
         let level: StatusLevel = peak >= 85 ? .warning : .fine
         let valStr = Units.formatTemperature(peak, unit: preferences.temperatureUnit, fractionDigits: 0)
         return MetricVerdict(level: level, badgeText: valStr, dadSentence: "Unified memory modules", primaryValue: valStr)
@@ -983,14 +1031,23 @@ public struct ThermalStoragePopoverView: View {
                         .font(.system(size: 9, weight: .bold, design: .monospaced))
                         .foregroundColor(.secondary)
                     HStack(alignment: .firstTextBaseline, spacing: 6) {
-                        let peakVal = peakStorageSensor?.celsius ?? 0.0
-                        Text(Units.formatTemperature(peakVal, unit: preferences.temperatureUnit, fractionDigits: 1))
-                            .font(.system(size: 24, weight: .bold, design: .rounded))
-                            .foregroundColor(peakVal >= 70 ? .red : (peakVal >= 55 ? .orange : .teal))
-                        Text(peakStorageSensor?.name ?? "NAND Flash")
-                            .font(.system(size: 10, weight: .medium))
-                            .foregroundColor(.secondary)
-                            .lineLimit(1)
+                        if let sensor = peakStorageSensor {
+                            Text(Units.formatTemperature(sensor.celsius, unit: preferences.temperatureUnit, fractionDigits: 1))
+                                .font(.system(size: 24, weight: .bold, design: .rounded))
+                                .foregroundColor(sensor.celsius >= 70 ? .red : (sensor.celsius >= 55 ? .orange : .teal))
+                            Text(sensor.name)
+                                .font(.system(size: 10, weight: .medium))
+                                .foregroundColor(.secondary)
+                                .lineLimit(1)
+                        } else {
+                            Text("—")
+                                .font(.system(size: 24, weight: .bold, design: .rounded))
+                                .foregroundColor(.secondary)
+                            Text("Unavailable")
+                                .font(.system(size: 10, weight: .medium))
+                                .foregroundColor(.secondary)
+                                .lineLimit(1)
+                        }
                     }
                 }
             }
@@ -1000,11 +1057,11 @@ public struct ThermalStoragePopoverView: View {
             .clipShape(RoundedRectangle(cornerRadius: 10))
 
             // Flash Thermal Limit Card
-            let peakC = peakStorageSensor?.celsius ?? 35.0
+            let peakC = peakStorageSensor?.celsius
             let limitC = 70.0
-            let marginC = max(0.0, limitC - peakC)
+            let marginC = peakC.map { max(0.0, limitC - $0) }
             let isFahrenheit = preferences.temperatureUnit == .fahrenheit
-            let marginVal = isFahrenheit ? (marginC * 1.8) : marginC
+            let marginVal = marginC.map { isFahrenheit ? ($0 * 1.8) : $0 }
             let limitLabel = Units.formatTemperature(limitC, unit: preferences.temperatureUnit, fractionDigits: 0)
 
             VStack(alignment: .leading, spacing: 5) {
@@ -1013,13 +1070,19 @@ public struct ThermalStoragePopoverView: View {
                         .font(.system(size: 8, weight: .bold, design: .monospaced))
                         .foregroundColor(.secondary)
                     Spacer()
-                    Text(String(format: "+%.1f°%@ Headroom", marginVal, isFahrenheit ? "F" : "C"))
-                        .font(.system(size: 10, weight: .bold, design: .monospaced))
-                        .foregroundColor(marginC > 20 ? .teal : (marginC > 10 ? .orange : .red))
+                    if let margin = marginVal, let mC = marginC {
+                        Text(String(format: "+%.1f°%@ Headroom", margin, isFahrenheit ? "F" : "C"))
+                            .font(.system(size: 10, weight: .bold, design: .monospaced))
+                            .foregroundColor(mC > 20 ? .teal : (mC > 10 ? .orange : .red))
+                    } else {
+                        Text("—")
+                            .font(.system(size: 10, weight: .bold, design: .monospaced))
+                            .foregroundColor(.secondary)
+                    }
                 }
 
                 GeometryReader { g in
-                    let pct = min(1.0, max(0.0, peakC / limitC))
+                    let pct = peakC.map { min(1.0, max(0.0, $0 / limitC)) } ?? 0.0
                     ZStack(alignment: .leading) {
                         RoundedRectangle(cornerRadius: 3).fill(Color.primary.opacity(0.08))
                         RoundedRectangle(cornerRadius: 3)
@@ -1068,7 +1131,9 @@ public struct ThermalStoragePopoverView: View {
     }
 
     private func evaluateVerdict() -> MetricVerdict {
-        let peak = peakStorageSensor?.celsius ?? 0.0
+        guard let peak = peakStorageSensor?.celsius else {
+            return MetricVerdict(level: .fine, badgeText: "Unavailable", dadSentence: "Storage temperature unavailable", primaryValue: "—")
+        }
         let level: StatusLevel = peak >= 70 ? .critical : (peak >= 55 ? .warning : .fine)
         let valStr = Units.formatTemperature(peak, unit: preferences.temperatureUnit, fractionDigits: 0)
         return MetricVerdict(level: level, badgeText: valStr, dadSentence: "NVMe solid-state storage", primaryValue: valStr)
@@ -1123,14 +1188,23 @@ public struct ThermalBatteryPopoverView: View {
                         .font(.system(size: 9, weight: .bold, design: .monospaced))
                         .foregroundColor(.secondary)
                     HStack(alignment: .firstTextBaseline, spacing: 6) {
-                        let peakVal = peakBatterySensor?.celsius ?? 0.0
-                        Text(Units.formatTemperature(peakVal, unit: preferences.temperatureUnit, fractionDigits: 1))
-                            .font(.system(size: 24, weight: .bold, design: .rounded))
-                            .foregroundColor(peakVal >= 45 ? .red : (peakVal >= 35 ? .orange : .yellow))
-                        Text(peakBatterySensor?.name ?? "Battery Cell")
-                            .font(.system(size: 10, weight: .medium))
-                            .foregroundColor(.secondary)
-                            .lineLimit(1)
+                        if let sensor = peakBatterySensor {
+                            Text(Units.formatTemperature(sensor.celsius, unit: preferences.temperatureUnit, fractionDigits: 1))
+                                .font(.system(size: 24, weight: .bold, design: .rounded))
+                                .foregroundColor(sensor.celsius >= 45 ? .red : (sensor.celsius >= 35 ? .orange : .yellow))
+                            Text(sensor.name)
+                                .font(.system(size: 10, weight: .medium))
+                                .foregroundColor(.secondary)
+                                .lineLimit(1)
+                        } else {
+                            Text("—")
+                                .font(.system(size: 24, weight: .bold, design: .rounded))
+                                .foregroundColor(.secondary)
+                            Text("Unavailable")
+                                .font(.system(size: 10, weight: .medium))
+                                .foregroundColor(.secondary)
+                                .lineLimit(1)
+                        }
                     }
                 }
             }
@@ -1140,14 +1214,19 @@ public struct ThermalBatteryPopoverView: View {
             .clipShape(RoundedRectangle(cornerRadius: 10))
 
             // Charging Thermal Safety Zone Card
-            let peakC = peakBatterySensor?.celsius ?? 30.0
+            let lowLabel = Units.formatTemperature(15.0, unit: preferences.temperatureUnit, fractionDigits: 0)
+            let highLabel = Units.formatTemperature(35.0, unit: preferences.temperatureUnit, fractionDigits: 0)
+            let peakC = peakBatterySensor?.celsius
             let zoneStatus: (String, Color, String) = {
-                if peakC > 45.0 {
+                guard let c = peakC else {
+                    return ("Unavailable", .secondary, "Battery thermal sensor reading unavailable.")
+                }
+                if c > 45.0 {
                     return ("Thermal Throttling", .red, "Battery is too hot. Fast charging paused to preserve cell longevity.")
-                } else if peakC > 35.0 {
+                } else if c > 35.0 {
                     return ("Elevated Warmth", .orange, "Charging active, but chemical wear accelerates at elevated temperatures.")
-                } else if peakC >= 15.0 {
-                    return ("Ideal Window (15°C–35°C)", .green, "Optimal temperature for lithium-ion chemical fast-charging.")
+                } else if c >= 15.0 {
+                    return ("Ideal Window (\(lowLabel)–\(highLabel))", .green, "Optimal temperature for lithium-ion chemical fast-charging.")
                 } else {
                     return ("Cold Temperature", .blue, "Cold battery cells accept slower charge rate.")
                 }
@@ -1206,7 +1285,9 @@ public struct ThermalBatteryPopoverView: View {
     }
 
     private func evaluateVerdict() -> MetricVerdict {
-        let peak = peakBatterySensor?.celsius ?? 0.0
+        guard let peak = peakBatterySensor?.celsius else {
+            return MetricVerdict(level: .fine, badgeText: "Unavailable", dadSentence: "Battery temperature unavailable", primaryValue: "—")
+        }
         let level: StatusLevel = peak >= 45 ? .critical : (peak >= 35 ? .warning : .fine)
         let valStr = Units.formatTemperature(peak, unit: preferences.temperatureUnit, fractionDigits: 0)
         return MetricVerdict(level: level, badgeText: valStr, dadSentence: "Lithium-ion battery pack", primaryValue: valStr)
@@ -2001,12 +2082,14 @@ public struct MemoryCompositionPopoverView: View {
                 // Stacked Composition Bar
                 VStack(alignment: .leading, spacing: 6) {
                     GeometryReader { g in
+                        let spacingTotal: CGFloat = 8 // 4 gaps of 2pt between 5 bars
+                        let availableWidth = max(0, g.size.width - spacingTotal)
                         HStack(spacing: 2) {
-                            RoundedRectangle(cornerRadius: 2).fill(Color.blue).frame(width: g.size.width * CGFloat(appPct))
-                            RoundedRectangle(cornerRadius: 2).fill(Color.purple).frame(width: g.size.width * CGFloat(wiredPct))
-                            RoundedRectangle(cornerRadius: 2).fill(Color.orange).frame(width: g.size.width * CGFloat(compPct))
-                            RoundedRectangle(cornerRadius: 2).fill(Color.green).frame(width: g.size.width * CGFloat(cachedPct))
-                            RoundedRectangle(cornerRadius: 2).fill(Color.secondary.opacity(0.2)).frame(width: g.size.width * CGFloat(freePct))
+                            RoundedRectangle(cornerRadius: 2).fill(Color.blue).frame(width: availableWidth * CGFloat(appPct))
+                            RoundedRectangle(cornerRadius: 2).fill(Color.purple).frame(width: availableWidth * CGFloat(wiredPct))
+                            RoundedRectangle(cornerRadius: 2).fill(Color.orange).frame(width: availableWidth * CGFloat(compPct))
+                            RoundedRectangle(cornerRadius: 2).fill(Color.green).frame(width: availableWidth * CGFloat(cachedPct))
+                            RoundedRectangle(cornerRadius: 2).fill(Color.secondary.opacity(0.2)).frame(width: availableWidth * CGFloat(freePct))
                         }
                     }
                     .frame(height: 12)
@@ -2545,8 +2628,8 @@ public struct GPUEnginePopoverView: View {
             let totalLoad = sample?.utilization ?? 0.0
             let rendererLoad = sample?.rendererUtilization ?? totalLoad
             let tilerLoad = sample?.tilerUtilization ?? 0.0
-            let metalFeature = sample?.metalFeatureSet ?? "Metal 3 Hardware Acceleration"
-            let raytracing = sample?.supportsRaytracing == true ? "Supported" : "N/A"
+            let metalFeature = sample?.metalFeatureSet ?? "—"
+            let raytracing = sample != nil ? (sample?.supportsRaytracing == true ? "Supported" : "Unsupported") : "—"
 
             VStack(spacing: 8) {
                 engineRow(name: "Total GPU Compute", pct: totalLoad, color: .purple)
@@ -4270,9 +4353,9 @@ public struct PowerChargeRingPopoverView: View {
                     Text(hasBat ? "BATTERY HEALTH" : "HARDWARE")
                         .font(.system(size: 8, weight: .bold, design: .monospaced))
                         .foregroundColor(.secondary)
-                    Text(hasBat ? (sample?.condition ?? "Normal") : "Desktop Mac")
+                    Text(hasBat ? (sample?.condition ?? "—") : "Desktop Mac")
                         .font(.system(size: 14, weight: .bold, design: .rounded))
-                        .foregroundColor(.green)
+                        .foregroundColor(hasBat ? conditionColor(sample?.condition) : .secondary)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(8)
@@ -4315,6 +4398,14 @@ public struct PowerChargeRingPopoverView: View {
         case .powerDeficit: return .red
         default: return .blue
         }
+    }
+
+    private func conditionColor(_ cond: String?) -> Color {
+        guard let cond = cond?.lowercased() else { return .secondary }
+        if cond.contains("normal") || cond.contains("good") { return .green }
+        if cond.contains("fair") || cond.contains("check") { return .orange }
+        if cond.contains("service") || cond.contains("replace") || cond.contains("poor") || cond.contains("degraded") { return .red }
+        return .primary
     }
 }
 
@@ -4490,10 +4581,10 @@ public struct PowerBudgetIllustrationPopoverView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 10))
 
                 // Condition Hero Card
-                let condition = sample.condition ?? "Normal"
+                let condition = sample.condition ?? "—"
                 let isConditionNormal = condition == "Normal"
-                let condColor: Color = isConditionNormal ? .green : (condition.contains("Service") ? .red : .orange)
-                let condIcon = isConditionNormal ? "checkmark.shield.fill" : "exclamationmark.shield.fill"
+                let condColor: Color = sample.condition != nil ? (isConditionNormal ? .green : (condition.contains("Service") ? .red : .orange)) : .secondary
+                let condIcon = sample.condition != nil ? (isConditionNormal ? "checkmark.shield.fill" : "exclamationmark.shield.fill") : "shield"
 
                 HStack(spacing: 12) {
                     ZStack {
@@ -4512,7 +4603,7 @@ public struct PowerBudgetIllustrationPopoverView: View {
                         Text(condition)
                             .font(.system(size: 18, weight: .bold, design: .rounded))
                             .foregroundColor(condColor)
-                        Text(isConditionNormal ? "Chemical cells operating within nominal parameters" : "Battery performance degraded. Service recommended.")
+                        Text(sample.condition != nil ? (isConditionNormal ? "Chemical cells operating within nominal parameters" : "Battery performance degraded. Service recommended.") : "Battery condition readout unavailable.")
                             .font(.system(size: 9))
                             .foregroundColor(.secondary)
                     }
