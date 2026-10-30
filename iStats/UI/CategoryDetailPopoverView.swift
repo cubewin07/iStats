@@ -2110,96 +2110,71 @@ public struct GPULoadRingPopoverView: View {
     }
 }
 
+/// Reported GPU activity and capabilities; no engine reading is inferred from another.
 public struct GPUEnginePopoverView: View {
     public let coordinator: MetricsCoordinator
     @ObservedObject public var preferences: PreferencesStore
     @State private var sample: GPUSample?
-    @State private var history: [Sample<GPUSample>]
 
     public init(coordinator: MetricsCoordinator = .shared, preferences: PreferencesStore = .shared) {
         self.coordinator = coordinator
         self.preferences = preferences
         _sample = State(initialValue: coordinator.latestGPU?.value)
-        _history = State(initialValue: coordinator.gpuHistory)
     }
 
     public var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            PopoverHeaderView(
-                category: .gpu,
-                title: "GPU Engines",
-                subtitle: "3D Render & Video Accelerator Engines",
-                verdict: VerdictEvaluator.evaluateGPU(sample)
-            )
+            PopoverHeaderView(category: .gpu, title: "GPU Details",
+                              subtitle: "Reported activity and capabilities",
+                              verdict: VerdictEvaluator.evaluateGPU(sample))
             Divider()
-
-            let totalLoad = sample?.utilization ?? 0.0
-            let rendererLoad = sample?.rendererUtilization ?? totalLoad
-            let tilerLoad = sample?.tilerUtilization ?? 0.0
-            let metalFeature = sample?.metalFeatureSet ?? "—"
-            let raytracing = sample != nil ? (sample?.supportsRaytracing == true ? "Supported" : "Unsupported") : "—"
-
-            VStack(spacing: 8) {
-                engineRow(name: "Total GPU Compute", pct: totalLoad, color: .purple)
-                engineRow(name: "3D Render Pipeline", pct: rendererLoad, color: .blue)
-                if sample?.tilerUtilization != nil || tilerLoad > 0 {
-                    engineRow(name: "Apple Silicon GPU Tiler", pct: tilerLoad, color: .teal)
+            VStack(alignment: .leading, spacing: 10) {
+                Text(sample?.deviceName ?? "Graphics processor")
+                    .font(.system(size: 14, weight: .semibold))
+                metricRow("GPU utilization", percent(sample?.utilization))
+                metricRow("Renderer", percent(sample?.rendererUtilization))
+                metricRow("Tiler", percent(sample?.tilerUtilization))
+                Divider()
+                metricRow("GPU memory used", bytes(sample?.memoryUsed))
+                metricRow("Allocated memory", bytes(sample?.allocatedMemory))
+                metricRow("Recommended working set", bytes(sample?.recommendedMaxMemory))
+                if sample?.isUnifiedMemory == true {
+                    Text("Graphics memory uses the shared system memory pool.")
+                        .font(.system(size: 10)).foregroundColor(.secondary)
                 }
-
-                HStack {
-                    Text("Metal Feature Set")
-                        .font(.system(size: 11, weight: .medium))
-                    Spacer()
-                    Text(metalFeature)
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundColor(.secondary)
-                }
-                .padding(.top, 2)
-
-                HStack {
-                    Text("Hardware Ray Tracing")
-                        .font(.system(size: 11, weight: .medium))
-                    Spacer()
-                    Text(raytracing)
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundColor(sample?.supportsRaytracing == true ? .green : .secondary)
-                }
+                Divider()
+                metricRow("GPU cores", sample?.coreCount.map(String.init) ?? "Unavailable")
+                metricRow("Metal feature set", sample?.metalFeatureSet ?? "Unavailable")
+                metricRow("Ray tracing", sample?.supportsRaytracing.map { $0 ? "Supported" : "Not supported" } ?? "Unavailable")
             }
-            .padding(10)
+            .padding(12)
             .background(Color(nsColor: .controlBackgroundColor).opacity(0.5))
-            .clipShape(RoundedRectangle(cornerRadius: 8))
-
+            .clipShape(RoundedRectangle(cornerRadius: 10))
             Divider()
             CategoryPopoverFooter(preferences: preferences, coordinator: coordinator)
         }
         .padding(14)
         .frame(width: 330)
         .onAppear { if !coordinator.isRunning && !preferences.isSamplingPaused { coordinator.start() } }
-        .onReceive(coordinator.$latestGPU) { newSample in
-            sample = newSample?.value
-            history = coordinator.gpuHistory
-        }
+        .onReceive(coordinator.$latestGPU) { sample = $0?.value }
     }
 
-    private func engineRow(name: String, pct: Double, color: Color) -> some View {
-        VStack(alignment: .leading, spacing: 3) {
-            HStack {
-                Text(name)
-                    .font(.system(size: 11, weight: .medium))
-                Spacer()
-                Text(String(format: "%.0f%%", pct))
-                    .font(.system(size: 10, weight: .bold, design: .monospaced))
-                    .foregroundColor(color)
-            }
-            GeometryReader { g in
-                ZStack(alignment: .leading) {
-                    RoundedRectangle(cornerRadius: 3).fill(Color.primary.opacity(0.08))
-                    RoundedRectangle(cornerRadius: 3).fill(color)
-                        .frame(width: g.size.width * CGFloat(min(1.0, max(0.0, pct / 100.0))))
-                }
-            }
-            .frame(height: 6)
+    private func percent(_ value: Double?) -> String {
+        value.map { String(format: "%.0f%%", $0) } ?? "Unavailable"
+    }
+
+    private func bytes(_ value: UInt64?) -> String {
+        value.map { Units.formatBytes($0, standard: preferences.byteUnitStandard) } ?? "Unavailable"
+    }
+
+    private func metricRow(_ label: String, _ value: String) -> some View {
+        HStack {
+            Text(label).foregroundColor(.secondary)
+            Spacer()
+            Text(value).fontWeight(.medium).monospacedDigit()
         }
+        .font(.system(size: 11))
+        .accessibilityElement(children: .combine)
     }
 }
 

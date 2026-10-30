@@ -49,7 +49,7 @@ public struct GPUSummaryView: View {
                 // Header: Device Name & Core Count Pill
                 HStack(alignment: .center) {
                     HStack(spacing: 5) {
-                        Image(systemName: "cpu")
+                        Image(systemName: MetricCategory.gpu.systemImageName)
                             .font(.system(size: 11, weight: .bold))
                             .foregroundColor(purpleAccent)
 
@@ -140,7 +140,7 @@ public struct GPUSummaryView: View {
                                     statTag(icon: "cube.fill", text: String(format: "3D: %.0f%%", render))
                                 } else if let tiler = sample.tilerUtilization, tiler > 0 {
                                     statTag(icon: "square.grid.2x2.fill", text: String(format: "Tiler: %.0f%%", tiler))
-                                } else if (sample.utilization ?? 0) < 2.0 {
+                                } else if let utilization = sample.utilization, utilization < 2.0 {
                                     statTag(icon: "powersleep", text: "Idle")
                                 }
 
@@ -158,24 +158,19 @@ public struct GPUSummaryView: View {
                     Spacer(minLength: 0)
                 }
 
-                // Silicon Core Matrix Cluster (if core count is known)
-                if let cores = sample?.coreCount, cores > 0 {
-                    coreMatrixCluster(coreCount: cores, utilization: sample?.utilization ?? 0.0)
-                }
-
                 // Dual Engine Pipeline Breakdown (Renderer vs Tiler)
                 if let sample = sample, (sample.rendererUtilization != nil || sample.tilerUtilization != nil) {
                     VStack(spacing: 4) {
                         if let render = sample.rendererUtilization {
                             pipelineProgressBar(
-                                label: "3D Renderer / Compute",
+                                label: "Renderer",
                                 value: render,
                                 color: purpleAccent
                             )
                         }
                         if let tiler = sample.tilerUtilization {
                             pipelineProgressBar(
-                                label: "TBDR Tiler Geometry",
+                                label: "Tiler",
                                 value: tiler,
                                 color: indigoAccent
                             )
@@ -493,11 +488,11 @@ public struct GPUSummaryView: View {
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 5) {
                 // 1. Max VRAM Budget (replaces redundant GPU temperature)
                 if let maxMem = sample.recommendedMaxMemory, maxMem > 0 {
-                    tile(label: "VRAM Budget", value: Units.formatBytes(maxMem, standard: byteStandard), icon: "memorychip.fill")
+                    tile(label: "Recommended Set", value: Units.formatBytes(maxMem, standard: byteStandard), icon: "memorychip.fill")
                 } else if let alloc = sample.allocatedMemory, alloc > 0 {
-                    tile(label: "Allocated VRAM", value: Units.formatBytes(alloc, standard: byteStandard), icon: "memorychip.fill")
+                    tile(label: "Allocated Memory", value: Units.formatBytes(alloc, standard: byteStandard), icon: "memorychip.fill")
                 } else {
-                    tile(label: "VRAM Budget", value: "Dynamic", icon: "memorychip.fill")
+                    tile(label: "Recommended Set", value: "Dynamic", icon: "memorychip.fill")
                 }
 
                 // 2. Hardware Raytracing Acceleration (replaces redundant architecture)

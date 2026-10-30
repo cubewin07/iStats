@@ -319,7 +319,7 @@ public enum VerdictEvaluator {
             badgeText: badge,
             dadSentence: sentence,
             primaryValue: String(format: "%.1f%%", util),
-            secondaryValue: s.memoryUsed != nil ? "VRAM: \(Units.formatBytes(s.memoryUsed!))" : nil
+            secondaryValue: s.memoryUsed != nil ? "GPU memory: \(Units.formatBytes(s.memoryUsed!))" : nil
         )
     }
 
