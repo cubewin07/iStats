@@ -3156,122 +3156,62 @@ public struct DiskPopoverView: View {
     }
 }
 
+/// Capacity is shown per mount; APFS volumes can share backing storage.
 public struct DiskStorageRingPopoverView: View {
     public let coordinator: MetricsCoordinator
     @ObservedObject public var preferences: PreferencesStore
     @State private var sample: DiskSample?
-    @State private var history: [Sample<DiskSample>]
 
     public init(coordinator: MetricsCoordinator = .shared, preferences: PreferencesStore = .shared) {
         self.coordinator = coordinator
         self.preferences = preferences
         _sample = State(initialValue: coordinator.latestDisk?.value)
-        _history = State(initialValue: coordinator.diskHistory)
     }
 
     public var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            PopoverHeaderView(
-                category: .disk,
-                title: "Storage Rings",
-                subtitle: "Volume Storage Capacity & Allocation",
-                verdict: VerdictEvaluator.evaluateDisk(sample, standard: preferences.byteUnitStandard)
-            )
+            PopoverHeaderView(category: .disk, title: "Storage Volumes",
+                              subtitle: "Capacity by mounted volume",
+                              verdict: VerdictEvaluator.evaluateDisk(sample, standard: preferences.byteUnitStandard))
             Divider()
-
-            let vol = sample?.volumes.first(where: { $0.mountPoint == "/" }) ?? sample?.volumes.first
-            let hasVol = vol != nil && (vol!.total > 0 || (vol!.used + vol!.free) > 0)
-            let usedB = vol?.used ?? 0
-            let freeB = vol?.free ?? 0
-            let totalB = vol?.total ?? max(1, usedB + freeB)
-            let pct = hasVol ? Double(usedB) / Double(max(1, totalB)) : 0.0
-
-            VStack(spacing: 8) {
-                ZStack {
-                    Circle()
-                        .stroke(Color.primary.opacity(0.08), lineWidth: 10)
-                        .frame(width: 90, height: 90)
-
-                    if hasVol {
-                        Circle()
-                            .trim(from: 0, to: CGFloat(pct))
-                            .stroke(
-                                AngularGradient(
-                                    gradient: Gradient(colors: [.cyan, .blue, .purple]),
-                                    center: .center
-                                ),
-                                style: StrokeStyle(lineWidth: 10, lineCap: .round)
-                            )
-                            .rotationEffect(.degrees(-90))
-                            .frame(width: 90, height: 90)
-                    }
-
-                    VStack(spacing: 0) {
-                        if hasVol {
-                            Text(String(format: "%.0f%%", pct * 100.0))
-                                .font(.system(size: 22, weight: .bold, design: .rounded))
-                                .foregroundColor(.primary)
-                            Text("USED")
-                                .font(.system(size: 8, weight: .bold, design: .monospaced))
-                                .foregroundColor(.secondary)
-                        } else {
-                            Text("—")
-                                .font(.system(size: 22, weight: .bold, design: .rounded))
-                                .foregroundColor(.secondary)
-                            Text("NO DISK")
-                                .font(.system(size: 8, weight: .bold, design: .monospaced))
-                                .foregroundColor(.secondary)
+            if let volumes = sample?.volumes, !volumes.isEmpty {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 8) {
+                        ForEach(volumes, id: \.mountPoint) { volume in
+                            VStack(alignment: .leading, spacing: 5) {
+                                HStack {
+                                    Text(volume.name).font(.system(size: 12, weight: .semibold)).lineLimit(1)
+                                    Spacer()
+                                    Text("\(Units.formatBytes(volume.free, standard: preferences.byteUnitStandard)) free")
+                                        .font(.system(size: 10, weight: .medium)).monospacedDigit()
+                                }
+                                Text(volume.mountPoint).font(.system(size: 10)).foregroundColor(.secondary).lineLimit(1)
+                                if volume.total > 0 {
+                                    ProgressView(value: min(1, Double(volume.used) / Double(volume.total))).tint(.blue)
+                                    Text("\(Units.formatBytes(volume.used, standard: preferences.byteUnitStandard)) used of \(Units.formatBytes(volume.total, standard: preferences.byteUnitStandard))")
+                                        .font(.system(size: 10)).foregroundColor(.secondary)
+                                }
+                            }
+                            .padding(10)
+                            .background(Color(nsColor: .controlBackgroundColor).opacity(0.5))
+                            .clipShape(RoundedRectangle(cornerRadius: 8))
                         }
                     }
-                }
-                .padding(.top, 4)
-
-                Text(hasVol ? (vol?.name.isEmpty == false ? vol!.name : "Boot Volume") : "Storage Telemetry Unavailable")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundColor(hasVol ? .primary : .secondary)
+                }.frame(maxHeight: 280)
+                Text("Volumes can share storage; their capacities should not be added together.")
+                    .font(.system(size: 10)).foregroundColor(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else {
+                Text(sample == nil ? "Waiting for storage readings…" : "No mounted volumes reported.")
+                    .font(.system(size: 11)).foregroundColor(.secondary)
             }
-            .frame(maxWidth: .infinity)
-            .padding(10)
-            .background(Color(nsColor: .controlBackgroundColor).opacity(0.5))
-            .clipShape(RoundedRectangle(cornerRadius: 10))
-
-            HStack(spacing: 10) {
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("SPACE USED")
-                        .font(.system(size: 8, weight: .bold, design: .monospaced))
-                        .foregroundColor(.secondary)
-                    Text(Units.formatBytes(usedB, standard: preferences.byteUnitStandard))
-                        .font(.system(size: 13, weight: .bold, design: .rounded))
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(8)
-                .background(Color(nsColor: .controlBackgroundColor).opacity(0.4))
-                .clipShape(RoundedRectangle(cornerRadius: 8))
-
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("AVAILABLE")
-                        .font(.system(size: 8, weight: .bold, design: .monospaced))
-                        .foregroundColor(.secondary)
-                    Text(Units.formatBytes(freeB, standard: preferences.byteUnitStandard))
-                        .font(.system(size: 13, weight: .bold, design: .rounded))
-                        .foregroundColor(.green)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(8)
-                .background(Color(nsColor: .controlBackgroundColor).opacity(0.4))
-                .clipShape(RoundedRectangle(cornerRadius: 8))
-            }
-
             Divider()
             CategoryPopoverFooter(preferences: preferences, coordinator: coordinator)
         }
         .padding(14)
         .frame(width: 330)
         .onAppear { if !coordinator.isRunning && !preferences.isSamplingPaused { coordinator.start() } }
-        .onReceive(coordinator.$latestDisk) { newSample in
-            sample = newSample?.value
-            history = coordinator.diskHistory
-        }
+        .onReceive(coordinator.$latestDisk) { sample = $0?.value }
     }
 }
 
@@ -3427,6 +3367,7 @@ public struct DiskHistoryPopoverView: View {
     }
 }
 
+/// Aggregate block-device I/O, not per-volume or per-app activity.
 public struct DiskActivityLEDsPopoverView: View {
     public let coordinator: MetricsCoordinator
     @ObservedObject public var preferences: PreferencesStore
@@ -3440,95 +3381,52 @@ public struct DiskActivityLEDsPopoverView: View {
         _history = State(initialValue: coordinator.diskHistory)
     }
 
+    private func graph(read: Bool) -> some View {
+        let points = history.map { item in
+            HistoryPoint(timestamp: item.timestamp, value: item.availability.isAvailable
+                ? (read ? item.value.io?.bytesReadPerSec : item.value.io?.bytesWrittenPerSec) : nil)
+        }
+        let maxRate = max(1, points.compactMap(\.value).max() ?? 1)
+        return TimestampedHistoryGraph(timeline: HistoryTimeline(points: points, expectedInterval: preferences.refreshInterval),
+                                       maxValue: maxRate, tintColor: read ? .blue : .orange, height: 40)
+    }
+
     public var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            PopoverHeaderView(
-                category: .disk,
-                title: "Disk Activity",
-                subtitle: "Real-Time I/O Operations & IOPS",
-                verdict: VerdictEvaluator.evaluateDisk(sample, standard: preferences.byteUnitStandard)
-            )
+            PopoverHeaderView(category: .disk, title: "Disk Activity", subtitle: "Aggregate block-device I/O",
+                              verdict: VerdictEvaluator.evaluateDisk(sample, standard: preferences.byteUnitStandard))
             Divider()
-
-            let readRate = sample?.io?.bytesReadPerSec ?? 0.0
-            let writeRate = sample?.io?.bytesWrittenPerSec ?? 0.0
-            let readActive = readRate > 0
-            let writeActive = writeRate > 0
-
-            // Activity Indicators Card
-            HStack(spacing: 12) {
-                HStack(spacing: 8) {
-                    Circle()
-                        .fill(readActive ? Color.green : Color.secondary.opacity(0.3))
-                        .frame(width: 12, height: 12)
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text("READ ACTIVE")
-                            .font(.system(size: 8, weight: .bold, design: .monospaced))
-                            .foregroundColor(.secondary)
-                        Text(Units.formatDiskRate(readRate, standard: preferences.byteUnitStandard))
-                            .font(.system(size: 11, weight: .bold, design: .monospaced))
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(8)
-                .background(Color(nsColor: .controlBackgroundColor).opacity(0.5))
-                .clipShape(RoundedRectangle(cornerRadius: 8))
-
-                HStack(spacing: 8) {
-                    Circle()
-                        .fill(writeActive ? Color.orange : Color.secondary.opacity(0.3))
-                        .frame(width: 12, height: 12)
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text("WRITE ACTIVE")
-                            .font(.system(size: 8, weight: .bold, design: .monospaced))
-                            .foregroundColor(.secondary)
-                        Text(Units.formatDiskRate(writeRate, standard: preferences.byteUnitStandard))
-                            .font(.system(size: 11, weight: .bold, design: .monospaced))
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(8)
-                .background(Color(nsColor: .controlBackgroundColor).opacity(0.5))
-                .clipShape(RoundedRectangle(cornerRadius: 8))
+            VStack(alignment: .leading, spacing: 8) {
+                rateRow("Read", sample?.io?.bytesReadPerSec, operations: sample?.io?.readOpsPerSec)
+                graph(read: true)
+                rateRow("Write", sample?.io?.bytesWrittenPerSec, operations: sample?.io?.writeOpsPerSec)
+                graph(read: false)
             }
-
-            // IOPS metrics
-            HStack(spacing: 10) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("READ IOPS")
-                        .font(.system(size: 8, weight: .bold, design: .monospaced))
-                        .foregroundColor(.secondary)
-                    Text(String(format: "%.0f", sample?.io?.readOpsPerSec ?? 0))
-                        .font(.system(size: 14, weight: .bold, design: .rounded))
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(8)
-                .background(Color(nsColor: .controlBackgroundColor).opacity(0.4))
-                .clipShape(RoundedRectangle(cornerRadius: 8))
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("WRITE IOPS")
-                        .font(.system(size: 8, weight: .bold, design: .monospaced))
-                        .foregroundColor(.secondary)
-                    Text(String(format: "%.0f", sample?.io?.writeOpsPerSec ?? 0))
-                        .font(.system(size: 14, weight: .bold, design: .rounded))
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(8)
-                .background(Color(nsColor: .controlBackgroundColor).opacity(0.4))
-                .clipShape(RoundedRectangle(cornerRadius: 8))
-            }
-
+            .padding(10)
+            .background(Color(nsColor: .controlBackgroundColor).opacity(0.5))
+            .clipShape(RoundedRectangle(cornerRadius: 10))
+            Text("Rates combine reported block-storage devices; they are not per-volume measurements.")
+                .font(.system(size: 10)).foregroundColor(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
             Divider()
             CategoryPopoverFooter(preferences: preferences, coordinator: coordinator)
         }
-        .padding(14)
-        .frame(width: 330)
+        .padding(14).frame(width: 330)
         .onAppear { if !coordinator.isRunning && !preferences.isSamplingPaused { coordinator.start() } }
-        .onReceive(coordinator.$latestDisk) { newSample in
-            sample = newSample?.value
-            history = coordinator.diskHistory
+        .onReceive(coordinator.$latestDisk) { sample = $0?.value; history = coordinator.diskHistory }
+    }
+
+    private func rateRow(_ title: String, _ rate: Double?, operations: Double?) -> some View {
+        HStack {
+            Text(title).fontWeight(.semibold)
+            Spacer()
+            Text(operations.map { String(format: "%.0f ops/s", $0) } ?? "—")
+                .foregroundColor(.secondary)
+            Text(rate.map { Units.formatDiskRate($0, standard: preferences.byteUnitStandard) } ?? "Unavailable")
+                .fontWeight(.semibold).monospacedDigit()
         }
+        .font(.system(size: 11))
+        .accessibilityElement(children: .combine)
     }
 }
 
