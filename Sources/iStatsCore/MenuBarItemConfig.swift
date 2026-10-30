@@ -332,7 +332,7 @@ public enum PopoverStyle: String, CaseIterable, Identifiable, Codable, Sendable 
                 : [.categoryDefault, .thermalCPU, .thermalGPU, .thermalMemory, .thermalStorage, .history]
         case .fan: return [.categoryDefault, .history]
         case .network: return [.categoryDefault, .networkDiagnostics, .history]
-        case .disk: return [.categoryDefault, .diskStorageRing, .diskActivityLEDs, .history]
+        case .disk: return [.categoryDefault, .diskStorageRing, .diskActivityLEDs]
         case .power:
             return [.categoryDefault, .powerWattage, .history]
         }
@@ -352,6 +352,7 @@ public enum PopoverStyle: String, CaseIterable, Identifiable, Codable, Sendable 
             return .categoryDefault
         case (.memory, .memoryAllocation): return .memoryComposition
         case (.disk, .diskStorageTanks): return .diskStorageRing
+        case (.disk, .history): return .diskActivityLEDs
         default: return self
         }
     }

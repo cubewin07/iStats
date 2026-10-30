@@ -2182,7 +2182,7 @@ public struct GPUEnginePopoverView: View {
                         .font(.system(size: 10)).foregroundColor(.secondary)
                 }
                 Divider()
-                metricRow("GPU cores", sample?.coreCount.map(String.init) ?? "Unavailable")
+                metricRow("GPU cores", sample?.coreCount.map { String($0) } ?? "Unavailable")
                 metricRow("Metal feature set", sample?.metalFeatureSet ?? "Unavailable")
                 metricRow("Ray tracing", sample?.supportsRaytracing.map { $0 ? "Supported" : "Not supported" } ?? "Unavailable")
             }
@@ -2351,14 +2351,11 @@ public struct GPUHistoryPopoverView: View {
                     }
                 }
 
-                RollingGraphView(
-                    values: historyUsages,
-                    minValue: 0.0,
-                    maxValue: 100.0,
-                    tintColor: .purple,
-                    capacity: 60,
-                    height: 56,
-                    showGrid: true
+                TimestampedHistoryGraph(
+                    timeline: HistoryTimeline(points: history.map { item in
+                        HistoryPoint(timestamp: item.timestamp, value: item.availability.isAvailable ? item.value.utilization : nil)
+                    }, expectedInterval: preferences.refreshInterval),
+                    maxValue: 100, tintColor: .purple
                 )
             }
             .padding(10)
@@ -2371,7 +2368,7 @@ public struct GPUHistoryPopoverView: View {
                     Text("CURRENT")
                         .font(.system(size: 8, weight: .bold, design: .monospaced))
                         .foregroundColor(.secondary)
-                    Text(String(format: "%.0f%%", sample?.utilization ?? 0.0))
+                    Text(sample?.utilization.map { String(format: "%.0f%%", $0) } ?? "—")
                         .font(.system(size: 14, weight: .bold, design: .rounded))
                         .foregroundColor(.purple)
                 }
@@ -2384,8 +2381,8 @@ public struct GPUHistoryPopoverView: View {
                     Text("WINDOW AVG")
                         .font(.system(size: 8, weight: .bold, design: .monospaced))
                         .foregroundColor(.secondary)
-                    let avg = historyUsages.isEmpty ? 0.0 : (historyUsages.reduce(0.0, +) / Double(historyUsages.count))
-                    Text(String(format: "%.1f%%", avg))
+                    let avg = historyUsages.isEmpty ? nil : historyUsages.reduce(0.0, +) / Double(historyUsages.count)
+                    Text(avg.map { String(format: "%.1f%%", $0) } ?? "—")
                         .font(.system(size: 14, weight: .bold, design: .rounded))
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -3113,7 +3110,7 @@ public struct NetworkDiagnosticsPopoverView: View {
                 row("Wi-Fi network", sample?.wifiDetails?.ssid)
                 row("Signal", sample?.wifiDetails?.rssi.map { "\($0) dBm" })
                 row("Noise", sample?.wifiDetails?.noise.map { "\($0) dBm" })
-                row("Channel", sample?.wifiDetails?.channel.map(String.init))
+                row("Channel", sample?.wifiDetails?.channel.map { String($0) })
                 row("Band", sample?.wifiDetails?.band)
                 row("Link rate", sample?.wifiDetails?.txRate.map { String(format: "%.0f Mbps", $0) })
             }
@@ -3552,9 +3549,9 @@ public struct PowerWattagePopoverView: View {
                 if sample?.hasBattery == true {
                     Divider()
                     row("Condition", sample?.condition)
-                    row("Cycle count", sample?.cycleCount.map(String.init))
-                    row("Current maximum capacity", sample?.currentMaxCapacity.map(String.init))
-                    row("Design capacity", sample?.designCapacity.map(String.init))
+                    row("Cycle count", sample?.cycleCount.map { String($0) })
+                    row("Current maximum capacity", sample?.currentMaxCapacity.map { String($0) })
+                    row("Design capacity", sample?.designCapacity.map { String($0) })
                 }
             }
             .padding(12)
@@ -4156,11 +4153,11 @@ public struct PowerHistoryPopoverView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 8))
 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("MINIMUM IDLE")
+                    Text("WINDOW MINIMUM")
                         .font(.system(size: 8, weight: .bold, design: .monospaced))
                         .foregroundColor(.secondary)
-                    let minW = historyWattages.min() ?? 0.0
-                    Text(String(format: "%.1f W", minW))
+                    let minW = historyWattages.min()
+                    Text(minW.map { String(format: "%.1f W", $0) } ?? "—")
                         .font(.system(size: 14, weight: .bold, design: .rounded))
                         .foregroundColor(.green)
                 }

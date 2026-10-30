@@ -36,7 +36,7 @@ public struct PowerSummaryView: View {
                     CollapsibleSection(title: "Battery health", count: nil, isExpanded: $isHealthExpanded) {
                         VStack(spacing: 5) {
                             detailRow("Condition", sample.condition)
-                            detailRow("Cycle count", sample.cycleCount.map(String.init))
+                            detailRow("Cycle count", sample.cycleCount.map { String($0) })
                             if let current = sample.currentMaxCapacity, let design = sample.designCapacity, design > 0 {
                                 detailRow("Capacity estimate", String(format: "%.0f%% of design", Double(current) / Double(design) * 100))
                                 Text("Calculated from reported maximum and design capacities.")
