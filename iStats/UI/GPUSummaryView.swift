@@ -1,13 +1,7 @@
 import SwiftUI
 import iStatsCore
 
-/// Authentic iStat Menus style GPU metrics view featuring:
-/// 1. Hardware Specs Header (Chip model, Core count pill, Unified Memory badge)
-/// 2. Live Silicon Die + Interactive Core Matrix Cluster (glowing active cores)
-/// 3. Dual Engine Pipeline Gauges (Renderer 3D/Compute vs Tiler TBDR)
-/// 4. Graphics Memory (VRAM) Allocation Bar (In Use vs Allocated vs Shared Pool)
-/// 5. 60-sample utilization history sparkline
-/// 6. Collapsible Diagnostics (Connected Displays, Thermals, Power, Driver Stability).
+/// GPU utilization, optional engine readings and graphics memory telemetry.
 public struct GPUSummaryView: View {
     public let sample: GPUSample?
     public let history: [Sample<GPUSample>]
@@ -15,15 +9,9 @@ public struct GPUSummaryView: View {
     public let byteStandard: Units.ByteUnitStandard
     public let refreshInterval: TimeInterval
 
-    @State private var isDetailsExpanded: Bool = false
-
-    public init(
-        sample: GPUSample? = nil,
-        history: [Sample<GPUSample>] = [],
-        temperatureUnit: Units.TemperatureUnit = .celsius,
-        byteStandard: Units.ByteUnitStandard = .iec,
-        refreshInterval: TimeInterval = 2.0
-    ) {
+    public init(sample: GPUSample? = nil, history: [Sample<GPUSample>] = [],
+                temperatureUnit: Units.TemperatureUnit = .celsius,
+                byteStandard: Units.ByteUnitStandard = .iec, refreshInterval: TimeInterval = 2.0) {
         self.sample = sample
         self.history = history
         self.temperatureUnit = temperatureUnit
@@ -31,508 +19,44 @@ public struct GPUSummaryView: View {
         self.refreshInterval = refreshInterval
     }
 
-    private var verdict: MetricVerdict {
-        VerdictEvaluator.evaluateGPU(sample)
-    }
-
-    private var historyPercentages: [Double] {
-        history.compactMap { $0.value.utilization }
-    }
-
-    private let purpleAccent = Color.purple
-    private let indigoAccent = Color.indigo
-
     public var body: some View {
-        VStack(spacing: 8) {
-            // MARK: - 1. Top Card: Hardware Identification & Engines
-            VStack(alignment: .leading, spacing: 8) {
-                // Header: Device Name & Core Count Pill
-                HStack(alignment: .center) {
-                    HStack(spacing: 5) {
-                        Image(systemName: MetricCategory.gpu.systemImageName)
-                            .font(.system(size: 11, weight: .bold))
-                            .foregroundColor(purpleAccent)
-
-                        Text(sample?.deviceName ?? "Graphics Processor")
-                            .font(.system(size: 12.5, weight: .bold))
-                            .foregroundColor(.primary)
-                            .lineLimit(1)
-                    }
-
-                    Spacer(minLength: 4)
-
-                    // Core count badge (e.g. 16-Core GPU)
-                    if let cores = sample?.coreCount {
-                        Text("\(cores)-Core GPU")
-                            .font(.system(size: 9.5, weight: .bold, design: .rounded))
-                            .foregroundColor(purpleAccent)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(purpleAccent.opacity(0.12))
-                            .clipShape(Capsule())
-                    } else if sample?.isUnifiedMemory == true {
-                        Text("Unified Memory")
-                            .font(.system(size: 9, weight: .semibold))
-                            .foregroundColor(.secondary)
-                            .padding(.horizontal, 5)
-                            .padding(.vertical, 1.5)
-                            .background(Color.secondary.opacity(0.08))
-                            .clipShape(Capsule())
-                    }
-                }
-
-                // Hero Row: Die Illustration + Power & Thermals + Quick Pills
-                HStack(alignment: .center, spacing: 12) {
-                    GPUDieIllustrationView(
-                        sample: sample,
-                        temperatureUnit: temperatureUnit,
-                        byteStandard: byteStandard,
-                        size: 58,
-                        showPills: false
-                    )
-
-                    VStack(alignment: .leading, spacing: 4) {
-                        if let sample = sample {
-                            // Primary Hero Metrics (non-redundant with die icon's utilization %)
-                            HStack(alignment: .firstTextBaseline, spacing: 5) {
-                                if let watts = sample.powerWatts {
-                                    Text(String(format: "%.1f W", watts))
-                                        .font(.system(size: 22, weight: .bold, design: .rounded))
-                                        .foregroundColor(.primary)
-
-                                    if let temp = sample.tempCelsius {
-                                        Text("·")
-                                            .font(.system(size: 16, weight: .bold))
-                                            .foregroundColor(.secondary.opacity(0.4))
-
-                                        Text(Units.formatTemperature(temp, unit: temperatureUnit, fractionDigits: 0))
-                                            .font(.system(size: 18, weight: .bold, design: .rounded))
-                                            .foregroundColor(gpuTempColor(celsius: temp))
-                                    } else {
-                                        Text("Power Draw")
-                                            .font(.system(size: 11, weight: .semibold))
-                                            .foregroundColor(.secondary)
-                                    }
-                                } else if let temp = sample.tempCelsius {
-                                    Text(Units.formatTemperature(temp, unit: temperatureUnit, fractionDigits: 0))
-                                        .font(.system(size: 22, weight: .bold, design: .rounded))
-                                        .foregroundColor(gpuTempColor(celsius: temp))
-
-                                    Text("Temperature")
-                                        .font(.system(size: 11, weight: .semibold))
-                                        .foregroundColor(.secondary)
-                                } else {
-                                    Text(sample.deviceName ?? "Graphics Active")
-                                        .font(.system(size: 16, weight: .bold, design: .rounded))
-                                        .foregroundColor(purpleAccent)
-                                }
-                            }
-
-                            // Secondary metrics: VRAM, Active Engine, Displays
-                            HStack(spacing: 5) {
-                                if let mem = sample.memoryUsed, mem > 0 {
-                                    statTag(icon: "memorychip", text: Units.formatBytes(mem, standard: byteStandard))
-                                } else if sample.isUnifiedMemory == true {
-                                    statTag(icon: "memorychip", text: "Unified")
-                                }
-
-                                if let render = sample.rendererUtilization, render > 0 {
-                                    statTag(icon: "cube.fill", text: String(format: "3D: %.0f%%", render))
-                                } else if let tiler = sample.tilerUtilization, tiler > 0 {
-                                    statTag(icon: "square.grid.2x2.fill", text: String(format: "Tiler: %.0f%%", tiler))
-                                } else if let utilization = sample.utilization, utilization < 2.0 {
-                                    statTag(icon: "powersleep", text: "Idle")
-                                }
-
-                                if let count = sample.displayCount, count > 0 {
-                                    statTag(icon: "display", text: "\(count) Display\(count > 1 ? "s" : "")")
-                                }
-                            }
-                        } else {
-                            Text("Sampling graphics telemetry...")
-                                .font(.system(size: 12, weight: .medium))
-                                .foregroundColor(.secondary)
-                        }
-                    }
-
-                    Spacer(minLength: 0)
-                }
-
-                // Dual Engine Pipeline Breakdown (Renderer vs Tiler)
-                if let sample = sample, (sample.rendererUtilization != nil || sample.tilerUtilization != nil) {
-                    VStack(spacing: 4) {
-                        if let render = sample.rendererUtilization {
-                            pipelineProgressBar(
-                                label: "Renderer",
-                                value: render,
-                                color: purpleAccent
-                            )
-                        }
-                        if let tiler = sample.tilerUtilization {
-                            pipelineProgressBar(
-                                label: "Tiler",
-                                value: tiler,
-                                color: indigoAccent
-                            )
-                        }
-                    }
-                    .padding(.top, 2)
-                }
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Image(systemName: MetricCategory.gpu.systemImageName).foregroundColor(.purple)
+                Text(sample?.deviceName ?? "Graphics processor").font(.system(size: 12, weight: .semibold)).lineLimit(1)
+                Spacer()
+                if let count = sample?.coreCount { Text("\(count) cores").font(.system(size: 10)).foregroundColor(.secondary) }
             }
-            .padding(10)
-            .background(
-                RoundedRectangle(cornerRadius: 10)
-                    .fill(Color(nsColor: .controlBackgroundColor).opacity(0.5))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 10)
-                    .strokeBorder(Color.primary.opacity(0.08), lineWidth: 0.75)
-            )
-
-            // MARK: - 2. Middle Card: Graphics Memory (VRAM) Breakdown
-            if let sample = sample, (sample.memoryUsed != nil || sample.allocatedMemory != nil) {
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack {
-                        HStack(spacing: 4) {
-                            Image(systemName: "memorychip")
-                                .font(.system(size: 10, weight: .semibold))
-                                .foregroundColor(purpleAccent)
-                            Text("Graphics Memory")
-                                .font(.system(size: 11, weight: .bold))
-                                .foregroundColor(.primary)
-                        }
-
-                        Spacer()
-
-                        if let used = sample.memoryUsed {
-                            Text("\(Units.formatBytes(used, standard: byteStandard)) In Use")
-                                .font(.system(size: 10.5, weight: .bold, design: .monospaced))
-                                .foregroundColor(.primary)
-                        }
-                    }
-
-                    // Multi-Segment VRAM Allocation Bar
-                    vramAllocationBar(sample: sample)
-
-                    // 3-Column Memory Legend
-                    HStack {
-                        if let used = sample.memoryUsed {
-                            vramLegendItem(label: "In Use", value: Units.formatBytes(used, standard: byteStandard, fractionDigits: 1), dotColor: purpleAccent)
-                        }
-                        Spacer()
-                        if let alloc = sample.allocatedMemory {
-                            vramLegendItem(label: "Allocated", value: Units.formatBytes(alloc, standard: byteStandard, fractionDigits: 1), dotColor: indigoAccent.opacity(0.7))
-                        }
-                        Spacer()
-                        if let maxPool = sample.recommendedMaxMemory {
-                            vramLegendItem(label: "Max Pool", value: Units.formatBytes(maxPool, standard: byteStandard, fractionDigits: 1), dotColor: Color.secondary.opacity(0.4))
-                        }
-                    }
-                    .padding(.top, 2)
-                }
-                .padding(10)
-                .background(
-                    RoundedRectangle(cornerRadius: 10)
-                        .fill(Color(nsColor: .controlBackgroundColor).opacity(0.5))
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 10)
-                        .strokeBorder(Color.primary.opacity(0.08), lineWidth: 0.75)
-                )
+            HStack(alignment: .firstTextBaseline) {
+                Text(sample?.utilization.map { String(format: "%.0f%%", $0) } ?? "Unavailable")
+                    .font(.system(size: 24, weight: .semibold, design: .rounded)).monospacedDigit()
+                Text("GPU utilization").font(.system(size: 10)).foregroundColor(.secondary)
+                Spacer()
             }
-
-            // MARK: - 3. 60-Sample History Sparkline
-            if !historyPercentages.isEmpty {
-                VStack(alignment: .leading, spacing: 4) {
-                    RollingGraphView(
-                        values: historyPercentages,
-                        minValue: 0.0,
-                        maxValue: 100.0,
-                        tintColor: purpleAccent,
-                        capacity: 60,
-                        height: 40,
-                        showGrid: true
-                    )
-
-                    HStack {
-                        Text("last \(Units.formatHistoryDuration(sampleCount: 60, interval: refreshInterval))")
-                            .font(.system(size: 9, weight: .medium))
-                            .foregroundColor(.secondary)
-
-                        Spacer()
-
-                        if let maxHist = historyPercentages.max() {
-                            Text(String(format: "peak %.0f%%", maxHist))
-                                .font(.system(size: 9, weight: .bold, design: .monospaced))
-                                .foregroundColor(.secondary)
-                        }
-                    }
-                    .padding(.horizontal, 2)
-                }
-                .padding(10)
-                .background(
-                    RoundedRectangle(cornerRadius: 10)
-                        .fill(Color(nsColor: .controlBackgroundColor).opacity(0.5))
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 10)
-                        .strokeBorder(Color.primary.opacity(0.08), lineWidth: 0.75)
-                )
+            let points = history.map { item in
+                HistoryPoint(timestamp: item.timestamp, value: item.availability.isAvailable ? item.value.utilization : nil)
             }
-
-            // MARK: - 4. Collapsible Hardware & Diagnostics
+            TimestampedHistoryGraph(timeline: HistoryTimeline(points: points, expectedInterval: refreshInterval),
+                                    maxValue: 100, tintColor: .purple, height: 44)
             if let sample = sample {
-                CollapsibleSection(
-                    title: "Hardware & Displays",
-                    count: sample.displayCount,
-                    isExpanded: $isDetailsExpanded
-                ) {
-                    diagnosticsContent(sample: sample)
+                if let renderer = sample.rendererUtilization { row("Renderer", String(format: "%.0f%%", renderer)) }
+                if let tiler = sample.tilerUtilization { row("Tiler", String(format: "%.0f%%", tiler)) }
+                if let memory = sample.memoryUsed { row("GPU memory used", Units.formatBytes(memory, standard: byteStandard)) }
+                if let allocated = sample.allocatedMemory { row("Allocated memory", Units.formatBytes(allocated, standard: byteStandard)) }
+                if sample.isUnifiedMemory == true {
+                    Text("Graphics memory is shared with the system.").font(.system(size: 10)).foregroundColor(.secondary)
                 }
-                .padding(.horizontal, 4)
+                if let temp = sample.tempCelsius { row("Temperature", Units.formatTemperature(temp, unit: temperatureUnit, fractionDigits: 1)) }
+                if let watts = sample.powerWatts { row("Power", String(format: "%.1f W", watts)) }
             }
         }
+        .padding(10)
+        .background(Color(nsColor: .controlBackgroundColor).opacity(0.5))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
     }
 
-    // MARK: - Silicon Core Matrix Cluster
-
-    private func coreMatrixCluster(coreCount: Int, utilization: Double) -> some View {
-        let activeCount = Int(round((utilization / 100.0) * Double(coreCount)))
-        let columns = Array(repeating: GridItem(.flexible(), spacing: 3), count: min(coreCount, 8))
-
-        return VStack(alignment: .leading, spacing: 4) {
-            HStack {
-                Text("GPU Cores")
-                    .font(.system(size: 9, weight: .semibold))
-                    .foregroundColor(.secondary)
-
-                Spacer()
-
-                Text("\(coreCount) Cores Active")
-                    .font(.system(size: 9, weight: .bold, design: .monospaced))
-                    .foregroundColor(purpleAccent)
-            }
-
-            LazyVGrid(columns: columns, spacing: 3) {
-                ForEach(0..<coreCount, id: \.self) { index in
-                    let isActive = index < activeCount || (activeCount == 0 && utilization > 0 && index == 0)
-                    RoundedRectangle(cornerRadius: 2)
-                        .fill(
-                            isActive
-                                ? AnyShapeStyle(LinearGradient(colors: [purpleAccent, indigoAccent], startPoint: .top, endPoint: .bottom))
-                                : AnyShapeStyle(Color.secondary.opacity(0.12))
-                        )
-                        .frame(height: 7)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 2)
-                                .strokeBorder(isActive ? purpleAccent.opacity(0.6) : Color.primary.opacity(0.05), lineWidth: 0.5)
-                        )
-                        .shadow(color: isActive ? purpleAccent.opacity(0.4) : Color.clear, radius: 2)
-                }
-            }
-        }
-        .padding(.vertical, 2)
-    }
-
-    // MARK: - Pipeline Progress Bar
-
-    private func pipelineProgressBar(label: String, value: Double, color: Color) -> some View {
-        VStack(spacing: 2) {
-            HStack {
-                Text(label)
-                    .font(.system(size: 9, weight: .medium))
-                    .foregroundColor(.secondary)
-
-                Spacer()
-
-                Text(String(format: "%.0f%%", value))
-                    .font(.system(size: 9.5, weight: .bold, design: .monospaced))
-                    .foregroundColor(.primary)
-            }
-
-            GeometryReader { geo in
-                let w = geo.size.width
-                let progressWidth = max(0.0, min(w, w * CGFloat(value / 100.0)))
-
-                ZStack(alignment: .leading) {
-                    RoundedRectangle(cornerRadius: 2)
-                        .fill(Color.secondary.opacity(0.12))
-
-                    RoundedRectangle(cornerRadius: 2)
-                        .fill(color)
-                        .frame(width: progressWidth)
-                }
-            }
-            .frame(height: 4)
-        }
-    }
-
-    // MARK: - VRAM Allocation Bar
-
-    private func vramAllocationBar(sample: GPUSample) -> some View {
-        GeometryReader { geo in
-            let totalWidth = geo.size.width
-            let maxWorkingSet = Double(sample.recommendedMaxMemory ?? (sample.allocatedMemory ?? 1))
-            let allocBytes = Double(sample.allocatedMemory ?? sample.memoryUsed ?? 0)
-            let usedBytes = Double(sample.memoryUsed ?? 0)
-
-            let allocFraction = maxWorkingSet > 0 ? min(allocBytes / maxWorkingSet, 1.0) : 0.0
-            let usedFraction = maxWorkingSet > 0 ? min(usedBytes / maxWorkingSet, 1.0) : 0.0
-
-            let allocWidth = totalWidth * CGFloat(allocFraction)
-            let usedWidth = totalWidth * CGFloat(usedFraction)
-
-            ZStack(alignment: .leading) {
-                // Background Track (Max Pool)
-                RoundedRectangle(cornerRadius: 3)
-                    .fill(Color.secondary.opacity(0.12))
-
-                // Allocated Track
-                RoundedRectangle(cornerRadius: 3)
-                    .fill(indigoAccent.opacity(0.4))
-                    .frame(width: max(allocWidth, 2))
-
-                // In Use Track
-                RoundedRectangle(cornerRadius: 3)
-                    .fill(purpleAccent)
-                    .frame(width: max(usedWidth, 2))
-            }
-        }
-        .frame(height: 6)
-    }
-
-    private func vramLegendItem(label: String, value: String, dotColor: Color) -> some View {
-        HStack(spacing: 3) {
-            Circle()
-                .fill(dotColor)
-                .frame(width: 5, height: 5)
-            VStack(alignment: .leading, spacing: 0.5) {
-                Text(label)
-                    .font(.system(size: 8, weight: .medium))
-                    .foregroundColor(.secondary)
-                Text(value)
-                    .font(.system(size: 9.5, weight: .bold, design: .monospaced))
-                    .foregroundColor(.primary)
-            }
-        }
-    }
-
-    // MARK: - Stat Tag
-
-    private func statTag(icon: String, text: String) -> some View {
-        HStack(spacing: 3) {
-            Image(systemName: icon)
-                .font(.system(size: 8))
-                .foregroundColor(purpleAccent)
-            Text(text)
-                .font(.system(size: 9.5, weight: .bold, design: .monospaced))
-                .foregroundColor(.primary)
-        }
-        .padding(.horizontal, 5)
-        .padding(.vertical, 2)
-        .background(
-            RoundedRectangle(cornerRadius: 4)
-                .fill(purpleAccent.opacity(0.10))
-        )
-    }
-
-    private func gpuTempColor(celsius: Double) -> Color {
-        if celsius >= 85.0 {
-            return .red
-        } else if celsius >= 70.0 {
-            return .orange
-        } else if celsius >= 50.0 {
-            return .yellow
-        } else {
-            return .green
-        }
-    }
-
-    // MARK: - Diagnostics Content
-
-    @ViewBuilder
-    private func diagnosticsContent(sample: GPUSample) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            // Connected Displays Section
-            if let displays = sample.displayDescriptions, !displays.isEmpty {
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "display.2")
-                            .font(.system(size: 9, weight: .semibold))
-                            .foregroundColor(purpleAccent)
-                        Text("Connected Displays (\(displays.count))")
-                            .font(.system(size: 9, weight: .bold))
-                            .foregroundColor(.primary)
-                    }
-
-                    VStack(alignment: .leading, spacing: 3) {
-                        ForEach(displays, id: \.self) { desc in
-                            HStack(spacing: 4) {
-                                Circle()
-                                    .fill(Color.green)
-                                    .frame(width: 4, height: 4)
-                                Text(desc)
-                                    .font(.system(size: 9, weight: .medium, design: .monospaced))
-                                    .foregroundColor(.secondary)
-                                    .lineLimit(1)
-                            }
-                        }
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(6)
-                .background(RoundedRectangle(cornerRadius: 6).fill(Color.secondary.opacity(0.05)))
-            }
-
-            // 2-Column Telemetry Tiles
-            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 5) {
-                // 1. Max VRAM Budget (replaces redundant GPU temperature)
-                if let maxMem = sample.recommendedMaxMemory, maxMem > 0 {
-                    tile(label: "Recommended Set", value: Units.formatBytes(maxMem, standard: byteStandard), icon: "memorychip.fill")
-                } else if let alloc = sample.allocatedMemory, alloc > 0 {
-                    tile(label: "Allocated Memory", value: Units.formatBytes(alloc, standard: byteStandard), icon: "memorychip.fill")
-                } else {
-                    tile(label: "Recommended Set", value: "Dynamic", icon: "memorychip.fill")
-                }
-
-                // 2. Hardware Raytracing Acceleration (replaces redundant architecture)
-                if let rt = sample.supportsRaytracing {
-                    tile(label: "Ray Tracing", value: rt ? "Hardware Accel" : "Unsupported", icon: "sparkles")
-                } else {
-                    tile(label: "Ray Tracing", value: "Standard", icon: "sparkles")
-                }
-
-                // 3. Driver Health & Fault Counter (kept)
-                if let rec = sample.recoveryCount {
-                    tile(label: "Driver Health", value: rec == 0 ? "Normal (0 Err)" : "\(rec) Recoveries", icon: "checkmark.shield.fill")
-                } else {
-                    tile(label: "Driver Health", value: "Normal (0 Err)", icon: "checkmark.shield.fill")
-                }
-
-                // 4. Metal Graphics API Version (replaces redundant core count)
-                tile(label: "Metal Support", value: sample.metalFeatureSet ?? "Metal 3", icon: "square.stack.3d.up.fill")
-            }
-        }
-        .padding(.top, 4)
-    }
-
-    private func tile(label: String, value: String, icon: String) -> some View {
-        HStack(spacing: 5) {
-            Image(systemName: icon)
-                .font(.system(size: 8.5))
-                .foregroundColor(purpleAccent)
-            VStack(alignment: .leading, spacing: 0.5) {
-                Text(label)
-                    .font(.system(size: 8, weight: .medium))
-                    .foregroundColor(.secondary)
-                Text(value)
-                    .font(.system(size: 9.5, weight: .bold, design: .monospaced))
-                    .foregroundColor(.primary)
-            }
-            Spacer()
-        }
-        .padding(5)
-        .background(RoundedRectangle(cornerRadius: 6).fill(Color.secondary.opacity(0.05)))
+    private func row(_ name: String, _ value: String) -> some View {
+        HStack { Text(name).foregroundColor(.secondary); Spacer(); Text(value).fontWeight(.medium).monospacedDigit() }
+            .font(.system(size: 11)).accessibilityElement(children: .combine)
     }
 }
-
