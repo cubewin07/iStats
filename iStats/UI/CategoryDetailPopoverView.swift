@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 import iStatsCore
 
 // MARK: - Reusable Category Popover Footer
@@ -3048,59 +3049,60 @@ public struct NetworkDiagnosticsPopoverView: View {
     public let coordinator: MetricsCoordinator
     @ObservedObject public var preferences: PreferencesStore
     @State private var sample: NetworkSample?
-    @State private var history: [Sample<NetworkSample>]
 
     public init(coordinator: MetricsCoordinator = .shared, preferences: PreferencesStore = .shared) {
         self.coordinator = coordinator
         self.preferences = preferences
         _sample = State(initialValue: coordinator.latestNetwork?.value)
-        _history = State(initialValue: coordinator.networkHistory)
     }
 
     public var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            PopoverHeaderView(
-                category: .network,
-                title: "Network Diagnostics",
-                subtitle: "Interface Routing, Wi-Fi Quality & Local IP",
-                verdict: VerdictEvaluator.evaluateNetwork(sample, unit: preferences.networkUnit, standard: preferences.byteUnitStandard)
-            )
+            PopoverHeaderView(category: .network, title: "Connection Details", subtitle: "Reported interface and link information",
+                              verdict: VerdictEvaluator.evaluateNetwork(sample, unit: preferences.networkUnit, standard: preferences.byteUnitStandard))
             Divider()
-
             VStack(spacing: 8) {
-                diagRow(label: "Interface", val: sample?.primaryInterface ?? "Disconnected")
-                diagRow(label: "IPv4 Address", val: sample?.localIPv4 ?? "—")
-                if let gw = sample?.gatewayIPv4 {
-                    diagRow(label: "Gateway IPv4", val: gw)
-                }
-                if let dns = sample?.primaryDNS {
-                    diagRow(label: "DNS Server", val: dns)
-                }
-                diagRow(label: "Session Inbound", val: Units.formatBytes(sample?.totalBytesIn ?? 0, standard: preferences.byteUnitStandard))
-                diagRow(label: "Session Outbound", val: Units.formatBytes(sample?.totalBytesOut ?? 0, standard: preferences.byteUnitStandard))
+                row("Primary interface", sample?.primaryInterface)
+                row("Connection type", sample?.primaryType?.displayName)
+                row("Local IPv4", sample?.localIPv4, copyable: true)
+                row("Gateway", sample?.gatewayIPv4, copyable: true)
+                row("DNS server", sample?.primaryDNS, copyable: true)
+                Divider()
+                row("Wi-Fi network", sample?.wifiDetails?.ssid)
+                row("Signal", sample?.wifiDetails?.rssi.map { "\($0) dBm" })
+                row("Noise", sample?.wifiDetails?.noise.map { "\($0) dBm" })
+                row("Channel", sample?.wifiDetails?.channel.map(String.init))
+                row("Band", sample?.wifiDetails?.band)
+                row("Link rate", sample?.wifiDetails?.txRate.map { String(format: "%.0f Mbps", $0) })
             }
-            .padding(10)
+            .padding(12)
             .background(Color(nsColor: .controlBackgroundColor).opacity(0.5))
-            .clipShape(RoundedRectangle(cornerRadius: 8))
-
+            .clipShape(RoundedRectangle(cornerRadius: 10))
+            Text("Wi-Fi details may be unavailable due to hardware or system permissions. No connectivity test is performed.")
+                .font(.system(size: 10)).foregroundColor(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
             Divider()
             CategoryPopoverFooter(preferences: preferences, coordinator: coordinator)
         }
-        .padding(14)
-        .frame(width: 330)
+        .padding(14).frame(width: 330)
         .onAppear { if !coordinator.isRunning && !preferences.isSamplingPaused { coordinator.start() } }
-        .onReceive(coordinator.$latestNetwork) { newSample in
-            sample = newSample?.value
-            history = coordinator.networkHistory
-        }
+        .onReceive(coordinator.$latestNetwork) { sample = $0?.value }
     }
 
-    private func diagRow(label: String, val: String) -> some View {
+    private func row(_ label: String, _ value: String?, copyable: Bool = false) -> some View {
         HStack {
-            Text(label).font(.system(size: 11, weight: .medium))
+            Text(label).foregroundColor(.secondary)
             Spacer()
-            Text(val).font(.system(size: 11, weight: .bold, design: .monospaced)).foregroundColor(.secondary)
-        }
+            Text(value ?? "Unavailable").fontWeight(.medium).monospacedDigit().lineLimit(1)
+            if copyable, let value = value {
+                Button(action: {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(value, forType: .string)
+                }) { Image(systemName: "doc.on.doc") }
+                    .buttonStyle(.plain).help("Copy \(label)")
+                    .accessibilityLabel("Copy \(label)")
+            }
+        }.font(.system(size: 11))
     }
 }
 
