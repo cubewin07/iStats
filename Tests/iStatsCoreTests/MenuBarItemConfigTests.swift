@@ -156,7 +156,7 @@ final class MenuBarItemConfigTests: XCTestCase {
         XCTAssertEqual(MetricDisplayStyle.throughput.displayName(for: .network), "Up / Down")
         XCTAssertEqual(MetricDisplayStyle.bar.displayName(for: .disk), "Storage Bar")
         XCTAssertEqual(MetricDisplayStyle.gauge.displayName(for: .disk), "Storage Ring")
-        XCTAssertEqual(MetricDisplayStyle.throughput.displayName(for: .power), "Draw / Adapter W")
+        XCTAssertEqual(MetricDisplayStyle.throughput.displayName(for: .power), "Power / Adapter Rating")
         XCTAssertEqual(MetricDisplayStyle.sparkline.displayName(for: .power), "Wattage History")
     }
 

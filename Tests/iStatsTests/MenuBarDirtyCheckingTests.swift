@@ -437,7 +437,7 @@ final class MenuBarDirtyCheckingTests: XCTestCase {
             style: .throughput,
             power: PowerSample(hasBattery: true, powerDrawWatts: 0.0, adapterWatts: 0.0)
         )
-        XCTAssertNotEqual(pwrTpNil, pwrTpZero, "Power .throughput visualKey must distinguish nil ('--W'/'AC') from 0.0 ('0W'/'0W')")
+        XCTAssertNotEqual(pwrTpNil, pwrTpZero, "Power .throughput visualKey must distinguish nil ('--W'/'--W') from 0.0 ('0W'/'0W')")
 
         let pwrSymNil = MenuBarIconRenderer.visualKeyForPower(
             style: .symbol,

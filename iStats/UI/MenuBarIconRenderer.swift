@@ -367,7 +367,7 @@ public struct MenuBarIconRenderer {
             return "pwr:text:\(chargeToken):\(varStr):\(lines.line1):\(lines.line2)"
         case .throughput:
             let drawStr = power?.powerDrawWatts != nil ? String(format: "%.0fW", power!.powerDrawWatts!) : "--W"
-            let adaptStr = power?.adapterWatts != nil ? String(format: "%.0fW", power!.adapterWatts!) : "AC"
+            let adaptStr = power?.adapterWatts != nil ? String(format: "%.0fW", power!.adapterWatts!) : "--W"
             return "pwr:tp:\(drawStr):\(adaptStr)"
         case .gauge:
             return "pwr:gauge:\(chargeToken):\(isCharging):\(varStr)"
@@ -895,7 +895,10 @@ public struct MenuBarIconRenderer {
             let img = cachedOrDraw(visualKey: visualKey) {
                 drawPowerBudgetText(drawWatts: power?.powerDrawWatts, adapterWatts: power?.adapterWatts)
             }
-            return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y, visualKey: visualKey)
+            let reading = power?.powerDrawWatts.map { String(format: "%.1f W", $0) } ?? "unavailable"
+            let rating = power?.adapterWatts.map { String(format: "%.0f W", $0) } ?? "unavailable"
+            let description = "Power reading: \(reading); adapter rating: \(rating)"
+            return RenderResult(image: img, toolTip: description, accessibilityLabel: description, visualKey: visualKey)
         case .gauge:
             let img = cachedOrDraw(visualKey: visualKey) {
                 drawPowerGauge(percentage: charge, isCharging: isCharging, variant: variant)
@@ -2675,7 +2678,7 @@ public struct MenuBarIconRenderer {
     /// Draws 2-line stacked live power draw wattage over adapter capacity (e.g. `28W` over `68W`).
     public static func drawPowerBudgetText(drawWatts: Double?, adapterWatts: Double?) -> NSImage {
         let drawStr = drawWatts != nil ? String(format: "%.0fW", drawWatts!) : "--W"
-        let adaptStr = adapterWatts != nil ? String(format: "%.0fW", adapterWatts!) : "AC"
+        let adaptStr = adapterWatts != nil ? String(format: "%.0fW", adapterWatts!) : "--W"
         return drawStackedTwoLineText(
             prefix1: "",
             value1: drawStr,
@@ -2694,7 +2697,7 @@ public struct MenuBarIconRenderer {
         case .charging:
             icon = "bolt.fill"
         case .onHold:
-            icon = "pause.fill"
+            icon = "powerplug.fill"
         case .powerDeficit:
             icon = "bolt.trianglebadge.exclamationmark.fill"
         case .lowBattery:

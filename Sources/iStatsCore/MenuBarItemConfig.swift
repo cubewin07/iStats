@@ -101,7 +101,7 @@ public enum MetricDisplayStyle: String, CaseIterable, Identifiable, Codable, Sen
 
         // Power
         case (.power, .text): return "Charge + Time"
-        case (.power, .throughput): return "Draw / Adapter W"
+        case (.power, .throughput): return "Power / Adapter Rating"
         case (.power, .gauge): return "Charge Ring"
         case (.power, .bar): return "Charge Bar"
         case (.power, .sparkline): return "Wattage History"
@@ -168,7 +168,7 @@ public enum MetricDisplayStyle: String, CaseIterable, Identifiable, Codable, Sen
         case .thermal: return hasBattery
             ? [.text, .cpuTemp, .gpuTemp, .memoryTemp, .storageTemp, .batteryTemp, .sparkline]
             : [.text, .cpuTemp, .gpuTemp, .memoryTemp, .storageTemp, .sparkline]
-        case .fan: return [.text, .throughput, .bar, .sparkline]
+        case .fan: return [.text, .throughput, .sparkline]
         case .network: return [.throughput, .sparkline, .symbol]
         case .disk: return [.throughput, .bar, .sparkline]
         case .power: return hasBattery ? [.symbol, .text, .throughput, .sparkline] : [.throughput, .sparkline]
