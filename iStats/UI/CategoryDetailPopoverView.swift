@@ -3051,66 +3051,38 @@ public struct NetworkDuplexHistoryPopoverView: View {
         _history = State(initialValue: coordinator.networkHistory)
     }
 
-    private var inRates: [Double] { history.map { $0.value.totalBytesInPerSec } }
-    private var outRates: [Double] { history.map { $0.value.totalBytesOutPerSec } }
-
     public var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            PopoverHeaderView(
-                category: .network,
-                title: "Network History",
-                subtitle: "Dual Up/Down Duplex Bandwidth Timeline",
-                verdict: VerdictEvaluator.evaluateNetwork(sample, unit: preferences.networkUnit, standard: preferences.byteUnitStandard)
-            )
+            PopoverHeaderView(category: .network, title: "Traffic History", subtitle: "All monitored interfaces",
+                              verdict: VerdictEvaluator.evaluateNetwork(sample, unit: preferences.networkUnit, standard: preferences.byteUnitStandard))
             Divider()
-
-            // Download Graph
-            VStack(alignment: .leading, spacing: 4) {
-                HStack {
-                    Text("DOWNLOAD TIMELINE")
-                        .font(.system(size: 8, weight: .bold, design: .monospaced))
-                        .foregroundColor(.secondary)
-                    Spacer()
-                    if let maxIn = inRates.max() {
-                        Text(Units.formatNetworkRate(maxIn, unit: preferences.networkUnit, standard: preferences.byteUnitStandard))
-                            .font(.system(size: 8, weight: .bold, design: .monospaced))
-                            .foregroundColor(.green)
-                    }
-                }
-                RollingGraphView(values: inRates, minValue: 0, maxValue: max(1024, (inRates.max() ?? 0) * 1.1), tintColor: .green, capacity: 60, height: 36, showGrid: true)
-            }
-            .padding(8)
-            .background(Color(nsColor: .controlBackgroundColor).opacity(0.5))
-            .clipShape(RoundedRectangle(cornerRadius: 8))
-
-            // Upload Graph
-            VStack(alignment: .leading, spacing: 4) {
-                HStack {
-                    Text("UPLOAD TIMELINE")
-                        .font(.system(size: 8, weight: .bold, design: .monospaced))
-                        .foregroundColor(.secondary)
-                    Spacer()
-                    if let maxOut = outRates.max() {
-                        Text(Units.formatNetworkRate(maxOut, unit: preferences.networkUnit, standard: preferences.byteUnitStandard))
-                            .font(.system(size: 8, weight: .bold, design: .monospaced))
-                            .foregroundColor(.blue)
-                    }
-                }
-                RollingGraphView(values: outRates, minValue: 0, maxValue: max(1024, (outRates.max() ?? 0) * 1.1), tintColor: .blue, capacity: 60, height: 36, showGrid: true)
-            }
-            .padding(8)
-            .background(Color(nsColor: .controlBackgroundColor).opacity(0.5))
-            .clipShape(RoundedRectangle(cornerRadius: 8))
-
+            direction("↓ Download", inbound: true, color: .teal)
+            direction("↑ Upload", inbound: false, color: .blue)
+            Text("Interface totals can include VPN traffic and are not a measurement of internet speed.")
+                .font(.system(size: 10)).foregroundColor(.secondary).fixedSize(horizontal: false, vertical: true)
             Divider()
             CategoryPopoverFooter(preferences: preferences, coordinator: coordinator)
         }
-        .padding(14)
-        .frame(width: 330)
+        .padding(14).frame(width: 330)
         .onAppear { if !coordinator.isRunning && !preferences.isSamplingPaused { coordinator.start() } }
-        .onReceive(coordinator.$latestNetwork) { newSample in
-            sample = newSample?.value
-            history = coordinator.networkHistory
+        .onReceive(coordinator.$latestNetwork) { sample = $0?.value; history = coordinator.networkHistory }
+    }
+
+    private func direction(_ title: String, inbound: Bool, color: Color) -> some View {
+        let points = history.map { item in
+            HistoryPoint(timestamp: item.timestamp, value: item.availability.isAvailable
+                         ? (inbound ? item.value.totalBytesInPerSec : item.value.totalBytesOutPerSec) : nil)
+        }
+        let maximum = points.compactMap(\.value).max()
+        return VStack(alignment: .leading, spacing: 5) {
+            HStack {
+                Text(title).fontWeight(.semibold)
+                Spacer()
+                Text(maximum.map { "Peak " + Units.formatNetworkRate($0, unit: preferences.networkUnit, standard: preferences.byteUnitStandard) } ?? "No readings")
+                    .foregroundColor(.secondary)
+            }.font(.system(size: 10))
+            TimestampedHistoryGraph(timeline: HistoryTimeline(points: points, expectedInterval: preferences.refreshInterval),
+                                    maxValue: max(1, maximum ?? 1), tintColor: color, height: 48)
         }
     }
 }
