@@ -1000,7 +1000,7 @@ public struct ThermalHistoryPopoverView: View {
                         .foregroundColor(.secondary)
                     Spacer()
                     if let peak = historyPeakTemps.max() {
-                        Text("Session Peak: \(Units.formatTemperature(peak, unit: preferences.temperatureUnit, fractionDigits: 0))")
+                        Text("Window peak: \(Units.formatTemperature(peak, unit: preferences.temperatureUnit, fractionDigits: 0))")
                             .font(.system(size: 9, weight: .bold, design: .monospaced))
                             .foregroundColor(.orange)
                     }
@@ -4018,7 +4018,7 @@ public struct PowerHistoryPopoverView: View {
             // Large 60-sample Graph
             VStack(alignment: .leading, spacing: 6) {
                 HStack {
-                    Text("SYSTEM POWER DRAW TIMELINE")
+                    Text("REPORTED POWER TIMELINE")
                         .font(.system(size: 9, weight: .bold, design: .monospaced))
                         .foregroundColor(.secondary)
                     Spacer()

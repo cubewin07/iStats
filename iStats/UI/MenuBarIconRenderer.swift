@@ -2723,7 +2723,7 @@ public struct MenuBarIconRenderer {
             label = "DEF"
         case .onHold:
             color = NSColor.systemTeal
-            label = "HLD"
+            label = "AC"
         case .lowBattery:
             color = NSColor.systemRed
             label = "LOW"
