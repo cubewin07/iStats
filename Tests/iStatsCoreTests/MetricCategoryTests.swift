@@ -27,6 +27,13 @@ final class MetricCategoryTests: XCTestCase {
         XCTAssertEqual(MetricCategory.power.displayName, "Battery & Power")
     }
 
+    func testCategoryIconsAreDistinct() {
+        let icons = MetricCategory.allCases.map(\.systemImageName)
+        XCTAssertEqual(Set(icons).count, MetricCategory.allCases.count)
+        XCTAssertEqual(MetricCategory.gpu.systemImageName, "square.grid.2x2")
+        XCTAssertEqual(MetricCategory.power.systemImageName, "battery.100percent")
+    }
+
     func testCategoryIdentifiable() {
         for category in MetricCategory.allCases {
             XCTAssertEqual(category.id, category.rawValue)

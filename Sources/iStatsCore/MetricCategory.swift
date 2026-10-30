@@ -16,6 +16,21 @@ public enum MetricCategory: String, CaseIterable, Sendable, Codable, Identifiabl
 
     public var id: String { rawValue }
 
+    /// Shared category identity used in preferences and popover headers.
+    /// Metric-specific indicators remain independent from these static symbols.
+    public var systemImageName: String {
+        switch self {
+        case .cpu: return "cpu"
+        case .memory: return "memorychip"
+        case .thermal: return "thermometer.medium"
+        case .fan: return "fan"
+        case .gpu: return "square.grid.2x2"
+        case .network: return "network"
+        case .disk: return "internaldrive"
+        case .power: return "battery.100percent"
+        }
+    }
+
     /// Human-readable name for display in the UI.
     public var displayName: String {
         switch self {

@@ -99,16 +99,7 @@ public struct PopoverHeaderView: View {
     }
 
     private func iconName(for category: MetricCategory) -> String {
-        switch category {
-        case .cpu: return "cpu"
-        case .memory: return "memorychip"
-        case .thermal: return "thermometer.medium"
-        case .fan: return "fan"
-        case .gpu: return "display"
-        case .network: return "network"
-        case .disk: return "internaldrive"
-        case .power: return "bolt.fill"
-        }
+        category.systemImageName
     }
 }
 
