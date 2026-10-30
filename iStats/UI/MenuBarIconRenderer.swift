@@ -832,8 +832,8 @@ public struct MenuBarIconRenderer {
                     stateStr = " (Charging)"
                     a11yState = ", charging"
                 case .onHold:
-                    stateStr = " (Charging On Hold - Optimized)"
-                    a11yState = ", charging on hold"
+                    stateStr = " (Connected to Power)"
+                    a11yState = ", connected to power"
                 case .powerDeficit:
                     if let draw = pwr.powerDrawWatts, let adapter = pwr.adapterWatts {
                         stateStr = String(format: " (Power Deficit: %.0fW > %.0fW)", draw, adapter)
@@ -857,8 +857,13 @@ public struct MenuBarIconRenderer {
                     stateStr = ""
                     a11yState = ""
                 }
-                tip = String(format: "Battery: %.0f%%%@", charge, stateStr)
-                a11y = String(format: "Battery %.0f percent%@", charge, a11yState)
+                if let measuredCharge = pwr.charge {
+                    tip = String(format: "Battery: %.0f%%%@", measuredCharge, stateStr)
+                    a11y = String(format: "Battery %.0f percent%@", measuredCharge, a11yState)
+                } else {
+                    tip = "Battery charge unavailable"
+                    a11y = "Battery charge unavailable"
+                }
             } else {
                 let wattsStr = power?.powerDrawWatts != nil ? String(format: " (%.1f W)", power!.powerDrawWatts!) : ""
                 tip = "Power: Connected to AC\(wattsStr)"
@@ -1877,17 +1882,8 @@ public struct MenuBarIconRenderer {
                         bolt.stroke()
 
                     case .onHold:
-                        // Elegant Pause Symbol (two vertical rounded pills || in warm amber)
-                        let p1 = NSBezierPath(roundedRect: NSRect(x: 8.8, y: 5.0, width: 1.8, height: 6.0), xRadius: 0.9, yRadius: 0.9)
-                        let p2 = NSBezierPath(roundedRect: NSRect(x: 11.8, y: 5.0, width: 1.8, height: 6.0), xRadius: 0.9, yRadius: 0.9)
-                        NSColor.systemOrange.setFill()
-                        p1.fill()
-                        p2.fill()
-                        p1.lineWidth = 0.5
-                        p2.lineWidth = 0.5
-                        NSColor.black.withAlphaComponent(0.65).setStroke()
-                        p1.stroke()
-                        p2.stroke()
+                        // Connected without a reported charging state; do not infer a pause reason.
+                        break
 
                     case .powerDeficit:
                         // Dual Deficit Indicator: Mini bolt on left + downward discharge arrow on right

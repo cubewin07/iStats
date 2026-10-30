@@ -356,6 +356,17 @@ final class MenuBarItemMatrixTests: XCTestCase {
         XCTAssertEqual(resAC.accessibilityLabel, "Connected to AC power")
     }
 
+    func testBatteryWidgetReportsMissingChargeAndNeutralACState() {
+        let (defaults, prefs, coord, suiteName) = makeContext()
+        defer { cleanup(defaults: defaults, suiteName: suiteName) }
+        coord.handleReading(.power(Sample(value: PowerSample(hasBattery: true, charge: nil, state: .unknown))))
+        let missing = MenuBarIconRenderer.render(config: MenuBarItemConfig(category: .power, style: .symbol), coordinator: coord, preferences: prefs)
+        XCTAssertEqual(missing.accessibilityLabel, "Battery charge unavailable")
+        coord.handleReading(.power(Sample(value: PowerSample(hasBattery: true, charge: 80, state: .acConnected))))
+        let connected = MenuBarIconRenderer.render(config: MenuBarItemConfig(category: .power, style: .symbol), coordinator: coord, preferences: prefs)
+        XCTAssertEqual(connected.accessibilityLabel, "Battery 80 percent, connected to power")
+    }
+
     // MARK: - Completeness Check Across all Available Items
 
     func testRenderCompletenessAcrossAllDefaultItems() {

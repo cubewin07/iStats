@@ -674,7 +674,7 @@ public enum PowerStateVariant: String, Sendable, Equatable, Codable, CaseIterabl
         case .charging:
             return "CHG"
         case .onHold:
-            return "HOLD"
+            return "AC"
         case .powerDeficit:
             return "DEFICIT"
         case .discharging:
@@ -695,7 +695,7 @@ public enum PowerStateVariant: String, Sendable, Equatable, Codable, CaseIterabl
         case .charging:
             return "bolt.fill"
         case .onHold:
-            return "pause.fill"
+            return "powerplug.fill"
         case .powerDeficit:
             return "bolt.trianglebadge.exclamationmark.fill"
         case .discharging:
