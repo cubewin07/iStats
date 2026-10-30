@@ -388,129 +388,32 @@ public enum VerdictEvaluator {
     // MARK: - Battery & Power
     public static func evaluatePower(_ sample: PowerSample?) -> MetricVerdict {
         guard let s = sample else {
-            return MetricVerdict(
-                level: .fine,
-                badgeText: "Ready",
-                dadSentence: "Monitoring power telemetry...",
-                primaryValue: "—"
-            )
+            return MetricVerdict(level: .fine, badgeText: "Ready", dadSentence: "Waiting for power readings", primaryValue: "—")
         }
-
-        if !s.hasBattery {
-            let watts = s.powerDrawWatts != nil ? "\(Int(s.powerDrawWatts!)) W" : "AC"
-            return MetricVerdict(
-                level: .fine,
-                badgeText: "On AC Power",
-                dadSentence: "This Mac is on power. Drawing \(watts).",
-                primaryValue: watts,
-                secondaryValue: "Desktop Mac (AC Powered)"
-            )
+        guard s.hasBattery else {
+            return MetricVerdict(level: .fine, badgeText: "No battery", dadSentence: "No internal battery reported",
+                                 primaryValue: s.powerDrawWatts.map { String(format: "%.1f W", $0) } ?? "—")
         }
-
-        let charge = s.charge ?? 100.0
-        let state = s.state ?? .discharging
-
-        let level: StatusLevel
+        let charge = s.charge.map { String(format: "%.0f%%", $0) } ?? "—"
         let badge: String
         let sentence: String
-
-        if s.variant == .powerDeficit {
-            level = .warning
-            badge = "Power Deficit"
-            if let draw = s.powerDrawWatts, let adapt = s.adapterWatts {
-                sentence = "System load (\(Int(draw))W) exceeds charger (\(Int(adapt))W). Battery assisting."
-            } else {
-                sentence = "System draw exceeds power input; battery discharging."
-            }
-        } else {
-            switch state {
-            case .charging:
-                level = .fine
-                if let time = s.timeRemaining, time > 0 && time < 86400 {
-                    let mins = Int(time / 60)
-                    if mins >= 60 {
-                        badge = "\(mins / 60)h \(mins % 60)m to full"
-                    } else {
-                        badge = "\(mins) min to full"
-                    }
-                    sentence = "Battery charging rapidly"
-                } else {
-                    badge = "Charging"
-                    sentence = "Connected to power adapter"
-                }
-            case .charged:
-                level = .fine
-                badge = "Fully Charged"
-                sentence = "On AC power. Battery full."
-            case .acConnected:
-                level = .fine
-                if charge >= 99.0 {
-                    badge = "Fully Charged"
-                    sentence = "On AC power. Battery full."
-                } else {
-                    badge = "Not Charging"
-                    sentence = "Connected to power. Battery not charging."
-                }
-            case .discharging, .unknown:
-                if charge <= 10.0 {
-                    level = .critical
-                    badge = "Plug in now"
-                    sentence = "Battery is critically low"
-                } else if charge <= 20.0 {
-                    level = .warning
-                    badge = "Plug in soon"
-                    sentence = "Battery level is low"
-                } else if charge <= 40.0 {
-                    level = .elevated
-                    badge = "Running down"
-                    sentence = formatBatteryTimeSentence(s.timeRemaining)
-                } else {
-                    level = .fine
-                    badge = formatBatteryTimeBadge(s.timeRemaining)
-                    sentence = "Battery discharge is normal"
-                }
-            }
+        var level: StatusLevel = .fine
+        switch s.state {
+        case .charging:
+            badge = "Charging"; sentence = "Battery is charging"
+        case .charged:
+            badge = "Charged"; sentence = "Battery is charged"
+        case .acConnected:
+            badge = "Connected"; sentence = "Connected to power"
+        case .discharging:
+            if let value = s.charge, value <= 10 { level = .critical; badge = "Low battery" }
+            else if let value = s.charge, value <= 20 { level = .warning; badge = "Low battery" }
+            else { badge = "On battery" }
+            sentence = "Battery is discharging"
+        case .unknown, nil:
+            badge = "Unavailable"; sentence = "Battery state is not reported"
         }
-
-        let chargeStr = String(format: "%.0f%%", charge)
-        var secondary = chargeStr
-        if let watts = s.powerDrawWatts {
-            secondary += " · \(String(format: "%.1f W", watts))"
-        }
-
-        return MetricVerdict(
-            level: level,
-            badgeText: badge,
-            dadSentence: sentence,
-            primaryValue: chargeStr,
-            secondaryValue: secondary
-        )
-    }
-
-    private static func formatBatteryTimeBadge(_ timeRemaining: TimeInterval?) -> String {
-        guard let time = timeRemaining, time > 0 && time < 86400 else {
-            return "On Battery"
-        }
-        let mins = Int(time / 60)
-        let hours = mins / 60
-        let remainingMins = mins % 60
-        if hours > 0 {
-            return "\(hours)h \(remainingMins)m left"
-        }
-        return "\(mins)m left"
-    }
-
-    private static func formatBatteryTimeSentence(_ timeRemaining: TimeInterval?) -> String {
-        guard let time = timeRemaining, time > 0 && time < 86400 else {
-            return "Discharging on battery"
-        }
-        let mins = Int(time / 60)
-        let hours = mins / 60
-        let remainingMins = mins % 60
-        if hours > 0 {
-            return "About \(hours) hours and \(remainingMins) minutes left"
-        }
-        return "About \(mins) minutes remaining"
+        return MetricVerdict(level: level, badgeText: badge, dadSentence: sentence, primaryValue: charge)
     }
 
     private static func cleanSensorName(_ rawName: String) -> String {

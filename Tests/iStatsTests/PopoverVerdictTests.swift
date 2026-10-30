@@ -276,64 +276,16 @@ final class PopoverVerdictTests: XCTestCase {
 
     // MARK: - 8. Power Verdict Evaluation
 
-    func testPowerEvaluationAllBatteryAndACStates() {
-        // Cold start / nil
-        let nilVerdict = VerdictEvaluator.evaluatePower(nil)
-        XCTAssertEqual(nilVerdict.level, .fine)
-        XCTAssertEqual(nilVerdict.badgeText, "Ready")
-
-        // Desktop Mac (No battery)
-        let desktopPower = PowerSample(hasBattery: false, powerDrawWatts: 48.0)
-        let desktopVerdict = VerdictEvaluator.evaluatePower(desktopPower)
-        XCTAssertEqual(desktopVerdict.level, .fine)
-        XCTAssertEqual(desktopVerdict.badgeText, "On AC Power")
-        XCTAssertEqual(desktopVerdict.dadSentence, "This Mac is on power. Drawing 48 W.")
-
-        // Fully charged
-        let fullyCharged = PowerSample(hasBattery: true, charge: 100.0, state: .charged, powerDrawWatts: 0.0, adapterWatts: 67.0)
-        let fullyChargedVerdict = VerdictEvaluator.evaluatePower(fullyCharged)
-        XCTAssertEqual(fullyChargedVerdict.level, .fine)
-        XCTAssertEqual(fullyChargedVerdict.badgeText, "Fully Charged")
-        XCTAssertEqual(fullyChargedVerdict.dadSentence, "On AC power. Battery full.")
-
-        // AC Connected not charging
-        let acConnected = PowerSample(hasBattery: true, charge: 80.0, state: .acConnected, powerDrawWatts: 12.0, adapterWatts: 67.0)
-        let acVerdict = VerdictEvaluator.evaluatePower(acConnected)
-        XCTAssertEqual(acVerdict.level, .fine)
-        XCTAssertEqual(acVerdict.badgeText, "Not Charging")
-
-        // Charging rapidly with estimated time
-        let charging = PowerSample(hasBattery: true, charge: 55.0, state: .charging, timeRemaining: 42 * 60, powerDrawWatts: 30.0, adapterWatts: 67.0)
-        let chargingVerdict = VerdictEvaluator.evaluatePower(charging)
-        XCTAssertEqual(chargingVerdict.level, .fine)
-        XCTAssertEqual(chargingVerdict.badgeText, "42 min to full")
-        XCTAssertEqual(chargingVerdict.dadSentence, "Battery charging rapidly")
-
-        // Discharging normal (>40%)
-        let dischargeNormal = PowerSample(hasBattery: true, charge: 85.0, state: .discharging, timeRemaining: 5 * 3600, powerDrawWatts: 12.0)
-        let normalVerdict = VerdictEvaluator.evaluatePower(dischargeNormal)
-        XCTAssertEqual(normalVerdict.level, .fine)
-        XCTAssertEqual(normalVerdict.badgeText, "5h 0m left")
-        XCTAssertEqual(normalVerdict.dadSentence, "Battery discharge is normal")
-
-        // Running down (20% ..< 40%)
-        let runningDown = PowerSample(hasBattery: true, charge: 35.0, state: .discharging, timeRemaining: 2 * 3600 + 15 * 60, powerDrawWatts: 15.0)
-        let runningDownVerdict = VerdictEvaluator.evaluatePower(runningDown)
-        XCTAssertEqual(runningDownVerdict.level, .elevated)
-        XCTAssertEqual(runningDownVerdict.badgeText, "Running down")
-
-        // Plug in soon (10% ..< 20%)
-        let plugInSoon = PowerSample(hasBattery: true, charge: 18.0, state: .discharging, timeRemaining: 50 * 60, powerDrawWatts: 14.0)
-        let plugInSoonVerdict = VerdictEvaluator.evaluatePower(plugInSoon)
-        XCTAssertEqual(plugInSoonVerdict.level, .warning)
-        XCTAssertEqual(plugInSoonVerdict.badgeText, "Plug in soon")
-        XCTAssertEqual(plugInSoonVerdict.dadSentence, "Battery level is low")
-
-        // Plug in now (<= 10%)
-        let plugInNow = PowerSample(hasBattery: true, charge: 8.0, state: .discharging, timeRemaining: 20 * 60, powerDrawWatts: 14.0)
-        let plugInNowVerdict = VerdictEvaluator.evaluatePower(plugInNow)
-        XCTAssertEqual(plugInNowVerdict.level, .critical)
-        XCTAssertEqual(plugInNowVerdict.badgeText, "Plug in now")
-        XCTAssertEqual(plugInNowVerdict.dadSentence, "Battery is critically low")
+    func testPowerVerdictReportsStateWithoutAssumingChargeOrAdapterDeficit() {
+        XCTAssertEqual(VerdictEvaluator.evaluatePower(nil).badgeText, "Ready")
+        XCTAssertEqual(VerdictEvaluator.evaluatePower(PowerSample(hasBattery: false)).primaryValue, "—")
+        let unknown = VerdictEvaluator.evaluatePower(PowerSample(hasBattery: true, state: .unknown))
+        XCTAssertEqual(unknown.primaryValue, "—")
+        XCTAssertEqual(unknown.badgeText, "Unavailable")
+        let charging = VerdictEvaluator.evaluatePower(PowerSample(hasBattery: true, charge: 55, state: .charging, powerDrawWatts: 80, adapterWatts: 60))
+        XCTAssertEqual(charging.badgeText, "Charging")
+        XCTAssertEqual(charging.primaryValue, "55%")
+        XCTAssertEqual(VerdictEvaluator.evaluatePower(PowerSample(hasBattery: true, charge: 8, state: .discharging)).level, .critical)
+        XCTAssertEqual(VerdictEvaluator.evaluatePower(PowerSample(hasBattery: true, charge: 18, state: .discharging)).level, .warning)
     }
 }
