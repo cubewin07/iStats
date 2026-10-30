@@ -643,4 +643,96 @@ final class MenuBarControllerInteractionTests: XCTestCase {
         controller.statusItemClicked(fallbackButton)
         XCTAssertTrue(controller.currentlyShownButton === fallbackButton)
     }
+
+    func testPausingSamplingWhilePopoverIsOpenCleansUpSession() {
+        let (defaults, prefs, _, controller, suiteName) = makeContext()
+        defer { cleanup(defaults: defaults, controller: controller, suiteName: suiteName) }
+
+        let cpuItem = MenuBarItemConfig(category: .cpu, style: .gauge)
+        prefs.menuBarItems = [cpuItem]
+        controller.syncStatusItems()
+
+        guard let cpuButton = controller.statusItems[cpuItem.id]?.button else {
+            XCTFail("CPU status button must exist")
+            return
+        }
+
+        // 1. Open popover
+        controller.statusItemClicked(cpuButton)
+        XCTAssertTrue(controller.currentlyShownButton === cpuButton)
+
+        // 2. Pause sampling while popover is open (e.g. from footer or preferences)
+        controller.toggleSamplingPaused()
+
+        // Popover session must be ended cleanly and currentlyShownButton cleared
+        XCTAssertNil(controller.currentlyShownButton)
+        XCTAssertEqual(controller.statusItems.count, 1)
+        XCTAssertNotNil(controller.statusItems[MenuBarController.fallbackStatusItemId])
+
+        // Moving mouse over the new fallback button must NOT trigger hover popover without a click
+        if let fallbackButton = controller.statusItems[MenuBarController.fallbackStatusItemId]?.button,
+           let window = fallbackButton.window {
+            let screenRect = window.convertToScreen(fallbackButton.convert(fallbackButton.bounds, to: nil))
+            let hoverPoint = NSPoint(x: screenRect.midX, y: screenRect.midY)
+            controller.handleMouseMovedDuringScrubbing(to: hoverPoint)
+            XCTAssertNil(controller.currentlyShownButton, "Scrubbing monitor must be stopped and not open popover on hover")
+        }
+    }
+
+    func testRemovingActiveItemWhilePopoverIsOpenCleansUpSession() {
+        let (defaults, prefs, _, controller, suiteName) = makeContext()
+        defer { cleanup(defaults: defaults, controller: controller, suiteName: suiteName) }
+
+        let cpuItem = MenuBarItemConfig(category: .cpu, style: .gauge)
+        let memItem = MenuBarItemConfig(category: .memory, style: .bar)
+        prefs.menuBarItems = [cpuItem, memItem]
+        controller.syncStatusItems()
+
+        guard let cpuButton = controller.statusItems[cpuItem.id]?.button else {
+            XCTFail("CPU status button must exist")
+            return
+        }
+
+        // Open CPU popover
+        controller.statusItemClicked(cpuButton)
+        XCTAssertTrue(controller.currentlyShownButton === cpuButton)
+
+        // Disable CPU item in preferences
+        prefs.menuBarItems = [memItem]
+        controller.syncStatusItems()
+
+        // Session must be cleanly torn down
+        XCTAssertNil(controller.currentlyShownButton)
+        XCTAssertNil(controller.popovers[cpuItem.id]?.contentViewController)
+    }
+
+    func testReorderingActiveItemsWhilePopoverIsOpenReanchorsButton() {
+        let (defaults, prefs, _, controller, suiteName) = makeContext()
+        defer { cleanup(defaults: defaults, controller: controller, suiteName: suiteName) }
+
+        let cpuItem = MenuBarItemConfig(category: .cpu, style: .gauge)
+        let memItem = MenuBarItemConfig(category: .memory, style: .bar)
+        prefs.menuBarItems = [cpuItem, memItem]
+        controller.syncStatusItems()
+
+        guard let cpuButton = controller.statusItems[cpuItem.id]?.button else {
+            XCTFail("CPU status button must exist")
+            return
+        }
+
+        // Open CPU popover
+        controller.statusItemClicked(cpuButton)
+        XCTAssertTrue(controller.currentlyShownButton === cpuButton)
+
+        // Swap order: [memItem, cpuItem]
+        prefs.menuBarItems = [memItem, cpuItem]
+        controller.syncStatusItems()
+
+        // Popover stays open and currentlyShownButton is re-anchored to the new CPU button instance
+        guard let newCpuButton = controller.statusItems[cpuItem.id]?.button else {
+            XCTFail("New CPU button must exist after reorder")
+            return
+        }
+        XCTAssertTrue(controller.currentlyShownButton === newCpuButton, "currentlyShownButton must be re-anchored to the rebuilt button")
+    }
 }

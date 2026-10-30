@@ -188,14 +188,21 @@ public final class MenuBarController: NSObject {
 
         if activeConfigs.isEmpty {
             lastActiveItemOrder = []
+            // If a popover was shown on a category item, close it cleanly first
+            if let current = currentlyShownButton, current.identifier?.rawValue != Self.fallbackStatusItemId {
+                hidePopover()
+            }
             // Remove any leftover category status items and popovers
             for (id, item) in statusItems where id != Self.fallbackStatusItemId {
                 NSStatusBar.system.removeStatusItem(item)
                 statusItems.removeValue(forKey: id)
                 previousRenderStates.removeValue(forKey: id)
                 lastConfiguredPopoverStyles.removeValue(forKey: id)
-                if let p = popovers.removeValue(forKey: id), p.isShown {
-                    p.performClose(nil)
+                if let p = popovers.removeValue(forKey: id) {
+                    if p.isShown {
+                        p.performClose(nil)
+                    }
+                    p.contentViewController = nil
                 }
             }
 
@@ -236,15 +243,25 @@ public final class MenuBarController: NSObject {
 
         // Active items exist: clean up fallback item if present
         if let fallbackItem = statusItems.removeValue(forKey: Self.fallbackStatusItemId) {
+            if let current = currentlyShownButton, current.identifier?.rawValue == Self.fallbackStatusItemId {
+                hidePopover()
+            }
             NSStatusBar.system.removeStatusItem(fallbackItem)
             previousRenderStates.removeValue(forKey: Self.fallbackStatusItemId)
-            if let p = popovers.removeValue(forKey: Self.fallbackStatusItemId), p.isShown {
-                p.performClose(nil)
+            if let p = popovers.removeValue(forKey: Self.fallbackStatusItemId) {
+                if p.isShown {
+                    p.performClose(nil)
+                }
+                p.contentViewController = nil
             }
         }
 
         // If the exact same items were reordered, rebuild status items in the new order so NSStatusBar positions them accordingly
+        var reanchoredId: String? = nil
         if activeIds == Set(lastActiveItemOrder) && currentOrder != lastActiveItemOrder {
+            if let current = currentlyShownButton, let rawId = current.identifier?.rawValue {
+                reanchoredId = rawId
+            }
             for (_, item) in statusItems {
                 NSStatusBar.system.removeStatusItem(item)
             }
@@ -255,12 +272,18 @@ public final class MenuBarController: NSObject {
 
         // 1. Remove status items and popovers for items/categories that have been disabled or deleted
         for (id, item) in statusItems where !activeIds.contains(id) {
+            if let current = currentlyShownButton, current.identifier?.rawValue == id {
+                hidePopover()
+            }
             NSStatusBar.system.removeStatusItem(item)
             statusItems.removeValue(forKey: id)
             previousRenderStates.removeValue(forKey: id)
             lastConfiguredPopoverStyles.removeValue(forKey: id)
-            if let p = popovers.removeValue(forKey: id), p.isShown {
-                p.performClose(nil)
+            if let p = popovers.removeValue(forKey: id) {
+                if p.isShown {
+                    p.performClose(nil)
+                }
+                p.contentViewController = nil
             }
         }
 
@@ -277,6 +300,16 @@ public final class MenuBarController: NSObject {
             if popovers[config.id] == nil {
                 popovers[config.id] = createPopover(for: config)
             }
+        }
+
+        // Re-anchor active popover to the newly rebuilt button if items were reordered
+        if let openId = reanchoredId, let newButton = statusItems[openId]?.button {
+            currentlyShownButton = newButton
+            if let p = popovers[openId] {
+                p.show(relativeTo: newButton.bounds, of: newButton, preferredEdge: .minY)
+            }
+        } else if reanchoredId != nil {
+            hidePopover()
         }
 
         // 3. Invalidate or swap cached popover content if custom popover style was updated
@@ -664,8 +697,9 @@ public final class MenuBarController: NSObject {
 
     /// Handles cursor motion across status item buttons when a popover is actively presented.
     public func handleMouseMovedDuringScrubbing(to mouseLocation: NSPoint) {
-        guard let currentButton = currentlyShownButton else {
+        guard let currentButton = currentlyShownButton, currentButton.window != nil else {
             stopScrubbingMonitor()
+            currentlyShownButton = nil
             return
         }
 
@@ -831,11 +865,18 @@ extension MenuBarController: NSPopoverDelegate {
         if let closed = notification.object as? NSPopover {
             // When the active popover closes without transitioning to another item, the popover session ends.
             if let button = currentlyShownButton,
-               let rawId = button.identifier?.rawValue,
-               popovers[rawId] === closed || fallbackPopover === closed {
-                currentlyShownButton = nil
-                stopScrubbingMonitor()
-                teardownInactivePopoverControllers()
+               let rawId = button.identifier?.rawValue {
+                if popovers[rawId] === closed || fallbackPopover === closed || popovers[rawId] == nil {
+                    currentlyShownButton = nil
+                    stopScrubbingMonitor()
+                    teardownInactivePopoverControllers()
+                }
+            } else {
+                let anyShown = popovers.values.contains(where: { $0.isShown }) || fallbackPopover.isShown
+                if !anyShown {
+                    stopScrubbingMonitor()
+                    teardownInactivePopoverControllers()
+                }
             }
         }
     }
