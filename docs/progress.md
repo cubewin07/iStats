@@ -30,6 +30,7 @@ The only status file. Agent specs (`AGENTS.md`, `CLAUDE.md`) and phase plans do 
 | 4 | Battery & power | **done** | Charge, state, time-remaining, health, power draw, no-battery desktop handling, and `report.md` complete. |
 | 5 | Thermal, fan, GPU | **done** | ThermalSampler, FanSampler, GPUSampler, ADR 0003, ADR 0004, ADR 0005, and Phase 5 report complete. Live AppleSMC & IOKit accelerator telemetry validated on Apple Silicon. |
 | 6 | Polish & preferences | **done** | Full preferences (General, Categories, Units), 8 menu bar modes, SMAppService launch-at-login, Dock icon toggle, ADR 0006 zero-telemetry persistence, performance benchmark pass, docs/ADRs finalized, and `report.md` complete. |
+| 7 | Widget & popover redesign | **not started** | Plan only: [`docs/phases/phase-07-widget-popover-redesign/plan.md`](./phases/phase-07-widget-popover-redesign/plan.md). Awaiting ADR 0008 / open decisions. |
 
 Status values: `not started` · `in progress` · `docs on disk, not closed` · `done` · `blocked`.
 
