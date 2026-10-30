@@ -240,9 +240,9 @@ public enum VerdictEvaluator {
         guard let util = s.utilization else {
             return MetricVerdict(
                 level: .fine,
-                badgeText: "Active",
+                badgeText: "Unavailable",
                 dadSentence: "GPU load is not reported on this Mac",
-                primaryValue: "Active",
+                primaryValue: "—",
                 secondaryValue: s.memoryUsed != nil ? Units.formatBytes(s.memoryUsed!) : nil
             )
         }

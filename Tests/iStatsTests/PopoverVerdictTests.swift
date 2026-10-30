@@ -165,7 +165,8 @@ final class PopoverVerdictTests: XCTestCase {
         let unmeteredGPU = GPUSample(utilization: nil, memoryUsed: 512 * 1024 * 1024)
         let unmeteredVerdict = VerdictEvaluator.evaluateGPU(unmeteredGPU)
         XCTAssertEqual(unmeteredVerdict.level, .fine)
-        XCTAssertEqual(unmeteredVerdict.badgeText, "Active")
+        XCTAssertEqual(unmeteredVerdict.badgeText, "Unavailable")
+        XCTAssertEqual(unmeteredVerdict.primaryValue, "—")
         XCTAssertEqual(unmeteredVerdict.dadSentence, "GPU load is not reported on this Mac")
 
         // Idle (<15%)
