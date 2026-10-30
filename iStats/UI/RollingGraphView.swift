@@ -1,4 +1,5 @@
 import SwiftUI
+import iStatsCore
 
 /// A high-performance, reusable SwiftUI rolling history line and area graph view
 /// (Requirement 10.2).
@@ -167,3 +168,76 @@ public struct RollingGraphView: View {
     }
 }
 
+
+/// Timestamp-based chart for diagnostic popovers. Missing samples and long
+/// sampling gaps remain disconnected rather than being interpolated.
+public struct TimestampedHistoryGraph: View {
+    public let timeline: HistoryTimeline
+    public let minValue: Double
+    public let maxValue: Double
+    public let tintColor: Color
+    public let height: CGFloat
+
+    public init(timeline: HistoryTimeline, minValue: Double = 0, maxValue: Double,
+                tintColor: Color = .blue, height: CGFloat = 56) {
+        self.timeline = timeline
+        self.minValue = minValue
+        self.maxValue = max(maxValue, minValue + 0.001)
+        self.tintColor = tintColor
+        self.height = height
+    }
+
+    public func position(for point: HistoryPoint, width: CGFloat, height: CGFloat) -> CGPoint? {
+        guard let range = timeline.timeRange, let value = point.value, value.isFinite,
+              width > 0, height > 0 else { return nil }
+        let duration = range.upperBound.timeIntervalSince(range.lowerBound)
+        let x = duration > 0 ? point.timestamp.timeIntervalSince(range.lowerBound) / duration : 1
+        let normalized = (min(max(value, minValue), maxValue) - minValue) / (maxValue - minValue)
+        return CGPoint(x: CGFloat(x) * width, y: height - CGFloat(normalized) * max(height - 4, 0) - 2)
+    }
+
+    public var body: some View {
+        VStack(spacing: 4) {
+            GeometryReader { geometry in
+                ZStack {
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(Color(nsColor: .controlBackgroundColor).opacity(0.55))
+                    Path { path in
+                        for segment in timeline.segments {
+                            let points = segment.compactMap { position(for: $0, width: geometry.size.width, height: geometry.size.height) }
+                            guard let first = points.first else { continue }
+                            path.move(to: first)
+                            for point in points.dropFirst() { path.addLine(to: point) }
+                        }
+                    }
+                    .stroke(tintColor, style: StrokeStyle(lineWidth: 1.5, lineCap: .round, lineJoin: .round))
+                    ForEach(Array(timeline.segments.enumerated()), id: \.offset) { _, segment in
+                        if segment.count == 1, let point = segment.first,
+                           let position = position(for: point, width: geometry.size.width, height: geometry.size.height) {
+                            Circle().fill(tintColor).frame(width: 4, height: 4).position(position)
+                        }
+                    }
+                    if timeline.segments.isEmpty {
+                        Text("No history available")
+                            .font(.system(size: 10))
+                            .foregroundColor(.secondary)
+                    }
+                }
+            }
+            .frame(height: height)
+            .clipped()
+            if let range = timeline.timeRange {
+                HStack {
+                    Text(range.lowerBound, style: .time)
+                    Spacer()
+                    Text(range.upperBound, style: .time)
+                }
+                .font(.system(size: 9, design: .monospaced))
+                .foregroundColor(.secondary)
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("History chart")
+        .accessibilityValue("\(timeline.segments.reduce(0) { $0 + $1.count }) recorded samples")
+    }
+}

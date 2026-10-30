@@ -98,6 +98,20 @@ final class DetailViewGraphsTests: XCTestCase {
         XCTAssertTrue(points.isEmpty)
     }
 
+    func testTimestampedGraphUsesTimeRatherThanSampleIndex() {
+        let base = Date(timeIntervalSince1970: 0)
+        let points = [
+            HistoryPoint(timestamp: base, value: 0),
+            HistoryPoint(timestamp: base.addingTimeInterval(2), value: 50),
+            HistoryPoint(timestamp: base.addingTimeInterval(10), value: 100)
+        ]
+        let timeline = HistoryTimeline(points: points, expectedInterval: 2)
+        let graph = TimestampedHistoryGraph(timeline: timeline, maxValue: 100)
+        XCTAssertEqual(graph.position(for: points[1], width: 100, height: 100)!.x, 20, accuracy: 0.01)
+        XCTAssertEqual(timeline.segments.count, 2)
+        XCTAssertNil(graph.position(for: HistoryPoint(timestamp: base, value: nil), width: 100, height: 100))
+    }
+
     // MARK: - MenuBarController Title & Tooltip Formatting
 
     func testMenuBarFormatting() {

@@ -916,7 +916,7 @@ public struct ThermalHistoryPopoverView: View {
             PopoverHeaderView(
                 category: .thermal,
                 title: "Thermal Timeline",
-                subtitle: "Recent samples • equally spaced",
+                subtitle: "Recorded samples • gaps shown",
                 verdict: VerdictEvaluator.evaluateThermal(sample, unit: preferences.temperatureUnit)
             )
             Divider()
@@ -935,14 +935,13 @@ public struct ThermalHistoryPopoverView: View {
                     }
                 }
 
-                RollingGraphView(
-                    values: historyPeakTemps,
+                TimestampedHistoryGraph(
+                    timeline: HistoryTimeline(points: history.map { hist in
+                        HistoryPoint(timestamp: hist.timestamp, value: hist.availability.isAvailable ? hist.value.sensors.map(\.celsius).max() : nil)
+                    }, expectedInterval: preferences.refreshInterval),
                     minValue: 20.0,
                     maxValue: max(100.0, (historyPeakTemps.max() ?? 80.0) + 5.0),
-                    tintColor: .orange,
-                    capacity: 60,
-                    height: 56,
-                    showGrid: true
+                    tintColor: .orange
                 )
             }
             .padding(10)
@@ -1394,7 +1393,7 @@ public struct CPUHistoryPopoverView: View {
             PopoverHeaderView(
                 category: .cpu,
                 title: "CPU Load History",
-                subtitle: "Recent samples • equally spaced",
+                subtitle: "Recorded samples • gaps shown",
                 verdict: VerdictEvaluator.evaluateCPU(sample)
             )
             Divider()
@@ -1413,14 +1412,13 @@ public struct CPUHistoryPopoverView: View {
                     }
                 }
 
-                RollingGraphView(
-                    values: historyUsages,
-                    minValue: 0.0,
+                TimestampedHistoryGraph(
+                    timeline: HistoryTimeline(points: history.map { hist in
+                        HistoryPoint(timestamp: hist.timestamp, value: hist.availability.isAvailable ? hist.value.totalUsage : nil)
+                    }, expectedInterval: preferences.refreshInterval),
+                    minValue: 0,
                     maxValue: 100.0,
-                    tintColor: .blue,
-                    capacity: 60,
-                    height: 56,
-                    showGrid: true
+                    tintColor: .blue
                 )
             }
             .padding(10)
@@ -1835,9 +1833,9 @@ public struct MemoryHistoryPopoverView: View {
     }
 
     private var historyPcts: [Double] {
-        history.map { hist in
-            let tot = max(1, Double(hist.value.total))
-            return (Double(hist.value.used) / tot) * 100.0
+        history.compactMap { hist in
+            guard hist.availability.isAvailable, hist.value.total > 0 else { return nil }
+            return Double(hist.value.used) / Double(hist.value.total) * 100.0
         }
     }
 
@@ -1846,7 +1844,7 @@ public struct MemoryHistoryPopoverView: View {
             PopoverHeaderView(
                 category: .memory,
                 title: "Memory History",
-                subtitle: "Recent samples • equally spaced",
+                subtitle: "Recorded samples • gaps shown",
                 verdict: VerdictEvaluator.evaluateMemory(sample, standard: preferences.byteUnitStandard)
             )
             Divider()
@@ -1865,14 +1863,13 @@ public struct MemoryHistoryPopoverView: View {
                     }
                 }
 
-                RollingGraphView(
-                    values: historyPcts,
-                    minValue: 0.0,
+                TimestampedHistoryGraph(
+                    timeline: HistoryTimeline(points: history.map { hist in
+                        HistoryPoint(timestamp: hist.timestamp, value: hist.availability.isAvailable && hist.value.total > 0 ? Double(hist.value.used) / Double(hist.value.total) * 100 : nil)
+                    }, expectedInterval: preferences.refreshInterval),
+                    minValue: 0,
                     maxValue: 100.0,
-                    tintColor: .blue,
-                    capacity: 60,
-                    height: 56,
-                    showGrid: true
+                    tintColor: .blue
                 )
             }
             .padding(10)
@@ -2797,8 +2794,9 @@ public struct FanHistoryPopoverView: View {
     }
 
     private var historyRPMs: [Double] {
-        history.map { hist in
-            Double(hist.value.fans.map(\.rpm).max() ?? 0)
+        history.compactMap { hist in
+            guard hist.availability.isAvailable else { return nil }
+            return hist.value.fans.map(\.rpm).max().map(Double.init)
         }
     }
 
@@ -2807,7 +2805,7 @@ public struct FanHistoryPopoverView: View {
             PopoverHeaderView(
                 category: .fan,
                 title: "Fan History",
-                subtitle: "Recent samples • equally spaced",
+                subtitle: "Recorded samples • gaps shown",
                 verdict: VerdictEvaluator.evaluateFan(sample)
             )
             Divider()
@@ -2827,14 +2825,13 @@ public struct FanHistoryPopoverView: View {
                 }
 
                 let maxBound = max(5000.0, (historyRPMs.max() ?? 0.0) + 500.0)
-                RollingGraphView(
-                    values: historyRPMs,
-                    minValue: 0.0,
+                TimestampedHistoryGraph(
+                    timeline: HistoryTimeline(points: history.map { hist in
+                        HistoryPoint(timestamp: hist.timestamp, value: hist.availability.isAvailable ? hist.value.fans.map(\.rpm).max().map(Double.init) : nil)
+                    }, expectedInterval: preferences.refreshInterval),
+                    minValue: 0,
                     maxValue: maxBound,
-                    tintColor: .teal,
-                    capacity: 60,
-                    height: 56,
-                    showGrid: true
+                    tintColor: .teal
                 )
             }
             .padding(10)
@@ -2847,8 +2844,8 @@ public struct FanHistoryPopoverView: View {
                     Text("CURRENT")
                         .font(.system(size: 8, weight: .bold, design: .monospaced))
                         .foregroundColor(.secondary)
-                    let curRPM = sample?.fans.map(\.rpm).max() ?? 0
-                    Text(Units.formatRPM(curRPM))
+                    let curRPM = sample?.fans.map(\.rpm).max()
+                    Text(curRPM.map { Units.formatRPM($0) } ?? "—")
                         .font(.system(size: 14, weight: .bold, design: .rounded))
                         .foregroundColor(.teal)
                 }
@@ -4323,7 +4320,7 @@ public struct PowerHistoryPopoverView: View {
             PopoverHeaderView(
                 category: .power,
                 title: "Wattage History",
-                subtitle: "Recent samples • equally spaced",
+                subtitle: "Recorded samples • gaps shown",
                 verdict: VerdictEvaluator.evaluatePower(sample)
             )
             Divider()
@@ -4342,14 +4339,13 @@ public struct PowerHistoryPopoverView: View {
                     }
                 }
 
-                RollingGraphView(
-                    values: historyWattages,
+                TimestampedHistoryGraph(
+                    timeline: HistoryTimeline(points: history.map { hist in
+                        HistoryPoint(timestamp: hist.timestamp, value: hist.availability.isAvailable ? hist.value.powerDrawWatts : nil)
+                    }, expectedInterval: preferences.refreshInterval),
                     minValue: 0,
                     maxValue: max(30.0, (historyWattages.max() ?? 20.0) * 1.15),
-                    tintColor: .orange,
-                    capacity: 60,
-                    height: 56,
-                    showGrid: true
+                    tintColor: .orange
                 )
             }
             .padding(10)
@@ -4362,8 +4358,8 @@ public struct PowerHistoryPopoverView: View {
                     Text("AVERAGE DRAW")
                         .font(.system(size: 8, weight: .bold, design: .monospaced))
                         .foregroundColor(.secondary)
-                    let avg = historyWattages.isEmpty ? 0.0 : (historyWattages.reduce(0.0, +) / Double(historyWattages.count))
-                    Text(String(format: "%.1f W", avg))
+                    let avg = historyWattages.isEmpty ? nil : historyWattages.reduce(0.0, +) / Double(historyWattages.count)
+                    Text(avg.map { String(format: "%.1f W", $0) } ?? "—")
                         .font(.system(size: 14, weight: .bold, design: .rounded))
                         .foregroundColor(.orange)
                 }
