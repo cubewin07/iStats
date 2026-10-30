@@ -233,10 +233,10 @@ public enum PopoverStyle: String, CaseIterable, Identifiable, Codable, Sendable 
             }
         // CPU
         case .cpuUserSystem: return "User / System"
-        case .cpuCluster: return "Core Cluster"
+        case .cpuCluster: return "Cores"
 
         // Memory
-        case .memoryComposition: return "Composition Donut"
+        case .memoryComposition: return "Memory Breakdown"
         case .memoryAllocation: return "Allocation Bars"
         case .memoryPressure: return "Pressure & Swap"
 
@@ -256,21 +256,21 @@ public enum PopoverStyle: String, CaseIterable, Identifiable, Codable, Sendable 
 
         // GPU
         case .gpuLoadRing: return "Load Ring"
-        case .gpuEngine: return "Render & Compute"
+        case .gpuEngine: return "GPU Details"
         case .gpuDie: return "GPU Die"
 
         // Network
         case .networkBars: return "Bandwidth Bars"
-        case .networkDiagnostics: return "Diagnostics"
+        case .networkDiagnostics: return "Connection Details"
 
         // Disk
-        case .diskStorageRing: return "Storage Ring"
+        case .diskStorageRing: return "Storage Volumes"
         case .diskStorageTanks: return "Storage Tanks"
-        case .diskActivityLEDs: return "Activity LEDs"
+        case .diskActivityLEDs: return "Disk Activity"
 
         // Power
         case .powerBudget: return "Power Budget"
-        case .powerWattage: return "Draw & Adapter W"
+        case .powerWattage: return "Power Details"
         case .powerChargeRing: return "Charge Ring"
         case .powerBar: return "Charge Bar"
         }
@@ -299,6 +299,43 @@ public enum PopoverStyle: String, CaseIterable, Identifiable, Codable, Sendable 
             return hasBattery
                 ? [.categoryDefault, .powerBudget, .powerWattage, .powerChargeRing, .powerBar, .history]
                 : [.categoryDefault, .powerWattage, .history]
+        }
+    }
+
+    /// Destinations shown in the picker. Legacy styles remain supported for
+    /// decoding and are routed to the closest destination at presentation time.
+    public static func purposefulPopovers(for category: MetricCategory, hasBattery: Bool = true) -> [PopoverStyle] {
+        switch category {
+        case .cpu: return [.categoryDefault, .cpuCluster, .history]
+        case .memory: return [.categoryDefault, .memoryComposition, .history]
+        case .gpu: return [.categoryDefault, .gpuEngine, .history]
+        case .thermal:
+            return hasBattery
+                ? [.categoryDefault, .thermalCPU, .thermalGPU, .thermalMemory, .thermalStorage, .thermalBattery, .history]
+                : [.categoryDefault, .thermalCPU, .thermalGPU, .thermalMemory, .thermalStorage, .history]
+        case .fan: return [.categoryDefault, .history]
+        case .network: return [.categoryDefault, .networkDiagnostics, .history]
+        case .disk: return [.categoryDefault, .diskStorageRing, .diskActivityLEDs, .history]
+        case .power:
+            return [.categoryDefault, .powerWattage, .history]
+        }
+    }
+
+    /// Maps older visual treatments to a destination without rewriting the
+    /// stored value. This lets older preferences continue to decode safely.
+    public func purposefulStyle(for category: MetricCategory) -> PopoverStyle {
+        switch (category, self) {
+        case (.cpu, .cpuUserSystem),
+             (.memory, .memoryPressure),
+             (.gpu, .gpuLoadRing), (.gpu, .gpuDie),
+             (.thermal, .thermalRing),
+             (.fan, .fanDualRPM), (.fan, .fanTachometer), (.fan, .fanBlades), (.fan, .fanBars),
+             (.network, .networkBars),
+             (.power, .powerBudget), (.power, .powerChargeRing), (.power, .powerBar):
+            return .categoryDefault
+        case (.memory, .memoryAllocation): return .memoryComposition
+        case (.disk, .diskStorageTanks): return .diskStorageRing
+        default: return self
         }
     }
 

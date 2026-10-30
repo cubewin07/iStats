@@ -488,11 +488,11 @@ public struct PreferencesMenuBarPane: View {
 
                 Spacer()
 
-                let supportedPopovers = PopoverStyle.supportedPopovers(for: selectedCategory, hasBattery: hasBattery)
-                let defaultStyle = PopoverStyle.defaultStyle(for: selectedCategory, widgetStyle: selectedWidgetStyle, hasBattery: hasBattery)
+                let supportedPopovers = PopoverStyle.purposefulPopovers(for: selectedCategory, hasBattery: hasBattery)
+                let defaultStyle = PopoverStyle.defaultStyle(for: selectedCategory, widgetStyle: selectedWidgetStyle, hasBattery: hasBattery).purposefulStyle(for: selectedCategory)
 
                 Picker("", selection: Binding<PopoverStyle>(
-                    get: { selectedPopoverStyle },
+                    get: { selectedPopoverStyle.purposefulStyle(for: selectedCategory) },
                     set: { newStyle in
                         selectedPopoverStyle = newStyle
                         store.setPopoverStyle(newStyle, for: selectedCategory, widgetStyle: selectedWidgetStyle, hasBattery: hasBattery)

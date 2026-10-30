@@ -242,6 +242,28 @@ final class MenuBarItemConfigTests: XCTestCase {
         XCTAssertEqual(PopoverStyle.defaultStyle(for: .power, widgetStyle: .throughput), .powerWattage)
     }
 
+    func testPurposefulPopoverDestinationsCoverEveryLegacySelection() {
+        for category in MetricCategory.allCases {
+            for hasBattery in [true, false] {
+                let choices = PopoverStyle.purposefulPopovers(for: category, hasBattery: hasBattery)
+                XCTAssertEqual(Set(choices).count, choices.count)
+                for legacy in PopoverStyle.supportedPopovers(for: category, hasBattery: hasBattery) {
+                    XCTAssertTrue(choices.contains(legacy.purposefulStyle(for: category)),
+                                  "Missing destination for \(category) / \(legacy)")
+                }
+            }
+        }
+    }
+
+    func testLegacyPopoverPresentationDoesNotChangeEncodedValue() throws {
+        let original = MenuBarItemConfig(category: .fan, style: .symbol, popoverStyle: .fanBlades)
+        let decoded = try JSONDecoder().decode(MenuBarItemConfig.self, from: JSONEncoder().encode(original))
+        XCTAssertEqual(decoded.popoverStyle, .fanBlades)
+        XCTAssertEqual(decoded.resolvedPopoverStyle.purposefulStyle(for: .fan), .categoryDefault)
+        XCTAssertEqual(PopoverStyle.memoryAllocation.purposefulStyle(for: .memory), .memoryComposition)
+        XCTAssertEqual(PopoverStyle.thermalCPU.purposefulStyle(for: .thermal), .thermalCPU)
+    }
+
     func testMenuBarItemConfigPopoverStyleResolutionAndCodable() throws {
         // Default (unset popoverStyle) resolves to defaultStyle
         let config1 = MenuBarItemConfig(category: .cpu, style: .bar)

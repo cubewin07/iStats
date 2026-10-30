@@ -4409,7 +4409,7 @@ public enum ConfigPopoverFactory {
         coordinator: MetricsCoordinator = .shared,
         preferences: PreferencesStore = .shared
     ) -> some View {
-        switch (category, popoverStyle) {
+        switch (category, popoverStyle.purposefulStyle(for: category)) {
         // MARK: Thermal Custom Popovers
         case (.thermal, .thermalCPU):
             ThermalCPUPopoverView(coordinator: coordinator, preferences: preferences)
@@ -4539,7 +4539,7 @@ public enum ConfigPopoverFactory {
         coordinator: MetricsCoordinator = .shared,
         preferences: PreferencesStore = .shared
     ) -> NSViewController {
-        switch (category, popoverStyle) {
+        switch (category, popoverStyle.purposefulStyle(for: category)) {
         // MARK: Thermal Custom Popovers
         case (.thermal, .thermalCPU):
             return NSHostingController(rootView: ThermalCPUPopoverView(coordinator: coordinator, preferences: preferences))
