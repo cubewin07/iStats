@@ -15,7 +15,7 @@ public enum PreferencesSection: String, CaseIterable, Identifiable, Sendable {
     public var title: String {
         switch self {
         case .menuBar: return "Menu Bar"
-        case .general: return "General & Units"
+        case .general: return "General"
         case .alerts: return "Notifications"
         case .about: return "About"
         }
@@ -105,6 +105,7 @@ public struct SettingsCard<Content: View>: View {
             VStack(alignment: .leading, spacing: 0) {
                 content()
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
             .background(Color(nsColor: .controlBackgroundColor))
             .clipShape(RoundedRectangle(cornerRadius: 10))
             .overlay(

@@ -113,7 +113,7 @@ public struct PreferencesView: View {
                     Spacer()
                 }
                 .padding(.horizontal, 16)
-                .padding(.top, 16)
+                .padding(.top, 32)
                 .padding(.bottom, 12)
 
                 Divider()
@@ -240,12 +240,13 @@ public struct PreferencesView: View {
     private var workspaceTitleBar: some View {
         HStack(spacing: 8) {
             Text(activeSection.title)
-                .font(.system(size: 14, weight: .bold))
+                .font(.system(size: 13, weight: .bold))
 
             Spacer()
         }
         .padding(.horizontal, 20)
-        .padding(.vertical, 12)
+        .padding(.top, 32)
+        .padding(.bottom, 12)
         .background(Color(nsColor: .controlBackgroundColor).opacity(0.6))
     }
 
