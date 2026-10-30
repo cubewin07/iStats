@@ -303,6 +303,19 @@ final class MenuBarItemConfigTests: XCTestCase {
         XCTAssertEqual(decodedLegacy.resolvedPopoverStyle, .cpuCluster)
     }
 
+    func testLegacyPopoverOverrideSurvivesReloadAndRoutesToReplacement() {
+        let suiteName = "test.istats.legacy-popover.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let store = PreferencesStore(userDefaults: defaults)
+        store.setItemEnabled(category: .fan, style: .text, isEnabled: true)
+        store.setPopoverStyle(.fanBlades, for: .fan, widgetStyle: .text)
+        let reloaded = PreferencesStore(userDefaults: defaults)
+        XCTAssertEqual(reloaded.popoverStyle(for: .fan, widgetStyle: .text), .fanBlades)
+        XCTAssertEqual(reloaded.resolvedPopoverStyle(for: .fan, widgetStyle: .text).purposefulStyle(for: .fan), .categoryDefault)
+        XCTAssertTrue(reloaded.isItemEnabled(category: .fan, style: .text))
+    }
+
     func testPreferencesStorePopoverStyleCustomizationPersistence() {
         let suiteName = "test.istats.popovers.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!
