@@ -20,6 +20,8 @@ final class PowerStateVariantTests: XCTestCase {
             .unavailable
         )
 
+        XCTAssertEqual(PowerStateVariant.resolve(charge: 70, state: nil, hasBattery: true, adapterWatts: 60), .unavailable)
+
         // 3. Charging on AC
         XCTAssertEqual(
             PowerStateVariant.resolve(charge: 45.0, state: .charging, hasBattery: true, drawWatts: 15.0, adapterWatts: 67.0),
@@ -42,19 +44,19 @@ final class PowerStateVariantTests: XCTestCase {
             .onHold
         )
 
-        // 6. Power Deficit (AC connected, but draw exceeds adapter capacity)
+        // Adapter rating and current cannot establish an actual deficit.
         XCTAssertEqual(
             PowerStateVariant.resolve(charge: 60.0, state: .charging, hasBattery: true, drawWatts: 85.0, adapterWatts: 30.0),
-            .powerDeficit
+            .charging
         )
         XCTAssertEqual(
             PowerStateVariant.resolve(charge: 60.0, state: .acConnected, hasBattery: true, drawWatts: 70.0, adapterWatts: 45.0),
-            .powerDeficit
+            .onHold
         )
         // Deficit via negative amperage while on AC
         XCTAssertEqual(
             PowerStateVariant.resolve(charge: 75.0, state: .acConnected, hasBattery: true, drawWatts: 25.0, adapterWatts: 30.0, amperageMilliAmps: -800.0),
-            .powerDeficit
+            .onHold
         )
 
         // 7. Low Battery (discharging on battery at or below 20%)
@@ -96,8 +98,8 @@ final class PowerStateVariantTests: XCTestCase {
             powerDrawWatts: 90.0,
             adapterWatts: 30.0
         )
-        XCTAssertEqual(deficitSample.variant, .powerDeficit)
-        XCTAssertTrue(deficitSample.isPowerDeficit)
+        XCTAssertEqual(deficitSample.variant, .charging)
+        XCTAssertFalse(deficitSample.isPowerDeficit)
 
         let lowSample = PowerSample(
             hasBattery: true,

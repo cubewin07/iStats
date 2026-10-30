@@ -616,7 +616,7 @@ public struct PowerSample: Sendable, Equatable, Codable {
         )
     }
 
-    /// Whether charging is currently held / paused while connected to AC power.
+    /// Whether AC is connected without a reported active charge.
     public var isOnHold: Bool { variant == .onHold }
 
     /// Whether system load exceeds connected adapter capacity, causing battery drain.
@@ -653,7 +653,7 @@ public enum PowerStateVariant: String, Sendable, Equatable, Codable, CaseIterabl
         case .charging:
             return "Charging"
         case .onHold:
-            return "Charging On Hold"
+            return "Connected to Power"
         case .powerDeficit:
             return "Power Deficit"
         case .discharging:
@@ -723,40 +723,21 @@ public enum PowerStateVariant: String, Sendable, Equatable, Codable, CaseIterabl
         guard hasBattery else { return .acDesktop }
         guard let charge = charge else { return .unavailable }
 
-        let isConnectedToAC = state == .acConnected || state == .charging || state == .charged || (adapterWatts != nil && adapterWatts! > 0)
-
-        // 1. Power Deficit: Connected to AC, but power draw exceeds adapter wattage (or active discharging current)
-        if isConnectedToAC {
-            if let adapter = adapterWatts, adapter > 0, let draw = drawWatts, draw > (adapter + 1.0) {
-                return .powerDeficit
-            }
-            if let amp = amperageMilliAmps, amp < -200.0 {
-                return .powerDeficit
-            }
-        }
-
-        // 2. Active Charging
-        if state == .charging {
+        // Adapter rating is not measured delivery, and battery current alone
+        // does not establish a system-wide power deficit. Follow the reported
+        // power-source state rather than inferring one from those readings.
+        switch state {
+        case .charging:
             return .charging
-        }
-
-        // 3. Fully Charged (AC connected & 100% or flagged charged)
-        if isConnectedToAC && (state == .charged || charge >= 99.0) {
+        case .charged:
             return .charged
+        case .acConnected:
+            return charge >= 99.0 ? .charged : .onHold
+        case .discharging:
+            return charge <= 20.0 ? .lowBattery : .discharging
+        case .unknown, nil:
+            return .unavailable
         }
-
-        // 4. On Hold: Connected to AC, but not charging and not full (e.g. 80% optimized battery charging limit)
-        if isConnectedToAC {
-            return .onHold
-        }
-
-        // 5. Low Battery: Discharging on battery at or below 20%
-        if charge <= 20.0 {
-            return .lowBattery
-        }
-
-        // 6. Normal discharging on battery
-        return .discharging
     }
 }
 
