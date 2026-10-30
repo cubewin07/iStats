@@ -141,46 +141,16 @@ final class PopoverVerdictTests: XCTestCase {
 
     // MARK: - 4. Fan Verdict Evaluation
 
-    func testFanEvaluationQuietSpinningLoudMaxAndFanless() {
-        // Cold start / nil
-        let nilVerdict = VerdictEvaluator.evaluateFan(nil)
-        XCTAssertEqual(nilVerdict.level, .fine)
-        XCTAssertEqual(nilVerdict.badgeText, "Ready")
-
-        // Fanless system
-        let fanlessSample = FanSample(fans: [])
-        let fanlessVerdict = VerdictEvaluator.evaluateFan(fanlessSample)
-        XCTAssertEqual(fanlessVerdict.level, .fine)
-        XCTAssertEqual(fanlessVerdict.badgeText, "Fanless")
-        XCTAssertEqual(fanlessVerdict.dadSentence, "This Mac has no fans (passive cooling)")
-
-        // Quiet (<15% ratio): 2400 RPM on 2000-6000 bounds -> 10% ratio
-        let quietFan = FanSample(fans: [FanReading(name: "Left Fan", rpm: 2400, minRPM: 2000, maxRPM: 6000)])
-        let quietVerdict = VerdictEvaluator.evaluateFan(quietFan)
-        XCTAssertEqual(quietVerdict.level, .fine)
-        XCTAssertEqual(quietVerdict.badgeText, "Quiet")
-        XCTAssertEqual(quietVerdict.dadSentence, "Whisper quiet / idle cooling")
-
-        // Spinning up (15% ..< 45% ratio): 3200 RPM -> 30% ratio
-        let spinFan = FanSample(fans: [FanReading(name: "Left Fan", rpm: 3200, minRPM: 2000, maxRPM: 6000)])
-        let spinVerdict = VerdictEvaluator.evaluateFan(spinFan)
-        XCTAssertEqual(spinVerdict.level, .elevated)
-        XCTAssertEqual(spinVerdict.badgeText, "Spinning up")
-        XCTAssertEqual(spinVerdict.dadSentence, "Fans actively dissipating heat")
-
-        // Loud (45% ..< 80% ratio): 4500 RPM -> 62% ratio
-        let loudFan = FanSample(fans: [FanReading(name: "Left Fan", rpm: 4500, minRPM: 2000, maxRPM: 6000)])
-        let loudVerdict = VerdictEvaluator.evaluateFan(loudFan)
-        XCTAssertEqual(loudVerdict.level, .warning)
-        XCTAssertEqual(loudVerdict.badgeText, "Loud")
-        XCTAssertEqual(loudVerdict.dadSentence, "Cooling under sustained heat")
-
-        // Max (>= 80% ratio): 5800 RPM -> 95% ratio
-        let maxFan = FanSample(fans: [FanReading(name: "Left Fan", rpm: 5800, minRPM: 2000, maxRPM: 6000)])
-        let maxVerdict = VerdictEvaluator.evaluateFan(maxFan)
-        XCTAssertEqual(maxVerdict.level, .critical)
-        XCTAssertEqual(maxVerdict.badgeText, "Max")
-        XCTAssertEqual(maxVerdict.dadSentence, "Fans running at maximum cooling power")
+    func testFanVerdictUsesReportedRPMWithoutAssumingBoundsOrNoise() {
+        XCTAssertEqual(VerdictEvaluator.evaluateFan(nil).badgeText, "Ready")
+        let empty = VerdictEvaluator.evaluateFan(FanSample(fans: []))
+        XCTAssertEqual(empty.badgeText, "No fans detected")
+        XCTAssertEqual(empty.primaryValue, "—")
+        let sample = FanSample(fans: [FanReading(name: "Left", rpm: 2500), FanReading(name: "Right", rpm: 3100)])
+        let verdict = VerdictEvaluator.evaluateFan(sample)
+        XCTAssertEqual(verdict.primaryValue, Units.formatRPM(3100))
+        XCTAssertEqual(verdict.secondaryValue, "2 fans reported")
+        XCTAssertEqual(verdict.badgeText, "Monitoring")
     }
 
     // MARK: - 5. GPU Verdict Evaluation

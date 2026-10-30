@@ -215,60 +215,15 @@ public enum VerdictEvaluator {
             )
         }
 
-        if s.isFanless {
-            return MetricVerdict(
-                level: .fine,
-                badgeText: "Fanless",
-                dadSentence: "This Mac has no fans (passive cooling)",
-                primaryValue: "Passive",
-                secondaryValue: "Silent operation"
-            )
+        guard let maxRPM = s.fans.map(\.rpm).max() else {
+            return MetricVerdict(level: .fine, badgeText: "No fans detected",
+                                 dadSentence: "No fan readings are reported",
+                                 primaryValue: "—")
         }
-
-        let maxRPM = s.fans.map(\.rpm).max() ?? 0
-        let maxPossibleRPM = s.fans.compactMap(\.maxRPM).max() ?? 6000
-        let minPossibleRPM = s.fans.compactMap(\.minRPM).min() ?? 1200
-        
-        let ratio: Double
-        if maxPossibleRPM > minPossibleRPM {
-            ratio = max(0.0, min(1.0, Double(maxRPM - minPossibleRPM) / Double(maxPossibleRPM - minPossibleRPM)))
-        } else {
-            ratio = max(0.0, min(1.0, Double(maxRPM) / Double(maxPossibleRPM)))
-        }
-
-        let pctOfMax = Int(ratio * 100)
-
-        let level: StatusLevel
-        let badge: String
-        let sentence: String
-
-        if pctOfMax >= 80 {
-            level = .critical
-            badge = "Max"
-            sentence = "Fans running at maximum cooling power"
-        } else if pctOfMax >= 45 {
-            level = .warning
-            badge = "Loud"
-            sentence = "Cooling under sustained heat"
-        } else if pctOfMax >= 15 {
-            level = .elevated
-            badge = "Spinning up"
-            sentence = "Fans actively dissipating heat"
-        } else {
-            level = .fine
-            badge = "Quiet"
-            sentence = "Whisper quiet / idle cooling"
-        }
-
-        let secondary = "\(Units.formatRPM(maxRPM)) · firmware auto"
-
-        return MetricVerdict(
-            level: level,
-            badgeText: badge,
-            dadSentence: sentence,
-            primaryValue: "\(pctOfMax)%",
-            secondaryValue: secondary
-        )
+        return MetricVerdict(level: .fine, badgeText: "Monitoring",
+                             dadSentence: "Highest reported fan speed",
+                             primaryValue: Units.formatRPM(maxRPM),
+                             secondaryValue: "\(s.fans.count) fan\(s.fans.count == 1 ? "" : "s") reported")
     }
 
     // MARK: - GPU
