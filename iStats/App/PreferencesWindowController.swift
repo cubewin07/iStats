@@ -33,13 +33,13 @@ public final class PreferencesWindowController: NSObject, NSWindowDelegate {
             backing: .buffered,
             defer: false
         )
-        newWindow.minSize = NSSize(width: 860, height: 560)
+        newWindow.minSize = NSSize(width: 880, height: 580)
         newWindow.titlebarAppearsTransparent = true
         newWindow.titleVisibility = .hidden
         newWindow.toolbarStyle = .unified
 
         newWindow.center()
-        newWindow.setFrameAutosaveName("iStatsPreferencesWindow")
+        newWindow.setFrameAutosaveName("iStatsPreferencesWindowV2")
         newWindow.title = "iStats Settings"
         newWindow.contentViewController = hostingController
         newWindow.isReleasedWhenClosed = false

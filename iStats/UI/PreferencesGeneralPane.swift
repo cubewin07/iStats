@@ -10,7 +10,7 @@ public struct PreferencesGeneralPane: View {
     @ObservedObject public var coordinator: MetricsCoordinator
     @ObservedObject private var launchManager = LaunchAtLoginManager.shared
 
-    private let samplingIntervals: [TimeInterval] = [0.5, 1.0, 2.0, 5.0, 10.0]
+    private let samplingIntervals: [TimeInterval] = [0.5, 1.0, 2.0, 5.0, 10.0, 30.0, 60.0]
 
     public init(
         store: PreferencesStore = .shared,
@@ -104,27 +104,60 @@ public struct PreferencesGeneralPane: View {
             Divider().padding(.horizontal, 14)
 
             // Sampling Rate
-            SettingsRow(
-                leading: {
-                    SettingsBadge(icon: "speedometer", color: .blue)
-                },
-                title: "Sampling Rate",
-                subtitle: "60 samples = \(Units.formatHistoryDuration(sampleCount: 60, interval: store.refreshInterval)) history"
-            ) {
-                Picker("", selection: Binding(
-                    get: {
-                        samplingIntervals.min(by: { abs($0 - store.refreshInterval) < abs($1 - store.refreshInterval) }) ?? 2.0
+            VStack(alignment: .leading, spacing: 10) {
+                SettingsRow(
+                    leading: {
+                        SettingsBadge(icon: "speedometer", color: .blue)
                     },
-                    set: { store.refreshInterval = $0 }
-                )) {
-                    ForEach(samplingIntervals, id: \.self) { interval in
-                        Text(interval < 1.0 ? String(format: "%.1fs", interval) : "\(Int(interval))s")
-                            .tag(interval)
+                    title: "Sampling Refresh Rate",
+                    subtitle: "60 samples = \(Units.formatHistoryDuration(sampleCount: 60, interval: store.refreshInterval)) history"
+                ) {
+                    Text(String(format: "%.1f s", store.refreshInterval))
+                        .font(.system(.body, design: .monospaced))
+                        .fontWeight(.semibold)
+                        .foregroundColor(store.isSamplingPaused ? .secondary : .accentColor)
+                }
+
+                // Continuous Slider with 0.5s ... 60.0s bounds (Requirement 11.2 & 12.4)
+                VStack(spacing: 8) {
+                    Slider(
+                        value: $store.refreshInterval,
+                        in: PreferencesStore.minRefreshInterval...PreferencesStore.maxRefreshInterval,
+                        step: 0.5
+                    ) {
+                        Text("Refresh Interval")
+                    } minimumValueLabel: {
+                        Text("0.5s")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    } maximumValueLabel: {
+                        Text("60s")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
+                    .disabled(store.isSamplingPaused)
+
+                    // Presets
+                    HStack(spacing: 6) {
+                        Text("Presets:")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        ForEach(samplingIntervals, id: \.self) { preset in
+                            Button(action: {
+                                store.refreshInterval = preset
+                            }) {
+                                Text(preset < 1.0 ? "\(preset, specifier: "%.1f")s" : "\(Int(preset))s")
+                                    .font(.system(size: 10, weight: store.refreshInterval == preset ? .bold : .regular))
+                            }
+                            .buttonStyle(.bordered)
+                            .tint(store.refreshInterval == preset ? .accentColor : nil)
+                            .disabled(store.isSamplingPaused)
+                        }
+                        Spacer()
                     }
                 }
-                .pickerStyle(.segmented)
-                .frame(width: 220)
-                .disabled(store.isSamplingPaused)
+                .padding(.horizontal, 14)
+                .padding(.bottom, 6)
             }
         }
     }

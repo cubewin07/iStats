@@ -74,6 +74,12 @@ public struct PreferencesMenuBarPane: View {
         .onChange(of: selectedCategory) { _ in
             syncSelectedStyles()
         }
+        .onChange(of: store.widgetPopoverStyles) { _ in
+            syncSelectedStyles()
+        }
+        .onChange(of: store.menuBarItems) { _ in
+            syncSelectedStyles()
+        }
     }
 
     private func syncSelectedStyles() {
@@ -81,7 +87,7 @@ public struct PreferencesMenuBarPane: View {
         if !styles.contains(selectedWidgetStyle) {
             selectedWidgetStyle = styles.first ?? .text
         }
-        selectedPopoverStyle = store.resolvedPopoverStyle(for: selectedCategory, widgetStyle: selectedWidgetStyle)
+        selectedPopoverStyle = store.resolvedPopoverStyle(for: selectedCategory, widgetStyle: selectedWidgetStyle, hasBattery: hasBattery)
     }
 
     // MARK: - Live Menu Bar Strip Header
@@ -483,13 +489,13 @@ public struct PreferencesMenuBarPane: View {
                 Spacer()
 
                 let supportedPopovers = PopoverStyle.supportedPopovers(for: selectedCategory, hasBattery: hasBattery)
-                let defaultStyle = PopoverStyle.defaultStyle(for: selectedCategory, widgetStyle: selectedWidgetStyle)
+                let defaultStyle = PopoverStyle.defaultStyle(for: selectedCategory, widgetStyle: selectedWidgetStyle, hasBattery: hasBattery)
 
                 Picker("", selection: Binding<PopoverStyle>(
                     get: { selectedPopoverStyle },
                     set: { newStyle in
                         selectedPopoverStyle = newStyle
-                        store.setPopoverStyle(newStyle, for: selectedCategory, widgetStyle: selectedWidgetStyle)
+                        store.setPopoverStyle(newStyle, for: selectedCategory, widgetStyle: selectedWidgetStyle, hasBattery: hasBattery)
                     }
                 )) {
                     ForEach(supportedPopovers) { pStyle in
@@ -503,7 +509,7 @@ public struct PreferencesMenuBarPane: View {
 
                 if store.popoverStyle(for: selectedCategory, widgetStyle: selectedWidgetStyle) != nil {
                     Button("Reset") {
-                        store.setPopoverStyle(nil, for: selectedCategory, widgetStyle: selectedWidgetStyle)
+                        store.setPopoverStyle(nil, for: selectedCategory, widgetStyle: selectedWidgetStyle, hasBattery: hasBattery)
                         selectedPopoverStyle = defaultStyle
                     }
                     .buttonStyle(.bordered)
