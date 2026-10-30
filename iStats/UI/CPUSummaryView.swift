@@ -5,11 +5,13 @@ import iStatsCore
 public struct CPUSummaryView: View {
     public let sample: CPUSample?
     public let history: [Sample<CPUSample>]
+    public let refreshInterval: TimeInterval
     @State private var isCoresExpanded = false
 
-    public init(sample: CPUSample? = nil, history: [Sample<CPUSample>] = []) {
+    public init(sample: CPUSample? = nil, history: [Sample<CPUSample>] = [], refreshInterval: TimeInterval = 2.0) {
         self.sample = sample
         self.history = history
+        self.refreshInterval = refreshInterval
     }
 
     public var body: some View {
@@ -23,11 +25,7 @@ public struct CPUSummaryView: View {
             let points = history.map { item in
                 HistoryPoint(timestamp: item.timestamp, value: item.availability.isAvailable ? item.value.totalUsage : nil)
             }
-            // The overview has no preference dependency; use observed sample cadence
-            // for gap detection rather than assuming a fixed refresh setting.
-            let intervals = zip(history, history.dropFirst()).map { pair in pair.1.timestamp.timeIntervalSince(pair.0.timestamp) }.filter { $0 > 0 }.sorted()
-            let cadence = intervals.isEmpty ? 2 : intervals[intervals.count / 2]
-            TimestampedHistoryGraph(timeline: HistoryTimeline(points: points, expectedInterval: cadence), maxValue: 100, tintColor: .blue, height: 44)
+            TimestampedHistoryGraph(timeline: HistoryTimeline(points: points, expectedInterval: refreshInterval), maxValue: 100, tintColor: .blue, height: 44)
             if let sample = sample {
                 HStack {
                     metric("User", sample.user)

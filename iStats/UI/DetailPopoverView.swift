@@ -132,7 +132,7 @@ public struct DetailPopoverView: View {
                             title: "CPU",
                             verdict: VerdictEvaluator.evaluateCPU(currentCPUSample)
                         ) {
-                            CPUSummaryView(sample: currentCPUSample, history: currentCPUHistory)
+                            CPUSummaryView(sample: currentCPUSample, history: currentCPUHistory, refreshInterval: preferences.refreshInterval)
                         }
                     }
 

@@ -83,7 +83,9 @@ public struct PreferencesMenuBarPane: View {
     }
 
     private func syncSelectedStyles() {
-        let styles = MetricDisplayStyle.supportedStyles(for: selectedCategory, hasBattery: hasBattery)
+        let recommended = MetricDisplayStyle.recommendedStyles(for: selectedCategory, hasBattery: hasBattery)
+        let legacy = store.menuBarItems.filter { $0.category == selectedCategory && !recommended.contains($0.style) }.map(\.style)
+        let styles = recommended + legacy
         if !styles.contains(selectedWidgetStyle) {
             selectedWidgetStyle = styles.first ?? .text
         }

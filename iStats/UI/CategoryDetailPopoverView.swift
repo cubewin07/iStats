@@ -1126,7 +1126,7 @@ public struct CPUPopoverView: View {
         VStack(alignment: .leading, spacing: 10) {
             PopoverHeaderView(category: .cpu, verdict: VerdictEvaluator.evaluateCPU(sample))
             Divider()
-            CPUSummaryView(sample: sample, history: history)
+            CPUSummaryView(sample: sample, history: history, refreshInterval: preferences.refreshInterval)
             Divider()
             CategoryPopoverFooter(preferences: preferences, coordinator: coordinator)
         }

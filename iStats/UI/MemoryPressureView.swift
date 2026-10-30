@@ -181,31 +181,13 @@ public struct MemorySummaryView: View {
 
             // MARK: - 60-Sample Memory History Graph
             VStack(alignment: .leading, spacing: 4) {
-                RollingGraphView(
-                    values: historyPercentages,
-                    minValue: 0.0,
-                    maxValue: 100.0,
-                    tintColor: verdict.level.color,
-                    capacity: 60,
-                    height: 44,
-                    showGrid: true
-                )
-
-                HStack {
-                    Text("last \(Units.formatHistoryDuration(sampleCount: 60, interval: refreshInterval))")
-                        .font(.system(size: 9, weight: .medium))
-                        .foregroundColor(.secondary)
-
-                    Spacer()
-
-                    if let sample = sample {
-                        let usedRatio = sample.total > 0 ? (Double(sample.used) / Double(sample.total)) * 100.0 : 0.0
-                        Text(String(format: "peak %.0f%% allocated", historyPercentages.max() ?? usedRatio))
-                            .font(.system(size: 9, weight: .bold, design: .monospaced))
-                            .foregroundColor(.secondary)
-                    }
+                let points = history.map { item in
+                    HistoryPoint(timestamp: item.timestamp, value: item.availability.isAvailable && item.value.total > 0
+                                 ? Double(item.value.used) / Double(item.value.total) * 100 : nil)
                 }
-                .padding(.horizontal, 2)
+                Text("Physical memory used").font(.system(size: 10, weight: .medium)).foregroundColor(.secondary)
+                TimestampedHistoryGraph(timeline: HistoryTimeline(points: points, expectedInterval: refreshInterval),
+                                        maxValue: 100, tintColor: .blue, height: 44)
             }
             .padding(10)
             .background(
