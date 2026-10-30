@@ -122,277 +122,6 @@ public enum ThermalSubsystem: String, CaseIterable, Identifiable, Sendable {
     }
 }
 
-/// A specialized, custom popover tailored strictly to a single thermal subsystem (CPU, GPU, RAM, SSD, or Battery).
-public struct SubsystemThermalPopoverView: View {
-    public let subsystem: ThermalSubsystem
-    public let coordinator: MetricsCoordinator
-    @ObservedObject public var preferences: PreferencesStore
-
-    @State private var sample: ThermalSample?
-    @State private var history: [Sample<ThermalSample>]
-    @State private var isSensorsExpanded: Bool = true
-
-    public init(
-        subsystem: ThermalSubsystem,
-        coordinator: MetricsCoordinator = .shared,
-        preferences: PreferencesStore = .shared,
-        sample: ThermalSample? = nil,
-        history: [Sample<ThermalSample>]? = nil
-    ) {
-        self.subsystem = subsystem
-        self.coordinator = coordinator
-        self.preferences = preferences
-        _sample = State(initialValue: sample ?? coordinator.latestThermal?.value)
-        _history = State(initialValue: history ?? coordinator.thermalHistory)
-    }
-
-    private var matchingSensors: [SensorReading] {
-        guard let s = sample else { return [] }
-        let matched = s.sensors.filter { subsystem.matches(sensor: $0) }
-        return matched.sorted(by: { $0.celsius > $1.celsius })
-    }
-
-    private var peakSensor: SensorReading? {
-        matchingSensors.first
-    }
-
-    private var historyTemperatures: [Double] {
-        history.compactMap { hist in
-            let matched = hist.value.sensors.filter { subsystem.matches(sensor: $0) }
-            return matched.map(\.celsius).max()
-        }
-    }
-
-    private var verdict: MetricVerdict {
-        if let peak = peakSensor {
-            let level: StatusLevel
-            let dad: String
-            if peak.celsius >= 90.0 {
-                level = .critical
-                dad = "Very hot under intense workload"
-            } else if peak.celsius >= 75.0 {
-                level = .warning
-                dad = "Warm under active compute"
-            } else if peak.celsius >= 55.0 {
-                level = .elevated
-                dad = "Normal operating temperature"
-            } else {
-                level = .fine
-                dad = "Cool & well ventilated"
-            }
-            let valStr = Units.formatTemperature(peak.celsius, unit: preferences.temperatureUnit, fractionDigits: 0)
-            return MetricVerdict(
-                level: level,
-                badgeText: valStr,
-                dadSentence: dad,
-                primaryValue: valStr
-            )
-        } else {
-            return MetricVerdict(
-                level: .fine,
-                badgeText: "--",
-                dadSentence: "Monitoring \(subsystem.title)...",
-                primaryValue: "--"
-            )
-        }
-    }
-
-    private func cleanName(_ raw: String) -> String {
-        raw.replacingOccurrences(of: "Thermal Sensor", with: "")
-            .replacingOccurrences(of: "Die Temperature", with: "")
-            .replacingOccurrences(of: "Efficiency Cores", with: "E-Cores")
-            .replacingOccurrences(of: "Efficiency Core", with: "E-Core")
-            .trimmingCharacters(in: .whitespaces)
-    }
-
-    public var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            // Header
-            PopoverHeaderView(
-                category: .thermal,
-                title: subsystem.title,
-                subtitle: subsystem.subtitle,
-                verdict: verdict
-            )
-
-            Divider()
-
-            // Subsystem Hero Card
-            heroCard
-
-            // 60-Sample Subsystem History Sparkline
-            historyCard
-
-            // Detailed Sensors Breakdown
-            sensorsCard
-
-            Divider()
-
-            CategoryPopoverFooter(preferences: preferences, coordinator: coordinator)
-        }
-        .padding(14)
-        .frame(width: 330)
-        .onAppear {
-            if !coordinator.isRunning && !preferences.isSamplingPaused {
-                coordinator.start()
-            }
-        }
-        .onReceive(coordinator.$latestThermal) { newSample in
-            sample = newSample?.value
-            history = coordinator.thermalHistory
-        }
-    }
-
-    private var heroCard: some View {
-        HStack(spacing: 12) {
-            // Subsystem Icon Box
-            ZStack {
-                RoundedRectangle(cornerRadius: 10)
-                    .fill(subsystem.tintColor.opacity(0.15))
-                    .frame(width: 52, height: 52)
-                Image(systemName: subsystem.icon)
-                    .font(.system(size: 24, weight: .bold))
-                    .foregroundColor(subsystem.tintColor)
-            }
-
-            // Peak Reading
-            VStack(alignment: .leading, spacing: 2) {
-                Text("PEAK TEMPERATURE")
-                    .font(.system(size: 9, weight: .bold, design: .monospaced))
-                    .foregroundColor(.secondary)
-
-                if let peak = peakSensor {
-                    HStack(alignment: .firstTextBaseline, spacing: 6) {
-                        Text(Units.formatTemperature(peak.celsius, unit: preferences.temperatureUnit, fractionDigits: 1))
-                            .font(.system(size: 26, weight: .bold, design: .rounded))
-                            .foregroundColor(verdict.level.color)
-
-                        Text(cleanName(peak.name))
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundColor(.secondary)
-                            .lineLimit(1)
-                    }
-                } else {
-                    Text("No sensor data")
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(.secondary)
-                }
-
-                Text("\(matchingSensors.count) active sensors in \(subsystem.title)")
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundColor(.secondary)
-            }
-
-            Spacer()
-        }
-        .padding(10)
-        .background(
-            RoundedRectangle(cornerRadius: 10)
-                .fill(Color(nsColor: .controlBackgroundColor).opacity(0.6))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 10)
-                .strokeBorder(Color.primary.opacity(0.08), lineWidth: 0.75)
-        )
-    }
-
-    private var historyCard: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            RollingGraphView(
-                values: historyTemperatures,
-                minValue: 20.0,
-                maxValue: max(100.0, (historyTemperatures.max() ?? 80.0) + 5.0),
-                tintColor: verdict.level.color,
-                capacity: 60,
-                height: 44,
-                showGrid: true
-            )
-
-            HStack {
-                Text("last \(Units.formatHistoryDuration(sampleCount: 60, interval: preferences.refreshInterval)) (\(subsystem.title.lowercased()) history)")
-                    .font(.system(size: 9, weight: .medium))
-                    .foregroundColor(.secondary)
-
-                Spacer()
-
-                if let maxHist = historyTemperatures.max() {
-                    Text("peak \(Units.formatTemperature(maxHist, unit: preferences.temperatureUnit, fractionDigits: 0))")
-                        .font(.system(size: 9, weight: .bold, design: .monospaced))
-                        .foregroundColor(.secondary)
-                }
-            }
-            .padding(.horizontal, 2)
-        }
-        .padding(10)
-        .background(
-            RoundedRectangle(cornerRadius: 10)
-                .fill(Color(nsColor: .controlBackgroundColor).opacity(0.4))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 10)
-                .strokeBorder(Color.primary.opacity(0.08), lineWidth: 0.75)
-        )
-    }
-
-    private var sensorsCard: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack {
-                Text("Sensors")
-                    .font(.system(size: 11, weight: .bold))
-                    .foregroundColor(.primary)
-                Spacer()
-                Text("\(matchingSensors.count) channels")
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundColor(.secondary)
-            }
-            .padding(.horizontal, 4)
-
-            ScrollView(.vertical, showsIndicators: true) {
-                VStack(spacing: 3) {
-                    ForEach(matchingSensors, id: \.name) { sensor in
-                        HStack {
-                            Text(cleanName(sensor.name))
-                                .font(.system(size: 10, weight: .medium))
-                                .foregroundColor(.primary)
-                                .lineLimit(1)
-
-                            Spacer()
-
-                            Text(Units.formatTemperature(sensor.celsius, unit: preferences.temperatureUnit, fractionDigits: 1))
-                                .font(.system(size: 10, weight: .semibold, design: .monospaced))
-                                .foregroundColor(sensorColor(sensor.celsius))
-                        }
-                        .padding(.vertical, 2.5)
-                        .padding(.horizontal, 8)
-                        .background(
-                            RoundedRectangle(cornerRadius: 5)
-                                .fill(Color.secondary.opacity(0.05))
-                        )
-                    }
-                }
-                .padding(.top, 2)
-            }
-            .frame(height: min(CGFloat(matchingSensors.count) * 26 + 6, 140))
-        }
-        .padding(10)
-        .background(
-            RoundedRectangle(cornerRadius: 10)
-                .fill(Color(nsColor: .controlBackgroundColor).opacity(0.4))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 10)
-                .strokeBorder(Color.primary.opacity(0.08), lineWidth: 0.75)
-        )
-    }
-
-    private func sensorColor(_ celsius: Double) -> Color {
-        if celsius >= 90.0 { return .red }
-        if celsius >= 78.0 { return .orange }
-        if celsius >= 65.0 { return .yellow }
-        return .primary
-    }
-}
-
 /// The All-Zone System Thermal Popover (used for text, gauge, sparkline).
 public struct ThermalPopoverView: View {
     public let coordinator: MetricsCoordinator
@@ -910,7 +639,7 @@ public struct ThermalMemoryPopoverView: View {
             // LPDDR Refresh Mode Status Card
             let peakC = peakMemSensor?.celsius
             let thresholdLabel = Units.formatTemperature(85.0, unit: preferences.temperatureUnit, fractionDigits: 0)
-            let isHighTempRefresh = (peakC ?? 40.0) >= 85.0
+            let isHighTempRefresh = peakC.map { $0 >= 85.0 } ?? false
             VStack(alignment: .leading, spacing: 4) {
                 HStack {
                     Text("REFRESH CYCLE POLICY")
@@ -1328,39 +1057,52 @@ public struct ThermalRingPopoverView: View {
 
             // Big Radial Dial Card
             VStack(spacing: 8) {
-                let peakC = peakSensor?.celsius ?? 45.0
-                let throttleMargin = max(0.0, 105.0 - peakC)
-                let pct = min(1.0, max(0.0, peakC / 105.0))
+                let peakC = peakSensor?.celsius
+                let throttleMargin = peakC.map { max(0.0, 105.0 - $0) }
+                let pct = peakC.map { min(1.0, max(0.0, $0 / 105.0)) } ?? 0.0
 
                 ZStack {
                     Circle()
                         .stroke(Color.primary.opacity(0.08), lineWidth: 10)
                         .frame(width: 90, height: 90)
 
-                    Circle()
-                        .trim(from: 0, to: pct)
-                        .stroke(
-                            AngularGradient(
-                                gradient: Gradient(colors: [.green, .yellow, .orange, .red]),
-                                center: .center
-                            ),
-                            style: StrokeStyle(lineWidth: 10, lineCap: .round)
-                        )
-                        .rotationEffect(.degrees(-90))
-                        .frame(width: 90, height: 90)
+                    if peakC != nil {
+                        Circle()
+                            .trim(from: 0, to: pct)
+                            .stroke(
+                                AngularGradient(
+                                    gradient: Gradient(colors: [.green, .yellow, .orange, .red]),
+                                    center: .center
+                                ),
+                                style: StrokeStyle(lineWidth: 10, lineCap: .round)
+                            )
+                            .rotationEffect(.degrees(-90))
+                            .frame(width: 90, height: 90)
+                    }
 
                     VStack(spacing: 0) {
-                        Text(Units.formatTemperature(peakC, unit: preferences.temperatureUnit, fractionDigits: 0))
-                            .font(.system(size: 20, weight: .bold, design: .rounded))
-                        let marginDisplay = preferences.temperatureUnit == .fahrenheit ? (throttleMargin * 1.8) : throttleMargin
-                        Text(String(format: "+%.0f° headroom", marginDisplay))
-                            .font(.system(size: 9, weight: .semibold))
-                            .foregroundColor(.secondary)
+                        if let c = peakC {
+                            Text(Units.formatTemperature(c, unit: preferences.temperatureUnit, fractionDigits: 0))
+                                .font(.system(size: 20, weight: .bold, design: .rounded))
+                            if let margin = throttleMargin {
+                                let marginDisplay = preferences.temperatureUnit == .fahrenheit ? (margin * 1.8) : margin
+                                Text(String(format: "+%.0f° headroom", marginDisplay))
+                                    .font(.system(size: 9, weight: .semibold))
+                                    .foregroundColor(.secondary)
+                            }
+                        } else {
+                            Text("—")
+                                .font(.system(size: 20, weight: .bold, design: .rounded))
+                                .foregroundColor(.secondary)
+                            Text("Unavailable")
+                                .font(.system(size: 9, weight: .semibold))
+                                .foregroundColor(.secondary)
+                        }
                     }
                 }
                 .padding(.top, 4)
 
-                Text("Hottest Component: \(peakSensor?.name ?? "Nominal")")
+                Text(peakSensor != nil ? "Hottest Component: \(peakSensor!.name)" : "Monitoring thermals...")
                     .font(.system(size: 10, weight: .medium))
                     .foregroundColor(.secondary)
             }
@@ -1458,7 +1200,7 @@ public struct ThermalHistoryPopoverView: View {
             PopoverHeaderView(
                 category: .thermal,
                 title: "Thermal Timeline",
-                subtitle: "60-Sample Thermal History & Velocity Analysis",
+                subtitle: "Last \(Units.formatHistoryDuration(sampleCount: 60, interval: preferences.refreshInterval)) • Thermal Velocity Analysis",
                 verdict: VerdictEvaluator.evaluateThermal(sample, unit: preferences.temperatureUnit)
             )
             Divider()
@@ -1516,9 +1258,15 @@ public struct ThermalHistoryPopoverView: View {
                     Text("WINDOW AVG")
                         .font(.system(size: 8, weight: .bold, design: .monospaced))
                         .foregroundColor(.secondary)
-                    let avg = historyPeakTemps.isEmpty ? 0.0 : (historyPeakTemps.reduce(0.0, +) / Double(historyPeakTemps.count))
-                    Text(Units.formatTemperature(avg, unit: preferences.temperatureUnit, fractionDigits: 1))
-                        .font(.system(size: 13, weight: .bold, design: .rounded))
+                    if !historyPeakTemps.isEmpty {
+                        let avg = historyPeakTemps.reduce(0.0, +) / Double(historyPeakTemps.count)
+                        Text(Units.formatTemperature(avg, unit: preferences.temperatureUnit, fractionDigits: 1))
+                            .font(.system(size: 13, weight: .bold, design: .rounded))
+                    } else {
+                        Text("—")
+                            .font(.system(size: 13, weight: .bold, design: .rounded))
+                            .foregroundColor(.secondary)
+                    }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(8)
@@ -1529,9 +1277,14 @@ public struct ThermalHistoryPopoverView: View {
                     Text("WINDOW MIN")
                         .font(.system(size: 8, weight: .bold, design: .monospaced))
                         .foregroundColor(.secondary)
-                    let minT = historyPeakTemps.min() ?? 0.0
-                    Text(Units.formatTemperature(minT, unit: preferences.temperatureUnit, fractionDigits: 1))
-                        .font(.system(size: 13, weight: .bold, design: .rounded))
+                    if let minT = historyPeakTemps.min() {
+                        Text(Units.formatTemperature(minT, unit: preferences.temperatureUnit, fractionDigits: 1))
+                            .font(.system(size: 13, weight: .bold, design: .rounded))
+                    } else {
+                        Text("—")
+                            .font(.system(size: 13, weight: .bold, design: .rounded))
+                            .foregroundColor(.secondary)
+                    }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(8)
@@ -1656,9 +1409,15 @@ public struct CPUUserSystemPopoverView: View {
                     Text("USER SPACE")
                         .font(.system(size: 9, weight: .bold, design: .monospaced))
                         .foregroundColor(.blue)
-                    Text(String(format: "%.1f%%", sample?.user ?? 0.0))
-                        .font(.system(size: 24, weight: .bold, design: .rounded))
-                        .foregroundColor(.blue)
+                    if let u = sample?.user {
+                        Text(String(format: "%.1f%%", u))
+                            .font(.system(size: 24, weight: .bold, design: .rounded))
+                            .foregroundColor(.blue)
+                    } else {
+                        Text("—")
+                            .font(.system(size: 24, weight: .bold, design: .rounded))
+                            .foregroundColor(.secondary)
+                    }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(10)
@@ -1669,9 +1428,15 @@ public struct CPUUserSystemPopoverView: View {
                     Text("SYSTEM KERNEL")
                         .font(.system(size: 9, weight: .bold, design: .monospaced))
                         .foregroundColor(.red)
-                    Text(String(format: "%.1f%%", sample?.system ?? 0.0))
-                        .font(.system(size: 24, weight: .bold, design: .rounded))
-                        .foregroundColor(.red)
+                    if let s = sample?.system {
+                        Text(String(format: "%.1f%%", s))
+                            .font(.system(size: 24, weight: .bold, design: .rounded))
+                            .foregroundColor(.red)
+                    } else {
+                        Text("—")
+                            .font(.system(size: 24, weight: .bold, design: .rounded))
+                            .foregroundColor(.secondary)
+                    }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(10)
@@ -1788,12 +1553,21 @@ public struct CPUClusterPopoverView: View {
                             .font(.system(size: 9, weight: .bold, design: .monospaced))
                             .foregroundColor(.green)
                     }
-                    Text(String(format: "%.1f%%", sample?.efficiencyUsage ?? 0.0))
-                        .font(.system(size: 24, weight: .bold, design: .rounded))
-                        .foregroundColor(.green)
-                    Text("\(sample?.efficiencyCoreCount ?? 0) E-Cores active")
-                        .font(.system(size: 10, weight: .medium))
-                        .foregroundColor(.secondary)
+                    if let eUsage = sample?.efficiencyUsage, let eCount = sample?.efficiencyCoreCount, eCount > 0 {
+                        Text(String(format: "%.1f%%", eUsage))
+                            .font(.system(size: 24, weight: .bold, design: .rounded))
+                            .foregroundColor(.green)
+                        Text("\(eCount) E-Cores active")
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundColor(.secondary)
+                    } else {
+                        Text("—")
+                            .font(.system(size: 24, weight: .bold, design: .rounded))
+                            .foregroundColor(.secondary)
+                        Text(sample != nil ? "N/A on this processor" : "Sampling cores...")
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundColor(.secondary)
+                    }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(10)
@@ -1809,12 +1583,28 @@ public struct CPUClusterPopoverView: View {
                             .font(.system(size: 9, weight: .bold, design: .monospaced))
                             .foregroundColor(.orange)
                     }
-                    Text(String(format: "%.1f%%", sample?.performanceUsage ?? 0.0))
-                        .font(.system(size: 24, weight: .bold, design: .rounded))
-                        .foregroundColor(.orange)
-                    Text("\(sample?.performanceCoreCount ?? 0) P-Cores active")
-                        .font(.system(size: 10, weight: .medium))
-                        .foregroundColor(.secondary)
+                    if let pUsage = sample?.performanceUsage, let pCount = sample?.performanceCoreCount, pCount > 0 {
+                        Text(String(format: "%.1f%%", pUsage))
+                            .font(.system(size: 24, weight: .bold, design: .rounded))
+                            .foregroundColor(.orange)
+                        Text("\(pCount) P-Cores active")
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundColor(.secondary)
+                    } else if let s = sample {
+                        Text(String(format: "%.1f%%", s.totalUsage))
+                            .font(.system(size: 24, weight: .bold, design: .rounded))
+                            .foregroundColor(.orange)
+                        Text("\(s.perCore.count) Cores active")
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundColor(.secondary)
+                    } else {
+                        Text("—")
+                            .font(.system(size: 24, weight: .bold, design: .rounded))
+                            .foregroundColor(.secondary)
+                        Text("Sampling cores...")
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundColor(.secondary)
+                    }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(10)
@@ -1831,13 +1621,16 @@ public struct CPUClusterPopoverView: View {
 
                     ScrollView(.vertical, showsIndicators: true) {
                         LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 6) {
+                            let hasClusters = (s.efficiencyCoreCount ?? 0) > 0
                             ForEach(0..<s.perCore.count, id: \.self) { idx in
                                 let load = s.perCore[idx]
-                                let isEfficiency = idx < (s.efficiencyCoreCount ?? 0)
+                                let isEfficiency = hasClusters && idx < (s.efficiencyCoreCount ?? 0)
+                                let coreLabel = hasClusters ? (isEfficiency ? "E\(idx + 1)" : "P\(idx - (s.efficiencyCoreCount ?? 0) + 1)") : "C\(idx + 1)"
+                                let coreColor: Color = hasClusters ? (isEfficiency ? .green : .orange) : .blue
                                 HStack(spacing: 6) {
-                                    Text(isEfficiency ? "E\(idx + 1)" : "P\(idx - (s.efficiencyCoreCount ?? 0) + 1)")
+                                    Text(coreLabel)
                                         .font(.system(size: 9, weight: .bold, design: .monospaced))
-                                        .foregroundColor(isEfficiency ? .green : .orange)
+                                        .foregroundColor(coreColor)
                                         .frame(width: 22, alignment: .leading)
 
                                     GeometryReader { g in
@@ -1845,7 +1638,7 @@ public struct CPUClusterPopoverView: View {
                                             RoundedRectangle(cornerRadius: 3)
                                                 .fill(Color.primary.opacity(0.08))
                                             RoundedRectangle(cornerRadius: 3)
-                                                .fill(isEfficiency ? Color.green : Color.orange)
+                                                .fill(coreColor)
                                                 .frame(width: g.size.width * CGFloat(min(1.0, max(0.0, load / 100.0))))
                                         }
                                     }
@@ -1904,7 +1697,7 @@ public struct CPUHistoryPopoverView: View {
             PopoverHeaderView(
                 category: .cpu,
                 title: "CPU Load History",
-                subtitle: "60-Sample Compute Timeline & Rolling Trends",
+                subtitle: "Last \(Units.formatHistoryDuration(sampleCount: 60, interval: preferences.refreshInterval)) • Compute Timeline",
                 verdict: VerdictEvaluator.evaluateCPU(sample)
             )
             Divider()
@@ -2257,9 +2050,9 @@ public struct MemoryPressurePopoverView: View {
             Divider()
 
             // Large Pressure Meter Card
-            let pressure = sample?.pressure ?? .normal
-            let color: Color = pressure == .critical ? .red : (pressure == .warning ? .yellow : .green)
-            let pressureText: String = pressure == .critical ? "Critical Pressure" : (pressure == .warning ? "Elevated Pressure" : "Normal Pressure")
+            let pressure = sample?.pressure
+            let color: Color = pressure == nil ? .secondary : (pressure == .critical ? .red : (pressure == .warning ? .yellow : .green))
+            let pressureText: String = pressure == nil ? "Sampling Memory..." : (pressure == .critical ? "Critical Pressure" : (pressure == .warning ? "Elevated Pressure" : "Normal Pressure"))
 
             VStack(spacing: 8) {
                 HStack(spacing: 12) {
@@ -2271,7 +2064,7 @@ public struct MemoryPressurePopoverView: View {
                         Text(pressureText)
                             .font(.system(size: 16, weight: .bold))
                             .foregroundColor(color)
-                        Text("Kernel virtual memory pressure state")
+                        Text(pressure != nil ? "Kernel virtual memory pressure state" : "Awaiting telemetry samples")
                             .font(.system(size: 10, weight: .medium))
                             .foregroundColor(.secondary)
                     }
@@ -2288,23 +2081,41 @@ public struct MemoryPressurePopoverView: View {
                     Text("Swap Memory Used")
                         .font(.system(size: 11, weight: .medium))
                     Spacer()
-                    Text(Units.formatBytes(sample?.swapUsed ?? 0, standard: preferences.byteUnitStandard))
-                        .font(.system(size: 11, weight: .bold, design: .monospaced))
+                    if let swap = sample?.swapUsed {
+                        Text(Units.formatBytes(swap, standard: preferences.byteUnitStandard))
+                            .font(.system(size: 11, weight: .bold, design: .monospaced))
+                    } else {
+                        Text("—")
+                            .font(.system(size: 11, weight: .bold, design: .monospaced))
+                            .foregroundColor(.secondary)
+                    }
                 }
                 HStack {
                     Text("Active Physical RAM")
                         .font(.system(size: 11, weight: .medium))
                     Spacer()
-                    Text(Units.formatBytes(sample?.used ?? 0, standard: preferences.byteUnitStandard))
-                        .font(.system(size: 11, weight: .bold, design: .monospaced))
+                    if let used = sample?.used {
+                        Text(Units.formatBytes(used, standard: preferences.byteUnitStandard))
+                            .font(.system(size: 11, weight: .bold, design: .monospaced))
+                    } else {
+                        Text("—")
+                            .font(.system(size: 11, weight: .bold, design: .monospaced))
+                            .foregroundColor(.secondary)
+                    }
                 }
                 HStack {
                     Text("Swap Degradation Risk")
                         .font(.system(size: 11, weight: .medium))
                     Spacer()
-                    Text((sample?.swapUsed ?? 0) > 0 ? "Active Paging" : "Zero Swap (Optimal)")
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundColor((sample?.swapUsed ?? 0) > 0 ? .orange : .green)
+                    if let swap = sample?.swapUsed {
+                        Text(swap > 0 ? "Active Paging" : "Zero Swap (Optimal)")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundColor(swap > 0 ? .orange : .green)
+                    } else {
+                        Text("—")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundColor(.secondary)
+                    }
                 }
             }
             .padding(10)
@@ -2349,7 +2160,7 @@ public struct MemoryHistoryPopoverView: View {
             PopoverHeaderView(
                 category: .memory,
                 title: "Memory History",
-                subtitle: "60-Sample Allocation & Pressure Timeline",
+                subtitle: "Last \(Units.formatHistoryDuration(sampleCount: 60, interval: preferences.refreshInterval)) • Memory Timeline",
                 verdict: VerdictEvaluator.evaluateMemory(sample, standard: preferences.byteUnitStandard)
             )
             Divider()
@@ -2514,8 +2325,8 @@ public struct GPULoadRingPopoverView: View {
             Divider()
 
             // Large Circular GPU Dial
-            let usage = sample?.utilization ?? 0.0
-            let pct = min(1.0, max(0.0, usage / 100.0))
+            let usage = sample?.utilization
+            let pct = usage.map { min(1.0, max(0.0, $0 / 100.0)) } ?? 0.0
 
             VStack(spacing: 8) {
                 ZStack {
@@ -2523,22 +2334,30 @@ public struct GPULoadRingPopoverView: View {
                         .stroke(Color.primary.opacity(0.08), lineWidth: 10)
                         .frame(width: 90, height: 90)
 
-                    Circle()
-                        .trim(from: 0, to: pct)
-                        .stroke(
-                            AngularGradient(
-                                gradient: Gradient(colors: [.purple, .indigo, .pink]),
-                                center: .center
-                            ),
-                            style: StrokeStyle(lineWidth: 10, lineCap: .round)
-                        )
-                        .rotationEffect(.degrees(-90))
-                        .frame(width: 90, height: 90)
+                    if usage != nil {
+                        Circle()
+                            .trim(from: 0, to: CGFloat(pct))
+                            .stroke(
+                                AngularGradient(
+                                    gradient: Gradient(colors: [.purple, .indigo, .pink]),
+                                    center: .center
+                                ),
+                                style: StrokeStyle(lineWidth: 10, lineCap: .round)
+                            )
+                            .rotationEffect(.degrees(-90))
+                            .frame(width: 90, height: 90)
+                    }
 
                     VStack(spacing: 0) {
-                        Text(String(format: "%.0f%%", usage))
-                            .font(.system(size: 22, weight: .bold, design: .rounded))
-                            .foregroundColor(.purple)
+                        if let u = usage {
+                            Text(String(format: "%.0f%%", u))
+                                .font(.system(size: 22, weight: .bold, design: .rounded))
+                                .foregroundColor(.purple)
+                        } else {
+                            Text("—")
+                                .font(.system(size: 22, weight: .bold, design: .rounded))
+                                .foregroundColor(.secondary)
+                        }
                         Text("GPU Load")
                             .font(.system(size: 9, weight: .semibold))
                             .foregroundColor(.secondary)
@@ -2546,7 +2365,7 @@ public struct GPULoadRingPopoverView: View {
                 }
                 .padding(.top, 4)
 
-                Text(sample?.deviceName ?? "Apple Silicon GPU")
+                Text(sample?.deviceName ?? "Graphics Processor")
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundColor(.primary)
             }
@@ -2561,9 +2380,15 @@ public struct GPULoadRingPopoverView: View {
                     Text("ALLOCATED VRAM")
                         .font(.system(size: 8, weight: .bold, design: .monospaced))
                         .foregroundColor(.secondary)
-                    Text(Units.formatBytes(sample?.memoryUsed ?? 0, standard: preferences.byteUnitStandard))
-                        .font(.system(size: 13, weight: .bold, design: .rounded))
-                        .foregroundColor(.purple)
+                    if let mem = sample?.memoryUsed {
+                        Text(Units.formatBytes(mem, standard: preferences.byteUnitStandard))
+                            .font(.system(size: 13, weight: .bold, design: .rounded))
+                            .foregroundColor(.purple)
+                    } else {
+                        Text("—")
+                            .font(.system(size: 13, weight: .bold, design: .rounded))
+                            .foregroundColor(.secondary)
+                    }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(8)
@@ -2733,7 +2558,7 @@ public struct GPUDiePopoverView: View {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(sample?.deviceName ?? "Metal Accelerated GPU")
                             .font(.system(size: 13, weight: .bold))
-                        Text("Unified Memory Architecture (UMA)")
+                        Text(sample?.isUnifiedMemory == true ? "Unified Memory Architecture (UMA)" : (sample != nil ? "Discrete / Shared VRAM" : "Graphics Telemetry Unavailable"))
                             .font(.system(size: 10, weight: .medium))
                             .foregroundColor(.secondary)
                     }
@@ -2746,17 +2571,29 @@ public struct GPUDiePopoverView: View {
                     Text("Metal Acceleration")
                         .font(.system(size: 11, weight: .medium))
                     Spacer()
-                    Text("Hardware Enabled")
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundColor(.green)
+                    if sample != nil {
+                        Text("Hardware Enabled")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundColor(.green)
+                    } else {
+                        Text("—")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundColor(.secondary)
+                    }
                 }
 
                 HStack {
                     Text("Allocated VRAM Pool")
                         .font(.system(size: 11, weight: .medium))
                     Spacer()
-                    Text(Units.formatBytes(sample?.memoryUsed ?? 0, standard: preferences.byteUnitStandard))
-                        .font(.system(size: 11, weight: .bold, design: .monospaced))
+                    if let mem = sample?.memoryUsed {
+                        Text(Units.formatBytes(mem, standard: preferences.byteUnitStandard))
+                            .font(.system(size: 11, weight: .bold, design: .monospaced))
+                    } else {
+                        Text("—")
+                            .font(.system(size: 11, weight: .bold, design: .monospaced))
+                            .foregroundColor(.secondary)
+                    }
                 }
             }
             .padding(10)
@@ -2968,7 +2805,7 @@ public struct FanDualRPMPopoverView: View {
                                     .foregroundColor(.secondary)
                             }
 
-                            Text(fan.rpm > 0 ? "\(fan.rpm) RPM" : "0 RPM")
+                            Text(Units.formatRPM(fan.rpm))
                                 .font(.system(size: 18, weight: .bold, design: .rounded))
                                 .foregroundColor(fan.rpm > 0 ? .primary : .secondary)
 
@@ -2983,7 +2820,7 @@ public struct FanDualRPMPopoverView: View {
                                 }
                                 .frame(height: 5)
 
-                                Text("Range: \(minR) - \(maxR)")
+                                Text(Units.formatFanBounds(min: minR, max: maxR) ?? "Range: \(minR)–\(maxR) RPM")
                                     .font(.system(size: 8, weight: .medium, design: .monospaced))
                                     .foregroundColor(.secondary)
                             }
@@ -3001,9 +2838,15 @@ public struct FanDualRPMPopoverView: View {
                 Text("Control Mode")
                     .font(.system(size: 11, weight: .medium))
                 Spacer()
-                Text("System Automatic (Safe)")
-                    .font(.system(size: 10, weight: .bold))
-                    .foregroundColor(.green)
+                if fans.isEmpty {
+                    Text("Passive Cooling (Fanless)")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundColor(.green)
+                } else {
+                    Text("System Automatic (Safe)")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundColor(.green)
+                }
             }
             .padding(.horizontal, 4)
 
@@ -3066,7 +2909,7 @@ public struct FanTachometerPopoverView: View {
                         .frame(width: 90, height: 90)
 
                     VStack(spacing: 0) {
-                        Text("\(peakRPM)")
+                        Text(Units.formatRPM(peakRPM).replacingOccurrences(of: " RPM", with: ""))
                             .font(.system(size: 20, weight: .bold, design: .rounded))
                         Text("PEAK RPM")
                             .font(.system(size: 8, weight: .bold, design: .monospaced))
@@ -3219,7 +3062,7 @@ public struct FanBarsPopoverView: View {
                                 Text(fan.name)
                                     .font(.system(size: 11, weight: .medium))
                                 Spacer()
-                                Text("\(fan.rpm) RPM")
+                                Text(Units.formatRPM(fan.rpm))
                                     .font(.system(size: 11, weight: .bold, design: .monospaced))
                                 Text(String(format: "(%.0f%%)", pct * 100.0))
                                     .font(.system(size: 9, weight: .medium, design: .monospaced))
@@ -3278,7 +3121,7 @@ public struct FanHistoryPopoverView: View {
             PopoverHeaderView(
                 category: .fan,
                 title: "Fan History",
-                subtitle: "Rolling Rotor RPM Timeline",
+                subtitle: "Last \(Units.formatHistoryDuration(sampleCount: 60, interval: preferences.refreshInterval)) • Rotor Speed History",
                 verdict: VerdictEvaluator.evaluateFan(sample)
             )
             Divider()
@@ -3291,7 +3134,7 @@ public struct FanHistoryPopoverView: View {
                         .foregroundColor(.secondary)
                     Spacer()
                     if let maxVal = historyRPMs.max() {
-                        Text(String(format: "Peak: %.0f RPM", maxVal))
+                        Text("Peak: \(Units.formatRPM(Int(round(maxVal))))")
                             .font(.system(size: 9, weight: .bold, design: .monospaced))
                             .foregroundColor(.teal)
                     }
@@ -3319,7 +3162,7 @@ public struct FanHistoryPopoverView: View {
                         .font(.system(size: 8, weight: .bold, design: .monospaced))
                         .foregroundColor(.secondary)
                     let curRPM = sample?.fans.map(\.rpm).max() ?? 0
-                    Text("\(curRPM) RPM")
+                    Text(Units.formatRPM(curRPM))
                         .font(.system(size: 14, weight: .bold, design: .rounded))
                         .foregroundColor(.teal)
                 }
@@ -3333,7 +3176,7 @@ public struct FanHistoryPopoverView: View {
                         .font(.system(size: 8, weight: .bold, design: .monospaced))
                         .foregroundColor(.secondary)
                     let avg = historyRPMs.isEmpty ? 0.0 : (historyRPMs.reduce(0.0, +) / Double(historyRPMs.count))
-                    Text(String(format: "%.0f RPM", avg))
+                    Text(Units.formatRPM(Int(round(avg))))
                         .font(.system(size: 14, weight: .bold, design: .rounded))
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -3479,7 +3322,7 @@ public struct NetworkBarsPopoverView: View {
                 Text("Primary Interface")
                     .font(.system(size: 11, weight: .medium))
                 Spacer()
-                Text(sample?.primaryInterface ?? "Wi-Fi (en0)")
+                Text(sample?.primaryInterface ?? "—")
                     .font(.system(size: 10, weight: .bold))
                     .foregroundColor(.secondary)
             }
@@ -3711,10 +3554,11 @@ public struct DiskStorageRingPopoverView: View {
             Divider()
 
             let vol = sample?.volumes.first(where: { $0.mountPoint == "/" }) ?? sample?.volumes.first
+            let hasVol = vol != nil && (vol!.total > 0 || (vol!.used + vol!.free) > 0)
             let usedB = vol?.used ?? 0
             let freeB = vol?.free ?? 0
             let totalB = vol?.total ?? max(1, usedB + freeB)
-            let pct = Double(usedB) / Double(max(1, totalB))
+            let pct = hasVol ? Double(usedB) / Double(max(1, totalB)) : 0.0
 
             VStack(spacing: 8) {
                 ZStack {
@@ -3722,32 +3566,43 @@ public struct DiskStorageRingPopoverView: View {
                         .stroke(Color.primary.opacity(0.08), lineWidth: 10)
                         .frame(width: 90, height: 90)
 
-                    Circle()
-                        .trim(from: 0, to: CGFloat(pct))
-                        .stroke(
-                            AngularGradient(
-                                gradient: Gradient(colors: [.cyan, .blue, .purple]),
-                                center: .center
-                            ),
-                            style: StrokeStyle(lineWidth: 10, lineCap: .round)
-                        )
-                        .rotationEffect(.degrees(-90))
-                        .frame(width: 90, height: 90)
+                    if hasVol {
+                        Circle()
+                            .trim(from: 0, to: CGFloat(pct))
+                            .stroke(
+                                AngularGradient(
+                                    gradient: Gradient(colors: [.cyan, .blue, .purple]),
+                                    center: .center
+                                ),
+                                style: StrokeStyle(lineWidth: 10, lineCap: .round)
+                            )
+                            .rotationEffect(.degrees(-90))
+                            .frame(width: 90, height: 90)
+                    }
 
                     VStack(spacing: 0) {
-                        Text(String(format: "%.0f%%", pct * 100.0))
-                            .font(.system(size: 22, weight: .bold, design: .rounded))
-                            .foregroundColor(.primary)
-                        Text("USED")
-                            .font(.system(size: 8, weight: .bold, design: .monospaced))
-                            .foregroundColor(.secondary)
+                        if hasVol {
+                            Text(String(format: "%.0f%%", pct * 100.0))
+                                .font(.system(size: 22, weight: .bold, design: .rounded))
+                                .foregroundColor(.primary)
+                            Text("USED")
+                                .font(.system(size: 8, weight: .bold, design: .monospaced))
+                                .foregroundColor(.secondary)
+                        } else {
+                            Text("—")
+                                .font(.system(size: 22, weight: .bold, design: .rounded))
+                                .foregroundColor(.secondary)
+                            Text("NO DISK")
+                                .font(.system(size: 8, weight: .bold, design: .monospaced))
+                                .foregroundColor(.secondary)
+                        }
                     }
                 }
                 .padding(.top, 4)
 
-                Text(vol?.name.isEmpty == false ? vol!.name : "Macintosh HD")
+                Text(hasVol ? (vol?.name.isEmpty == false ? vol!.name : "Boot Volume") : "Storage Telemetry Unavailable")
                     .font(.system(size: 11, weight: .semibold))
-                    .foregroundColor(.primary)
+                    .foregroundColor(hasVol ? .primary : .secondary)
             }
             .frame(maxWidth: .infinity)
             .padding(10)
@@ -4281,9 +4136,9 @@ public struct PowerChargeRingPopoverView: View {
             Divider()
 
             let hasBat = sample?.hasBattery ?? false
-            let charge = sample?.charge ?? (hasBat ? 100.0 : 0.0)
-            let pct = hasBat ? min(1.0, max(0.0, charge / 100.0)) : 1.0
-            let variant = sample?.variant ?? (hasBat ? .charged : .acDesktop)
+            let charge = sample?.charge
+            let pct = (hasBat && charge != nil) ? min(1.0, max(0.0, charge! / 100.0)) : (hasBat ? 0.0 : 1.0)
+            let variant = sample?.variant ?? (hasBat ? .discharging : .acDesktop)
 
             // Large Radial Charge Ring
             VStack(spacing: 8) {
@@ -4306,8 +4161,14 @@ public struct PowerChargeRingPopoverView: View {
                             .font(.system(size: 14, weight: .bold))
                             .foregroundColor(ringColor(for: variant))
                         if hasBat {
-                            Text(String(format: "%.0f%%", charge))
-                                .font(.system(size: 20, weight: .bold, design: .rounded))
+                            if let chg = charge {
+                                Text(String(format: "%.0f%%", chg))
+                                    .font(.system(size: 20, weight: .bold, design: .rounded))
+                            } else {
+                                Text("—")
+                                    .font(.system(size: 20, weight: .bold, design: .rounded))
+                                    .foregroundColor(.secondary)
+                            }
                         } else {
                             Text("AC")
                                 .font(.system(size: 20, weight: .bold, design: .rounded))
@@ -4441,8 +4302,8 @@ public struct PowerBarPopoverView: View {
             Divider()
 
             let hasBat = sample?.hasBattery ?? false
-            let charge = sample?.charge ?? (hasBat ? 100.0 : 0.0)
-            let pct = hasBat ? min(1.0, max(0.0, charge / 100.0)) : 1.0
+            let charge = sample?.charge
+            let pct = (hasBat && charge != nil) ? min(1.0, max(0.0, charge! / 100.0)) : (hasBat ? 0.0 : 1.0)
 
             // Horizontal Capacity Bar Card
             VStack(alignment: .leading, spacing: 6) {
@@ -4451,8 +4312,19 @@ public struct PowerBarPopoverView: View {
                         .font(.system(size: 8, weight: .bold, design: .monospaced))
                         .foregroundColor(.secondary)
                     Spacer()
-                    Text(hasBat ? String(format: "%.0f%%", charge) : "Continuous AC Power")
-                        .font(.system(size: 13, weight: .bold, design: .rounded))
+                    if hasBat {
+                        if let chg = charge {
+                            Text(String(format: "%.0f%%", chg))
+                                .font(.system(size: 13, weight: .bold, design: .rounded))
+                        } else {
+                            Text("—")
+                                .font(.system(size: 13, weight: .bold, design: .rounded))
+                                .foregroundColor(.secondary)
+                        }
+                    } else {
+                        Text("Continuous AC Power")
+                            .font(.system(size: 13, weight: .bold, design: .rounded))
+                    }
                 }
 
                 if hasBat {
@@ -4460,7 +4332,7 @@ public struct PowerBarPopoverView: View {
                         ZStack(alignment: .leading) {
                             RoundedRectangle(cornerRadius: 4).fill(Color.primary.opacity(0.08))
                             RoundedRectangle(cornerRadius: 4)
-                                .fill(LinearGradient(colors: [charge <= 20 ? .red : .green, .mint], startPoint: .leading, endPoint: .trailing))
+                                .fill(LinearGradient(colors: [(charge ?? 100) <= 20 ? .red : .green, .mint], startPoint: .leading, endPoint: .trailing))
                                 .frame(width: g.size.width * CGFloat(pct))
                         }
                     }
@@ -4490,7 +4362,7 @@ public struct PowerBarPopoverView: View {
                 if sample?.isOnHold == true {
                     return ("Optimized Battery Charging", "Charging on hold at 80% until customary usage window.", .orange)
                 } else if sample?.state == .charging {
-                    if charge < 80.0 {
+                    if (charge ?? 0.0) < 80.0 {
                         return ("Fast Charge Phase", "Charging at maximum current up to 80% capacity.", .green)
                     } else {
                         return ("Trickle / Constant Voltage", "Current tapered down to preserve lithium-ion longevity.", .mint)
@@ -4568,10 +4440,16 @@ public struct PowerBudgetIllustrationPopoverView: View {
                         Text("CURRENT CHARGE")
                             .font(.system(size: 8, weight: .bold, design: .monospaced))
                             .foregroundColor(.secondary)
-                        let chargePct = Int(round(sample.charge ?? 100.0))
-                        Text("\(chargePct)%")
-                            .font(.system(size: 20, weight: .bold, design: .rounded))
-                            .foregroundColor(chargePct <= 20 ? .red : .primary)
+                        if let chg = sample.charge {
+                            let chargePct = Int(round(chg))
+                            Text("\(chargePct)%")
+                                .font(.system(size: 20, weight: .bold, design: .rounded))
+                                .foregroundColor(chargePct <= 20 ? .red : .primary)
+                        } else {
+                            Text("—")
+                                .font(.system(size: 20, weight: .bold, design: .rounded))
+                                .foregroundColor(.secondary)
+                        }
                     }
                     Spacer()
                     VStack(alignment: .trailing, spacing: 2) {
@@ -4759,7 +4637,7 @@ public struct PowerHistoryPopoverView: View {
             PopoverHeaderView(
                 category: .power,
                 title: "Wattage History",
-                subtitle: "60-Sample Power Draw Timeline",
+                subtitle: "Last \(Units.formatHistoryDuration(sampleCount: 60, interval: preferences.refreshInterval)) • Power Draw Timeline",
                 verdict: VerdictEvaluator.evaluatePower(sample)
             )
             Divider()
