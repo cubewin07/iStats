@@ -3481,158 +3481,60 @@ public struct PowerPopoverView: View {
     }
 }
 
+/// Power readings can come from different hardware sources. Adapter wattage is
+/// a reported rating, not measured delivery or a charging surplus.
 public struct PowerWattagePopoverView: View {
     public let coordinator: MetricsCoordinator
     @ObservedObject public var preferences: PreferencesStore
     @State private var sample: PowerSample?
-    @State private var history: [Sample<PowerSample>]
 
     public init(coordinator: MetricsCoordinator = .shared, preferences: PreferencesStore = .shared) {
         self.coordinator = coordinator
         self.preferences = preferences
         _sample = State(initialValue: coordinator.latestPower?.value)
-        _history = State(initialValue: coordinator.powerHistory)
-    }
-
-    private var systemDraw: Double { sample?.powerDrawWatts ?? 0.0 }
-    private var adapterWatts: Double? { sample?.adapterWatts }
-    private var netBalance: Double? {
-        guard let adapter = adapterWatts, adapter > 0 else { return nil }
-        return adapter - systemDraw
     }
 
     public var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            PopoverHeaderView(
-                category: .power,
-                title: "Power Consumption",
-                subtitle: "Real-Time System Draw vs Adapter Supply",
-                verdict: VerdictEvaluator.evaluatePower(sample)
-            )
+            PopoverHeaderView(category: .power, title: "Power Details", subtitle: "Reported power and battery information",
+                              verdict: VerdictEvaluator.evaluatePower(sample))
             Divider()
-
-            // Side-by-side Hero: Draw vs Supply
-            HStack(spacing: 10) {
-                VStack(alignment: .leading, spacing: 3) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "bolt.fill")
-                            .font(.system(size: 10, weight: .bold))
-                            .foregroundColor(.orange)
-                        Text("SYSTEM DRAW")
-                            .font(.system(size: 8, weight: .bold, design: .monospaced))
-                            .foregroundColor(.secondary)
-                    }
-                    Text(String(format: "%.1f W", systemDraw))
-                        .font(.system(size: 18, weight: .bold, design: .rounded))
-                        .foregroundColor(.orange)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(8)
-                .background(Color.orange.opacity(0.1))
-                .clipShape(RoundedRectangle(cornerRadius: 8))
-
-                VStack(alignment: .leading, spacing: 3) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "powerplug.fill")
-                            .font(.system(size: 10, weight: .bold))
-                            .foregroundColor(.green)
-                        Text("ADAPTER SUPPLY")
-                            .font(.system(size: 8, weight: .bold, design: .monospaced))
-                            .foregroundColor(.secondary)
-                    }
-                    if let a = adapterWatts, a > 0 {
-                        Text(String(format: "%.0f W", a))
-                            .font(.system(size: 18, weight: .bold, design: .rounded))
-                            .foregroundColor(.green)
-                    } else if sample?.hasBattery == false {
-                        Text("AC Line Power")
-                            .font(.system(size: 13, weight: .bold))
-                            .foregroundColor(.green)
-                    } else if sample?.hasBattery == true {
-                        Text("On Battery")
-                            .font(.system(size: 13, weight: .bold))
-                            .foregroundColor(.secondary)
-                    } else {
-                        Text("—")
-                            .font(.system(size: 13, weight: .bold))
-                            .foregroundColor(.secondary)
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(8)
-                .background(Color.green.opacity(0.1))
-                .clipShape(RoundedRectangle(cornerRadius: 8))
-            }
-
-            // Net Power Balance Card
-            if let bal = netBalance {
-                HStack {
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text("NET POWER BALANCE")
-                            .font(.system(size: 8, weight: .bold, design: .monospaced))
-                            .foregroundColor(.secondary)
-                        Text(bal >= 0 ? String(format: "+%.1f W Charging Surplus", bal) : String(format: "%.1f W Power Deficit (Draining Battery)", bal))
-                            .font(.system(size: 11, weight: .bold))
-                            .foregroundColor(bal >= 0 ? .green : .red)
-                    }
-                    Spacer()
-                    Image(systemName: bal >= 0 ? "bolt.badge.checkmark" : "bolt.trianglebadge.exclamationmark")
-                        .font(.system(size: 16))
-                        .foregroundColor(bal >= 0 ? .green : .red)
-                }
-                .padding(8)
-                .background(Color(nsColor: .controlBackgroundColor).opacity(0.4))
-                .clipShape(RoundedRectangle(cornerRadius: 8))
-            }
-
-            // Power Supply Specs
-            VStack(spacing: 5) {
-                if let name = sample?.adapterName {
-                    HStack {
-                        Text("Power Supply")
-                            .font(.system(size: 10, weight: .medium))
-                            .foregroundColor(.secondary)
-                        Spacer()
-                        Text(name)
-                            .font(.system(size: 10, weight: .bold))
-                    }
-                }
-                if let v = sample?.voltageVolts {
-                    HStack {
-                        Text("Pack Voltage")
-                            .font(.system(size: 10, weight: .medium))
-                            .foregroundColor(.secondary)
-                        Spacer()
-                        Text(String(format: "%.2f V", v))
-                            .font(.system(size: 10, weight: .bold, design: .monospaced))
-                    }
-                }
-                if let i = sample?.amperageMilliAmps {
-                    HStack {
-                        Text("Current Flow")
-                            .font(.system(size: 10, weight: .medium))
-                            .foregroundColor(.secondary)
-                        Spacer()
-                        Text(String(format: "%+.0f mA", i))
-                            .font(.system(size: 10, weight: .bold, design: .monospaced))
-                            .foregroundColor(i >= 0 ? .green : .orange)
-                    }
+            VStack(alignment: .leading, spacing: 9) {
+                row("Power reading", sample?.powerDrawWatts.map { String(format: "%.1f W", $0) })
+                row("Adapter rating", sample?.adapterWatts.map { String(format: "%.0f W", $0) })
+                row("Adapter", sample?.adapterName)
+                row("Battery voltage", sample?.voltageVolts.map { String(format: "%.2f V", $0) })
+                row("Battery current", sample?.amperageMilliAmps.map { String(format: "%+.0f mA", $0) })
+                if sample?.hasBattery == true {
+                    Divider()
+                    row("Condition", sample?.condition)
+                    row("Cycle count", sample?.cycleCount.map(String.init))
+                    row("Current maximum capacity", sample?.currentMaxCapacity.map(String.init))
+                    row("Design capacity", sample?.designCapacity.map(String.init))
                 }
             }
-            .padding(8)
-            .background(Color(nsColor: .controlBackgroundColor).opacity(0.3))
-            .clipShape(RoundedRectangle(cornerRadius: 8))
-
+            .padding(12)
+            .background(Color(nsColor: .controlBackgroundColor).opacity(0.5))
+            .clipShape(RoundedRectangle(cornerRadius: 10))
+            Text("The power reading depends on available hardware telemetry. Adapter rating is not the power currently delivered.")
+                .font(.system(size: 10)).foregroundColor(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
             Divider()
             CategoryPopoverFooter(preferences: preferences, coordinator: coordinator)
         }
-        .padding(14)
-        .frame(width: 330)
+        .padding(14).frame(width: 330)
         .onAppear { if !coordinator.isRunning && !preferences.isSamplingPaused { coordinator.start() } }
-        .onReceive(coordinator.$latestPower) { newSample in
-            sample = newSample?.value
-            history = coordinator.powerHistory
+        .onReceive(coordinator.$latestPower) { sample = $0?.value }
+    }
+
+    private func row(_ label: String, _ value: String?) -> some View {
+        HStack {
+            Text(label).foregroundColor(.secondary)
+            Spacer()
+            Text(value ?? "Unavailable").fontWeight(.medium).monospacedDigit()
         }
+        .font(.system(size: 11))
+        .accessibilityElement(children: .combine)
     }
 }
 
