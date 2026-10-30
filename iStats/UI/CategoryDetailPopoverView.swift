@@ -911,21 +911,12 @@ public struct ThermalHistoryPopoverView: View {
         }
     }
 
-    private var thermalVelocity: Double {
-        guard historyPeakTemps.count >= 10 else { return 0.0 }
-        let recent = historyPeakTemps.suffix(5).reduce(0.0, +) / 5.0
-        let older = historyPeakTemps.prefix(5).reduce(0.0, +) / 5.0
-        let timeDeltaSeconds = max(1.0, Double(historyPeakTemps.count - 5) * preferences.refreshInterval)
-        let ratePerMinC = ((recent - older) / timeDeltaSeconds) * 60.0
-        return preferences.temperatureUnit == .fahrenheit ? (ratePerMinC * 1.8) : ratePerMinC
-    }
-
     public var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             PopoverHeaderView(
                 category: .thermal,
                 title: "Thermal Timeline",
-                subtitle: "Last \(Units.formatHistoryDuration(sampleCount: 60, interval: preferences.refreshInterval)) • Thermal Velocity Analysis",
+                subtitle: "Recent samples • equally spaced",
                 verdict: VerdictEvaluator.evaluateThermal(sample, unit: preferences.temperatureUnit)
             )
             Divider()
@@ -960,25 +951,6 @@ public struct ThermalHistoryPopoverView: View {
 
             // Thermal Velocity & Stats Card
             HStack(spacing: 10) {
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("THERMAL VELOCITY")
-                        .font(.system(size: 8, weight: .bold, design: .monospaced))
-                        .foregroundColor(.secondary)
-                    let v = thermalVelocity
-                    HStack(spacing: 3) {
-                        Image(systemName: v > 0.5 ? "arrow.up.right" : (v < -0.5 ? "arrow.down.right" : "equal"))
-                            .font(.system(size: 10, weight: .bold))
-                            .foregroundColor(v > 0.5 ? .red : (v < -0.5 ? .blue : .secondary))
-                        Text(String(format: "%+.1f°/min", v))
-                            .font(.system(size: 13, weight: .bold, design: .rounded))
-                            .foregroundColor(v > 0.5 ? .red : (v < -0.5 ? .blue : .primary))
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(8)
-                .background(Color(nsColor: .controlBackgroundColor).opacity(0.4))
-                .clipShape(RoundedRectangle(cornerRadius: 8))
-
                 VStack(alignment: .leading, spacing: 3) {
                     Text("WINDOW AVG")
                         .font(.system(size: 8, weight: .bold, design: .monospaced))
@@ -1422,7 +1394,7 @@ public struct CPUHistoryPopoverView: View {
             PopoverHeaderView(
                 category: .cpu,
                 title: "CPU Load History",
-                subtitle: "Last \(Units.formatHistoryDuration(sampleCount: 60, interval: preferences.refreshInterval)) • Compute Timeline",
+                subtitle: "Recent samples • equally spaced",
                 verdict: VerdictEvaluator.evaluateCPU(sample)
             )
             Divider()
@@ -1461,7 +1433,7 @@ public struct CPUHistoryPopoverView: View {
                     Text("CURRENT")
                         .font(.system(size: 8, weight: .bold, design: .monospaced))
                         .foregroundColor(.secondary)
-                    Text(String(format: "%.1f%%", sample?.totalUsage ?? 0.0))
+                    Text(sample.map { String(format: "%.1f%%", $0.totalUsage) } ?? "—")
                         .font(.system(size: 14, weight: .bold, design: .rounded))
                         .foregroundColor(.blue)
                 }
@@ -1474,8 +1446,8 @@ public struct CPUHistoryPopoverView: View {
                     Text("WINDOW AVG")
                         .font(.system(size: 8, weight: .bold, design: .monospaced))
                         .foregroundColor(.secondary)
-                    let avg = historyUsages.isEmpty ? 0.0 : (historyUsages.reduce(0.0, +) / Double(historyUsages.count))
-                    Text(String(format: "%.1f%%", avg))
+                    let avg = historyUsages.isEmpty ? nil : historyUsages.reduce(0.0, +) / Double(historyUsages.count)
+                    Text(avg.map { String(format: "%.1f%%", $0) } ?? "—")
                         .font(.system(size: 14, weight: .bold, design: .rounded))
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -1487,7 +1459,7 @@ public struct CPUHistoryPopoverView: View {
                     Text("1M LOAD AVG")
                         .font(.system(size: 8, weight: .bold, design: .monospaced))
                         .foregroundColor(.secondary)
-                    Text(String(format: "%.2f", sample?.loadAverage?.oneMinute ?? 0.0))
+                    Text(sample?.loadAverage.map { String(format: "%.2f", $0.oneMinute) } ?? "—")
                         .font(.system(size: 14, weight: .bold, design: .rounded))
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -1874,7 +1846,7 @@ public struct MemoryHistoryPopoverView: View {
             PopoverHeaderView(
                 category: .memory,
                 title: "Memory History",
-                subtitle: "Last \(Units.formatHistoryDuration(sampleCount: 60, interval: preferences.refreshInterval)) • Memory Timeline",
+                subtitle: "Recent samples • equally spaced",
                 verdict: VerdictEvaluator.evaluateMemory(sample, standard: preferences.byteUnitStandard)
             )
             Divider()
@@ -1913,8 +1885,8 @@ public struct MemoryHistoryPopoverView: View {
                     Text("CURRENT")
                         .font(.system(size: 8, weight: .bold, design: .monospaced))
                         .foregroundColor(.secondary)
-                    let curPct = sample.map { (Double($0.used) / max(1, Double($0.total))) * 100.0 } ?? 0.0
-                    Text(String(format: "%.1f%%", curPct))
+                    let curPct = sample.flatMap { $0.total > 0 ? (Double($0.used) / Double($0.total)) * 100.0 : nil }
+                    Text(curPct.map { String(format: "%.1f%%", $0) } ?? "—")
                         .font(.system(size: 14, weight: .bold, design: .rounded))
                         .foregroundColor(.blue)
                 }
@@ -1927,8 +1899,8 @@ public struct MemoryHistoryPopoverView: View {
                     Text("WINDOW AVG")
                         .font(.system(size: 8, weight: .bold, design: .monospaced))
                         .foregroundColor(.secondary)
-                    let avg = historyPcts.isEmpty ? 0.0 : (historyPcts.reduce(0.0, +) / Double(historyPcts.count))
-                    Text(String(format: "%.1f%%", avg))
+                    let avg = historyPcts.isEmpty ? nil : historyPcts.reduce(0.0, +) / Double(historyPcts.count)
+                    Text(avg.map { String(format: "%.1f%%", $0) } ?? "—")
                         .font(.system(size: 14, weight: .bold, design: .rounded))
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -1937,10 +1909,10 @@ public struct MemoryHistoryPopoverView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 8))
 
                 VStack(alignment: .leading, spacing: 3) {
-                    Text("SWAP TOTAL")
+                    Text("SWAP USED")
                         .font(.system(size: 8, weight: .bold, design: .monospaced))
                         .foregroundColor(.secondary)
-                    Text(Units.formatBytes(sample?.swapUsed ?? 0, standard: preferences.byteUnitStandard))
+                    Text(sample.map { Units.formatBytes($0.swapUsed, standard: preferences.byteUnitStandard) } ?? "—")
                         .font(.system(size: 13, weight: .bold, design: .rounded))
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -2835,7 +2807,7 @@ public struct FanHistoryPopoverView: View {
             PopoverHeaderView(
                 category: .fan,
                 title: "Fan History",
-                subtitle: "Last \(Units.formatHistoryDuration(sampleCount: 60, interval: preferences.refreshInterval)) • Rotor Speed History",
+                subtitle: "Recent samples • equally spaced",
                 verdict: VerdictEvaluator.evaluateFan(sample)
             )
             Divider()
@@ -4351,7 +4323,7 @@ public struct PowerHistoryPopoverView: View {
             PopoverHeaderView(
                 category: .power,
                 title: "Wattage History",
-                subtitle: "Last \(Units.formatHistoryDuration(sampleCount: 60, interval: preferences.refreshInterval)) • Power Draw Timeline",
+                subtitle: "Recent samples • equally spaced",
                 verdict: VerdictEvaluator.evaluatePower(sample)
             )
             Divider()
