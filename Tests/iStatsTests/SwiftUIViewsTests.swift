@@ -65,6 +65,86 @@ final class SwiftUIViewsTests: XCTestCase {
         }
     }
 
+    // MARK: - 1b. ConfigPopoverFactory Exhaustive Permutations Test
+
+    func testConfigPopoverFactoryExhaustiveRenderWithDataAndColdStart() {
+        let (defaults, prefs, coord, suiteName) = makeContext()
+        defer { cleanup(defaults: defaults, suiteName: suiteName) }
+
+        // 1. Cold start check (no samples in coordinator)
+        for category in MetricCategory.allCases {
+            let stylesWithBattery = PopoverStyle.supportedPopovers(for: category, hasBattery: true)
+            for style in stylesWithBattery {
+                let view = ConfigPopoverFactory.makePopoverView(
+                    category: category,
+                    popoverStyle: style,
+                    coordinator: coord,
+                    preferences: prefs
+                )
+                let hosting = NSHostingView(rootView: AnyView(view))
+                hosting.frame = CGRect(x: 0, y: 0, width: 330, height: 500)
+                hosting.layoutSubtreeIfNeeded()
+                let fit = hosting.fittingSize
+                XCTAssertGreaterThan(fit.width, 0, "Cold start width for \(category) - \(style) should be > 0")
+                XCTAssertGreaterThan(fit.height, 0, "Cold start height for \(category) - \(style) should be > 0")
+            }
+
+            // Also check batteryless styles (especially for thermal and power)
+            let stylesWithoutBattery = PopoverStyle.supportedPopovers(for: category, hasBattery: false)
+            for style in stylesWithoutBattery {
+                let controller = ConfigPopoverFactory.makeHostingController(
+                    category: category,
+                    popoverStyle: style,
+                    coordinator: coord,
+                    preferences: prefs
+                )
+                XCTAssertNotNil(controller.view)
+            }
+        }
+
+        // 2. Populated check (with live samples in coordinator)
+        coord.handleReading(.cpu(Sample(value: CPUSample(totalUsage: 42.0, perCore: [30.0, 54.0], user: 22.0, system: 20.0, idle: 58.0, efficiencyCoreCount: 2, performanceCoreCount: 2))))
+        coord.handleReading(.memory(Sample(value: MemorySample(total: 16 * 1024 * 1024 * 1024, used: 10 * 1024 * 1024 * 1024, free: 6 * 1024 * 1024 * 1024, wired: 3 * 1024 * 1024 * 1024, compressed: 1 * 1024 * 1024 * 1024, cached: 2 * 1024 * 1024 * 1024, swapUsed: 512 * 1024 * 1024, pressure: .normal))))
+        coord.handleReading(.gpu(Sample(value: GPUSample(utilization: 60.0, memoryUsed: 2048, tempCelsius: 58.0, powerWatts: 8.5))))
+        coord.handleReading(.thermal(Sample(value: ThermalSample(sensors: [
+            SensorReading(name: "CPU Package", celsius: 52.0),
+            SensorReading(name: "GPU Cluster 1", celsius: 50.0),
+            SensorReading(name: "Memory Module A", celsius: 48.0),
+            SensorReading(name: "Storage NAND", celsius: 39.0),
+            SensorReading(name: "Battery", celsius: 31.0)
+        ], pressure: .nominal))))
+        coord.handleReading(.fan(Sample(value: FanSample(fans: [
+            FanReading(name: "Left Fan", rpm: 2100, minRPM: 1800, maxRPM: 6000),
+            FanReading(name: "Right Fan", rpm: 2200, minRPM: 1800, maxRPM: 6000)
+        ]))))
+        coord.handleReading(.network(Sample(value: NetworkSample(interfaces: [
+            InterfaceThroughput(interfaceName: "en0", bytesInPerSec: 500_000, bytesOutPerSec: 250_000, totalBytesIn: 10_000_000, totalBytesOut: 5_000_000)
+        ]))))
+        coord.handleReading(.disk(Sample(value: DiskSample(
+            volumes: [VolumeCapacity(name: "Macintosh HD", mountPoint: "/", total: 500_000_000_000, used: 300_000_000_000, free: 200_000_000_000)],
+            io: DiskIO(bytesReadPerSec: 50_000_000, bytesWrittenPerSec: 25_000_000, readOpsPerSec: 150, writeOpsPerSec: 80)
+        ))))
+        coord.handleReading(.power(Sample(value: PowerSample(hasBattery: true, charge: 75.0, state: .discharging, timeRemaining: 5400, powerDrawWatts: 18.0, adapterWatts: 0.0))))
+
+        for category in MetricCategory.allCases {
+            let styles = PopoverStyle.supportedPopovers(for: category, hasBattery: true)
+            for style in styles {
+                let view = ConfigPopoverFactory.makePopoverView(
+                    category: category,
+                    popoverStyle: style,
+                    coordinator: coord,
+                    preferences: prefs
+                )
+                let hosting = NSHostingView(rootView: AnyView(view))
+                hosting.frame = CGRect(x: 0, y: 0, width: 330, height: 500)
+                hosting.layoutSubtreeIfNeeded()
+                let fit = hosting.fittingSize
+                XCTAssertGreaterThan(fit.width, 100, "Populated width for \(category) - \(style) should be >= 100pt")
+                XCTAssertGreaterThan(fit.height, 50, "Populated height for \(category) - \(style) should be >= 50pt")
+            }
+        }
+    }
+
     // MARK: - 2. Universal DetailPopoverView Layout
 
     func testUniversalDetailPopoverViewLayout() {
@@ -220,19 +300,75 @@ final class SwiftUIViewsTests: XCTestCase {
         XCTAssertGreaterThan(fit.height, 50)
     }
 
-    // MARK: - 4. PreferencesView Layout
+    // MARK: - 4. PreferencesView and Panes Layout
 
     func testPreferencesViewLayout() {
-        let (defaults, prefs, _, suiteName) = makeContext()
+        let (defaults, prefs, coord, suiteName) = makeContext()
         defer { cleanup(defaults: defaults, suiteName: suiteName) }
 
-        let prefsView = PreferencesView(store: prefs)
+        let prefsView = PreferencesView(store: prefs, coordinator: coord)
         let hosting = NSHostingView(rootView: prefsView)
-        hosting.frame = CGRect(x: 0, y: 0, width: 620, height: 500)
+        hosting.frame = CGRect(x: 0, y: 0, width: 880, height: 600)
         hosting.layoutSubtreeIfNeeded()
 
         let fit = hosting.fittingSize
         XCTAssertGreaterThan(fit.width, 400)
         XCTAssertGreaterThan(fit.height, 300)
+    }
+
+    func testPreferencesMenuBarPaneLayout() {
+        let (defaults, prefs, coord, suiteName) = makeContext()
+        defer { cleanup(defaults: defaults, suiteName: suiteName) }
+
+        let pane = PreferencesMenuBarPane(store: prefs, coordinator: coord)
+        let hosting = NSHostingView(rootView: pane)
+        hosting.frame = CGRect(x: 0, y: 0, width: 700, height: 500)
+        hosting.layoutSubtreeIfNeeded()
+
+        let fit = hosting.fittingSize
+        XCTAssertGreaterThan(fit.width, 100)
+        XCTAssertGreaterThan(fit.height, 50)
+    }
+
+    func testPreferencesGeneralPaneLayout() {
+        let (defaults, prefs, coord, suiteName) = makeContext()
+        defer { cleanup(defaults: defaults, suiteName: suiteName) }
+
+        let pane = PreferencesGeneralPane(store: prefs, coordinator: coord)
+        let hosting = NSHostingView(rootView: pane)
+        hosting.frame = CGRect(x: 0, y: 0, width: 600, height: 500)
+        hosting.layoutSubtreeIfNeeded()
+
+        let fit = hosting.fittingSize
+        XCTAssertGreaterThan(fit.width, 100)
+        XCTAssertGreaterThan(fit.height, 50)
+    }
+
+    func testPreferencesAlertsPaneLayout() {
+        let (defaults, prefs, coord, suiteName) = makeContext()
+        defer { cleanup(defaults: defaults, suiteName: suiteName) }
+
+        let pane = PreferencesAlertsPane(store: prefs, coordinator: coord)
+        let hosting = NSHostingView(rootView: pane)
+        hosting.frame = CGRect(x: 0, y: 0, width: 600, height: 500)
+        hosting.layoutSubtreeIfNeeded()
+
+        let fit = hosting.fittingSize
+        XCTAssertGreaterThan(fit.width, 100)
+        XCTAssertGreaterThan(fit.height, 50)
+    }
+
+    func testPreferencesAboutPaneLayout() {
+        let (defaults, prefs, coord, suiteName) = makeContext()
+        defer { cleanup(defaults: defaults, suiteName: suiteName) }
+
+        let pane = PreferencesAboutPane(store: prefs, coordinator: coord)
+        let hosting = NSHostingView(rootView: pane)
+        hosting.frame = CGRect(x: 0, y: 0, width: 600, height: 500)
+        hosting.layoutSubtreeIfNeeded()
+
+        let fit = hosting.fittingSize
+        XCTAssertGreaterThan(fit.width, 100)
+        XCTAssertGreaterThan(fit.height, 50)
     }
 }

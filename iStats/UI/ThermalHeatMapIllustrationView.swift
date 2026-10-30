@@ -59,20 +59,20 @@ public struct ThermalHeatMapIllustrationView: View {
 
     // MARK: - Zone Calculation (Medians)
 
-    private var cpuMedianTemp: Double {
-        calculateMedian(for: ["CPU", "Package", "SoC", "Core", "Cluster A", "Cluster B"]) ?? 50.0
+    private var cpuMedianTemp: Double? {
+        calculateMedian(for: ["CPU", "Package", "SoC", "Core", "Cluster A", "Cluster B"])
     }
 
-    private var gpuMedianTemp: Double {
-        calculateMedian(for: ["GPU"]) ?? (cpuMedianTemp * 0.95)
+    private var gpuMedianTemp: Double? {
+        calculateMedian(for: ["GPU"])
     }
 
-    private var ramMedianTemp: Double {
-        calculateMedian(for: ["Memory", "RAM", "Module"]) ?? (cpuMedianTemp * 0.9)
+    private var ramMedianTemp: Double? {
+        calculateMedian(for: ["Memory", "RAM", "Module"])
     }
 
-    private var ssdMedianTemp: Double {
-        calculateMedian(for: ["Flash", "NAND", "SSD", "Storage", "Battery", "Palm"]) ?? 42.0
+    private var ssdMedianTemp: Double? {
+        calculateMedian(for: ["Flash", "NAND", "SSD", "Storage", "Battery", "Palm"])
     }
 
     private func calculateMedian(for keywords: [String]) -> Double? {
@@ -88,16 +88,16 @@ public struct ThermalHeatMapIllustrationView: View {
 
     // MARK: - Zone Tile
 
-    private func zoneTile(title: String, temp: Double) -> some View {
-        let color = zoneColor(for: temp)
+    private func zoneTile(title: String, temp: Double?) -> some View {
+        let color = temp != nil ? zoneColor(for: temp!) : Color.secondary.opacity(0.4)
 
         return ZStack {
             RoundedRectangle(cornerRadius: 5)
                 .fill(
                     LinearGradient(
                         colors: [
-                            color.opacity(0.22),
-                            color.opacity(0.12)
+                            color.opacity(temp != nil ? 0.22 : 0.08),
+                            color.opacity(temp != nil ? 0.12 : 0.04)
                         ],
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
@@ -105,7 +105,7 @@ public struct ThermalHeatMapIllustrationView: View {
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: 5)
-                        .strokeBorder(color.opacity(0.45), lineWidth: 0.75)
+                        .strokeBorder(color.opacity(temp != nil ? 0.45 : 0.15), lineWidth: 0.75)
                 )
 
             VStack(spacing: 2) {
@@ -114,9 +114,15 @@ public struct ThermalHeatMapIllustrationView: View {
                     .foregroundColor(color)
 
                 if showLabels {
-                    Text(Units.formatTemperature(temp, unit: temperatureUnit, fractionDigits: 0))
-                        .font(.system(size: size.width > 100 ? 11 : 9, weight: .bold, design: .monospaced))
-                        .foregroundColor(.primary)
+                    if let t = temp {
+                        Text(Units.formatTemperature(t, unit: temperatureUnit, fractionDigits: 0))
+                            .font(.system(size: size.width > 100 ? 11 : 9, weight: .bold, design: .monospaced))
+                            .foregroundColor(.primary)
+                    } else {
+                        Text("—")
+                            .font(.system(size: size.width > 100 ? 11 : 9, weight: .bold, design: .monospaced))
+                            .foregroundColor(.secondary)
+                    }
                 }
             }
         }

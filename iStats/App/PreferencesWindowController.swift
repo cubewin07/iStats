@@ -28,14 +28,18 @@ public final class PreferencesWindowController: NSObject, NSWindowDelegate {
         let hostingController = NSHostingController(rootView: preferencesView)
 
         let newWindow = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 520, height: 420),
-            styleMask: [.titled, .closable, .miniaturizable],
+            contentRect: NSRect(x: 0, y: 0, width: 920, height: 640),
+            styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
             backing: .buffered,
             defer: false
         )
+        newWindow.minSize = NSSize(width: 880, height: 580)
+        newWindow.titlebarAppearsTransparent = true
+        newWindow.titleVisibility = .hidden
+        newWindow.toolbarStyle = .unified
 
         newWindow.center()
-        newWindow.setFrameAutosaveName("iStatsPreferencesWindow")
+        newWindow.setFrameAutosaveName("iStatsPreferencesWindowV2")
         newWindow.title = "iStats Settings"
         newWindow.contentViewController = hostingController
         newWindow.isReleasedWhenClosed = false

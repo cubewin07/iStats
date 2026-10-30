@@ -234,4 +234,40 @@ final class PreferencesStoreTests: XCTestCase {
         XCTAssertFalse(store3.isAutoPausedByLowPowerMode)
         XCTAssertTrue(store3.autoPauseOnLowPowerMode)
     }
+
+    func testMoveActiveMenuBarItemDirection() {
+        let store = PreferencesStore(userDefaults: testDefaults)
+        let item1 = MenuBarItemConfig(category: .cpu, style: .bar)
+        let item2 = MenuBarItemConfig(category: .memory, style: .bar)
+        let item3 = MenuBarItemConfig(category: .network, style: .throughput)
+        store.menuBarItems = [item1, item2, item3]
+
+        // Move item 1 right (+1)
+        store.moveActiveMenuBarItem(id: item1.id, direction: 1)
+        XCTAssertEqual(store.activeMenuBarItems.map(\.id), [item2.id, item1.id, item3.id])
+
+        // Move item 1 right again (+1)
+        store.moveActiveMenuBarItem(id: item1.id, direction: 1)
+        XCTAssertEqual(store.activeMenuBarItems.map(\.id), [item2.id, item3.id, item1.id])
+
+        // Move item 1 left (-1)
+        store.moveActiveMenuBarItem(id: item1.id, direction: -1)
+        XCTAssertEqual(store.activeMenuBarItems.map(\.id), [item2.id, item1.id, item3.id])
+
+        // Edge case: moving leftmost item further left is a no-op
+        store.moveActiveMenuBarItem(id: item2.id, direction: -1)
+        XCTAssertEqual(store.activeMenuBarItems.map(\.id), [item2.id, item1.id, item3.id])
+    }
+
+    func testMoveActiveMenuBarItemIndexSet() {
+        let store = PreferencesStore(userDefaults: testDefaults)
+        let item1 = MenuBarItemConfig(category: .cpu, style: .bar)
+        let item2 = MenuBarItemConfig(category: .memory, style: .bar)
+        let item3 = MenuBarItemConfig(category: .network, style: .throughput)
+        store.menuBarItems = [item1, item2, item3]
+
+        // Move index 2 to index 0
+        store.moveActiveMenuBarItem(from: IndexSet(integer: 2), to: 0)
+        XCTAssertEqual(store.activeMenuBarItems.map(\.id), [item3.id, item1.id, item2.id])
+    }
 }

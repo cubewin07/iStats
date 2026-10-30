@@ -28,6 +28,7 @@ public final class PreferencesStore: ObservableObject, @unchecked Sendable {
         public static let launchAtLogin = "iStats.launchAtLogin"
         public static let menuBarDisplayMode = "iStats.menuBarDisplayMode"
         public static let menuBarItems = "iStats.menuBarItems"
+        public static let widgetPopoverStyles = "iStats.widgetPopoverStyles"
         public static let isSamplingPaused = "iStats.isSamplingPaused"
         public static let isAutoPausedByLowPowerMode = "iStats.isAutoPausedByLowPowerMode"
         public static let autoPauseOnLowPowerMode = "iStats.autoPauseOnLowPowerMode"
@@ -155,6 +156,15 @@ public final class PreferencesStore: ObservableObject, @unchecked Sendable {
         didSet {
             if let data = try? JSONEncoder().encode(menuBarItems) {
                 userDefaults.set(data, forKey: Keys.menuBarItems)
+            }
+        }
+    }
+
+    /// User-selected popover style overrides mapped by widget config ID (e.g. "cpu.gauge").
+    @Published public var widgetPopoverStyles: [String: PopoverStyle] {
+        didSet {
+            if let data = try? JSONEncoder().encode(widgetPopoverStyles) {
+                userDefaults.set(data, forKey: Keys.widgetPopoverStyles)
             }
         }
     }
@@ -372,26 +382,63 @@ public final class PreferencesStore: ObservableObject, @unchecked Sendable {
             self.menuBarDisplayMode = .cpu
         }
 
+        // Load widgetPopoverStyles
+        var loadedPopoverStyles: [String: PopoverStyle] = [:]
+        if let data = userDefaults.data(forKey: Keys.widgetPopoverStyles),
+           let styles = try? JSONDecoder().decode([String: PopoverStyle].self, from: data) {
+            for (key, popStyle) in styles {
+                let parts = key.components(separatedBy: ".")
+                if let catRaw = parts.first,
+                   let category = MetricCategory(rawValue: catRaw),
+                   PopoverStyle.supportedPopovers(for: category).contains(popStyle) {
+                    let widgetRaw = parts.dropFirst().joined(separator: ".")
+                    if let widgetStyle = MetricDisplayStyle(rawValue: widgetRaw),
+                       PopoverStyle.defaultStyle(for: category, widgetStyle: widgetStyle) == popStyle {
+                        // Matches default; no override needed
+                        continue
+                    }
+                    loadedPopoverStyles[key] = popStyle
+                }
+            }
+        }
+
         // Load modular menuBarItems (ADR 0007)
+        let baseItems: [MenuBarItemConfig]
         if let data = userDefaults.data(forKey: Keys.menuBarItems),
            let items = try? JSONDecoder().decode([MenuBarItemConfig].self, from: data) {
             // Deduplicate items resulting from migration (e.g. if tachometer & gauge both present)
             // and filter out styles that are no longer supported for that category.
             var seen = Set<String>()
             var sanitized: [MenuBarItemConfig] = []
-            for item in items {
+            for var item in items {
                 let supported = MetricDisplayStyle.supportedStyles(for: item.category)
-                if supported.contains(item.style) {
-                    if !seen.contains(item.id) {
-                        seen.insert(item.id)
-                        sanitized.append(item)
+                if supported.contains(item.style), !seen.contains(item.id) {
+                    seen.insert(item.id)
+                    if let pop = item.popoverStyle {
+                        let validPopovers = PopoverStyle.supportedPopovers(for: item.category)
+                        let defaultPop = PopoverStyle.defaultStyle(for: item.category, widgetStyle: item.style)
+                        if validPopovers.contains(pop) && pop != defaultPop {
+                            loadedPopoverStyles[item.id] = pop
+                        } else {
+                            item.popoverStyle = nil
+                        }
                     }
+                    sanitized.append(item)
                 }
             }
-            self.menuBarItems = sanitized.isEmpty ? MenuBarItemConfig.defaultConfigs() : sanitized
+            baseItems = sanitized.isEmpty ? MenuBarItemConfig.defaultConfigs() : sanitized
         } else {
-            self.menuBarItems = MenuBarItemConfig.defaultConfigs()
+            baseItems = MenuBarItemConfig.defaultConfigs()
         }
+
+        self.menuBarItems = baseItems.map { item in
+            var copy = item
+            if copy.popoverStyle == nil, let savedStyle = loadedPopoverStyles[copy.id] {
+                copy.popoverStyle = savedStyle
+            }
+            return copy
+        }
+        self.widgetPopoverStyles = loadedPopoverStyles
 
         // Load sampling pause state (default: false) and Low Power Mode auto-pause (default: true)
         let paused = userDefaults.bool(forKey: Keys.isSamplingPaused)
@@ -471,9 +518,12 @@ public final class PreferencesStore: ObservableObject, @unchecked Sendable {
 
     /// Sets the enablement status of a specific menu bar widget.
     public func setItemEnabled(category: MetricCategory, style: MetricDisplayStyle, isEnabled: Bool) {
-        let config = MenuBarItemConfig(category: category, style: style)
+        let popover = popoverStyle(for: category, widgetStyle: style)
+        let config = MenuBarItemConfig(category: category, style: style, popoverStyle: popover)
         if isEnabled {
-            if !menuBarItems.contains(where: { $0.category == category && $0.style == style }) {
+            if let idx = menuBarItems.firstIndex(where: { $0.category == category && $0.style == style }) {
+                menuBarItems[idx].popoverStyle = popover
+            } else {
                 menuBarItems.append(config)
             }
         } else {
@@ -485,6 +535,41 @@ public final class PreferencesStore: ObservableObject, @unchecked Sendable {
     public func toggleItem(category: MetricCategory, style: MetricDisplayStyle) {
         let currentlyEnabled = isItemEnabled(category: category, style: style)
         setItemEnabled(category: category, style: style, isEnabled: !currentlyEnabled)
+    }
+
+    // MARK: - Popover Style Management (ADR 0007 Decoupled Popover Customization)
+
+    /// Returns the explicitly configured popover style for a widget, or nil if unset.
+    public func popoverStyle(for category: MetricCategory, widgetStyle: MetricDisplayStyle) -> PopoverStyle? {
+        let id = "\(category.rawValue).\(widgetStyle.rawValue)"
+        if let item = menuBarItems.first(where: { $0.category == category && $0.style == widgetStyle }) {
+            return item.popoverStyle ?? widgetPopoverStyles[id]
+        }
+        return widgetPopoverStyles[id]
+    }
+
+    /// Returns the resolved effective popover style for a widget, falling back to its natural default style if unset.
+    public func resolvedPopoverStyle(for category: MetricCategory, widgetStyle: MetricDisplayStyle, hasBattery: Bool = true) -> PopoverStyle {
+        popoverStyle(for: category, widgetStyle: widgetStyle)
+            ?? PopoverStyle.defaultStyle(for: category, widgetStyle: widgetStyle, hasBattery: hasBattery)
+    }
+
+    /// Sets or clears the custom popover style for a specific menu bar widget.
+    public func setPopoverStyle(_ popoverStyle: PopoverStyle?, for category: MetricCategory, widgetStyle: MetricDisplayStyle, hasBattery: Bool = true) {
+        let id = "\(category.rawValue).\(widgetStyle.rawValue)"
+        let defaultStyle = PopoverStyle.defaultStyle(for: category, widgetStyle: widgetStyle, hasBattery: hasBattery)
+        let supported = PopoverStyle.supportedPopovers(for: category, hasBattery: hasBattery)
+        let normalized: PopoverStyle?
+        if let style = popoverStyle, style != defaultStyle, supported.contains(style) {
+            normalized = style
+            widgetPopoverStyles[id] = style
+        } else {
+            normalized = nil
+            widgetPopoverStyles.removeValue(forKey: id)
+        }
+        if let idx = menuBarItems.firstIndex(where: { $0.category == category && $0.style == widgetStyle }) {
+            menuBarItems[idx].popoverStyle = normalized
+        }
     }
 
     /// Returns all active menu bar items whose parent category is currently enabled.
@@ -505,6 +590,34 @@ public final class PreferencesStore: ObservableObject, @unchecked Sendable {
         isSamplingPaused.toggle()
     }
 
+    /// Reorders active menu bar items using IndexSet move offsets.
+    public func moveActiveMenuBarItem(from source: IndexSet, to destination: Int) {
+        let active = menuBarItems.filter { isCategoryEnabled($0.category) }
+        guard destination >= 0 && destination <= active.count else { return }
+        var result = active
+        let toMove = source.sorted().compactMap { $0 < active.count ? active[$0] : nil }
+        for index in source.sorted(by: >) {
+            if index < result.count {
+                result.remove(at: index)
+            }
+        }
+        let adjustedDestination = destination - source.filter { $0 < destination }.count
+        result.insert(contentsOf: toMove, at: max(0, min(adjustedDestination, result.count)))
+        let disabled = menuBarItems.filter { !isCategoryEnabled($0.category) }
+        self.menuBarItems = result + disabled
+    }
+
+    /// Moves a specific active menu bar item left (-1) or right (+1) in the active order.
+    public func moveActiveMenuBarItem(id: String, direction: Int) {
+        var active = menuBarItems.filter { isCategoryEnabled($0.category) }
+        guard let index = active.firstIndex(where: { $0.id == id }) else { return }
+        let newIndex = index + direction
+        guard newIndex >= 0 && newIndex < active.count else { return }
+        active.swapAt(index, newIndex)
+        let disabled = menuBarItems.filter { !isCategoryEnabled($0.category) }
+        self.menuBarItems = active + disabled
+    }
+
     /// Returns all enabled items for a specific category.
     public func items(for category: MetricCategory) -> [MenuBarItemConfig] {
         menuBarItems.filter { $0.category == category }
@@ -521,6 +634,7 @@ public final class PreferencesStore: ObservableObject, @unchecked Sendable {
         self.launchAtLogin = false
         self.menuBarDisplayMode = .cpu
         self.menuBarItems = MenuBarItemConfig.defaultConfigs()
+        self.widgetPopoverStyles = [:]
         self.isAutoPausedByLowPowerMode = false
         self.isSamplingPaused = false
         self.autoPauseOnLowPowerMode = true

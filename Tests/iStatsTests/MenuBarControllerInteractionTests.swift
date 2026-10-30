@@ -243,6 +243,62 @@ final class MenuBarControllerInteractionTests: XCTestCase {
         XCTAssertNil(controller.currentlyShownButton)
     }
 
+    func testWarmControllerCachingAndHoverScrubbing() {
+        let (defaults, prefs, _, controller, suiteName) = makeContext()
+        defer { cleanup(defaults: defaults, controller: controller, suiteName: suiteName) }
+
+        let cpuItem = MenuBarItemConfig(category: .cpu, style: .gauge)
+        let memItem = MenuBarItemConfig(category: .memory, style: .bar)
+        prefs.menuBarItems = [cpuItem, memItem]
+        controller.syncStatusItems()
+
+        guard let cpuButton = controller.statusItems[cpuItem.id]?.button,
+              let memButton = controller.statusItems[memItem.id]?.button else {
+            XCTFail("Status item buttons must exist")
+            return
+        }
+
+        // 1. Open CPU popover and verify initial controller creation
+        controller.statusItemClicked(cpuButton)
+        XCTAssertTrue(controller.currentlyShownButton === cpuButton)
+        guard let cpuVC = controller.popover.contentViewController else {
+            XCTFail("CPU popover contentViewController should exist")
+            return
+        }
+
+        // 2. Hover Scrubbing: simulate cursor moving over memButton screen rect
+        if let window = memButton.window {
+            let memScreenRect = window.convertToScreen(memButton.convert(memButton.bounds, to: nil))
+            let hoverPoint = NSPoint(x: memScreenRect.midX, y: memScreenRect.midY)
+            controller.handleMouseMovedDuringScrubbing(to: hoverPoint)
+
+            XCTAssertTrue(controller.currentlyShownButton === memButton,
+                          "Hover scrubbing must smoothly switch currentlyShownButton to memButton")
+            XCTAssertTrue(controller.popover === controller.popover(for: memItem.id))
+
+            // CPU popover's controller must stay warm during the active scrubbing session
+            XCTAssertTrue(controller.popover(for: cpuItem.id)?.contentViewController === cpuVC,
+                          "CPU popover contentViewController must remain warm during scrubbing")
+
+            // 3. Scrub back to CPU popover: identical warm controller instance reused
+            if let cpuWindow = cpuButton.window {
+                let cpuScreenRect = cpuWindow.convertToScreen(cpuButton.convert(cpuButton.bounds, to: nil))
+                let cpuHoverPoint = NSPoint(x: cpuScreenRect.midX, y: cpuScreenRect.midY)
+                controller.handleMouseMovedDuringScrubbing(to: cpuHoverPoint)
+
+                XCTAssertTrue(controller.currentlyShownButton === cpuButton)
+                XCTAssertTrue(controller.popover.contentViewController === cpuVC,
+                              "Warm contentViewController instance must be reused on scrub back")
+            }
+        }
+
+        // 4. Session ends (hidePopover): controllers are torn down for zero background SwiftUI overhead
+        controller.hidePopover()
+        XCTAssertNil(controller.currentlyShownButton)
+        XCTAssertNil(controller.popovers[cpuItem.id]?.contentViewController,
+                     "Closed popovers must tear down contentViewController when session ends to prevent background CPU usage")
+    }
+
     func testDedicatedPopoversPerCategoryConfigLifecycle() {
         let (defaults, prefs, _, controller, suiteName) = makeContext()
         defer { cleanup(defaults: defaults, controller: controller, suiteName: suiteName) }
@@ -301,6 +357,49 @@ final class MenuBarControllerInteractionTests: XCTestCase {
         XCTAssertTrue(controller.popover(for: batTemp.id)?.contentViewController is NSHostingController<ThermalBatteryPopoverView>)
         XCTAssertTrue(controller.popover(for: ringTemp.id)?.contentViewController is NSHostingController<ThermalRingPopoverView>)
         XCTAssertTrue(controller.popover(for: histTemp.id)?.contentViewController is NSHostingController<ThermalHistoryPopoverView>)
+    }
+
+    func testCustomPopoverSelectionRouting() {
+        let (defaults, prefs, _, controller, suiteName) = makeContext()
+        defer { cleanup(defaults: defaults, controller: controller, suiteName: suiteName) }
+
+        // 1. CPU Bar starts with default popover (CPUClusterPopoverView)
+        let cpuBar = MenuBarItemConfig(category: .cpu, style: .bar)
+        prefs.menuBarItems = [cpuBar]
+        controller.syncStatusItems()
+
+        guard let button = controller.statusItems[cpuBar.id]?.button else {
+            XCTFail("Button must exist")
+            return
+        }
+
+        controller.statusItemClicked(button)
+        XCTAssertTrue(controller.popover.contentViewController is NSHostingController<CPUClusterPopoverView>)
+        controller.hidePopover()
+
+        // 2. Customize CPU Bar to open Category Overview (CPUPopoverView)
+        prefs.setPopoverStyle(.categoryDefault, for: .cpu, widgetStyle: .bar)
+        controller.syncStatusItems()
+
+        controller.statusItemClicked(button)
+        XCTAssertTrue(controller.popover.contentViewController is NSHostingController<CPUPopoverView>)
+        controller.hidePopover()
+
+        // 3. Customize CPU Bar to open History (CPUHistoryPopoverView)
+        prefs.setPopoverStyle(.history, for: .cpu, widgetStyle: .bar)
+        controller.syncStatusItems()
+
+        controller.statusItemClicked(button)
+        XCTAssertTrue(controller.popover.contentViewController is NSHostingController<CPUHistoryPopoverView>)
+        controller.hidePopover()
+
+        // 4. Reset popover style back to default (nil) -> restores CPUClusterPopoverView
+        prefs.setPopoverStyle(nil, for: .cpu, widgetStyle: .bar)
+        controller.syncStatusItems()
+
+        controller.statusItemClicked(button)
+        XCTAssertTrue(controller.popover.contentViewController is NSHostingController<CPUClusterPopoverView>)
+        controller.hidePopover()
     }
 
     func testPowerOffersHaveDedicatedPopovers() {
@@ -446,7 +545,7 @@ final class MenuBarControllerInteractionTests: XCTestCase {
     }
 
     func testRapidStartStopDoesNotLeaveSchedulerRunningAndPreservesSamplers() async {
-        let (defaults, prefs, coord, controller, suiteName) = makeContext()
+        let (defaults, _, coord, controller, suiteName) = makeContext()
         defer { cleanup(defaults: defaults, controller: controller, suiteName: suiteName) }
 
         // Rapidly start and immediately pause/stop before async registration finishes
@@ -543,5 +642,97 @@ final class MenuBarControllerInteractionTests: XCTestCase {
         // 3. Next click on fallback button must re-open popover instead of being swallowed
         controller.statusItemClicked(fallbackButton)
         XCTAssertTrue(controller.currentlyShownButton === fallbackButton)
+    }
+
+    func testPausingSamplingWhilePopoverIsOpenCleansUpSession() {
+        let (defaults, prefs, _, controller, suiteName) = makeContext()
+        defer { cleanup(defaults: defaults, controller: controller, suiteName: suiteName) }
+
+        let cpuItem = MenuBarItemConfig(category: .cpu, style: .gauge)
+        prefs.menuBarItems = [cpuItem]
+        controller.syncStatusItems()
+
+        guard let cpuButton = controller.statusItems[cpuItem.id]?.button else {
+            XCTFail("CPU status button must exist")
+            return
+        }
+
+        // 1. Open popover
+        controller.statusItemClicked(cpuButton)
+        XCTAssertTrue(controller.currentlyShownButton === cpuButton)
+
+        // 2. Pause sampling while popover is open (e.g. from footer or preferences)
+        controller.toggleSamplingPaused()
+
+        // Popover session must be ended cleanly and currentlyShownButton cleared
+        XCTAssertNil(controller.currentlyShownButton)
+        XCTAssertEqual(controller.statusItems.count, 1)
+        XCTAssertNotNil(controller.statusItems[MenuBarController.fallbackStatusItemId])
+
+        // Moving mouse over the new fallback button must NOT trigger hover popover without a click
+        if let fallbackButton = controller.statusItems[MenuBarController.fallbackStatusItemId]?.button,
+           let window = fallbackButton.window {
+            let screenRect = window.convertToScreen(fallbackButton.convert(fallbackButton.bounds, to: nil))
+            let hoverPoint = NSPoint(x: screenRect.midX, y: screenRect.midY)
+            controller.handleMouseMovedDuringScrubbing(to: hoverPoint)
+            XCTAssertNil(controller.currentlyShownButton, "Scrubbing monitor must be stopped and not open popover on hover")
+        }
+    }
+
+    func testRemovingActiveItemWhilePopoverIsOpenCleansUpSession() {
+        let (defaults, prefs, _, controller, suiteName) = makeContext()
+        defer { cleanup(defaults: defaults, controller: controller, suiteName: suiteName) }
+
+        let cpuItem = MenuBarItemConfig(category: .cpu, style: .gauge)
+        let memItem = MenuBarItemConfig(category: .memory, style: .bar)
+        prefs.menuBarItems = [cpuItem, memItem]
+        controller.syncStatusItems()
+
+        guard let cpuButton = controller.statusItems[cpuItem.id]?.button else {
+            XCTFail("CPU status button must exist")
+            return
+        }
+
+        // Open CPU popover
+        controller.statusItemClicked(cpuButton)
+        XCTAssertTrue(controller.currentlyShownButton === cpuButton)
+
+        // Disable CPU item in preferences
+        prefs.menuBarItems = [memItem]
+        controller.syncStatusItems()
+
+        // Session must be cleanly torn down
+        XCTAssertNil(controller.currentlyShownButton)
+        XCTAssertNil(controller.popovers[cpuItem.id]?.contentViewController)
+    }
+
+    func testReorderingActiveItemsWhilePopoverIsOpenReanchorsButton() {
+        let (defaults, prefs, _, controller, suiteName) = makeContext()
+        defer { cleanup(defaults: defaults, controller: controller, suiteName: suiteName) }
+
+        let cpuItem = MenuBarItemConfig(category: .cpu, style: .gauge)
+        let memItem = MenuBarItemConfig(category: .memory, style: .bar)
+        prefs.menuBarItems = [cpuItem, memItem]
+        controller.syncStatusItems()
+
+        guard let cpuButton = controller.statusItems[cpuItem.id]?.button else {
+            XCTFail("CPU status button must exist")
+            return
+        }
+
+        // Open CPU popover
+        controller.statusItemClicked(cpuButton)
+        XCTAssertTrue(controller.currentlyShownButton === cpuButton)
+
+        // Swap order: [memItem, cpuItem]
+        prefs.menuBarItems = [memItem, cpuItem]
+        controller.syncStatusItems()
+
+        // Popover stays open and currentlyShownButton is re-anchored to the new CPU button instance
+        guard let newCpuButton = controller.statusItems[cpuItem.id]?.button else {
+            XCTFail("New CPU button must exist after reorder")
+            return
+        }
+        XCTAssertTrue(controller.currentlyShownButton === newCpuButton, "currentlyShownButton must be re-anchored to the rebuilt button")
     }
 }
