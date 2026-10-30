@@ -371,8 +371,9 @@ public struct PreferencesMenuBarPane: View {
                 .background(Color.secondary.opacity(0.06))
                 .cornerRadius(8)
             } else {
-                let supportedStyles = MetricDisplayStyle.supportedStyles(for: selectedCategory, hasBattery: hasBattery)
-                ForEach(supportedStyles) { style in
+                let recommended = MetricDisplayStyle.recommendedStyles(for: selectedCategory, hasBattery: hasBattery)
+                let legacy = store.menuBarItems.filter { $0.category == selectedCategory && !recommended.contains($0.style) }.map(\.style)
+                ForEach(recommended + legacy) { style in
                     widgetStyleCard(style: style)
                 }
             }
@@ -383,7 +384,7 @@ public struct PreferencesMenuBarPane: View {
         let isSelected = (selectedWidgetStyle == style)
         let isItemEnabled = store.isItemEnabled(category: selectedCategory, style: style)
         let customPopover = store.popoverStyle(for: selectedCategory, widgetStyle: style)
-        let resolvedPopover = store.resolvedPopoverStyle(for: selectedCategory, widgetStyle: style)
+        let resolvedPopover = store.resolvedPopoverStyle(for: selectedCategory, widgetStyle: style).purposefulStyle(for: selectedCategory)
 
         let renderResult = MenuBarIconRenderer.render(
             config: MenuBarItemConfig(category: selectedCategory, style: style),

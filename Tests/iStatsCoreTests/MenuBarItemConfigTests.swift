@@ -104,6 +104,19 @@ final class MenuBarItemConfigTests: XCTestCase {
         XCTAssertEqual(pwrDesktopStyles, [.throughput, .sparkline])
     }
 
+    func testRecommendedWidgetsRemainSupportedOnBothHardwareTypes() {
+        for category in MetricCategory.allCases {
+            for hasBattery in [true, false] {
+                let recommended = MetricDisplayStyle.recommendedStyles(for: category, hasBattery: hasBattery)
+                let supported = MetricDisplayStyle.supportedStyles(for: category, hasBattery: hasBattery)
+                XCTAssertFalse(recommended.isEmpty)
+                XCTAssertEqual(Set(recommended).count, recommended.count)
+                XCTAssertTrue(recommended.allSatisfy { supported.contains($0) })
+            }
+        }
+        XCTAssertEqual(MetricDisplayStyle.text.displayName(for: .fan), "Fan RPM")
+    }
+
     func testExhaustivePopoverStyleSupportAndDefaultResolution() {
         for category in MetricCategory.allCases {
             for hasBattery in [true, false] {

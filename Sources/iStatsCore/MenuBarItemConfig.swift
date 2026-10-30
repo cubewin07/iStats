@@ -79,8 +79,8 @@ public enum MetricDisplayStyle: String, CaseIterable, Identifiable, Codable, Sen
         case (.thermal, .sparkline): return "Peak History"
 
         // Fans
-        case (.fan, .text): return "Fan %"
-        case (.fan, .throughput): return "Dual RPM"
+        case (.fan, .text): return "Fan RPM"
+        case (.fan, .throughput): return "Fan Speeds"
         case (.fan, .gauge): return "Tachometer"
         case (.fan, .bar): return "Fan Bars"
         case (.fan, .sparkline): return "RPM History"
@@ -158,6 +158,23 @@ public enum MetricDisplayStyle: String, CaseIterable, Identifiable, Codable, Sen
                 : [.throughput, .sparkline]
         }
     }
+    /// Primary widget choices. Legacy styles stay supported so existing menu
+    /// bar configurations are preserved and can still be removed or edited.
+    public static func recommendedStyles(for category: MetricCategory, hasBattery: Bool = true) -> [MetricDisplayStyle] {
+        switch category {
+        case .cpu: return [.text, .bar, .gauge, .sparkline]
+        case .memory: return [.symbol, .text, .bar, .sparkline]
+        case .gpu: return [.text, .bar, .sparkline]
+        case .thermal: return hasBattery
+            ? [.text, .cpuTemp, .gpuTemp, .memoryTemp, .storageTemp, .batteryTemp, .sparkline]
+            : [.text, .cpuTemp, .gpuTemp, .memoryTemp, .storageTemp, .sparkline]
+        case .fan: return [.text, .throughput, .bar, .sparkline]
+        case .network: return [.throughput, .sparkline, .symbol]
+        case .disk: return [.throughput, .bar, .sparkline]
+        case .power: return hasBattery ? [.symbol, .text, .throughput, .sparkline] : [.throughput, .sparkline]
+        }
+    }
+
 }
 
 // MARK: - Popover Presentation Style (ADR 0007 Decoupled Popover Customization)

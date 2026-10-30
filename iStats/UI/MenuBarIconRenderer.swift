@@ -242,7 +242,7 @@ public struct MenuBarIconRenderer {
     public static func visualKeyForFan(style: MetricDisplayStyle, fan: FanSample?) -> String? {
         guard style != .sparkline else { return nil }
         let fans = fan?.fans ?? []
-        let primaryFan = fans.max(by: { fanPercentage(for: $0) < fanPercentage(for: $1) }) ?? fans.first
+        let primaryFan = fans.max(by: { $0.rpm < $1.rpm })
         let rpm = primaryFan?.rpm ?? 0
         let pct: Double = primaryFan != nil ? fanPercentage(for: primaryFan!) : 0.0
         let valStr = primaryFan != nil ? String(format: "%.0f%%", pct) : (fan?.isFanless == true ? "0%" : "--%")
@@ -259,7 +259,7 @@ public struct MenuBarIconRenderer {
             }
             return "fan:bar:\(qPct)"
         case .text:
-            return "fan:text:\(valStr)"
+            return "fan:text:\(primaryFan.map { String($0.rpm) } ?? "--")"
         case .throughput:
             if fans.count >= 2 {
                 return "fan:tp:\(fans[0].rpm):\(fans[1].rpm)"
@@ -663,7 +663,7 @@ public struct MenuBarIconRenderer {
         visualKey: String?
     ) -> RenderResult {
         let fans = fan?.fans ?? []
-        let primaryFan = fans.max(by: { fanPercentage(for: $0) < fanPercentage(for: $1) }) ?? fans.first
+        let primaryFan = fans.max(by: { $0.rpm < $1.rpm })
         let rpm = primaryFan?.rpm ?? 0
         let tip: String
         let a11y: String
@@ -698,7 +698,7 @@ public struct MenuBarIconRenderer {
             let img = drawFanSparkline(history: history)
             return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y)
         case .text:
-            let img = drawCategoryStackedText(title: "FAN", value: valStr, fixedWidth: 32.0)
+            let img = drawCategoryStackedText(title: "RPM", value: primaryFan.map { String($0.rpm) } ?? "--", fixedWidth: 36.0)
             return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y, visualKey: visualKey)
         case .throughput:
             let img = cachedOrDraw(visualKey: visualKey) {
@@ -2397,9 +2397,9 @@ public struct MenuBarIconRenderer {
             let f0 = fans[0]
             let f1 = fans[1]
             return drawStackedTwoLineText(
-                prefix1: "L",
+                prefix1: "1",
                 value1: "\(f0.rpm)",
-                prefix2: "R",
+                prefix2: "2",
                 value2: "\(f1.rpm)",
                 minWidth: 36.0,
                 color1: .systemCyan,
@@ -2408,8 +2408,12 @@ public struct MenuBarIconRenderer {
                 prefixColor2: .systemTeal
             )
         } else if let f0 = fans.first {
-            let pct = primaryPct ?? fanPercentage(for: f0)
-            let pStr = String(format: "%.0f%%", pct)
+            let pStr: String
+            if let minimum = f0.minRPM, let maximum = f0.maxRPM, maximum > minimum {
+                pStr = String(format: "%.0f%%", fanPercentage(for: f0))
+            } else {
+                pStr = "--"
+            }
             let rStr = "\(f0.rpm)"
             return drawStackedTwoLineText(
                 prefix1: "FAN",
@@ -2425,9 +2429,9 @@ public struct MenuBarIconRenderer {
         } else {
             return drawStackedTwoLineText(
                 prefix1: "FAN",
-                value1: "0%",
+                value1: "--",
                 prefix2: "RPM",
-                value2: "0",
+                value2: "--",
                 minWidth: 44.0,
                 color1: .systemCyan,
                 color2: .labelColor,
