@@ -147,8 +147,8 @@ public struct ThermalPopoverView: View {
         VStack(alignment: .leading, spacing: 10) {
             PopoverHeaderView(
                 category: .thermal,
-                title: "System Thermals",
-                subtitle: "Mac 4-Zone Silhouette & Thermal Sensors",
+                title: "Temperature Overview",
+                subtitle: "Sensors and thermal pressure",
                 verdict: VerdictEvaluator.evaluateThermal(sample, unit: preferences.temperatureUnit)
             )
             Divider()
