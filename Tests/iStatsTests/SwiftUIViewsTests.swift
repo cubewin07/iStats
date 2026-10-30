@@ -145,6 +145,25 @@ final class SwiftUIViewsTests: XCTestCase {
         }
     }
 
+    func testLegacyPopoverRoutesToPurposefulDestination() {
+        let (defaults, prefs, coord, suiteName) = makeContext()
+        defer { cleanup(defaults: defaults, suiteName: suiteName) }
+        let fan = ConfigPopoverFactory.makeHostingController(category: .fan, popoverStyle: .fanBlades, coordinator: coord, preferences: prefs)
+        XCTAssertTrue(fan is NSHostingController<FanPopoverView>)
+        let memory = ConfigPopoverFactory.makeHostingController(category: .memory, popoverStyle: .memoryAllocation, coordinator: coord, preferences: prefs)
+        XCTAssertTrue(memory is NSHostingController<MemoryCompositionPopoverView>)
+        let disk = ConfigPopoverFactory.makeHostingController(category: .disk, popoverStyle: .history, coordinator: coord, preferences: prefs)
+        XCTAssertTrue(disk is NSHostingController<DiskActivityLEDsPopoverView>)
+        let sensor = ConfigPopoverFactory.makeHostingController(category: .thermal, popoverStyle: .thermalGPU, coordinator: coord, preferences: prefs)
+        XCTAssertTrue(sensor is NSHostingController<ThermalSensorExplorerView>)
+    }
+
+    func testSensorGroupsUseReportedNames() {
+        XCTAssertTrue(ThermalSubsystem.cpu.matches(sensor: SensorReading(name: "CPU Package", celsius: 45)))
+        XCTAssertTrue(ThermalSubsystem.storage.matches(sensor: SensorReading(name: "SSD", celsius: 40)))
+        XCTAssertFalse(ThermalSubsystem.gpu.matches(sensor: SensorReading(name: "CPU Package", celsius: 45)))
+    }
+
     // MARK: - 2. Universal DetailPopoverView Layout
 
     func testUniversalDetailPopoverViewLayout() {

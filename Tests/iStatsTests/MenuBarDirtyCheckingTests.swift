@@ -480,4 +480,13 @@ final class MenuBarDirtyCheckingTests: XCTestCase {
             "Fan .throughput visualKey must still update on exact RPM change"
         )
     }
+    func testFanTextKeyTracksRPMWithoutNeedingBounds() {
+        let first = FanSample(fans: [FanReading(name: "Fan", rpm: 2000)])
+        let second = FanSample(fans: [FanReading(name: "Fan", rpm: 2100)])
+        XCTAssertEqual(MenuBarIconRenderer.visualKeyForFan(style: .text, fan: first), "fan:text:2000")
+        XCTAssertNotEqual(MenuBarIconRenderer.visualKeyForFan(style: .text, fan: first),
+                          MenuBarIconRenderer.visualKeyForFan(style: .text, fan: second))
+        XCTAssertEqual(MenuBarIconRenderer.visualKeyForFan(style: .text, fan: nil), "fan:text:--")
+    }
+
 }
