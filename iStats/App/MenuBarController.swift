@@ -21,6 +21,7 @@ public final class MenuBarController: NSObject {
     private var isCategoryUpdateScheduled = false
     public private(set) var currentlyShownButton: NSStatusBarButton?
     private var lastConfiguredPopoverStyles: [String: PopoverStyle] = [:]
+    private var lastActiveItemOrder: [String] = []
     private var globalMouseMonitor: Any?
     private var localMouseMonitor: Any?
 
@@ -183,8 +184,10 @@ public final class MenuBarController: NSObject {
     public func syncStatusItems() {
         let activeConfigs = preferences.activeMenuBarItems
         let activeIds = Set(activeConfigs.map(\.id))
+        let currentOrder = activeConfigs.map(\.id)
 
         if activeConfigs.isEmpty {
+            lastActiveItemOrder = []
             // Remove any leftover category status items and popovers
             for (id, item) in statusItems where id != Self.fallbackStatusItemId {
                 NSStatusBar.system.removeStatusItem(item)
@@ -240,6 +243,16 @@ public final class MenuBarController: NSObject {
             }
         }
 
+        // If the exact same items were reordered, rebuild status items in the new order so NSStatusBar positions them accordingly
+        if activeIds == Set(lastActiveItemOrder) && currentOrder != lastActiveItemOrder {
+            for (_, item) in statusItems {
+                NSStatusBar.system.removeStatusItem(item)
+            }
+            statusItems.removeAll()
+            previousRenderStates.removeAll()
+        }
+        lastActiveItemOrder = currentOrder
+
         // 1. Remove status items and popovers for items/categories that have been disabled or deleted
         for (id, item) in statusItems where !activeIds.contains(id) {
             NSStatusBar.system.removeStatusItem(item)
@@ -261,7 +274,9 @@ public final class MenuBarController: NSObject {
                 button.identifier = NSUserInterfaceItemIdentifier(config.id)
             }
             statusItems[config.id] = item
-            popovers[config.id] = createPopover(for: config)
+            if popovers[config.id] == nil {
+                popovers[config.id] = createPopover(for: config)
+            }
         }
 
         // 3. Invalidate or swap cached popover content if custom popover style was updated

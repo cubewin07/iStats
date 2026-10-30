@@ -23,10 +23,12 @@ Users desire an experience matching modular system monitors (such as iStat Menus
    - Detect popover style updates and invalidate cached view controllers dynamically.
 3. **Decoupled Popover Factory (`ConfigPopoverFactory`):**
    - Provide `makePopoverView(category:popoverStyle:...)` and `makeHostingController(category:popoverStyle:...)` to instantiate any popover view independently of the triggering widget.
-4. **Interactive Popover Preview in Preferences (`PreferencesView`):**
-   - Add a two-column split layout in the Preferences Menu Bar tab:
-     - Left pane: category and widget configurator with dropdown Popover Style pickers and eye preview triggers.
-     - Right pane: live interactive popover canvas with a popover switcher and "Set on Widget" action.
+4. **System Settings Architecture & Live Menu Bar Studio (`PreferencesView`):**
+   - Modern macOS System Settings-style translucent sidebar (`SidebarVisualEffectView`) supporting keyboard navigation (`⌘1`–`⌘4`).
+   - Interactive Live Menu Bar Strip: renders active widgets in exact screen order, supporting 1-click selection, drag/button reordering (`moveActiveMenuBarItem`), removal, and crowding feedback.
+   - Category rail with active widget counts, master sampler toggles, and dedicated widget style cards.
+   - Single-source-of-truth Popover Stage: directly binds custom popover styles to `PreferencesStore` with immediate live interactive preview.
+   - Modular panes: `PreferencesMenuBarPane`, `PreferencesGeneralPane`, `PreferencesAlertsPane`, `PreferencesAboutPane`.
 
 ## Options Considered
 - **Single Monolithic Popover with Anchor Switching:** Keep one giant popover that opens regardless of which icon was clicked, auto-scrolling to the category section.

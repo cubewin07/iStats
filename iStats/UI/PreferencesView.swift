@@ -1,26 +1,17 @@
 import SwiftUI
+import AppKit
 import iStatsCore
 
-/// A macOS preferences window view allowing configuration of sampling intervals,
-/// per-category menu bar widgets, display units, and system behavior (Requirements 11.1-11.4, ADR 0007).
+/// Modern, macOS System Settings-style preferences view (ADR 0007, Requirements 11.1-11.4).
+/// Features a translucent sidebar navigation, live menu bar customization studio,
+/// unified general/units controls, calibrated alert threshold setup, and safe reset confirmation.
 public struct PreferencesView: View {
     @ObservedObject public var store: PreferencesStore
     @ObservedObject public var coordinator: MetricsCoordinator
     @ObservedObject private var notificationManager = NotificationManager.shared
 
-    // MARK: - Popover Preview State
-    @State private var selectedCategory: MetricCategory = .cpu
-    @State private var selectedWidgetStyle: MetricDisplayStyle? = .bar
-    @State private var selectedPopoverStyle: PopoverStyle = .cpuCluster
-
-    private let presetIntervals: [TimeInterval] = [0.5, 1.0, 2.0, 5.0, 10.0, 30.0, 60.0]
-    private let cooldownOptions: [(label: String, seconds: TimeInterval)] = [
-        ("1 minute", 60.0),
-        ("5 minutes", 300.0),
-        ("15 minutes", 900.0),
-        ("30 minutes", 1800.0),
-        ("1 hour", 3600.0)
-    ]
+    @State private var activeSection: PreferencesSection = .menuBar
+    @State private var isShowingResetConfirmation: Bool = false
 
     public init(
         store: PreferencesStore = .shared,
@@ -31,926 +22,238 @@ public struct PreferencesView: View {
     }
 
     public var body: some View {
-        TabView {
-            generalTab
-                .tabItem {
-                    Label("General", systemImage: "gearshape")
-                }
-                .tag(0)
-
-            menuBarTab
-                .tabItem {
-                    Label("Menu Bar", systemImage: "menubar.rectangle")
-                }
-                .tag(1)
-
-            notificationsTab
-                .tabItem {
-                    Label("Notifications", systemImage: "bell.badge")
-                }
-                .tag(2)
-
-            unitsTab
-                .tabItem {
-                    Label("Units", systemImage: "ruler")
-                }
-                .tag(3)
-
-            aboutTab
-                .tabItem {
-                    Label("About", systemImage: "info.circle")
-                }
-                .tag(4)
-        }
-        .frame(minWidth: 860, minHeight: 600)
-        .padding(16)
-    }
-
-    // MARK: - General Tab
-
-    private var generalTab: some View {
-        Form {
-            Section {
-                VStack(alignment: .leading, spacing: 12) {
-                    // Battery Saver / Pause Sampling Control (Issue #12)
-                    HStack(spacing: 12) {
-                        Image(systemName: store.isSamplingPaused ? "pause.circle.fill" : "leaf.circle.fill")
-                            .font(.title2)
-                            .foregroundColor(store.isSamplingPaused ? .orange : .green)
-
-                        VStack(alignment: .leading, spacing: 2) {
-                            HStack(spacing: 6) {
-                                Text("Pause Sampling to Save Battery")
-                                    .font(.headline)
-                                if store.isSamplingPaused {
-                                    Text("PAUSED")
-                                        .font(.system(size: 9, weight: .bold))
-                                        .foregroundColor(.orange)
-                                        .padding(.horizontal, 6)
-                                        .padding(.vertical, 2)
-                                        .background(Color.orange.opacity(0.15))
-                                        .clipShape(Capsule())
-                                }
-                            }
-                            Text(
-                                store.isSamplingPaused
-                                    ? "Sampling is stopped. Only a minimal iStats icon is shown in the menu bar."
-                                    : "Stop all background hardware samplers and collapse the menu bar to a minimal icon."
-                            )
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                        }
-
-                        Spacer()
-
-                        Toggle("", isOn: $store.isSamplingPaused)
-                            .toggleStyle(.switch)
-                            .labelsHidden()
-                    }
-                    .padding(.bottom, 4)
-
-                    // Auto-Pause on macOS Low Power Mode (Issue #12)
-                    HStack(spacing: 12) {
-                        Image(systemName: "battery.50")
-                            .font(.title3)
-                            .foregroundColor(coordinator.isLowPowerModeActive ? .orange : .secondary)
-                            .frame(width: 24)
-
-                        VStack(alignment: .leading, spacing: 2) {
-                            HStack(spacing: 6) {
-                                Text("Auto-Pause in Low Power Mode")
-                                    .font(.subheadline)
-                                    .fontWeight(.medium)
-                                if coordinator.isLowPowerModeActive {
-                                    Text("LOW POWER ACTIVE")
-                                        .font(.system(size: 8.5, weight: .bold))
-                                        .foregroundColor(.orange)
-                                        .padding(.horizontal, 6)
-                                        .padding(.vertical, 2)
-                                        .background(Color.orange.opacity(0.15))
-                                        .clipShape(Capsule())
-                                }
-                            }
-                            Text("Automatically pause sampling when macOS enters Low Power Mode until you manually turn it back on.")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
-
-                        Spacer()
-
-                        Toggle("", isOn: $store.autoPauseOnLowPowerMode)
-                            .toggleStyle(.switch)
-                            .controlSize(.small)
-                            .labelsHidden()
-                    }
-                    .padding(.bottom, 4)
-
-                    Divider()
-
-                    VStack(alignment: .leading, spacing: 12) {
-                        HStack {
-                            Text("Sampling Refresh Interval:")
-                                .font(.headline)
-                            Spacer()
-                            Text(store.isSamplingPaused ? "Paused" : String(format: "%.1f s", store.refreshInterval))
-                                .font(.system(.body, design: .monospaced))
-                                .fontWeight(.semibold)
-                                .foregroundColor(store.isSamplingPaused ? .orange : .accentColor)
-                        }
-
-                        // Continuous Slider bounded to [minRefreshInterval, maxRefreshInterval]
-                        Slider(
-                            value: $store.refreshInterval,
-                            in: PreferencesStore.minRefreshInterval...PreferencesStore.maxRefreshInterval,
-                            step: 0.5
-                        ) {
-                            Text("Refresh Interval")
-                        } minimumValueLabel: {
-                            Text("0.5s")
-                                .font(.caption2)
-                                .foregroundColor(.secondary)
-                        } maximumValueLabel: {
-                            Text("60s")
-                                .font(.caption2)
-                                .foregroundColor(.secondary)
-                        }
-
-                        // Preset Buttons
-                        HStack(spacing: 6) {
-                            Text("Presets:")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                            ForEach(presetIntervals, id: \.self) { preset in
-                                Button(action: {
-                                    store.refreshInterval = preset
-                                }) {
-                                    Text(preset < 1.0 ? "\(preset, specifier: "%.1f")s" : "\(Int(preset))s")
-                                        .font(.caption)
-                                }
-                                .buttonStyle(.bordered)
-                                .tint(store.refreshInterval == preset ? .accentColor : nil)
-                            }
-                        }
-
-                        Text("Higher refresh intervals reduce CPU overhead and power consumption (Requirement 12.4).")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                    .disabled(store.isSamplingPaused)
-                    .opacity(store.isSamplingPaused ? 0.55 : 1.0)
-                }
-                .padding(.vertical, 4)
-            } header: {
-                Text("Performance & Scheduling")
-            }
-
-            Divider()
-                .padding(.vertical, 6)
-
-            Section {
-                VStack(alignment: .leading, spacing: 10) {
-                    Toggle("Show Dock Icon", isOn: $store.showDockIcon)
-                        .onChange(of: store.showDockIcon) { newValue in
-                            DockIconManager.shared.setDockIconVisible(newValue)
-                        }
-
-                    Text("When disabled, iStats runs as a lightweight menu bar accessory app without a Dock icon.")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-
-                    Toggle("Launch at Login", isOn: $store.launchAtLogin)
-                        .onChange(of: store.launchAtLogin) { newValue in
-                            LaunchAtLoginManager.shared.setLaunchAtLogin(enabled: newValue)
-                        }
-
-                    Text("Automatically start iStats in the background when logging into macOS.")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-                .padding(.vertical, 4)
-            } header: {
-                Text("App Behavior")
-            }
-
-            Divider()
-                .padding(.vertical, 6)
-
-            HStack {
-                Spacer()
-                Button("Reset to Defaults", role: .destructive) {
-                    store.resetToDefaults()
-                    selectedCategory = .cpu
-                    selectedWidgetStyle = .bar
-                    selectedPopoverStyle = .cpuCluster
-                    DockIconManager.shared.setDockIconVisible(store.showDockIcon)
-                    LaunchAtLoginManager.shared.setLaunchAtLogin(enabled: store.launchAtLogin)
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-            }
-        }
-        .formStyle(.grouped)
-    }
-
-    // MARK: - Menu Bar Tab (ADR 0007 Decoupled Popover Customization & Interactive Preview)
-
-    private var menuBarTab: some View {
         HStack(spacing: 0) {
-            // Left Column: Category & Widget Configurator
-            VStack(spacing: 0) {
-                List {
-                    ForEach(MetricCategory.allCases, id: \.self) { category in
-                        VStack(alignment: .leading, spacing: 10) {
-                            // Category Row & Master Toggle
-                            HStack(spacing: 12) {
-                                Image(systemName: iconName(for: category))
-                                    .frame(width: 24)
-                                    .foregroundColor(.accentColor)
-
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(category.displayName)
-                                        .font(.body)
-                                        .fontWeight(.semibold)
-                                    Text(categoryDescription(for: category))
-                                        .font(.caption2)
-                                        .foregroundColor(.secondary)
-                                }
-
-                                Spacer()
-
-                                Toggle("", isOn: Binding(
-                                    get: { store.isCategoryEnabled(category) },
-                                    set: { store.setCategory(category, isEnabled: $0) }
-                                ))
-                                .labelsHidden()
-                            }
-                            .contentShape(Rectangle())
-                            .onTapGesture {
-                                selectedCategory = category
-                                let hasBattery = coordinator.latestPower?.value.hasBattery ?? true
-                                let firstStyle = MetricDisplayStyle.supportedStyles(for: category, hasBattery: hasBattery).first
-                                selectedWidgetStyle = firstStyle
-                                if let firstStyle {
-                                    selectedPopoverStyle = store.resolvedPopoverStyle(for: category, widgetStyle: firstStyle)
-                                } else {
-                                    selectedPopoverStyle = .categoryDefault
-                                }
-                            }
-
-                            // Available Widget Styles with Live Previews & Popover Selectors
-                            if store.isCategoryEnabled(category) {
-                                let hasBattery = coordinator.latestPower?.value.hasBattery ?? true
-                                VStack(spacing: 8) {
-                                    ForEach(MetricDisplayStyle.supportedStyles(for: category, hasBattery: hasBattery)) { style in
-                                        widgetStyleRow(category: category, style: style, hasBattery: hasBattery)
-                                    }
-                                }
-                                .padding(.leading, 28)
-                            }
-                        }
-                        .padding(.vertical, 6)
-                    }
-                }
-                .listStyle(.inset)
-            }
-            .frame(minWidth: 440, maxWidth: .infinity)
+            // MARK: - Sidebar Navigation
+            sidebarView
+                .frame(width: 220)
 
             Divider()
 
-            // Right Column: Live Interactive Popover Preview Stage
+            // MARK: - Detail Workspace
             VStack(spacing: 0) {
-                // Header Bar with Popover Style Switcher and Widget Assignment
-                HStack(spacing: 8) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        if let style = selectedWidgetStyle,
-                           MetricDisplayStyle.supportedStyles(for: selectedCategory).contains(style) {
-                            Text("\(selectedCategory.displayName) • \(style.displayName(for: selectedCategory))")
-                                .font(.system(size: 13, weight: .semibold))
-                        } else {
-                            Text("\(selectedCategory.displayName) Popover")
-                                .font(.system(size: 13, weight: .semibold))
-                        }
-                        Text(selectedPopoverStyle.displayName(for: selectedCategory))
-                            .font(.system(size: 11))
+                // Section Title Bar
+                workspaceTitleBar
+
+                Divider()
+
+                // Active Section Pane
+                Group {
+                    switch activeSection {
+                    case .menuBar:
+                        PreferencesMenuBarPane(store: store, coordinator: coordinator)
+                    case .general:
+                        PreferencesGeneralPane(store: store, coordinator: coordinator)
+                    case .alerts:
+                        PreferencesAlertsPane(store: store, coordinator: coordinator)
+                    case .about:
+                        PreferencesAboutPane(store: store, coordinator: coordinator)
+                    }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+            .background(Color(nsColor: .windowBackgroundColor))
+        }
+        .frame(minWidth: 880, minHeight: 580)
+        // Hidden keyboard shortcuts for Cmd+1 ... Cmd+4
+        .background(
+            ZStack {
+                Button("") { activeSection = .menuBar }
+                    .keyboardShortcut("1", modifiers: .command)
+                Button("") { activeSection = .general }
+                    .keyboardShortcut("2", modifiers: .command)
+                Button("") { activeSection = .alerts }
+                    .keyboardShortcut("3", modifiers: .command)
+                Button("") { activeSection = .about }
+                    .keyboardShortcut("4", modifiers: .command)
+            }
+            .opacity(0)
+        )
+        // Safe Reset Confirmation Dialog
+        .confirmationDialog(
+            "Reset All Preferences to Defaults?",
+            isPresented: $isShowingResetConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Reset to Defaults", role: .destructive) {
+                resetAllPreferences()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This will restore default sampling rates, reset menu bar items to standard widgets, clear custom popover assignments, and disable alerts.")
+        }
+    }
+
+    // MARK: - Sidebar View
+
+    private var sidebarView: some View {
+        ZStack {
+            SidebarVisualEffectView()
+
+            VStack(spacing: 0) {
+                // App Branding Header
+                HStack(spacing: 10) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(LinearGradient(colors: [.blue, .cyan], startPoint: .topLeading, endPoint: .bottomTrailing))
+                            .frame(width: 28, height: 28)
+
+                        Image(systemName: "gauge.with.dots.needle.bottom.50percent")
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundColor(.white)
+                    }
+
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text("iStats")
+                            .font(.system(size: 13, weight: .bold))
+                        Text("Settings")
+                            .font(.system(size: 10))
                             .foregroundColor(.secondary)
                     }
 
                     Spacer()
+                }
+                .padding(.horizontal, 16)
+                .padding(.top, 16)
+                .padding(.bottom, 12)
 
-                    let hasBattery = coordinator.latestPower?.value.hasBattery ?? true
-                    Picker("Popover Style", selection: $selectedPopoverStyle) {
-                        ForEach(PopoverStyle.supportedPopovers(for: selectedCategory, hasBattery: hasBattery)) { pStyle in
-                            Text(pStyle.displayName(for: selectedCategory)).tag(pStyle)
+                Divider()
+
+                // Navigation Items List
+                ScrollView {
+                    VStack(spacing: 4) {
+                        ForEach(PreferencesSection.allCases) { section in
+                            sidebarItem(for: section)
                         }
                     }
-                    .pickerStyle(.menu)
-                    .controlSize(.small)
-                    .frame(width: 150)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 10)
+                }
 
-                    if let style = selectedWidgetStyle,
-                       MetricDisplayStyle.supportedStyles(for: selectedCategory, hasBattery: hasBattery).contains(style) {
-                        let isAlreadyAssigned = store.resolvedPopoverStyle(for: selectedCategory, widgetStyle: style) == selectedPopoverStyle
-                        Button(action: {
-                            store.setPopoverStyle(selectedPopoverStyle, for: selectedCategory, widgetStyle: style)
-                        }) {
-                            Text(isAlreadyAssigned ? "Assigned ✓" : "Set on Widget")
-                                .font(.system(size: 11, weight: .medium))
+                Spacer()
+
+                Divider()
+
+                // Sidebar Footer (Safe Reset Action)
+                HStack {
+                    Button(action: {
+                        isShowingResetConfirmation = true
+                    }) {
+                        HStack(spacing: 5) {
+                            Image(systemName: "arrow.counterclockwise")
+                                .font(.system(size: 10.5))
+                            Text("Reset Defaults…")
+                                .font(.system(size: 11))
                         }
-                        .buttonStyle(.borderedProminent)
-                        .controlSize(.small)
-                        .disabled(isAlreadyAssigned)
-                        .help("Assign this popover design to \(style.displayName(for: selectedCategory))")
+                        .foregroundColor(.secondary)
                     }
+                    .buttonStyle(.plain)
+
+                    Spacer()
                 }
                 .padding(.horizontal, 14)
                 .padding(.vertical, 10)
-                .background(Color(nsColor: .controlBackgroundColor))
-
-                Divider()
-
-                // Interactive Popover View Canvas
-                ScrollView {
-                    VStack(spacing: 0) {
-                        ConfigPopoverFactory.makePopoverView(
-                            category: selectedCategory,
-                            popoverStyle: selectedPopoverStyle,
-                            coordinator: coordinator,
-                            preferences: store
-                        )
-                        .frame(width: 330)
-                        .background(Color(nsColor: .windowBackgroundColor))
-                        .clipShape(RoundedRectangle(cornerRadius: 10))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 10)
-                                .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
-                        )
-                        .shadow(color: Color.black.opacity(0.12), radius: 6, x: 0, y: 3)
-                        .padding(.vertical, 16)
-                    }
-                    .frame(maxWidth: .infinity)
-                }
-                .background(Color(nsColor: .underPageBackgroundColor).opacity(0.5))
             }
-            .frame(minWidth: 360)
         }
     }
 
-    private func widgetStyleRow(category: MetricCategory, style: MetricDisplayStyle, hasBattery: Bool) -> some View {
-        let renderResult = MenuBarIconRenderer.render(
-            config: MenuBarItemConfig(category: category, style: style),
-            coordinator: coordinator,
-            preferences: store
-        )
-        let isSelected = (selectedCategory == category && selectedWidgetStyle == style)
-        let defaultStyle = PopoverStyle.defaultStyle(for: category, widgetStyle: style)
-        let currentCustomStyle = store.popoverStyle(for: category, widgetStyle: style)
-        let resolvedStyle = store.resolvedPopoverStyle(for: category, widgetStyle: style)
+    private func sidebarItem(for section: PreferencesSection) -> some View {
+        let isSelected = (activeSection == section)
 
-        return HStack(spacing: 8) {
-            // Live Preview Badge
-            HStack(spacing: 4) {
-                if let img = renderResult.image {
-                    Image(nsImage: img)
-                        .renderingMode(img.isTemplate ? .template : .original)
-                }
-                if !renderResult.title.isEmpty {
-                    Text(renderResult.title)
-                        .font(.system(size: 10, weight: .semibold, design: .monospaced))
-                }
+        return Button(action: {
+            activeSection = section
+        }) {
+            HStack(spacing: 9) {
+                Image(systemName: section.icon)
+                    .font(.system(size: 12.5, weight: .medium))
+                    .foregroundColor(isSelected ? .white : .primary)
+                    .frame(width: 18)
+
+                Text(section.title)
+                    .font(.system(size: 12, weight: isSelected ? .semibold : .regular))
+                    .foregroundColor(isSelected ? .white : .primary)
+
+                Spacer()
+
+                // Context Badges
+                sidebarBadge(for: section, isSelected: isSelected)
             }
-            .padding(.horizontal, 6)
-            .padding(.vertical, 3)
-            .frame(minWidth: 44, minHeight: 20)
-            .background(Color.secondary.opacity(0.12))
-            .clipShape(RoundedRectangle(cornerRadius: 5))
-
-            // Widget Name
-            VStack(alignment: .leading, spacing: 1) {
-                Text(style.displayName(for: category))
-                    .font(.system(size: 12, weight: .medium))
-            }
-            .frame(minWidth: 85, alignment: .leading)
-
-            Spacer()
-
-            // Popover Picker Dropdown (Unique tags via Optional<PopoverStyle>)
-            Picker("", selection: Binding<PopoverStyle?>(
-                get: {
-                    currentCustomStyle
-                },
-                set: { newValue in
-                    store.setPopoverStyle(newValue, for: category, widgetStyle: style)
-                    selectedCategory = category
-                    selectedWidgetStyle = style
-                    selectedPopoverStyle = newValue ?? defaultStyle
-                }
-            )) {
-                Text("Default (\(defaultStyle.displayName(for: category)))")
-                    .tag(PopoverStyle?.none)
-                Divider()
-                ForEach(PopoverStyle.supportedPopovers(for: category, hasBattery: hasBattery).filter { $0 != defaultStyle }) { popStyle in
-                    Text(popStyle.displayName(for: category))
-                        .tag(PopoverStyle?.some(popStyle))
-                }
-            }
-            .pickerStyle(.menu)
-            .controlSize(.small)
-            .frame(width: 135)
-
-            // Preview Selection Eye Button
-            Button(action: {
-                selectedCategory = category
-                selectedWidgetStyle = style
-                selectedPopoverStyle = resolvedStyle
-            }) {
-                Image(systemName: isSelected ? "eye.fill" : "eye")
-                    .foregroundColor(isSelected ? .accentColor : .secondary)
-            }
-            .buttonStyle(.borderless)
-            .help("Preview this popover in the live stage")
-
-            // Enable/Disable Toggle
-            Toggle("", isOn: Binding(
-                get: { store.isItemEnabled(category: category, style: style) },
-                set: { store.setItemEnabled(category: category, style: style, isEnabled: $0) }
-            ))
-            .toggleStyle(.switch)
-            .controlSize(.small)
-            .labelsHidden()
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6.5)
+            .background(
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(isSelected ? Color.accentColor : Color.clear)
+            )
+            .contentShape(Rectangle())
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 4)
-        .background(isSelected ? Color.accentColor.opacity(0.08) : Color.secondary.opacity(0.04))
-        .cornerRadius(6)
-        .overlay(
-            RoundedRectangle(cornerRadius: 6)
-                .stroke(isSelected ? Color.accentColor.opacity(0.3) : Color.clear, lineWidth: 1)
-        )
+        .buttonStyle(.plain)
     }
 
-    // MARK: - Units Tab
-
-    private var unitsTab: some View {
-        Form {
-            Section {
-                Picker("Temperature Unit", selection: $store.temperatureUnit) {
-                    ForEach(Units.TemperatureUnit.allCases) { unit in
-                        Text(unit.displayName).tag(unit)
-                    }
-                }
-                .pickerStyle(.menu)
-
-                Picker("Network Rate Unit", selection: $store.networkUnit) {
-                    ForEach(Units.NetworkUnit.allCases) { unit in
-                        Text(unit.displayName).tag(unit)
-                    }
-                }
-                .pickerStyle(.menu)
-
-                Picker("Data Size Standard", selection: $store.byteUnitStandard) {
-                    ForEach(Units.ByteUnitStandard.allCases) { standard in
-                        Text(standard.displayName).tag(standard)
-                    }
-                }
-                .pickerStyle(.menu)
-            } header: {
-                Text("Display Formatting")
-            } footer: {
-                Text("Applies globally across all menu bar items and popovers.")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
-        }
-        .formStyle(.grouped)
-    }
-
-    // MARK: - About Tab
-
-    private var aboutTab: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "gauge.with.dots.needle.bottom.50percent")
-                .font(.system(size: 48))
-                .foregroundColor(.accentColor)
-
-            VStack(spacing: 4) {
-                Text("iStats")
-                    .font(.title2)
-                    .fontWeight(.bold)
-                Text("Version 0.1.0")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-            }
-
-            Divider()
-                .frame(width: 300)
-
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(alignment: .top, spacing: 8) {
-                    Image(systemName: "lock.shield")
-                        .foregroundColor(.green)
-                    Text("Privacy First: All telemetry stays on-device in memory only. No data is ever persisted to disk or transmitted across the network (ADR 0006).")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-
-                HStack(alignment: .top, spacing: 8) {
-                    Image(systemName: "bolt.badge.clock")
-                        .foregroundColor(.orange)
-                    Text("Resource Conscious: All OS samplers run on dedicated background queues and respect configured refresh intervals.")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-            }
-            .frame(maxWidth: 400)
-            .padding(.vertical, 8)
-
-            Spacer()
-        }
-        .padding(.top, 24)
-    }
-
-    // MARK: - Notifications Tab
-
-    private var notificationsTab: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                // MARK: 1. System Permission Status Card
-                permissionStatusCard
-
-                // MARK: 2. Master Alerts Switch
-                GroupBox {
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("Enable System Alert Notifications")
-                                    .font(.headline)
-                                Text("Sends macOS banner notifications when hardware metrics cross configured thresholds.")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            }
-                            Spacer()
-                            Toggle("", isOn: Binding(
-                                get: { store.notificationsEnabled && notificationManager.isAuthorized },
-                                set: { newValue in
-                                    updatePermissionGuardedSetting(newValue: newValue) { granted in
-                                        store.notificationsEnabled = granted
-                                    }
-                                }
-                            ))
-                            .toggleStyle(.switch)
-                        }
-                    }
-                    .padding(4)
-                }
-
-                // MARK: 3. Metric Thresholds
-                GroupBox(label: Label("Metric Alert Thresholds", systemImage: "slider.horizontal.3")) {
-                    VStack(alignment: .leading, spacing: 16) {
-                        // CPU Alert
-                        VStack(alignment: .leading, spacing: 6) {
-                            HStack {
-                                Label("High CPU Usage Alert", systemImage: "cpu")
-                                    .font(.subheadline)
-                                    .fontWeight(.medium)
-                                Spacer()
-                                Toggle("", isOn: Binding(
-                                    get: { store.cpuAlertEnabled },
-                                    set: { newValue in
-                                        updatePermissionGuardedSetting(newValue: newValue) { granted in
-                                            store.cpuAlertEnabled = granted
-                                        }
-                                    }
-                                ))
-                                .toggleStyle(.switch)
-                            }
-
-                            if store.cpuAlertEnabled {
-                                HStack {
-                                    Slider(value: $store.cpuAlertThreshold, in: 50.0...100.0, step: 5.0)
-                                    Text("\(Int(store.cpuAlertThreshold))%")
-                                        .font(.system(.body, design: .monospaced))
-                                        .frame(width: 48, alignment: .trailing)
-                                }
-                                .padding(.leading, 8)
-                            }
-                        }
-
-                        Divider()
-
-                        // Memory Alert
-                        VStack(alignment: .leading, spacing: 6) {
-                            HStack {
-                                Label("Memory Pressure Alert", systemImage: "memorychip")
-                                    .font(.subheadline)
-                                    .fontWeight(.medium)
-                                Spacer()
-                                Toggle("", isOn: Binding(
-                                    get: { store.memoryAlertEnabled },
-                                    set: { newValue in
-                                        updatePermissionGuardedSetting(newValue: newValue) { granted in
-                                            store.memoryAlertEnabled = granted
-                                        }
-                                    }
-                                ))
-                                .toggleStyle(.switch)
-                            }
-
-                            if store.memoryAlertEnabled {
-                                VStack(alignment: .leading, spacing: 8) {
-                                    Toggle("Notify on critical pressure only (recommended)", isOn: $store.memoryAlertCriticalPressureOnly)
-                                        .font(.caption)
-
-                                    if !store.memoryAlertCriticalPressureOnly {
-                                        HStack {
-                                            Text("Usage:")
-                                                .font(.caption)
-                                                .foregroundColor(.secondary)
-                                            Slider(value: $store.memoryAlertThreshold, in: 50.0...100.0, step: 5.0)
-                                            Text("\(Int(store.memoryAlertThreshold))%")
-                                                .font(.system(.body, design: .monospaced))
-                                                .frame(width: 48, alignment: .trailing)
-                                        }
-                                    }
-                                }
-                                .padding(.leading, 8)
-                            }
-                        }
-
-                        Divider()
-
-                        // Battery Alerts
-                        VStack(alignment: .leading, spacing: 6) {
-                            HStack {
-                                Label("Low Battery Alert", systemImage: "battery.25")
-                                    .font(.subheadline)
-                                    .fontWeight(.medium)
-                                Spacer()
-                                Toggle("", isOn: Binding(
-                                    get: { store.batteryLowAlertEnabled },
-                                    set: { newValue in
-                                        updatePermissionGuardedSetting(newValue: newValue) { granted in
-                                            store.batteryLowAlertEnabled = granted
-                                        }
-                                    }
-                                ))
-                                .toggleStyle(.switch)
-                            }
-
-                            if store.batteryLowAlertEnabled {
-                                HStack {
-                                    Slider(value: Binding(
-                                        get: { Double(store.batteryLowThreshold) },
-                                        set: { store.batteryLowThreshold = Int($0) }
-                                    ), in: 5.0...50.0, step: 5.0)
-                                    Text("\(store.batteryLowThreshold)%")
-                                        .font(.system(.body, design: .monospaced))
-                                        .frame(width: 48, alignment: .trailing)
-                                }
-                                .padding(.leading, 8)
-                            }
-
-                            HStack {
-                                Label("Battery Fully Charged Alert (100%)", systemImage: "battery.100.bolt")
-                                    .font(.subheadline)
-                                    .fontWeight(.medium)
-                                Spacer()
-                                Toggle("", isOn: Binding(
-                                    get: { store.batteryFullAlertEnabled },
-                                    set: { newValue in
-                                        updatePermissionGuardedSetting(newValue: newValue) { granted in
-                                            store.batteryFullAlertEnabled = granted
-                                        }
-                                    }
-                                ))
-                                .toggleStyle(.switch)
-                            }
-                        }
-
-                        Divider()
-
-                        // Thermal Alert
-                        VStack(alignment: .leading, spacing: 6) {
-                            HStack {
-                                Label("High Temperature Alert", systemImage: "thermometer.high")
-                                    .font(.subheadline)
-                                    .fontWeight(.medium)
-                                Spacer()
-                                Toggle("", isOn: Binding(
-                                    get: { store.thermalAlertEnabled },
-                                    set: { newValue in
-                                        updatePermissionGuardedSetting(newValue: newValue) { granted in
-                                            store.thermalAlertEnabled = granted
-                                        }
-                                    }
-                                ))
-                                .toggleStyle(.switch)
-                            }
-
-                            if store.thermalAlertEnabled {
-                                HStack {
-                                    Slider(value: $store.thermalAlertThreshold, in: 60.0...105.0, step: 5.0)
-                                    Text(Units.formatTemperature(store.thermalAlertThreshold, unit: store.temperatureUnit))
-                                        .font(.system(.body, design: .monospaced))
-                                        .frame(width: 70, alignment: .trailing)
-                                }
-                                .padding(.leading, 8)
-                            }
-                        }
-
-                        Divider()
-
-                        // Disk Alert
-                        VStack(alignment: .leading, spacing: 6) {
-                            HStack {
-                                Label("Low Disk Space Alert", systemImage: "internaldrive")
-                                    .font(.subheadline)
-                                    .fontWeight(.medium)
-                                Spacer()
-                                Toggle("", isOn: Binding(
-                                    get: { store.diskAlertEnabled },
-                                    set: { newValue in
-                                        updatePermissionGuardedSetting(newValue: newValue) { granted in
-                                            store.diskAlertEnabled = granted
-                                        }
-                                    }
-                                ))
-                                .toggleStyle(.switch)
-                            }
-
-                            if store.diskAlertEnabled {
-                                HStack {
-                                    Slider(value: $store.diskAlertThreshold, in: 70.0...98.0, step: 2.0)
-                                    Text("\(Int(store.diskAlertThreshold))%")
-                                        .font(.system(.body, design: .monospaced))
-                                        .frame(width: 48, alignment: .trailing)
-                                }
-                                .padding(.leading, 8)
-                            }
-                        }
-                    }
-                    .padding(8)
-                }
-                .disabled(!store.notificationsEnabled || !notificationManager.isAuthorized)
-
-                // MARK: 4. Anti-Spam Cooldown Picker
-                GroupBox(label: Label("Notification Timing", systemImage: "clock.arrow.circlepath")) {
-                    HStack {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Alert Cooldown:")
-                                .font(.subheadline)
-                            Text("Minimum wait time before notifying again for the same metric category.")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
-                        Spacer()
-                        Picker("", selection: $store.alertCooldownInterval) {
-                            ForEach(cooldownOptions, id: \.seconds) { option in
-                                Text(option.label).tag(option.seconds)
-                            }
-                        }
-                        .frame(width: 140)
-                    }
-                    .padding(6)
-                }
-                .disabled(!store.notificationsEnabled || !notificationManager.isAuthorized)
-            }
-            .padding(.horizontal, 4)
-            .padding(.bottom, 8)
-        }
-    }
-
-    private var permissionStatusCard: some View {
-        GroupBox {
-            HStack(spacing: 12) {
-                if notificationManager.isAuthorized {
-                    Image(systemName: "checkmark.circle.fill")
-                        .foregroundColor(.green)
-                        .font(.title2)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Notifications Authorized")
-                            .font(.headline)
-                        Text("iStats has permission to display alert banners in macOS Notification Center.")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                    Spacer()
-                    Button("Send Test Notification") {
-                        Task {
-                            await AlertCoordinator.shared.sendTestNotification()
-                        }
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.small)
-                } else if notificationManager.authorizationStatus == .denied {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .foregroundColor(.red)
-                        .font(.title2)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Notifications Disabled in System Settings")
-                            .font(.headline)
-                        Text("macOS has blocked notifications for iStats. Please enable them in System Settings.")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                    Spacer()
-                    Button("Open Settings") {
-                        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.notifications") {
-                            NSWorkspace.shared.open(url)
-                        }
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-                } else {
-                    Image(systemName: "bell.badge")
-                        .foregroundColor(.orange)
-                        .font(.title2)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Notification Permission Not Granted")
-                            .font(.headline)
-                        Text("Authorization will be requested when you enable an alert.")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                    Spacer()
-                    Button("Request Permission") {
-                        Task {
-                            await notificationManager.requestAuthorization()
-                        }
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-                }
-            }
-            .padding(6)
-        }
-    }
-
-    private func updatePermissionGuardedSetting(
-        newValue: Bool,
-        completion: @escaping (Bool) -> Void
-    ) {
-        if newValue {
-            if notificationManager.isAuthorized {
-                completion(true)
-                store.notificationsEnabled = true
+    @ViewBuilder
+    private func sidebarBadge(for section: PreferencesSection, isSelected: Bool) -> some View {
+        switch section {
+        case .menuBar:
+            if store.isSamplingPaused {
+                Text("Paused")
+                    .font(.system(size: 8.5, weight: .bold))
+                    .foregroundColor(isSelected ? .white : .orange)
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 1.5)
+                    .background(isSelected ? Color.white.opacity(0.2) : Color.orange.opacity(0.15))
+                    .clipShape(Capsule())
             } else {
-                Task {
-                    let granted = await notificationManager.requestAuthorization()
-                    if granted {
-                        completion(true)
-                        store.notificationsEnabled = true
-                    } else {
-                        completion(false)
-                        store.notificationsEnabled = false
-                    }
-                }
+                let count = store.activeMenuBarItems.count
+                Text("\(count)")
+                    .font(.system(size: 9.5, weight: .bold, design: .monospaced))
+                    .foregroundColor(isSelected ? .white : .secondary)
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 1.5)
+                    .background(isSelected ? Color.white.opacity(0.25) : Color.secondary.opacity(0.15))
+                    .clipShape(Capsule())
             }
-        } else {
-            completion(false)
+        case .general:
+            if coordinator.isLowPowerModeActive {
+                Text("Low Power")
+                    .font(.system(size: 8, weight: .bold))
+                    .foregroundColor(isSelected ? .white : .orange)
+                    .padding(.horizontal, 4)
+                    .padding(.vertical, 1.5)
+                    .background(isSelected ? Color.white.opacity(0.2) : Color.orange.opacity(0.15))
+                    .clipShape(Capsule())
+            }
+        case .alerts:
+            if !notificationManager.isAuthorized && store.notificationsEnabled {
+                Circle()
+                    .fill(Color.orange)
+                    .frame(width: 6, height: 6)
+            } else if store.notificationsEnabled {
+                Circle()
+                    .fill(isSelected ? Color.white : Color.green)
+                    .frame(width: 6, height: 6)
+            }
+        case .about:
+            EmptyView()
         }
     }
 
-    // MARK: - Category Helpers
+    // MARK: - Workspace Title Bar
 
-    private func iconName(for category: MetricCategory) -> String {
-        switch category {
-        case .cpu: return "cpu"
-        case .memory: return "memorychip"
-        case .thermal: return "thermometer.medium"
-        case .fan: return "fan"
-        case .gpu: return "display"
-        case .network: return "network"
-        case .disk: return "internaldrive"
-        case .power: return "bolt.fill"
+    private var workspaceTitleBar: some View {
+        HStack(spacing: 8) {
+            Text(activeSection.title)
+                .font(.system(size: 14, weight: .bold))
+
+            Spacer()
         }
+        .padding(.horizontal, 20)
+        .padding(.vertical, 12)
+        .background(Color(nsColor: .controlBackgroundColor).opacity(0.6))
     }
 
-    private func styleIcon(for style: MetricDisplayStyle) -> String {
-        switch style {
-        case .symbol: return "star"
-        case .gauge: return "gauge.medium"
-        case .bar: return "chart.bar.fill"
-        case .sparkline: return "chart.xyaxis.line"
-        case .text: return "textformat.123"
-        case .throughput: return "arrow.up.arrow.down"
-        case .cpuTemp: return "cpu"
-        case .gpuTemp: return "display"
-        case .memoryTemp: return "memorychip"
-        case .storageTemp: return "internaldrive"
-        case .batteryTemp: return "bolt.fill"
-        }
-    }
+    // MARK: - Reset Actions
 
-    private func categoryDescription(for category: MetricCategory) -> String {
-        switch category {
-        case .cpu: return "Processor utilization, load averages, and core usage."
-        case .memory: return "RAM breakdown (active, wired, compressed) and pressure."
-        case .thermal: return "SoC temperatures and thermal pressure level."
-        case .fan: return "Fan speeds and cooling system status."
-        case .gpu: return "GPU core utilization and renderer metrics."
-        case .network: return "Real-time interface throughput and bandwidth."
-        case .disk: return "Disk I/O operations and volume space capacity."
-        case .power: return "Battery status, health, and power consumption."
-        }
+    private func resetAllPreferences() {
+        store.resetToDefaults()
+        DockIconManager.shared.setDockIconVisible(store.showDockIcon)
+        LaunchAtLoginManager.shared.setLaunchAtLogin(enabled: store.launchAtLogin)
     }
 }
