@@ -224,12 +224,12 @@ public struct ThermalCPUPopoverView: View {
             PopoverHeaderView(
                 category: .thermal,
                 title: "CPU Temperature",
-                subtitle: "Apple Silicon Cores & TJMax Throttle Headroom",
+                subtitle: "Reported CPU temperature sensors",
                 verdict: evaluateVerdict()
             )
             Divider()
 
-            // Hero Card: Peak CPU Package Temp + Throttle Headroom
+            // Highest reported CPU sensor
             HStack(spacing: 12) {
                 ZStack {
                     RoundedRectangle(cornerRadius: 10)
@@ -269,45 +269,6 @@ public struct ThermalCPUPopoverView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(Color(nsColor: .controlBackgroundColor).opacity(0.5))
             .clipShape(RoundedRectangle(cornerRadius: 10))
-
-            // TJMax Headroom Card
-            let peakC = peakCPUSensor?.celsius
-            let throttleMarginC = peakC.map { max(0.0, 105.0 - $0) }
-            let isFahrenheit = preferences.temperatureUnit == .fahrenheit
-            let marginVal = throttleMarginC.map { isFahrenheit ? ($0 * 1.8) : $0 }
-            let tjMaxLabel = Units.formatTemperature(105.0, unit: preferences.temperatureUnit, fractionDigits: 0)
-
-            VStack(alignment: .leading, spacing: 5) {
-                HStack {
-                    Text("THROTTLE HEADROOM (\(tjMaxLabel) TJMAX)")
-                        .font(.system(size: 8, weight: .bold, design: .monospaced))
-                        .foregroundColor(.secondary)
-                    Spacer()
-                    if let margin = marginVal, let mC = throttleMarginC {
-                        Text(String(format: "+%.1f°%@ Margin", margin, isFahrenheit ? "F" : "C"))
-                            .font(.system(size: 10, weight: .bold, design: .monospaced))
-                            .foregroundColor(mC > 25 ? .green : (mC > 15 ? .orange : .red))
-                    } else {
-                        Text("—")
-                            .font(.system(size: 10, weight: .bold, design: .monospaced))
-                            .foregroundColor(.secondary)
-                    }
-                }
-
-                GeometryReader { g in
-                    let pct = peakC.map { min(1.0, max(0.0, $0 / 105.0)) } ?? 0.0
-                    ZStack(alignment: .leading) {
-                        RoundedRectangle(cornerRadius: 3).fill(Color.primary.opacity(0.08))
-                        RoundedRectangle(cornerRadius: 3)
-                            .fill(LinearGradient(colors: [.blue, .orange, .red], startPoint: .leading, endPoint: .trailing))
-                            .frame(width: g.size.width * CGFloat(pct))
-                    }
-                }
-                .frame(height: 6)
-            }
-            .padding(10)
-            .background(Color(nsColor: .controlBackgroundColor).opacity(0.4))
-            .clipShape(RoundedRectangle(cornerRadius: 8))
 
             // P-Cores vs E-Cores Comparison
             HStack(spacing: 10) {
@@ -636,38 +597,6 @@ public struct ThermalMemoryPopoverView: View {
             .background(Color(nsColor: .controlBackgroundColor).opacity(0.5))
             .clipShape(RoundedRectangle(cornerRadius: 10))
 
-            // LPDDR Refresh Mode Status Card
-            let peakC = peakMemSensor?.celsius
-            let thresholdLabel = Units.formatTemperature(85.0, unit: preferences.temperatureUnit, fractionDigits: 0)
-            let isHighTempRefresh = peakC.map { $0 >= 85.0 } ?? false
-            VStack(alignment: .leading, spacing: 4) {
-                HStack {
-                    Text("REFRESH CYCLE POLICY")
-                        .font(.system(size: 8, weight: .bold, design: .monospaced))
-                        .foregroundColor(.secondary)
-                    Spacer()
-                    if peakC != nil {
-                        Text(isHighTempRefresh ? "2x Refresh Rate" : "1x Standard Rate")
-                            .font(.system(size: 9, weight: .bold, design: .monospaced))
-                            .foregroundColor(isHighTempRefresh ? .orange : .green)
-                    } else {
-                        Text("—")
-                            .font(.system(size: 9, weight: .bold, design: .monospaced))
-                            .foregroundColor(.secondary)
-                    }
-                }
-                Text(peakC != nil
-                    ? (isHighTempRefresh
-                        ? "DRAM operating >= \(thresholdLabel). Memory controller doubles self-refresh rate to prevent cell bit-flips."
-                        : "DRAM operating in optimal thermal window (< \(thresholdLabel)). Normal power consumption.")
-                    : "DRAM thermal sensor reading unavailable.")
-                    .font(.system(size: 9))
-                    .foregroundColor(.secondary)
-            }
-            .padding(10)
-            .background(Color(nsColor: .controlBackgroundColor).opacity(0.4))
-            .clipShape(RoundedRectangle(cornerRadius: 8))
-
             // Channel Sensors List
             if !memSensors.isEmpty {
                 VStack(alignment: .leading, spacing: 4) {
@@ -784,46 +713,6 @@ public struct ThermalStoragePopoverView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(Color(nsColor: .controlBackgroundColor).opacity(0.5))
             .clipShape(RoundedRectangle(cornerRadius: 10))
-
-            // Flash Thermal Limit Card
-            let peakC = peakStorageSensor?.celsius
-            let limitC = 70.0
-            let marginC = peakC.map { max(0.0, limitC - $0) }
-            let isFahrenheit = preferences.temperatureUnit == .fahrenheit
-            let marginVal = marginC.map { isFahrenheit ? ($0 * 1.8) : $0 }
-            let limitLabel = Units.formatTemperature(limitC, unit: preferences.temperatureUnit, fractionDigits: 0)
-
-            VStack(alignment: .leading, spacing: 5) {
-                HStack {
-                    Text("NAND ENDURANCE LIMIT (\(limitLabel))")
-                        .font(.system(size: 8, weight: .bold, design: .monospaced))
-                        .foregroundColor(.secondary)
-                    Spacer()
-                    if let margin = marginVal, let mC = marginC {
-                        Text(String(format: "+%.1f°%@ Headroom", margin, isFahrenheit ? "F" : "C"))
-                            .font(.system(size: 10, weight: .bold, design: .monospaced))
-                            .foregroundColor(mC > 20 ? .teal : (mC > 10 ? .orange : .red))
-                    } else {
-                        Text("—")
-                            .font(.system(size: 10, weight: .bold, design: .monospaced))
-                            .foregroundColor(.secondary)
-                    }
-                }
-
-                GeometryReader { g in
-                    let pct = peakC.map { min(1.0, max(0.0, $0 / limitC)) } ?? 0.0
-                    ZStack(alignment: .leading) {
-                        RoundedRectangle(cornerRadius: 3).fill(Color.primary.opacity(0.08))
-                        RoundedRectangle(cornerRadius: 3)
-                            .fill(LinearGradient(colors: [.teal, .yellow, .red], startPoint: .leading, endPoint: .trailing))
-                            .frame(width: g.size.width * CGFloat(pct))
-                    }
-                }
-                .frame(height: 6)
-            }
-            .padding(10)
-            .background(Color(nsColor: .controlBackgroundColor).opacity(0.4))
-            .clipShape(RoundedRectangle(cornerRadius: 8))
 
             // Storage Sensor Breakdown
             if !storageSensors.isEmpty {
@@ -942,43 +831,6 @@ public struct ThermalBatteryPopoverView: View {
             .background(Color(nsColor: .controlBackgroundColor).opacity(0.5))
             .clipShape(RoundedRectangle(cornerRadius: 10))
 
-            // Charging Thermal Safety Zone Card
-            let lowLabel = Units.formatTemperature(15.0, unit: preferences.temperatureUnit, fractionDigits: 0)
-            let highLabel = Units.formatTemperature(35.0, unit: preferences.temperatureUnit, fractionDigits: 0)
-            let peakC = peakBatterySensor?.celsius
-            let zoneStatus: (String, Color, String) = {
-                guard let c = peakC else {
-                    return ("Unavailable", .secondary, "Battery thermal sensor reading unavailable.")
-                }
-                if c > 45.0 {
-                    return ("Thermal Throttling", .red, "Battery is too hot. Fast charging paused to preserve cell longevity.")
-                } else if c > 35.0 {
-                    return ("Elevated Warmth", .orange, "Charging active, but chemical wear accelerates at elevated temperatures.")
-                } else if c >= 15.0 {
-                    return ("Ideal Window (\(lowLabel)–\(highLabel))", .green, "Optimal temperature for lithium-ion chemical fast-charging.")
-                } else {
-                    return ("Cold Temperature", .blue, "Cold battery cells accept slower charge rate.")
-                }
-            }()
-
-            VStack(alignment: .leading, spacing: 4) {
-                HStack {
-                    Text("CHARGING SAFETY ZONE")
-                        .font(.system(size: 8, weight: .bold, design: .monospaced))
-                        .foregroundColor(.secondary)
-                    Spacer()
-                    Text(zoneStatus.0)
-                        .font(.system(size: 9, weight: .bold, design: .monospaced))
-                        .foregroundColor(zoneStatus.1)
-                }
-                Text(zoneStatus.2)
-                    .font(.system(size: 9))
-                    .foregroundColor(.secondary)
-            }
-            .padding(10)
-            .background(Color(nsColor: .controlBackgroundColor).opacity(0.4))
-            .clipShape(RoundedRectangle(cornerRadius: 8))
-
             // Battery Sensors List
             if !batterySensors.isEmpty {
                 VStack(alignment: .leading, spacing: 4) {
@@ -1024,149 +876,22 @@ public struct ThermalBatteryPopoverView: View {
 }
 
 /// Dedicated Popover for Thermal Ring / Gauge (.gauge)
+/// Legacy ring selection now uses the measured-sensor overview. Device-specific
+/// thermal limits are not available, so a throttle-headroom ring is misleading.
 public struct ThermalRingPopoverView: View {
     public let coordinator: MetricsCoordinator
     @ObservedObject public var preferences: PreferencesStore
-    @State private var sample: ThermalSample?
-    @State private var history: [Sample<ThermalSample>]
 
     public init(coordinator: MetricsCoordinator = .shared, preferences: PreferencesStore = .shared) {
         self.coordinator = coordinator
         self.preferences = preferences
-        _sample = State(initialValue: coordinator.latestThermal?.value)
-        _history = State(initialValue: coordinator.thermalHistory)
-    }
-
-    private var peakSensor: SensorReading? {
-        sample?.sensors.max(by: { $0.celsius < $1.celsius })
-    }
-
-    private func peakSubsystemTemp(_ sub: ThermalSubsystem) -> Double? {
-        sample?.sensors.filter { sub.matches(sensor: $0) }.map(\.celsius).max()
     }
 
     public var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            PopoverHeaderView(
-                category: .thermal,
-                title: "Thermal Ring Headroom",
-                subtitle: "Multi-Zone Radial Margin to Throttle (105°C)",
-                verdict: VerdictEvaluator.evaluateThermal(sample, unit: preferences.temperatureUnit)
-            )
-            Divider()
-
-            // Big Radial Dial Card
-            VStack(spacing: 8) {
-                let peakC = peakSensor?.celsius
-                let throttleMargin = peakC.map { max(0.0, 105.0 - $0) }
-                let pct = peakC.map { min(1.0, max(0.0, $0 / 105.0)) } ?? 0.0
-
-                ZStack {
-                    Circle()
-                        .stroke(Color.primary.opacity(0.08), lineWidth: 10)
-                        .frame(width: 90, height: 90)
-
-                    if peakC != nil {
-                        Circle()
-                            .trim(from: 0, to: pct)
-                            .stroke(
-                                AngularGradient(
-                                    gradient: Gradient(colors: [.green, .yellow, .orange, .red]),
-                                    center: .center
-                                ),
-                                style: StrokeStyle(lineWidth: 10, lineCap: .round)
-                            )
-                            .rotationEffect(.degrees(-90))
-                            .frame(width: 90, height: 90)
-                    }
-
-                    VStack(spacing: 0) {
-                        if let c = peakC {
-                            Text(Units.formatTemperature(c, unit: preferences.temperatureUnit, fractionDigits: 0))
-                                .font(.system(size: 20, weight: .bold, design: .rounded))
-                            if let margin = throttleMargin {
-                                let marginDisplay = preferences.temperatureUnit == .fahrenheit ? (margin * 1.8) : margin
-                                Text(String(format: "+%.0f° headroom", marginDisplay))
-                                    .font(.system(size: 9, weight: .semibold))
-                                    .foregroundColor(.secondary)
-                            }
-                        } else {
-                            Text("—")
-                                .font(.system(size: 20, weight: .bold, design: .rounded))
-                                .foregroundColor(.secondary)
-                            Text("Unavailable")
-                                .font(.system(size: 9, weight: .semibold))
-                                .foregroundColor(.secondary)
-                        }
-                    }
-                }
-                .padding(.top, 4)
-
-                Text(peakSensor != nil ? "Hottest Component: \(peakSensor!.name)" : "Monitoring thermals...")
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundColor(.secondary)
-            }
-            .frame(maxWidth: .infinity)
-            .padding(10)
-            .background(Color(nsColor: .controlBackgroundColor).opacity(0.5))
-            .clipShape(RoundedRectangle(cornerRadius: 10))
-
-            // 4-Zone Headroom Cards
-            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
-                zoneHeadroomCell(title: "CPU Zone", temp: peakSubsystemTemp(.cpu), limit: 105.0, icon: "cpu", color: .blue)
-                zoneHeadroomCell(title: "GPU Zone", temp: peakSubsystemTemp(.gpu), limit: 105.0, icon: "square.grid.2x2", color: .purple)
-                zoneHeadroomCell(title: "Unified RAM", temp: peakSubsystemTemp(.memory), limit: 85.0, icon: "memorychip", color: .green)
-                zoneHeadroomCell(title: "SSD Array", temp: peakSubsystemTemp(.storage), limit: 70.0, icon: "internaldrive", color: .teal)
-            }
-
-            Divider()
-            CategoryPopoverFooter(preferences: preferences, coordinator: coordinator)
-        }
-        .padding(14)
-        .frame(width: 330)
-        .onAppear { if !coordinator.isRunning && !preferences.isSamplingPaused { coordinator.start() } }
-        .onReceive(coordinator.$latestThermal) { newSample in
-            sample = newSample?.value
-            history = coordinator.thermalHistory
-        }
-    }
-
-    private func zoneHeadroomCell(title: String, temp: Double?, limit: Double, icon: String, color: Color) -> some View {
-        VStack(alignment: .leading, spacing: 3) {
-            HStack(spacing: 4) {
-                Image(systemName: icon)
-                    .font(.system(size: 10, weight: .bold))
-                    .foregroundColor(color)
-                Text(title)
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundColor(.secondary)
-            }
-
-            if let t = temp {
-                let marginC = max(0.0, limit - t)
-                let marginVal = preferences.temperatureUnit == .fahrenheit ? (marginC * 1.8) : marginC
-                HStack(alignment: .firstTextBaseline) {
-                    Text(Units.formatTemperature(t, unit: preferences.temperatureUnit, fractionDigits: 0))
-                        .font(.system(size: 14, weight: .bold, design: .rounded))
-                    Spacer()
-                    Text(String(format: "+%.0f°", marginVal))
-                        .font(.system(size: 9, weight: .bold, design: .monospaced))
-                        .foregroundColor(marginC > 20 ? .green : (marginC > 10 ? .orange : .red))
-                }
-            } else {
-                Text("--")
-                    .font(.system(size: 14, weight: .bold))
-                    .foregroundColor(.secondary)
-            }
-        }
-        .padding(8)
-        .background(Color(nsColor: .controlBackgroundColor).opacity(0.4))
-        .clipShape(RoundedRectangle(cornerRadius: 8))
-        .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Color.primary.opacity(0.06), lineWidth: 0.5))
+        ThermalPopoverView(coordinator: coordinator, preferences: preferences)
     }
 }
 
-/// Dedicated Popover for Thermal History / Sparkline (.sparkline)
 public struct ThermalHistoryPopoverView: View {
     public let coordinator: MetricsCoordinator
     @ObservedObject public var preferences: PreferencesStore
@@ -2103,20 +1828,9 @@ public struct MemoryPressurePopoverView: View {
                             .foregroundColor(.secondary)
                     }
                 }
-                HStack {
-                    Text("Swap Degradation Risk")
-                        .font(.system(size: 11, weight: .medium))
-                    Spacer()
-                    if let swap = sample?.swapUsed {
-                        Text(swap > 0 ? "Active Paging" : "Zero Swap (Optimal)")
-                            .font(.system(size: 10, weight: .semibold))
-                            .foregroundColor(swap > 0 ? .orange : .green)
-                    } else {
-                        Text("—")
-                            .font(.system(size: 10, weight: .semibold))
-                            .foregroundColor(.secondary)
-                    }
-                }
+                Text("Swap used does not indicate whether paging is currently active.")
+                    .font(.system(size: 10))
+                    .foregroundColor(.secondary)
             }
             .padding(10)
             .background(Color(nsColor: .controlBackgroundColor).opacity(0.5))
