@@ -154,26 +154,19 @@ public struct MemorySummaryView: View {
                     MemoryPressureAlertBanner(pressure: sample.pressure)
                 }
 
-                // Horizontal Segmented Memory Composition Bar
                 if let sample = sample, sample.total > 0 {
-                    horizontalCompositionBar(sample: sample)
-                        .frame(height: 10)
-
-                    // Horizontal Legend Chips Row
-                    horizontalLegendRow(sample: sample)
-                }
-
-                // Swap Active Note (if swap used > 0)
-                if let sample = sample, sample.swapUsed > 0 {
-                    HStack(spacing: 4) {
-                        Image(systemName: "arrow.triangle.swap")
-                            .font(.system(size: 8.5))
-                            .foregroundColor(.orange)
-                        Text("Using disk as extra memory (\(Units.formatBytes(sample.swapUsed, standard: byteStandard)))")
-                            .font(.system(size: 9.5, weight: .medium))
-                            .foregroundColor(.orange)
+                    ProgressView(value: min(1, Double(sample.used) / Double(sample.total)))
+                        .tint(.blue)
+                    HStack {
+                        Text("Physical memory used")
+                        Spacer()
+                        Text("\(Units.formatBytes(sample.used, standard: byteStandard)) / \(Units.formatBytes(sample.total, standard: byteStandard))")
                     }
-                    .padding(.top, 1)
+                    .font(.system(size: 10)).foregroundColor(.secondary)
+                }
+                if let sample = sample {
+                    Text("Swap used: \(Units.formatBytes(sample.swapUsed, standard: byteStandard))")
+                        .font(.system(size: 10)).foregroundColor(.secondary)
                 }
             }
             .padding(10)
@@ -318,10 +311,8 @@ public struct MemorySummaryView: View {
 
     @ViewBuilder
     private func diagnosticsContent(sample: MemorySample) -> some View {
-        let appMem = sample.appMemory ?? (sample.used >= (sample.wired + sample.compressed) ? sample.used - sample.wired - sample.compressed : sample.used)
-
         LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 5) {
-            breakdownCard(title: "Apps", value: Units.formatBytes(appMem, standard: byteStandard), color: appColor)
+            breakdownCard(title: "Apps", value: sample.appMemory.map { Units.formatBytes($0, standard: byteStandard) } ?? "Unavailable", color: appColor)
             breakdownCard(title: "System (Wired)", value: Units.formatBytes(sample.wired, standard: byteStandard), color: wiredColor)
             breakdownCard(title: "Compressed", value: Units.formatBytes(sample.compressed, standard: byteStandard), color: compressedColor)
             breakdownCard(title: "Cached (Reusable)", value: Units.formatBytes(sample.cached, standard: byteStandard), color: cachedColor)

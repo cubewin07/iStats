@@ -1536,98 +1536,66 @@ public struct MemoryPopoverView: View {
     }
 }
 
+/// Memory fields are listed individually because cached and allocation figures
+/// need not form a mutually exclusive partition of physical RAM.
 public struct MemoryCompositionPopoverView: View {
     public let coordinator: MetricsCoordinator
     @ObservedObject public var preferences: PreferencesStore
     @State private var sample: MemorySample?
-    @State private var history: [Sample<MemorySample>]
 
     public init(coordinator: MetricsCoordinator = .shared, preferences: PreferencesStore = .shared) {
         self.coordinator = coordinator
         self.preferences = preferences
         _sample = State(initialValue: coordinator.latestMemory?.value)
-        _history = State(initialValue: coordinator.memoryHistory)
     }
 
     public var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            PopoverHeaderView(
-                category: .memory,
-                title: "Memory Composition",
-                subtitle: "App Memory, Wired, Compressed & Free Pools",
-                verdict: VerdictEvaluator.evaluateMemory(sample, standard: preferences.byteUnitStandard)
-            )
+            PopoverHeaderView(category: .memory, title: "Memory Breakdown",
+                              subtitle: "Reported physical and virtual memory",
+                              verdict: VerdictEvaluator.evaluateMemory(sample, standard: preferences.byteUnitStandard))
             Divider()
-
             if let s = sample {
-                let total = max(1, Double(s.total))
-                let appPct = Double(s.appMemory ?? 0) / total
-                let wiredPct = Double(s.wired) / total
-                let compPct = Double(s.compressed) / total
-                let cachedPct = Double(s.cached) / total
-                let freePct = Double(s.free) / total
-
-                // Stacked Composition Bar
-                VStack(alignment: .leading, spacing: 6) {
-                    GeometryReader { g in
-                        let spacingTotal: CGFloat = 8 // 4 gaps of 2pt between 5 bars
-                        let availableWidth = max(0, g.size.width - spacingTotal)
-                        HStack(spacing: 2) {
-                            RoundedRectangle(cornerRadius: 2).fill(Color.blue).frame(width: availableWidth * CGFloat(appPct))
-                            RoundedRectangle(cornerRadius: 2).fill(Color.purple).frame(width: availableWidth * CGFloat(wiredPct))
-                            RoundedRectangle(cornerRadius: 2).fill(Color.orange).frame(width: availableWidth * CGFloat(compPct))
-                            RoundedRectangle(cornerRadius: 2).fill(Color.green).frame(width: availableWidth * CGFloat(cachedPct))
-                            RoundedRectangle(cornerRadius: 2).fill(Color.secondary.opacity(0.2)).frame(width: availableWidth * CGFloat(freePct))
-                        }
-                    }
-                    .frame(height: 12)
-                    .clipShape(RoundedRectangle(cornerRadius: 4))
+                VStack(spacing: 9) {
+                    row("Physical memory", s.total)
+                    row("Used", s.used)
+                    row("Free", s.free)
+                    Divider()
+                    row("App memory", s.appMemory)
+                    row("Wired", s.wired)
+                    row("Compressed", s.compressed)
+                    row("Cached", s.cached)
+                    Divider()
+                    row("Swap used", s.swapUsed)
+                    if let total = s.swapTotal { row("Swap allocated", total) }
                 }
-                .padding(10)
+                .padding(12)
                 .background(Color(nsColor: .controlBackgroundColor).opacity(0.5))
-                .clipShape(RoundedRectangle(cornerRadius: 8))
-
-                // Breakdown list
-                VStack(spacing: 6) {
-                    compRow(name: "App Memory", bytes: s.appMemory ?? 0, total: s.total, color: .blue)
-                    compRow(name: "Wired Memory", bytes: s.wired, total: s.total, color: .purple)
-                    compRow(name: "Compressed", bytes: s.compressed, total: s.total, color: .orange)
-                    compRow(name: "Cached Files", bytes: s.cached, total: s.total, color: .green)
-                    compRow(name: "Free Memory", bytes: s.free, total: s.total, color: .secondary)
-                }
-                .padding(8)
-                .background(Color(nsColor: .controlBackgroundColor).opacity(0.3))
-                .clipShape(RoundedRectangle(cornerRadius: 8))
+                .clipShape(RoundedRectangle(cornerRadius: 10))
+                Text("Some figures overlap and should not be added together. Swap used does not indicate current paging activity.")
+                    .font(.system(size: 10)).foregroundColor(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else {
+                Text("Waiting for memory readings…").font(.system(size: 11)).foregroundColor(.secondary)
             }
-
             Divider()
             CategoryPopoverFooter(preferences: preferences, coordinator: coordinator)
         }
         .padding(14)
         .frame(width: 330)
         .onAppear { if !coordinator.isRunning && !preferences.isSamplingPaused { coordinator.start() } }
-        .onReceive(coordinator.$latestMemory) { newSample in
-            sample = newSample?.value
-            history = coordinator.memoryHistory
-        }
+        .onReceive(coordinator.$latestMemory) { sample = $0?.value }
     }
 
-    private func compRow(name: String, bytes: UInt64, total: UInt64, color: Color) -> some View {
-        let pct = total > 0 ? (Double(bytes) / Double(total)) * 100.0 : 0.0
-        return HStack {
-            Circle().fill(color).frame(width: 8, height: 8)
-            Text(name)
-                .font(.system(size: 11, weight: .medium))
+    private func row(_ name: String, _ value: UInt64?) -> some View {
+        HStack {
+            Text(name).foregroundColor(.secondary)
             Spacer()
-            Text(Units.formatBytes(bytes, standard: preferences.byteUnitStandard))
-                .font(.system(size: 11, weight: .semibold, design: .monospaced))
-            Text(String(format: "(%.1f%%)", pct))
-                .font(.system(size: 10, weight: .regular, design: .monospaced))
-                .foregroundColor(.secondary)
-                .frame(width: 50, alignment: .trailing)
+            Text(value.map { Units.formatBytes($0, standard: preferences.byteUnitStandard) } ?? "Unavailable")
+                .fontWeight(.medium).monospacedDigit()
         }
-        .padding(.horizontal, 6)
-        .padding(.vertical, 2)
+        .font(.system(size: 11))
+        .accessibilityElement(children: .combine)
     }
 }
 
