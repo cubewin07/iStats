@@ -1290,154 +1290,60 @@ public struct CPUClusterPopoverView: View {
     public let coordinator: MetricsCoordinator
     @ObservedObject public var preferences: PreferencesStore
     @State private var sample: CPUSample?
-    @State private var history: [Sample<CPUSample>]
 
     public init(coordinator: MetricsCoordinator = .shared, preferences: PreferencesStore = .shared) {
         self.coordinator = coordinator
         self.preferences = preferences
         _sample = State(initialValue: coordinator.latestCPU?.value)
-        _history = State(initialValue: coordinator.cpuHistory)
     }
 
     public var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            PopoverHeaderView(
-                category: .cpu,
-                title: "Core Clusters",
-                subtitle: "Efficiency vs Performance Cores Distribution",
-                verdict: VerdictEvaluator.evaluateCPU(sample)
-            )
+            PopoverHeaderView(category: .cpu, title: "Cores", subtitle: "Per-core utilization",
+                              verdict: VerdictEvaluator.evaluateCPU(sample))
             Divider()
-
-            // Cluster Hero Cards
-            HStack(spacing: 12) {
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "leaf.fill")
-                            .font(.system(size: 9))
-                            .foregroundColor(.green)
-                        Text("EFFICIENCY CORES")
-                            .font(.system(size: 9, weight: .bold, design: .monospaced))
-                            .foregroundColor(.green)
+            if let sample = sample, !sample.perCore.isEmpty {
+                if let efficiency = sample.efficiencyUsage, let performance = sample.performanceUsage {
+                    HStack(spacing: 10) {
+                        cluster("Efficiency", efficiency)
+                        cluster("Performance", performance)
                     }
-                    if let eUsage = sample?.efficiencyUsage, let eCount = sample?.efficiencyCoreCount, eCount > 0 {
-                        Text(String(format: "%.1f%%", eUsage))
-                            .font(.system(size: 24, weight: .bold, design: .rounded))
-                            .foregroundColor(.green)
-                        Text("\(eCount) E-Cores active")
-                            .font(.system(size: 10, weight: .medium))
-                            .foregroundColor(.secondary)
-                    } else {
-                        Text("—")
-                            .font(.system(size: 24, weight: .bold, design: .rounded))
-                            .foregroundColor(.secondary)
-                        Text(sample != nil ? "N/A on this processor" : "Sampling cores...")
-                            .font(.system(size: 10, weight: .medium))
-                            .foregroundColor(.secondary)
-                    }
+                    Text("Group averages depend on the reported core classification.")
+                        .font(.system(size: 10)).foregroundColor(.secondary)
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(10)
-                .background(Color.green.opacity(0.1))
-                .clipShape(RoundedRectangle(cornerRadius: 8))
-
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "bolt.fill")
-                            .font(.system(size: 9))
-                            .foregroundColor(.orange)
-                        Text("PERFORMANCE CORES")
-                            .font(.system(size: 9, weight: .bold, design: .monospaced))
-                            .foregroundColor(.orange)
-                    }
-                    if let pUsage = sample?.performanceUsage, let pCount = sample?.performanceCoreCount, pCount > 0 {
-                        Text(String(format: "%.1f%%", pUsage))
-                            .font(.system(size: 24, weight: .bold, design: .rounded))
-                            .foregroundColor(.orange)
-                        Text("\(pCount) P-Cores active")
-                            .font(.system(size: 10, weight: .medium))
-                            .foregroundColor(.secondary)
-                    } else if let s = sample {
-                        Text(String(format: "%.1f%%", s.totalUsage))
-                            .font(.system(size: 24, weight: .bold, design: .rounded))
-                            .foregroundColor(.orange)
-                        Text("\(s.perCore.count) Cores active")
-                            .font(.system(size: 10, weight: .medium))
-                            .foregroundColor(.secondary)
-                    } else {
-                        Text("—")
-                            .font(.system(size: 24, weight: .bold, design: .rounded))
-                            .foregroundColor(.secondary)
-                        Text("Sampling cores...")
-                            .font(.system(size: 10, weight: .medium))
-                            .foregroundColor(.secondary)
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(10)
-                .background(Color.orange.opacity(0.1))
-                .clipShape(RoundedRectangle(cornerRadius: 8))
-            }
-
-            // Per-Core Load Grid
-            if let s = sample, !s.perCore.isEmpty {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Per-Core Utilization (\(s.perCore.count) Cores)")
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundColor(.secondary)
-
-                    ScrollView(.vertical, showsIndicators: true) {
-                        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 6) {
-                            let hasClusters = (s.efficiencyCoreCount ?? 0) > 0
-                            ForEach(0..<s.perCore.count, id: \.self) { idx in
-                                let load = s.perCore[idx]
-                                let isEfficiency = hasClusters && idx < (s.efficiencyCoreCount ?? 0)
-                                let coreLabel = hasClusters ? (isEfficiency ? "E\(idx + 1)" : "P\(idx - (s.efficiencyCoreCount ?? 0) + 1)") : "C\(idx + 1)"
-                                let coreColor: Color = hasClusters ? (isEfficiency ? .green : .orange) : .blue
-                                HStack(spacing: 6) {
-                                    Text(coreLabel)
-                                        .font(.system(size: 9, weight: .bold, design: .monospaced))
-                                        .foregroundColor(coreColor)
-                                        .frame(width: 22, alignment: .leading)
-
-                                    GeometryReader { g in
-                                        ZStack(alignment: .leading) {
-                                            RoundedRectangle(cornerRadius: 3)
-                                                .fill(Color.primary.opacity(0.08))
-                                            RoundedRectangle(cornerRadius: 3)
-                                                .fill(coreColor)
-                                                .frame(width: g.size.width * CGFloat(min(1.0, max(0.0, load / 100.0))))
-                                        }
-                                    }
-                                    .frame(height: 8)
-
-                                    Text(String(format: "%.0f%%", load))
-                                        .font(.system(size: 9, weight: .semibold, design: .monospaced))
-                                        .frame(width: 30, alignment: .trailing)
-                                }
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 3)
-                                .background(Color(nsColor: .controlBackgroundColor).opacity(0.4))
-                                .clipShape(RoundedRectangle(cornerRadius: 5))
+                ScrollView {
+                    VStack(spacing: 7) {
+                        ForEach(Array(sample.perCore.enumerated()), id: \.offset) { index, usage in
+                            VStack(spacing: 3) {
+                                HStack {
+                                    Text("Core \(index + 1)")
+                                    Spacer()
+                                    Text(String(format: "%.0f%%", usage)).monospacedDigit()
+                                }.font(.system(size: 11)).accessibilityElement(children: .combine)
+                                ProgressView(value: min(1, max(0, usage / 100))).tint(.blue)
                             }
                         }
                     }
-                    .frame(maxHeight: 120)
-                }
+                }.frame(maxHeight: 250)
+            } else {
+                Text(sample == nil ? "Waiting for CPU readings…" : "Per-core utilization unavailable.")
+                    .font(.system(size: 11)).foregroundColor(.secondary)
             }
-
             Divider()
             CategoryPopoverFooter(preferences: preferences, coordinator: coordinator)
         }
-        .padding(14)
-        .frame(width: 330)
-        .onAppear {
-            if !coordinator.isRunning && !preferences.isSamplingPaused { coordinator.start() }
-        }
-        .onReceive(coordinator.$latestCPU) { newSample in
-            sample = newSample?.value
-            history = coordinator.cpuHistory
-        }
+        .padding(14).frame(width: 330)
+        .onAppear { if !coordinator.isRunning && !preferences.isSamplingPaused { coordinator.start() } }
+        .onReceive(coordinator.$latestCPU) { sample = $0?.value }
+    }
+
+    private func cluster(_ title: String, _ value: Double) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(title).font(.system(size: 10)).foregroundColor(.secondary)
+            Text(String(format: "%.0f%%", value)).font(.system(size: 16, weight: .semibold)).monospacedDigit()
+        }.frame(maxWidth: .infinity, alignment: .leading)
+            .padding(8).background(Color(nsColor: .controlBackgroundColor).opacity(0.5))
+            .clipShape(RoundedRectangle(cornerRadius: 8))
     }
 }
 
