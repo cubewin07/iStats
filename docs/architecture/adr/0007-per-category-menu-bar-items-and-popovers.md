@@ -25,7 +25,7 @@ Users desire an experience matching modular system monitors (such as iStat Menus
    - Provide `makePopoverView(category:popoverStyle:...)` and `makeHostingController(category:popoverStyle:...)` to instantiate any popover view independently of the triggering widget.
 4. **System Settings Architecture & Live Menu Bar Studio (`PreferencesView`):**
    - Modern macOS System Settings-style translucent sidebar (`SidebarVisualEffectView`) supporting keyboard navigation (`⌘1`–`⌘4`).
-   - Interactive Live Menu Bar Strip: renders active widgets in exact screen order, supporting 1-click selection, drag/button reordering (`moveActiveMenuBarItem`), removal, and crowding feedback.
+   - Interactive Live Menu Bar Strip: renders active widgets in exact screen order, supporting 1-click selection, `<` / `>` button shifts (`moveActiveMenuBarItem(id:direction:)`), removal, and crowding feedback.
    - Category rail with active widget counts, master sampler toggles, and dedicated widget style cards.
    - Single-source-of-truth Popover Stage: directly binds custom popover styles to `PreferencesStore` with immediate live interactive preview.
    - Modular panes: `PreferencesMenuBarPane`, `PreferencesGeneralPane`, `PreferencesAlertsPane`, `PreferencesAboutPane`.

@@ -25,7 +25,7 @@ public struct PreferencesAboutPane: View {
 
     private var architectureName: String {
         #if arch(arm64)
-        return "Apple Silicon (arm64e)"
+        return "Apple Silicon (arm64)"
         #elseif arch(x86_64)
         return "Intel (x86_64)"
         #else
@@ -146,7 +146,7 @@ public struct PreferencesAboutPane: View {
                     SettingsBadge(icon: "menubar.rectangle", color: .purple)
                 },
                 title: "Modular Menu Bar Studio",
-                subtitle: "Decoupled popovers, reorderable items, and interactive scrubbable graphs."
+                subtitle: "Decoupled popovers, reorderable items, and interactive menu bar hover-scrubbing."
             ) {
                 Text("Native")
                     .font(.system(size: 10, weight: .bold))
