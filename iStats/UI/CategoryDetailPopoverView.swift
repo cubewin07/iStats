@@ -180,6 +180,76 @@ public struct ThermalPopoverView: View {
 
 public typealias ThermalOverviewPopoverView = ThermalPopoverView
 
+/// A single sensor explorer shared by the legacy component-specific destinations.
+public struct ThermalSensorExplorerView: View {
+    public let coordinator: MetricsCoordinator
+    @ObservedObject public var preferences: PreferencesStore
+    @State private var group: ThermalSubsystem
+    @State private var selectedSensor: String?
+    @State private var sample: ThermalSample?
+    @State private var history: [Sample<ThermalSample>]
+
+    public init(group: ThermalSubsystem, coordinator: MetricsCoordinator = .shared, preferences: PreferencesStore = .shared) {
+        self.coordinator = coordinator
+        self.preferences = preferences
+        _group = State(initialValue: group)
+        _sample = State(initialValue: coordinator.latestThermal?.value)
+        _history = State(initialValue: coordinator.thermalHistory)
+    }
+
+    private var sensors: [SensorReading] {
+        (sample?.sensors ?? []).filter { group.matches(sensor: $0) }.sorted { $0.celsius > $1.celsius }
+    }
+
+    public var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            PopoverHeaderView(category: .thermal, title: "Sensor Explorer", subtitle: "Select a sensor to inspect its history",
+                              verdict: VerdictEvaluator.evaluateThermal(sample, unit: preferences.temperatureUnit))
+            Divider()
+            Picker("Component", selection: $group) {
+                ForEach(ThermalSubsystem.allCases) { item in Text(item.title).tag(item) }
+            }
+            .pickerStyle(.menu)
+            .onChange(of: group) { _ in selectedSensor = nil }
+            if sensors.isEmpty {
+                Text(sample == nil ? "Waiting for temperature readings…" : "No sensors reported for this component.")
+                    .font(.system(size: 11)).foregroundColor(.secondary)
+            } else {
+                ScrollView {
+                    VStack(spacing: 4) {
+                        ForEach(Array(sensors.enumerated()), id: \.offset) { _, sensor in
+                            Button(action: { selectedSensor = sensor.name }) {
+                                HStack {
+                                    Text(sensor.name).lineLimit(1)
+                                    Spacer()
+                                    Text(Units.formatTemperature(sensor.celsius, unit: preferences.temperatureUnit, fractionDigits: 1)).monospacedDigit()
+                                }
+                                .font(.system(size: 11)).padding(8)
+                                .background(selectedSensor == sensor.name ? Color.accentColor.opacity(0.12) : Color(nsColor: .controlBackgroundColor).opacity(0.5))
+                                .clipShape(RoundedRectangle(cornerRadius: 6))
+                            }.buttonStyle(.plain)
+                        }
+                    }
+                }.frame(maxHeight: 180)
+            }
+            if let name = selectedSensor {
+                let points = history.map { item in
+                    HistoryPoint(timestamp: item.timestamp, value: item.availability.isAvailable
+                                 ? item.value.sensors.first(where: { $0.name == name })?.celsius : nil)
+                }
+                Text("\(name) history").font(.system(size: 10, weight: .medium)).foregroundColor(.secondary)
+                TimestampedHistoryGraph(timeline: HistoryTimeline(points: points, expectedInterval: preferences.refreshInterval),
+                                        maxValue: max(100, (points.compactMap(\.value).max() ?? 0) + 5), tintColor: .orange, height: 44)
+            }
+            Divider()
+            CategoryPopoverFooter(preferences: preferences, coordinator: coordinator)
+        }
+        .padding(14).frame(width: 330)
+        .onAppear { if !coordinator.isRunning && !preferences.isSamplingPaused { coordinator.start() } }
+        .onReceive(coordinator.$latestThermal) { sample = $0?.value; history = coordinator.thermalHistory }
+    }
+}
+
 /// Dedicated Popover for CPU Temperature (.cpuTemp)
 public struct ThermalCPUPopoverView: View {
     public let coordinator: MetricsCoordinator
@@ -4157,15 +4227,15 @@ public enum ConfigPopoverFactory {
         switch (category, popoverStyle.purposefulStyle(for: category)) {
         // MARK: Thermal Custom Popovers
         case (.thermal, .thermalCPU):
-            ThermalCPUPopoverView(coordinator: coordinator, preferences: preferences)
+            ThermalSensorExplorerView(group: .cpu, coordinator: coordinator, preferences: preferences)
         case (.thermal, .thermalGPU):
-            ThermalGPUPopoverView(coordinator: coordinator, preferences: preferences)
+            ThermalSensorExplorerView(group: .gpu, coordinator: coordinator, preferences: preferences)
         case (.thermal, .thermalMemory):
-            ThermalMemoryPopoverView(coordinator: coordinator, preferences: preferences)
+            ThermalSensorExplorerView(group: .memory, coordinator: coordinator, preferences: preferences)
         case (.thermal, .thermalStorage):
-            ThermalStoragePopoverView(coordinator: coordinator, preferences: preferences)
+            ThermalSensorExplorerView(group: .storage, coordinator: coordinator, preferences: preferences)
         case (.thermal, .thermalBattery):
-            ThermalBatteryPopoverView(coordinator: coordinator, preferences: preferences)
+            ThermalSensorExplorerView(group: .battery, coordinator: coordinator, preferences: preferences)
         case (.thermal, .thermalRing):
             ThermalRingPopoverView(coordinator: coordinator, preferences: preferences)
         case (.thermal, .history):
@@ -4287,15 +4357,15 @@ public enum ConfigPopoverFactory {
         switch (category, popoverStyle.purposefulStyle(for: category)) {
         // MARK: Thermal Custom Popovers
         case (.thermal, .thermalCPU):
-            return NSHostingController(rootView: ThermalCPUPopoverView(coordinator: coordinator, preferences: preferences))
+            return NSHostingController(rootView: ThermalSensorExplorerView(group: .cpu, coordinator: coordinator, preferences: preferences))
         case (.thermal, .thermalGPU):
-            return NSHostingController(rootView: ThermalGPUPopoverView(coordinator: coordinator, preferences: preferences))
+            return NSHostingController(rootView: ThermalSensorExplorerView(group: .gpu, coordinator: coordinator, preferences: preferences))
         case (.thermal, .thermalMemory):
-            return NSHostingController(rootView: ThermalMemoryPopoverView(coordinator: coordinator, preferences: preferences))
+            return NSHostingController(rootView: ThermalSensorExplorerView(group: .memory, coordinator: coordinator, preferences: preferences))
         case (.thermal, .thermalStorage):
-            return NSHostingController(rootView: ThermalStoragePopoverView(coordinator: coordinator, preferences: preferences))
+            return NSHostingController(rootView: ThermalSensorExplorerView(group: .storage, coordinator: coordinator, preferences: preferences))
         case (.thermal, .thermalBattery):
-            return NSHostingController(rootView: ThermalBatteryPopoverView(coordinator: coordinator, preferences: preferences))
+            return NSHostingController(rootView: ThermalSensorExplorerView(group: .battery, coordinator: coordinator, preferences: preferences))
         case (.thermal, .thermalRing):
             return NSHostingController(rootView: ThermalRingPopoverView(coordinator: coordinator, preferences: preferences))
         case (.thermal, .history):
