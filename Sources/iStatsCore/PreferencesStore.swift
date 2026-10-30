@@ -549,16 +549,16 @@ public final class PreferencesStore: ObservableObject, @unchecked Sendable {
     }
 
     /// Returns the resolved effective popover style for a widget, falling back to its natural default style if unset.
-    public func resolvedPopoverStyle(for category: MetricCategory, widgetStyle: MetricDisplayStyle) -> PopoverStyle {
+    public func resolvedPopoverStyle(for category: MetricCategory, widgetStyle: MetricDisplayStyle, hasBattery: Bool = true) -> PopoverStyle {
         popoverStyle(for: category, widgetStyle: widgetStyle)
-            ?? PopoverStyle.defaultStyle(for: category, widgetStyle: widgetStyle)
+            ?? PopoverStyle.defaultStyle(for: category, widgetStyle: widgetStyle, hasBattery: hasBattery)
     }
 
     /// Sets or clears the custom popover style for a specific menu bar widget.
-    public func setPopoverStyle(_ popoverStyle: PopoverStyle?, for category: MetricCategory, widgetStyle: MetricDisplayStyle) {
+    public func setPopoverStyle(_ popoverStyle: PopoverStyle?, for category: MetricCategory, widgetStyle: MetricDisplayStyle, hasBattery: Bool = true) {
         let id = "\(category.rawValue).\(widgetStyle.rawValue)"
-        let defaultStyle = PopoverStyle.defaultStyle(for: category, widgetStyle: widgetStyle)
-        let supported = PopoverStyle.supportedPopovers(for: category)
+        let defaultStyle = PopoverStyle.defaultStyle(for: category, widgetStyle: widgetStyle, hasBattery: hasBattery)
+        let supported = PopoverStyle.supportedPopovers(for: category, hasBattery: hasBattery)
         let normalized: PopoverStyle?
         if let style = popoverStyle, style != defaultStyle, supported.contains(style) {
             normalized = style

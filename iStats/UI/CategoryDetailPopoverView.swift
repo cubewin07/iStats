@@ -4165,8 +4165,16 @@ public struct PowerWattagePopoverView: View {
                         Text(String(format: "%.0f W", a))
                             .font(.system(size: 18, weight: .bold, design: .rounded))
                             .foregroundColor(.green)
-                    } else {
+                    } else if sample?.hasBattery == false {
+                        Text("AC Line Power")
+                            .font(.system(size: 13, weight: .bold))
+                            .foregroundColor(.green)
+                    } else if sample?.hasBattery == true {
                         Text("On Battery")
+                            .font(.system(size: 13, weight: .bold))
+                            .foregroundColor(.secondary)
+                    } else {
+                        Text("—")
                             .font(.system(size: 13, weight: .bold))
                             .foregroundColor(.secondary)
                     }
@@ -4479,12 +4487,18 @@ public struct PowerBarPopoverView: View {
                 guard hasBat else {
                     return ("Continuous AC Power", "Operating on wall power. No internal lithium-ion battery.", .green)
                 }
-                if charge < 80.0 && sample?.state == .charging {
-                    return ("Fast Charge Phase", "Charging at maximum current up to 80% capacity.", .green)
-                } else if charge >= 80.0 && sample?.state == .charging {
-                    return ("Trickle / Constant Voltage", "Current tapered down to preserve lithium-ion longevity.", .mint)
-                } else if sample?.isOnHold == true {
+                if sample?.isOnHold == true {
                     return ("Optimized Battery Charging", "Charging on hold at 80% until customary usage window.", .orange)
+                } else if sample?.state == .charging {
+                    if charge < 80.0 {
+                        return ("Fast Charge Phase", "Charging at maximum current up to 80% capacity.", .green)
+                    } else {
+                        return ("Trickle / Constant Voltage", "Current tapered down to preserve lithium-ion longevity.", .mint)
+                    }
+                } else if sample?.state == .charged {
+                    return ("Fully Charged", "Connected to AC power. Battery full.", .green)
+                } else if sample?.state == .acConnected {
+                    return ("AC Connected", "Connected to AC power. Not charging.", .blue)
                 } else {
                     return ("Battery Discharging", "Operating normally on internal pack power.", .secondary)
                 }

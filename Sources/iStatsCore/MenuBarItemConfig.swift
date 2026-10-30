@@ -155,7 +155,7 @@ public enum MetricDisplayStyle: String, CaseIterable, Identifiable, Codable, Sen
         case .power:
             return hasBattery
                 ? [.text, .throughput, .gauge, .bar, .sparkline, .symbol]
-                : [.text, .throughput, .sparkline]
+                : [.throughput, .sparkline]
         }
     }
 }
@@ -303,7 +303,7 @@ public enum PopoverStyle: String, CaseIterable, Identifiable, Codable, Sendable 
     }
 
     /// Natural default popover style for a given category and menu bar widget style.
-    public static func defaultStyle(for category: MetricCategory, widgetStyle: MetricDisplayStyle) -> PopoverStyle {
+    public static func defaultStyle(for category: MetricCategory, widgetStyle: MetricDisplayStyle, hasBattery: Bool = true) -> PopoverStyle {
         switch (category, widgetStyle) {
         // CPU
         case (.cpu, .gauge): return .cpuUserSystem
@@ -327,7 +327,7 @@ public enum PopoverStyle: String, CaseIterable, Identifiable, Codable, Sendable 
         case (.thermal, .gpuTemp): return .thermalGPU
         case (.thermal, .memoryTemp): return .thermalMemory
         case (.thermal, .storageTemp): return .thermalStorage
-        case (.thermal, .batteryTemp): return .thermalBattery
+        case (.thermal, .batteryTemp): return hasBattery ? .thermalBattery : .categoryDefault
         case (.thermal, .gauge): return .thermalRing
         case (.thermal, .sparkline): return .history
 
@@ -350,11 +350,12 @@ public enum PopoverStyle: String, CaseIterable, Identifiable, Codable, Sendable 
         case (.disk, .symbol): return .diskActivityLEDs
 
         // Power
-        case (.power, .text): return .powerBudget
+        case (.power, .text): return hasBattery ? .powerBudget : .powerWattage
         case (.power, .throughput): return .powerWattage
-        case (.power, .gauge): return .powerChargeRing
-        case (.power, .bar): return .powerBar
+        case (.power, .gauge): return hasBattery ? .powerChargeRing : .powerWattage
+        case (.power, .bar): return hasBattery ? .powerBar : .powerWattage
         case (.power, .sparkline): return .history
+        case (.power, .symbol): return .categoryDefault
 
         default:
             return .categoryDefault

@@ -101,7 +101,27 @@ final class MenuBarItemConfigTests: XCTestCase {
         XCTAssertEqual(pwrBatteryStyles, [.text, .throughput, .gauge, .bar, .sparkline, .symbol])
 
         let pwrDesktopStyles = MetricDisplayStyle.supportedStyles(for: .power, hasBattery: false)
-        XCTAssertEqual(pwrDesktopStyles, [.text, .throughput, .sparkline])
+        XCTAssertEqual(pwrDesktopStyles, [.throughput, .sparkline])
+    }
+
+    func testExhaustivePopoverStyleSupportAndDefaultResolution() {
+        for category in MetricCategory.allCases {
+            for hasBattery in [true, false] {
+                let supportedWidgets = MetricDisplayStyle.supportedStyles(for: category, hasBattery: hasBattery)
+                let supportedPopovers = PopoverStyle.supportedPopovers(for: category, hasBattery: hasBattery)
+
+                XCTAssertFalse(supportedPopovers.isEmpty, "Category \(category) hasBattery=\(hasBattery) must have supported popovers")
+                XCTAssertTrue(supportedPopovers.contains(.categoryDefault), "Category \(category) must always include .categoryDefault")
+
+                for widget in supportedWidgets {
+                    let defaultPop = PopoverStyle.defaultStyle(for: category, widgetStyle: widget, hasBattery: hasBattery)
+                    XCTAssertTrue(
+                        supportedPopovers.contains(defaultPop),
+                        "Category \(category) widget \(widget) hasBattery=\(hasBattery) resolved to \(defaultPop) which is NOT in supportedPopovers: \(supportedPopovers)"
+                    )
+                }
+            }
+        }
     }
 
     func testCategorySpecificDisplayNames() {
