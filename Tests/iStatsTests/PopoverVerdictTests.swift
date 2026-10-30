@@ -91,7 +91,7 @@ final class PopoverVerdictTests: XCTestCase {
         XCTAssertEqual(verdictWarning.level, .warning)
         XCTAssertEqual(verdictWarning.badgeText, "Warning")
         XCTAssertEqual(verdictWarning.dadSentence, "macOS is reclaiming memory. Apps may feel slower.")
-        XCTAssertTrue(verdictWarning.secondaryValue?.contains("Swap active") ?? false)
+        XCTAssertTrue(verdictWarning.secondaryValue?.contains("Swap used:") ?? false)
 
         // Critical pressure
         let sampleCritical = MemorySample(
@@ -118,51 +118,25 @@ final class PopoverVerdictTests: XCTestCase {
         XCTAssertEqual(nilVerdict.level, .fine)
         XCTAssertEqual(nilVerdict.badgeText, "Ready")
 
-        // Nominal & Optimal temperatures (<75°C)
-        let nominalSample = ThermalSample(sensors: [
-            SensorReading(name: "CPU Package", celsius: 52.0),
-            SensorReading(name: "GPU Cluster 1", celsius: 48.0)
-        ], pressure: .nominal)
-        let nominalVerdict = VerdictEvaluator.evaluateThermal(nominalSample)
-        XCTAssertEqual(nominalVerdict.level, .fine)
-        XCTAssertEqual(nominalVerdict.badgeText, "Cool")
-        XCTAssertEqual(nominalVerdict.dadSentence, "Temperatures are optimal")
+        let nominalSample = ThermalSample(sensors: [SensorReading(name: "CPU Package", celsius: 96)], pressure: .nominal)
+        let nominal = VerdictEvaluator.evaluateThermal(nominalSample)
+        XCTAssertEqual(nominal.level, .fine)
+        XCTAssertEqual(nominal.badgeText, "Nominal")
+        XCTAssertEqual(nominal.dadSentence, "macOS reports nominal thermal pressure")
 
-        // Nominal but primary sensor >= 75°C
-        let warmSample = ThermalSample(sensors: [
-            SensorReading(name: "CPU Package", celsius: 78.0)
-        ], pressure: .nominal)
-        let warmVerdict = VerdictEvaluator.evaluateThermal(warmSample)
-        XCTAssertEqual(warmVerdict.level, .elevated)
-        XCTAssertEqual(warmVerdict.badgeText, "Warm")
-        XCTAssertEqual(warmVerdict.dadSentence, "macOS has not throttled")
+        let unknown = VerdictEvaluator.evaluateThermal(ThermalSample(sensors: [SensorReading(name: "CPU", celsius: 50)]))
+        XCTAssertEqual(unknown.badgeText, "Unavailable")
+        XCTAssertEqual(unknown.dadSentence, "Thermal pressure is not reported")
 
-        // Nominal but hotspot sensor >= 95°C
-        let hotspotSample = ThermalSample(sensors: [
-            SensorReading(name: "CPU Package", celsius: 65.0),
-            SensorReading(name: "Memory Module B", celsius: 96.0)
-        ], pressure: .nominal)
-        let hotspotVerdict = VerdictEvaluator.evaluateThermal(hotspotSample)
-        XCTAssertEqual(hotspotVerdict.level, .warning)
-        XCTAssertEqual(hotspotVerdict.badgeText, "Hot")
-        XCTAssertEqual(hotspotVerdict.dadSentence, "Hottest sensor elevated; not throttling")
-
-        // Elevated pressure states: .fair -> Warm, .serious -> Hot, .critical -> Too hot
-        let fairSample = ThermalSample(sensors: [SensorReading(name: "CPU Package", celsius: 80.0)], pressure: .fair)
-        let fairVerdict = VerdictEvaluator.evaluateThermal(fairSample)
-        XCTAssertEqual(fairVerdict.level, .elevated)
-        XCTAssertEqual(fairVerdict.badgeText, "Warm")
-
-        let seriousSample = ThermalSample(sensors: [SensorReading(name: "CPU Package", celsius: 92.0)], pressure: .serious)
-        let seriousVerdict = VerdictEvaluator.evaluateThermal(seriousSample)
-        XCTAssertEqual(seriousVerdict.level, .warning)
-        XCTAssertEqual(seriousVerdict.badgeText, "Hot")
-
-        let criticalSample = ThermalSample(sensors: [SensorReading(name: "CPU Package", celsius: 104.0)], pressure: .critical)
-        let criticalVerdict = VerdictEvaluator.evaluateThermal(criticalSample)
-        XCTAssertEqual(criticalVerdict.level, .critical)
-        XCTAssertEqual(criticalVerdict.badgeText, "Too hot")
-        XCTAssertEqual(criticalVerdict.dadSentence, "macOS is throttling CPU to cool down")
+        let fair = VerdictEvaluator.evaluateThermal(ThermalSample(sensors: [SensorReading(name: "CPU", celsius: 80)], pressure: .fair))
+        XCTAssertEqual(fair.level, .elevated)
+        XCTAssertEqual(fair.badgeText, "Fair")
+        let serious = VerdictEvaluator.evaluateThermal(ThermalSample(sensors: [SensorReading(name: "CPU", celsius: 92)], pressure: .serious))
+        XCTAssertEqual(serious.level, .warning)
+        XCTAssertEqual(serious.badgeText, "Serious")
+        let critical = VerdictEvaluator.evaluateThermal(ThermalSample(sensors: [SensorReading(name: "CPU", celsius: 104)], pressure: .critical))
+        XCTAssertEqual(critical.level, .critical)
+        XCTAssertEqual(critical.dadSentence, "macOS reports critical thermal pressure")
     }
 
     // MARK: - 4. Fan Verdict Evaluation

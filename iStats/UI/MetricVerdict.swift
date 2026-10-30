@@ -133,7 +133,7 @@ public enum VerdictEvaluator {
 
         var secondary = "\(usedStr) of \(totalStr)"
         if s.swapUsed > 0 {
-            secondary += "  ·  Swap active"
+            secondary += "  ·  Swap used: \(Units.formatBytes(s.swapUsed, standard: standard, fractionDigits: 1))"
         }
 
         return MetricVerdict(
@@ -163,45 +163,37 @@ public enum VerdictEvaluator {
 
         let maxSensor = s.sensors.max(by: { $0.celsius < $1.celsius })
         let maxTemp = maxSensor?.celsius ?? primary.celsius
-        let pressure = s.pressure ?? .nominal
-
         let level: StatusLevel
         let badge: String
         let sentence: String
 
-        switch pressure {
+        switch s.pressure {
         case .critical:
             level = .critical
-            badge = "Too hot"
-            sentence = "macOS is throttling CPU to cool down"
+            badge = "Critical"
+            sentence = "macOS reports critical thermal pressure"
         case .serious:
             level = .warning
-            badge = "Hot"
-            sentence = "System running hot under sustained load"
+            badge = "Serious"
+            sentence = "macOS reports serious thermal pressure"
         case .fair:
             level = .elevated
-            badge = "Warm"
-            sentence = "Warm, but macOS has not throttled"
+            badge = "Fair"
+            sentence = "macOS reports fair thermal pressure"
         case .nominal:
-            if maxTemp >= 95.0 {
-                level = .warning
-                badge = "Hot"
-                sentence = "Hottest sensor elevated; not throttling"
-            } else if primary.celsius >= 75.0 {
-                level = .elevated
-                badge = "Warm"
-                sentence = "macOS has not throttled"
-            } else {
-                level = .fine
-                badge = "Cool"
-                sentence = "Temperatures are optimal"
-            }
+            level = .fine
+            badge = "Nominal"
+            sentence = "macOS reports nominal thermal pressure"
+        case nil:
+            level = .fine
+            badge = "Unavailable"
+            sentence = "Thermal pressure is not reported"
         }
 
         let primaryFormatted = Units.formatTemperature(primary.celsius, unit: unit, fractionDigits: 0)
         let secondary = maxSensor != nil && maxSensor!.name != primary.name
             ? "Hottest: \(cleanSensorName(maxSensor!.name)) \(Units.formatTemperature(maxTemp, unit: unit, fractionDigits: 0))"
-            : "SoC Package: \(Units.formatTemperature(primary.celsius, unit: unit, fractionDigits: 1))"
+            : "\(primary.name): \(Units.formatTemperature(primary.celsius, unit: unit, fractionDigits: 1))"
 
         return MetricVerdict(
             level: level,
