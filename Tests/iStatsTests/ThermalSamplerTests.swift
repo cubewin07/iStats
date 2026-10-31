@@ -163,7 +163,7 @@ final class ThermalSamplerTests: XCTestCase {
     // MARK: - UI Rendering & View Model Tests
 
     @MainActor
-    func testThermalSummaryViewRendersWithData() {
+    func testTemperaturePopoverRendersWithData() {
         let sample = ThermalSample(
             sensors: [
                 SensorReading(name: "CPU Package", celsius: 48.0),
@@ -172,50 +172,33 @@ final class ThermalSamplerTests: XCTestCase {
             ],
             pressure: .nominal
         )
-        let history = [
-            Sample(value: sample, availability: .available)
-        ]
+        let coord = MetricsCoordinator(scheduler: SampleScheduler(), store: MetricsStore(), preferencesStore: PreferencesStore.shared)
+        coord.handleReading(.thermal(Sample(value: sample)))
 
-        let view = ThermalSummaryView(
-            sample: sample,
-            history: history,
-            temperatureUnit: .celsius
+        let view = TemperaturePopover(
+            coordinator: coord
         )
 
         XCTAssertNotNil(view.body)
     }
 
     @MainActor
-    func testThermalSummaryViewRendersFahrenheit() {
+    func testTemperaturePopoverRendersFahrenheit() {
         let sample = ThermalSample(
             sensors: [
                 SensorReading(name: "CPU Package", celsius: 50.0)
             ],
             pressure: .fair
         )
+        let coord = MetricsCoordinator(scheduler: SampleScheduler(), store: MetricsStore(), preferencesStore: PreferencesStore.shared)
+        coord.handleReading(.thermal(Sample(value: sample)))
+        PreferencesStore.shared.temperatureUnit = .fahrenheit
 
-        let view = ThermalSummaryView(
-            sample: sample,
-            history: [],
-            temperatureUnit: .fahrenheit
+        let view = TemperaturePopover(
+            coordinator: coord
         )
 
         XCTAssertNotNil(view.body)
-    }
-
-    @MainActor
-    func testDetailPopoverViewIncludesThermal() {
-        let thermalSample = ThermalSample(
-            sensors: [
-                SensorReading(name: "CPU Package", celsius: 46.5)
-            ],
-            pressure: .nominal
-        )
-
-        let popover = DetailPopoverView(
-            thermalSample: thermalSample
-        )
-
-        XCTAssertNotNil(popover.body)
+        PreferencesStore.shared.temperatureUnit = .celsius
     }
 }

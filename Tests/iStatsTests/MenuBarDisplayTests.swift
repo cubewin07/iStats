@@ -345,14 +345,14 @@ final class MenuBarDisplayTests: XCTestCase {
         defaults.removePersistentDomain(forName: suiteName)
     }
 
-    func testCategoryDetailPopoverViewInstantiation() {
+    func testCategoryPopoverInstantiation() {
         for category in MetricCategory.allCases {
-            let view = CategoryDetailPopoverView(
+            let view = PopoverFactory.makeCategoryPopoverView(
                 category: category,
                 coordinator: .shared,
                 preferences: .shared
             )
-        let hosting = NSHostingView(rootView: view)
+            let hosting = NSHostingView(rootView: AnyView(view))
             XCTAssertNotNil(hosting)
         }
     }

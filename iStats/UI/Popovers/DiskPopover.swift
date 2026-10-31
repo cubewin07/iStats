@@ -152,8 +152,6 @@ public struct DiskPopover: View {
                 ScrollView(.vertical, showsIndicators: false) {
                     VStack(spacing: 8) {
                         ForEach(vols, id: \.mountPoint) { vol in
-                            let ratio = vol.total > 0 ? (Double(vol.used) / Double(vol.total)) * 100.0 : 0.0
-
                             VStack(alignment: .leading, spacing: 4) {
                                 HStack {
                                     VStack(alignment: .leading, spacing: 1) {

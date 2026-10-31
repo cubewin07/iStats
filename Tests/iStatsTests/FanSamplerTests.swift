@@ -135,44 +135,35 @@ final class FanSamplerTests: XCTestCase {
     }
 
     @MainActor
-    func testFanSummaryViewRendersWithData() {
+    func testFanPopoverRendersWithData() {
         let sample = FanSample(fans: [
             FanReading(name: "Left Fan", rpm: 1850, minRPM: 1200, maxRPM: 5500),
             FanReading(name: "Right Fan", rpm: 1920, minRPM: 1200, maxRPM: 5500)
         ])
-        let history = [
-            Sample(value: sample, availability: .available)
-        ]
+        let coord = MetricsCoordinator(scheduler: SampleScheduler(), store: MetricsStore(), preferencesStore: PreferencesStore.shared)
+        coord.handleReading(.fan(Sample(value: sample)))
 
-        let view = FanSummaryView(
-            sample: sample,
-            history: history
-        )
-
+        let view = FanPopover(coordinator: coord)
         XCTAssertNotNil(view.body)
     }
 
     @MainActor
-    func testFanSummaryViewRendersFanless() {
+    func testFanPopoverRendersFanless() {
         let sample = FanSample(fans: [])
-        let view = FanSummaryView(
-            sample: sample,
-            history: []
-        )
+        let coord = MetricsCoordinator(scheduler: SampleScheduler(), store: MetricsStore(), preferencesStore: PreferencesStore.shared)
+        coord.handleReading(.fan(Sample(value: sample)))
 
+        let view = FanPopover(coordinator: coord)
         XCTAssertNotNil(view.body)
     }
 
     @MainActor
-    func testDetailPopoverViewIncludesFan() {
-        let fanSample = FanSample(fans: [
+    func testFanPopoverRendersCleanly() {
+        let coord = MetricsCoordinator(scheduler: SampleScheduler(), store: MetricsStore(), preferencesStore: PreferencesStore.shared)
+        coord.handleReading(.fan(Sample(value: FanSample(fans: [
             FanReading(name: "System Fan", rpm: 1500, minRPM: 1000, maxRPM: 5000)
-        ])
-
-        let popover = DetailPopoverView(
-            fanSample: fanSample
-        )
-
+        ]))))
+        let popover = FanPopover(coordinator: coord)
         XCTAssertNotNil(popover.body)
     }
 
