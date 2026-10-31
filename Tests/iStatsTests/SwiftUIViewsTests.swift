@@ -371,4 +371,68 @@ final class SwiftUIViewsTests: XCTestCase {
         XCTAssertGreaterThan(fit.width, 100)
         XCTAssertGreaterThan(fit.height, 50)
     }
+
+    // MARK: - 6. Design System Components Smoke Tests
+
+    func testDesignPrimitivesRenderCleanly() {
+        let header = PopoverHeader(
+            category: .cpu,
+            subtitle: "Working normally",
+            statusLevel: .fine,
+            badgeText: "Fine"
+        )
+        let headerHosting = NSHostingView(rootView: header)
+        headerHosting.frame = CGRect(x: 0, y: 0, width: 330, height: 40)
+        headerHosting.layoutSubtreeIfNeeded()
+        XCTAssertGreaterThan(headerHosting.fittingSize.width, 100)
+
+        let tabBar = TabBar(
+            category: .cpu,
+            tabs: [.overview, .detail, .history],
+            selectedTab: .constant(.overview)
+        )
+        let tabHosting = NSHostingView(rootView: tabBar)
+        tabHosting.frame = CGRect(x: 0, y: 0, width: 330, height: 30)
+        tabHosting.layoutSubtreeIfNeeded()
+        XCTAssertGreaterThan(tabHosting.fittingSize.width, 100)
+
+        let hero = HeroMetric(
+            primaryValue: "42",
+            unit: "%",
+            contextLine: "on 10 cores"
+        )
+        let heroHosting = NSHostingView(rootView: hero)
+        heroHosting.frame = CGRect(x: 0, y: 0, width: 330, height: 60)
+        heroHosting.layoutSubtreeIfNeeded()
+        XCTAssertGreaterThan(heroHosting.fittingSize.width, 50)
+
+        let segmented = SegmentedBar(segments: [
+            .init(value: 50, color: .blue, label: "A"),
+            .init(value: 50, color: .red, label: "B")
+        ])
+        let segHosting = NSHostingView(rootView: segmented)
+        segHosting.frame = CGRect(x: 0, y: 0, width: 330, height: 10)
+        segHosting.layoutSubtreeIfNeeded()
+        XCTAssertGreaterThan(segHosting.fittingSize.height, 0)
+
+        let legend = LegendRow(color: .mint, label: "App", value: "4 GB", shareText: "50%")
+        let stat = StatRow(label: "Key", value: "Val", statusLevel: .warning)
+        let range = RangeBar(value: 50, min: 0, max: 100)
+        let copy = CopyableValue(label: "IP", value: "127.0.0.1")
+        let banner = StatusBanner(iconName: "info.circle", message: "Notice", level: .elevated)
+        let skeleton = SkeletonView(width: 100, height: 16)
+
+        let stack = VStack {
+            legend
+            stat
+            range
+            copy
+            banner
+            skeleton
+        }
+        let stackHosting = NSHostingView(rootView: stack)
+        stackHosting.frame = CGRect(x: 0, y: 0, width: 330, height: 200)
+        stackHosting.layoutSubtreeIfNeeded()
+        XCTAssertGreaterThan(stackHosting.fittingSize.height, 50)
+    }
 }
