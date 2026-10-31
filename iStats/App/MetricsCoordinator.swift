@@ -77,6 +77,15 @@ public final class MetricsCoordinator: ObservableObject {
     /// Rolling chronological history of GPU samples queried on-demand from backing store.
     public var gpuHistory: [Sample<GPUSample>] { store.gpuHistory() }
 
+    /// Queries the in-memory scalar trend history for a specific series key (Task 7.6).
+    public func scalarHistory(
+        for key: ScalarSeriesKey,
+        duration: TimeInterval? = nil,
+        maxPoints: Int = 120
+    ) -> [Double] {
+        store.scalarHistory(for: key, duration: duration, maxPoints: maxPoints)
+    }
+
     /// Live availability status per metric category.
     @Published public private(set) var categoryAvailability: [MetricCategory: Availability] = [:]
 

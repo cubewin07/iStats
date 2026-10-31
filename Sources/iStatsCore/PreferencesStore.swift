@@ -29,6 +29,7 @@ public final class PreferencesStore: ObservableObject, @unchecked Sendable {
         public static let menuBarDisplayMode = "iStats.menuBarDisplayMode"
         public static let menuBarItems = "iStats.menuBarItems"
         public static let widgetPopoverStyles = "iStats.widgetPopoverStyles"
+        public static let categoryLastTabs = "iStats.categoryLastTabs"
         public static let isSamplingPaused = "iStats.isSamplingPaused"
         public static let isAutoPausedByLowPowerMode = "iStats.isAutoPausedByLowPowerMode"
         public static let autoPauseOnLowPowerMode = "iStats.autoPauseOnLowPowerMode"
@@ -166,6 +167,13 @@ public final class PreferencesStore: ObservableObject, @unchecked Sendable {
             if let data = try? JSONEncoder().encode(widgetPopoverStyles) {
                 userDefaults.set(data, forKey: Keys.widgetPopoverStyles)
             }
+        }
+    }
+
+    /// Remembered active tab per category when rememberLastTab is true (ADR 0008).
+    @Published public var categoryLastTabs: [String: String] {
+        didSet {
+            userDefaults.set(categoryLastTabs, forKey: Keys.categoryLastTabs)
         }
     }
 
@@ -408,12 +416,11 @@ public final class PreferencesStore: ObservableObject, @unchecked Sendable {
            let items = try? JSONDecoder().decode([MenuBarItemConfig].self, from: data) {
             // Deduplicate items resulting from migration (e.g. if tachometer & gauge both present)
             // and filter out styles that are no longer supported for that category.
-            var seen = Set<String>()
+            let deduplicatedItems = MenuBarItemConfig.deduplicated(items)
             var sanitized: [MenuBarItemConfig] = []
-            for var item in items {
+            for var item in deduplicatedItems {
                 let supported = MetricDisplayStyle.supportedStyles(for: item.category)
-                if supported.contains(item.style), !seen.contains(item.id) {
-                    seen.insert(item.id)
+                if supported.contains(item.style) {
                     if let pop = item.popoverStyle {
                         let validPopovers = PopoverStyle.supportedPopovers(for: item.category)
                         let defaultPop = PopoverStyle.defaultStyle(for: item.category, widgetStyle: item.style)
@@ -439,6 +446,7 @@ public final class PreferencesStore: ObservableObject, @unchecked Sendable {
             return copy
         }
         self.widgetPopoverStyles = loadedPopoverStyles
+        self.categoryLastTabs = userDefaults.dictionary(forKey: Keys.categoryLastTabs) as? [String: String] ?? [:]
 
         // Load sampling pause state (default: false) and Low Power Mode auto-pause (default: true)
         let paused = userDefaults.bool(forKey: Keys.isSamplingPaused)
@@ -504,37 +512,104 @@ public final class PreferencesStore: ObservableObject, @unchecked Sendable {
         }
     }
 
-    // MARK: - Menu Bar Item Management (ADR 0007)
+    // MARK: - Menu Bar Item Management (ADR 0007 / ADR 0008)
     
-    /// Returns whether a specific menu bar widget (category + style) is enabled.
-    public func isItemEnabled(category: MetricCategory, style: MetricDisplayStyle) -> Bool {
-        menuBarItems.contains { $0.category == category && $0.style == style }
+    /// Returns whether a specific menu bar widget (category + style + optional source) is enabled.
+    public func isItemEnabled(category: MetricCategory, style: MetricDisplayStyle, source: MetricSource? = nil) -> Bool {
+        menuBarItems.contains { item in
+            guard item.category == category && item.style == style else { return false }
+            if let src = source {
+                return (item.source ?? .peak) == src
+            }
+            return true
+        }
+    }
+
+    /// Returns whether an exact menu bar config matching category, style, and source is enabled.
+    public func isExactItemEnabled(category: MetricCategory, style: MetricDisplayStyle, source: MetricSource? = nil) -> Bool {
+        menuBarItems.contains { item in
+            guard item.category == category && item.style == style else { return false }
+            return item.source == source
+        }
     }
 
     /// Returns whether a specific menu bar config is enabled.
     public func isItemEnabled(_ item: MenuBarItemConfig) -> Bool {
-        menuBarItems.contains { $0.category == item.category && $0.style == item.style }
+        menuBarItems.contains { $0.id == item.id }
+    }
+
+    /// Returns the active item matching category, style, and optional source.
+    public func item(category: MetricCategory, style: MetricDisplayStyle, source: MetricSource? = nil) -> MenuBarItemConfig? {
+        menuBarItems.first { item in
+            guard item.category == category && item.style == style else { return false }
+            if let src = source {
+                return (item.source ?? .peak) == src
+            }
+            return true
+        }
     }
 
     /// Sets the enablement status of a specific menu bar widget.
-    public func setItemEnabled(category: MetricCategory, style: MetricDisplayStyle, isEnabled: Bool) {
+    public func setItemEnabled(
+        category: MetricCategory,
+        style: MetricDisplayStyle,
+        source: MetricSource? = nil,
+        throughputLayout: ThroughputLayout? = nil,
+        showLabel: Bool = false,
+        isEnabled: Bool
+    ) {
         let popover = popoverStyle(for: category, widgetStyle: style)
-        let config = MenuBarItemConfig(category: category, style: style, popoverStyle: popover)
         if isEnabled {
-            if let idx = menuBarItems.firstIndex(where: { $0.category == category && $0.style == style }) {
+            if let idx = menuBarItems.firstIndex(where: {
+                $0.category == category && $0.style == style && $0.source == source
+            }) {
                 menuBarItems[idx].popoverStyle = popover
+                if let layout = throughputLayout {
+                    menuBarItems[idx].throughputLayout = layout
+                }
+                menuBarItems[idx].showLabel = showLabel
             } else {
+                let config = MenuBarItemConfig(
+                    category: category,
+                    style: style,
+                    popoverStyle: popover,
+                    source: source,
+                    throughputLayout: throughputLayout,
+                    showLabel: showLabel
+                )
                 menuBarItems.append(config)
             }
         } else {
-            menuBarItems.removeAll { $0.category == category && $0.style == style }
+            menuBarItems.removeAll {
+                $0.category == category && $0.style == style && $0.source == source
+            }
+        }
+    }
+
+    /// Updates options (throughput layout, show label, etc.) on an enabled item.
+    public func updateItemOptions(
+        category: MetricCategory,
+        style: MetricDisplayStyle,
+        source: MetricSource? = nil,
+        throughputLayout: ThroughputLayout? = nil,
+        showLabel: Bool? = nil
+    ) {
+        if let idx = menuBarItems.firstIndex(where: {
+            $0.category == category && $0.style == style && $0.source == source
+        }) {
+            if let layout = throughputLayout {
+                menuBarItems[idx].throughputLayout = layout
+            }
+            if let label = showLabel {
+                menuBarItems[idx].showLabel = label
+            }
         }
     }
 
     /// Toggles the enablement status of a specific menu bar widget.
-    public func toggleItem(category: MetricCategory, style: MetricDisplayStyle) {
-        let currentlyEnabled = isItemEnabled(category: category, style: style)
-        setItemEnabled(category: category, style: style, isEnabled: !currentlyEnabled)
+    public func toggleItem(category: MetricCategory, style: MetricDisplayStyle, source: MetricSource? = nil) {
+        let currentlyEnabled = isExactItemEnabled(category: category, style: style, source: source)
+        setItemEnabled(category: category, style: style, source: source, isEnabled: !currentlyEnabled)
     }
 
     // MARK: - Popover Style Management (ADR 0007 Decoupled Popover Customization)
@@ -570,6 +645,20 @@ public final class PreferencesStore: ObservableObject, @unchecked Sendable {
         if let idx = menuBarItems.firstIndex(where: { $0.category == category && $0.style == widgetStyle }) {
             menuBarItems[idx].popoverStyle = normalized
         }
+    }
+
+    /// Returns the remembered active tab for a category, if any.
+    public func lastSelectedTab(for category: MetricCategory) -> PopoverTab? {
+        guard let raw = categoryLastTabs[category.rawValue],
+              let tab = PopoverTab(rawValue: raw) else {
+            return nil
+        }
+        return tab
+    }
+
+    /// Sets the remembered active tab for a category.
+    public func setLastSelectedTab(_ tab: PopoverTab, for category: MetricCategory) {
+        categoryLastTabs[category.rawValue] = tab.rawValue
     }
 
     /// Returns all active menu bar items whose parent category is currently enabled.

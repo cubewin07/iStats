@@ -12,44 +12,59 @@
 		110000000000000000000015 /* DockIconManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000014 /* DockIconManager.swift */; };
 		110000000000000000000017 /* iStatsCore in Frameworks */ = {isa = PBXBuildFile; productRef = 110000000000000000000005 /* iStatsCore */; };
 		110000000000000000000019 /* MenuBarController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000018 /* MenuBarController.swift */; };
-		11000000000000000000001B /* DetailPopoverView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11000000000000000000001A /* DetailPopoverView.swift */; };
 		11000000000000000000001D /* PreferencesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11000000000000000000001C /* PreferencesView.swift */; };
 		110000000000000000000141 /* PreferencesComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000140 /* PreferencesComponents.swift */; };
 		110000000000000000000143 /* PreferencesMenuBarPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000142 /* PreferencesMenuBarPane.swift */; };
 		110000000000000000000145 /* PreferencesGeneralPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000144 /* PreferencesGeneralPane.swift */; };
 		110000000000000000000147 /* PreferencesAlertsPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000146 /* PreferencesAlertsPane.swift */; };
 		110000000000000000000149 /* PreferencesAboutPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000148 /* PreferencesAboutPane.swift */; };
+		110000000000000000000151 /* Tokens.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000150 /* Tokens.swift */; };
+		110000000000000000000153 /* CategoryPalette.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000152 /* CategoryPalette.swift */; };
+		110000000000000000000161 /* PopoverHeader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000160 /* PopoverHeader.swift */; };
+		110000000000000000000163 /* TabBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000162 /* TabBar.swift */; };
+		110000000000000000000165 /* HeroMetric.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000164 /* HeroMetric.swift */; };
+		110000000000000000000167 /* SegmentedBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000166 /* SegmentedBar.swift */; };
+		110000000000000000000169 /* LegendRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000168 /* LegendRow.swift */; };
+		11000000000000000000016B /* StatRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11000000000000000000016A /* StatRow.swift */; };
+		11000000000000000000016D /* StatGrid.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11000000000000000000016C /* StatGrid.swift */; };
+		11000000000000000000016F /* RangeBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11000000000000000000016E /* RangeBar.swift */; };
+		110000000000000000000171 /* CopyableValue.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000170 /* CopyableValue.swift */; };
+		110000000000000000000173 /* StatusBanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000172 /* StatusBanner.swift */; };
+		110000000000000000000175 /* SkeletonView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000174 /* SkeletonView.swift */; };
+		110000000000000000000177 /* TrendChart.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000176 /* TrendChart.swift */; };
+		110000000000000000000179 /* PopoverScaffold.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000178 /* PopoverScaffold.swift */; };
+		11000000000000000000017B /* PopoverFactory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11000000000000000000017A /* PopoverFactory.swift */; };
+		11000000000000000000017D /* HistoryTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11000000000000000000017C /* HistoryTab.swift */; };
+		11000000000000000000017F /* CPUPopover.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11000000000000000000017E /* CPUPopover.swift */; };
+		110000000000000000000181 /* MemoryPopover.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000180 /* MemoryPopover.swift */; };
+		110000000000000000000183 /* GPUPopover.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000182 /* GPUPopover.swift */; };
+		110000000000000000000185 /* TemperaturePopover.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000184 /* TemperaturePopover.swift */; };
+		110000000000000000000187 /* FanPopover.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000186 /* FanPopover.swift */; };
+		110000000000000000000189 /* NetworkPopover.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000188 /* NetworkPopover.swift */; };
+		11000000000000000000018B /* DiskPopover.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11000000000000000000018A /* DiskPopover.swift */; };
+		11000000000000000000018D /* PowerPopover.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11000000000000000000018C /* PowerPopover.swift */; };
 		11000000000000000000001F /* PreferencesWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11000000000000000000001E /* PreferencesWindowController.swift */; };
 		110000000000000000000031 /* CPUSampler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000030 /* CPUSampler.swift */; };
 		110000000000000000000033 /* MemorySampler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000032 /* MemorySampler.swift */; };
 		110000000000000000000035 /* MemoryPressureMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000034 /* MemoryPressureMonitor.swift */; };
-		110000000000000000000037 /* MemoryPressureView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000036 /* MemoryPressureView.swift */; };
 		110000000000000000000044 /* CPUSamplerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000043 /* CPUSamplerTests.swift */; };
 		11000000000000000000004A /* MemorySamplerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000049 /* MemorySamplerTests.swift */; };
 		11000000000000000000004E /* MemoryPressureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11000000000000000000004D /* MemoryPressureTests.swift */; };
 		110000000000000000000061 /* MetricsCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000060 /* MetricsCoordinator.swift */; };
-		110000000000000000000063 /* RollingGraphView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000062 /* RollingGraphView.swift */; };
-		110000000000000000000065 /* CPUSummaryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000064 /* CPUSummaryView.swift */; };
 		110000000000000000000067 /* DetailViewGraphsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000066 /* DetailViewGraphsTests.swift */; };
 		110000000000000000000071 /* NetworkSampler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000070 /* NetworkSampler.swift */; };
 		110000000000000000000073 /* NetworkSamplerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000072 /* NetworkSamplerTests.swift */; };
 		110000000000000000000081 /* DiskSampler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000080 /* DiskSampler.swift */; };
 		110000000000000000000083 /* DiskSamplerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000082 /* DiskSamplerTests.swift */; };
-		110000000000000000000075 /* NetworkSummaryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000074 /* NetworkSummaryView.swift */; };
-		110000000000000000000085 /* DiskSummaryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000084 /* DiskSummaryView.swift */; };
 		110000000000000000000087 /* Phase3ValidationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000086 /* Phase3ValidationTests.swift */; };
 		110000000000000000000091 /* PowerSampler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000090 /* PowerSampler.swift */; };
 		110000000000000000000093 /* PowerSamplerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000092 /* PowerSamplerTests.swift */; };
-		110000000000000000000095 /* PowerSummaryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000094 /* PowerSummaryView.swift */; };
 		110000000000000000000097 /* Phase4ValidationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000096 /* Phase4ValidationTests.swift */; };
 		1100000000000000000000A1 /* ThermalSampler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000000A0 /* ThermalSampler.swift */; };
-		1100000000000000000000A3 /* ThermalSummaryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000000A2 /* ThermalSummaryView.swift */; };
 		1100000000000000000000A5 /* ThermalSamplerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000000A4 /* ThermalSamplerTests.swift */; };
 		1100000000000000000000B1 /* FanSampler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000000B0 /* FanSampler.swift */; };
-		1100000000000000000000B3 /* FanSummaryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000000B2 /* FanSummaryView.swift */; };
 		1100000000000000000000B5 /* FanSamplerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000000B4 /* FanSamplerTests.swift */; };
 		1100000000000000000000C1 /* GPUSampler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000000C0 /* GPUSampler.swift */; };
-		1100000000000000000000C3 /* GPUSummaryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000000C2 /* GPUSummaryView.swift */; };
 		1100000000000000000000C5 /* GPUSamplerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000000C4 /* GPUSamplerTests.swift */; };
 		1100000000000000000000D5 /* SandboxDegradationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000000D4 /* SandboxDegradationTests.swift */; };
 		1100000000000000000000D7 /* Phase5ValidationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000000D6 /* Phase5ValidationTests.swift */; };
@@ -58,18 +73,8 @@
 		1100000000000000000000E5 /* SystemIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000000E4 /* SystemIntegrationTests.swift */; };
 		1100000000000000000000E7 /* PerformancePassTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000000E6 /* PerformancePassTests.swift */; };
 		1100000000000000000000F1 /* MenuBarIconRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000000F0 /* MenuBarIconRenderer.swift */; };
-		1100000000000000000000F3 /* CategoryDetailPopoverView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000000F2 /* CategoryDetailPopoverView.swift */; };
 		110000000000000000000045 /* iStatsCore in Frameworks */ = {isa = PBXBuildFile; productRef = 110000000000000000000005 /* iStatsCore */; };
 		110000000000000000000101 /* MetricVerdict.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000100 /* MetricVerdict.swift */; };
-		110000000000000000000103 /* PopoverCommonComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000102 /* PopoverCommonComponents.swift */; };
-		110000000000000000000105 /* CPUDieIllustrationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000104 /* CPUDieIllustrationView.swift */; };
-		110000000000000000000107 /* MemoryStickIllustrationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000106 /* MemoryStickIllustrationView.swift */; };
-		110000000000000000000109 /* ThermalHeatMapIllustrationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000108 /* ThermalHeatMapIllustrationView.swift */; };
-		11000000000000000000010B /* FanBladesIllustrationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11000000000000000000010A /* FanBladesIllustrationView.swift */; };
-		11000000000000000000010D /* GPUDieIllustrationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11000000000000000000010C /* GPUDieIllustrationView.swift */; };
-		11000000000000000000010F /* NetworkPipesIllustrationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11000000000000000000010E /* NetworkPipesIllustrationView.swift */; };
-		110000000000000000000111 /* DiskStorageTankIllustrationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000110 /* DiskStorageTankIllustrationView.swift */; };
-		110000000000000000000113 /* PowerBudgetIllustrationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000112 /* PowerBudgetIllustrationView.swift */; };
 		110000000000000000000115 /* PopoverVerdictTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000114 /* PopoverVerdictTests.swift */; };
 		110000000000000000000117 /* NotificationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000116 /* NotificationManager.swift */; };
 		110000000000000000000119 /* NotificationManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000118 /* NotificationManagerTests.swift */; };
@@ -102,45 +107,60 @@
 		110000000000000000000014 /* DockIconManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DockIconManager.swift; sourceTree = "<group>"; };
 		110000000000000000000016 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		110000000000000000000018 /* MenuBarController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarController.swift; sourceTree = "<group>"; };
-		11000000000000000000001A /* DetailPopoverView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DetailPopoverView.swift; sourceTree = "<group>"; };
 		11000000000000000000001C /* PreferencesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferencesView.swift; sourceTree = "<group>"; };
 		110000000000000000000140 /* PreferencesComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferencesComponents.swift; sourceTree = "<group>"; };
 		110000000000000000000142 /* PreferencesMenuBarPane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferencesMenuBarPane.swift; sourceTree = "<group>"; };
 		110000000000000000000144 /* PreferencesGeneralPane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferencesGeneralPane.swift; sourceTree = "<group>"; };
 		110000000000000000000146 /* PreferencesAlertsPane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferencesAlertsPane.swift; sourceTree = "<group>"; };
 		110000000000000000000148 /* PreferencesAboutPane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferencesAboutPane.swift; sourceTree = "<group>"; };
+		110000000000000000000150 /* Tokens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Design/Tokens.swift; sourceTree = "<group>"; };
+		110000000000000000000152 /* CategoryPalette.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Design/CategoryPalette.swift; sourceTree = "<group>"; };
+		110000000000000000000160 /* PopoverHeader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Design/Components/PopoverHeader.swift; sourceTree = "<group>"; };
+		110000000000000000000162 /* TabBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Design/Components/TabBar.swift; sourceTree = "<group>"; };
+		110000000000000000000164 /* HeroMetric.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Design/Components/HeroMetric.swift; sourceTree = "<group>"; };
+		110000000000000000000166 /* SegmentedBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Design/Components/SegmentedBar.swift; sourceTree = "<group>"; };
+		110000000000000000000168 /* LegendRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Design/Components/LegendRow.swift; sourceTree = "<group>"; };
+		11000000000000000000016A /* StatRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Design/Components/StatRow.swift; sourceTree = "<group>"; };
+		11000000000000000000016C /* StatGrid.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Design/Components/StatGrid.swift; sourceTree = "<group>"; };
+		11000000000000000000016E /* RangeBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Design/Components/RangeBar.swift; sourceTree = "<group>"; };
+		110000000000000000000170 /* CopyableValue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Design/Components/CopyableValue.swift; sourceTree = "<group>"; };
+		110000000000000000000172 /* StatusBanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Design/Components/StatusBanner.swift; sourceTree = "<group>"; };
+		110000000000000000000174 /* SkeletonView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Design/Components/SkeletonView.swift; sourceTree = "<group>"; };
+		110000000000000000000176 /* TrendChart.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Design/Components/TrendChart.swift; sourceTree = "<group>"; };
+		110000000000000000000178 /* PopoverScaffold.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Design/Components/PopoverScaffold.swift; sourceTree = "<group>"; };
+		11000000000000000000017A /* PopoverFactory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Popovers/PopoverFactory.swift; sourceTree = "<group>"; };
+		11000000000000000000017C /* HistoryTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Popovers/HistoryTab.swift; sourceTree = "<group>"; };
+		11000000000000000000017E /* CPUPopover.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Popovers/CPUPopover.swift; sourceTree = "<group>"; };
+		110000000000000000000180 /* MemoryPopover.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Popovers/MemoryPopover.swift; sourceTree = "<group>"; };
+		110000000000000000000182 /* GPUPopover.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Popovers/GPUPopover.swift; sourceTree = "<group>"; };
+		110000000000000000000184 /* TemperaturePopover.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Popovers/TemperaturePopover.swift; sourceTree = "<group>"; };
+		110000000000000000000186 /* FanPopover.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Popovers/FanPopover.swift; sourceTree = "<group>"; };
+		110000000000000000000188 /* NetworkPopover.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Popovers/NetworkPopover.swift; sourceTree = "<group>"; };
+		11000000000000000000018A /* DiskPopover.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Popovers/DiskPopover.swift; sourceTree = "<group>"; };
+		11000000000000000000018C /* PowerPopover.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Popovers/PowerPopover.swift; sourceTree = "<group>"; };
 		11000000000000000000001E /* PreferencesWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferencesWindowController.swift; sourceTree = "<group>"; };
 		110000000000000000000030 /* CPUSampler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CPUSampler.swift; sourceTree = "<group>"; };
 		110000000000000000000032 /* MemorySampler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemorySampler.swift; sourceTree = "<group>"; };
 		110000000000000000000034 /* MemoryPressureMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryPressureMonitor.swift; sourceTree = "<group>"; };
-		110000000000000000000036 /* MemoryPressureView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryPressureView.swift; sourceTree = "<group>"; };
 		110000000000000000000041 /* iStatsTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = iStatsTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		110000000000000000000043 /* CPUSamplerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CPUSamplerTests.swift; sourceTree = "<group>"; };
 		110000000000000000000049 /* MemorySamplerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemorySamplerTests.swift; sourceTree = "<group>"; };
 		11000000000000000000004D /* MemoryPressureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryPressureTests.swift; sourceTree = "<group>"; };
 		110000000000000000000060 /* MetricsCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetricsCoordinator.swift; sourceTree = "<group>"; };
-		110000000000000000000062 /* RollingGraphView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RollingGraphView.swift; sourceTree = "<group>"; };
-		110000000000000000000064 /* CPUSummaryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CPUSummaryView.swift; sourceTree = "<group>"; };
 		110000000000000000000066 /* DetailViewGraphsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DetailViewGraphsTests.swift; sourceTree = "<group>"; };
 		110000000000000000000070 /* NetworkSampler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkSampler.swift; sourceTree = "<group>"; };
 		110000000000000000000072 /* NetworkSamplerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkSamplerTests.swift; sourceTree = "<group>"; };
 		110000000000000000000080 /* DiskSampler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiskSampler.swift; sourceTree = "<group>"; };
 		110000000000000000000082 /* DiskSamplerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiskSamplerTests.swift; sourceTree = "<group>"; };
-		110000000000000000000074 /* NetworkSummaryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkSummaryView.swift; sourceTree = "<group>"; };
-		110000000000000000000084 /* DiskSummaryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiskSummaryView.swift; sourceTree = "<group>"; };
 		110000000000000000000086 /* Phase3ValidationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Phase3ValidationTests.swift; sourceTree = "<group>"; };
 		110000000000000000000090 /* PowerSampler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PowerSampler.swift; sourceTree = "<group>"; };
 		110000000000000000000092 /* PowerSamplerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PowerSamplerTests.swift; sourceTree = "<group>"; };
-		110000000000000000000094 /* PowerSummaryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PowerSummaryView.swift; sourceTree = "<group>"; };
 		110000000000000000000096 /* Phase4ValidationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Phase4ValidationTests.swift; sourceTree = "<group>"; };
 		1100000000000000000000A0 /* ThermalSampler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThermalSampler.swift; sourceTree = "<group>"; };
-		1100000000000000000000A2 /* ThermalSummaryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThermalSummaryView.swift; sourceTree = "<group>"; };
 		1100000000000000000000A4 /* ThermalSamplerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThermalSamplerTests.swift; sourceTree = "<group>"; };
 		1100000000000000000000B0 /* FanSampler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FanSampler.swift; sourceTree = "<group>"; };
-		1100000000000000000000B2 /* FanSummaryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FanSummaryView.swift; sourceTree = "<group>"; };
 		1100000000000000000000B4 /* FanSamplerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FanSamplerTests.swift; sourceTree = "<group>"; };
 		1100000000000000000000C0 /* GPUSampler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GPUSampler.swift; sourceTree = "<group>"; };
-		1100000000000000000000C2 /* GPUSummaryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GPUSummaryView.swift; sourceTree = "<group>"; };
 		1100000000000000000000C4 /* GPUSamplerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GPUSamplerTests.swift; sourceTree = "<group>"; };
 		1100000000000000000000D4 /* SandboxDegradationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SandboxDegradationTests.swift; sourceTree = "<group>"; };
 		1100000000000000000000D6 /* Phase5ValidationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Phase5ValidationTests.swift; sourceTree = "<group>"; };
@@ -149,17 +169,7 @@
 		1100000000000000000000E4 /* SystemIntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemIntegrationTests.swift; sourceTree = "<group>"; };
 		1100000000000000000000E6 /* PerformancePassTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PerformancePassTests.swift; sourceTree = "<group>"; };
 		1100000000000000000000F0 /* MenuBarIconRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarIconRenderer.swift; sourceTree = "<group>"; };
-		1100000000000000000000F2 /* CategoryDetailPopoverView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CategoryDetailPopoverView.swift; sourceTree = "<group>"; };
 		110000000000000000000100 /* MetricVerdict.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetricVerdict.swift; sourceTree = "<group>"; };
-		110000000000000000000102 /* PopoverCommonComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PopoverCommonComponents.swift; sourceTree = "<group>"; };
-		110000000000000000000104 /* CPUDieIllustrationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CPUDieIllustrationView.swift; sourceTree = "<group>"; };
-		110000000000000000000106 /* MemoryStickIllustrationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryStickIllustrationView.swift; sourceTree = "<group>"; };
-		110000000000000000000108 /* ThermalHeatMapIllustrationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThermalHeatMapIllustrationView.swift; sourceTree = "<group>"; };
-		11000000000000000000010A /* FanBladesIllustrationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FanBladesIllustrationView.swift; sourceTree = "<group>"; };
-		11000000000000000000010C /* GPUDieIllustrationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GPUDieIllustrationView.swift; sourceTree = "<group>"; };
-		11000000000000000000010E /* NetworkPipesIllustrationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkPipesIllustrationView.swift; sourceTree = "<group>"; };
-		110000000000000000000110 /* DiskStorageTankIllustrationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiskStorageTankIllustrationView.swift; sourceTree = "<group>"; };
-		110000000000000000000112 /* PowerBudgetIllustrationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PowerBudgetIllustrationView.swift; sourceTree = "<group>"; };
 		110000000000000000000114 /* PopoverVerdictTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PopoverVerdictTests.swift; sourceTree = "<group>"; };
 		110000000000000000000116 /* NotificationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationManager.swift; sourceTree = "<group>"; };
 		110000000000000000000118 /* NotificationManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationManagerTests.swift; sourceTree = "<group>"; };
@@ -251,34 +261,39 @@
 		11000000000000000000000E /* UI */ = {
 			isa = PBXGroup;
 			children = (
-				11000000000000000000001A /* DetailPopoverView.swift */,
 				11000000000000000000001C /* PreferencesView.swift */,
 				110000000000000000000140 /* PreferencesComponents.swift */,
 				110000000000000000000142 /* PreferencesMenuBarPane.swift */,
 				110000000000000000000144 /* PreferencesGeneralPane.swift */,
 				110000000000000000000146 /* PreferencesAlertsPane.swift */,
 				110000000000000000000148 /* PreferencesAboutPane.swift */,
-				110000000000000000000036 /* MemoryPressureView.swift */,
-				110000000000000000000062 /* RollingGraphView.swift */,
-				110000000000000000000064 /* CPUSummaryView.swift */,
-				110000000000000000000074 /* NetworkSummaryView.swift */,
-				110000000000000000000084 /* DiskSummaryView.swift */,
-				110000000000000000000094 /* PowerSummaryView.swift */,
-				1100000000000000000000A2 /* ThermalSummaryView.swift */,
-				1100000000000000000000B2 /* FanSummaryView.swift */,
-				1100000000000000000000C2 /* GPUSummaryView.swift */,
+				110000000000000000000150 /* Tokens.swift */,
+				110000000000000000000152 /* CategoryPalette.swift */,
+				110000000000000000000160 /* PopoverHeader.swift */,
+				110000000000000000000162 /* TabBar.swift */,
+				110000000000000000000164 /* HeroMetric.swift */,
+				110000000000000000000166 /* SegmentedBar.swift */,
+				110000000000000000000168 /* LegendRow.swift */,
+				11000000000000000000016A /* StatRow.swift */,
+				11000000000000000000016C /* StatGrid.swift */,
+				11000000000000000000016E /* RangeBar.swift */,
+				110000000000000000000170 /* CopyableValue.swift */,
+				110000000000000000000172 /* StatusBanner.swift */,
+				110000000000000000000174 /* SkeletonView.swift */,
+				110000000000000000000176 /* TrendChart.swift */,
+				110000000000000000000178 /* PopoverScaffold.swift */,
+				11000000000000000000017A /* PopoverFactory.swift */,
+				11000000000000000000017C /* HistoryTab.swift */,
+				11000000000000000000017E /* CPUPopover.swift */,
+				110000000000000000000180 /* MemoryPopover.swift */,
+				110000000000000000000182 /* GPUPopover.swift */,
+				110000000000000000000184 /* TemperaturePopover.swift */,
+				110000000000000000000186 /* FanPopover.swift */,
+				110000000000000000000188 /* NetworkPopover.swift */,
+				11000000000000000000018A /* DiskPopover.swift */,
+				11000000000000000000018C /* PowerPopover.swift */,
 				1100000000000000000000F0 /* MenuBarIconRenderer.swift */,
-				1100000000000000000000F2 /* CategoryDetailPopoverView.swift */,
 				110000000000000000000100 /* MetricVerdict.swift */,
-				110000000000000000000102 /* PopoverCommonComponents.swift */,
-				110000000000000000000104 /* CPUDieIllustrationView.swift */,
-				110000000000000000000106 /* MemoryStickIllustrationView.swift */,
-				110000000000000000000108 /* ThermalHeatMapIllustrationView.swift */,
-				11000000000000000000010A /* FanBladesIllustrationView.swift */,
-				11000000000000000000010C /* GPUDieIllustrationView.swift */,
-				11000000000000000000010E /* NetworkPipesIllustrationView.swift */,
-				110000000000000000000110 /* DiskStorageTankIllustrationView.swift */,
-				110000000000000000000112 /* PowerBudgetIllustrationView.swift */,
 			);
 			path = UI;
 			sourceTree = "<group>";
@@ -449,45 +464,50 @@
 				110000000000000000000015 /* DockIconManager.swift in Sources */,
 				1100000000000000000000E3 /* LaunchAtLoginManager.swift in Sources */,
 				110000000000000000000019 /* MenuBarController.swift in Sources */,
-				11000000000000000000001B /* DetailPopoverView.swift in Sources */,
 				11000000000000000000001D /* PreferencesView.swift in Sources */,
 				110000000000000000000141 /* PreferencesComponents.swift in Sources */,
 				110000000000000000000143 /* PreferencesMenuBarPane.swift in Sources */,
 				110000000000000000000145 /* PreferencesGeneralPane.swift in Sources */,
 				110000000000000000000147 /* PreferencesAlertsPane.swift in Sources */,
 				110000000000000000000149 /* PreferencesAboutPane.swift in Sources */,
+				110000000000000000000151 /* Tokens.swift in Sources */,
+				110000000000000000000153 /* CategoryPalette.swift in Sources */,
+				110000000000000000000161 /* PopoverHeader.swift in Sources */,
+				110000000000000000000163 /* TabBar.swift in Sources */,
+				110000000000000000000165 /* HeroMetric.swift in Sources */,
+				110000000000000000000167 /* SegmentedBar.swift in Sources */,
+				110000000000000000000169 /* LegendRow.swift in Sources */,
+				11000000000000000000016B /* StatRow.swift in Sources */,
+				11000000000000000000016D /* StatGrid.swift in Sources */,
+				11000000000000000000016F /* RangeBar.swift in Sources */,
+				110000000000000000000171 /* CopyableValue.swift in Sources */,
+				110000000000000000000173 /* StatusBanner.swift in Sources */,
+				110000000000000000000175 /* SkeletonView.swift in Sources */,
+				110000000000000000000177 /* TrendChart.swift in Sources */,
+				110000000000000000000179 /* PopoverScaffold.swift in Sources */,
+				11000000000000000000017B /* PopoverFactory.swift in Sources */,
+				11000000000000000000017D /* HistoryTab.swift in Sources */,
+				11000000000000000000017F /* CPUPopover.swift in Sources */,
+				110000000000000000000181 /* MemoryPopover.swift in Sources */,
+				110000000000000000000183 /* GPUPopover.swift in Sources */,
+				110000000000000000000185 /* TemperaturePopover.swift in Sources */,
+				110000000000000000000187 /* FanPopover.swift in Sources */,
+				110000000000000000000189 /* NetworkPopover.swift in Sources */,
+				11000000000000000000018B /* DiskPopover.swift in Sources */,
+				11000000000000000000018D /* PowerPopover.swift in Sources */,
 				11000000000000000000001F /* PreferencesWindowController.swift in Sources */,
 				110000000000000000000031 /* CPUSampler.swift in Sources */,
 				110000000000000000000033 /* MemorySampler.swift in Sources */,
 				110000000000000000000035 /* MemoryPressureMonitor.swift in Sources */,
-				110000000000000000000037 /* MemoryPressureView.swift in Sources */,
 				110000000000000000000061 /* MetricsCoordinator.swift in Sources */,
-				110000000000000000000063 /* RollingGraphView.swift in Sources */,
-				110000000000000000000065 /* CPUSummaryView.swift in Sources */,
 				110000000000000000000071 /* NetworkSampler.swift in Sources */,
 				110000000000000000000081 /* DiskSampler.swift in Sources */,
-				110000000000000000000075 /* NetworkSummaryView.swift in Sources */,
-				110000000000000000000085 /* DiskSummaryView.swift in Sources */,
 				110000000000000000000091 /* PowerSampler.swift in Sources */,
-				110000000000000000000095 /* PowerSummaryView.swift in Sources */,
 				1100000000000000000000A1 /* ThermalSampler.swift in Sources */,
-				1100000000000000000000A3 /* ThermalSummaryView.swift in Sources */,
 				1100000000000000000000B1 /* FanSampler.swift in Sources */,
-				1100000000000000000000B3 /* FanSummaryView.swift in Sources */,
 				1100000000000000000000C1 /* GPUSampler.swift in Sources */,
-				1100000000000000000000C3 /* GPUSummaryView.swift in Sources */,
 				1100000000000000000000F1 /* MenuBarIconRenderer.swift in Sources */,
-				1100000000000000000000F3 /* CategoryDetailPopoverView.swift in Sources */,
 				110000000000000000000101 /* MetricVerdict.swift in Sources */,
-				110000000000000000000103 /* PopoverCommonComponents.swift in Sources */,
-				110000000000000000000105 /* CPUDieIllustrationView.swift in Sources */,
-				110000000000000000000107 /* MemoryStickIllustrationView.swift in Sources */,
-				110000000000000000000109 /* ThermalHeatMapIllustrationView.swift in Sources */,
-				11000000000000000000010B /* FanBladesIllustrationView.swift in Sources */,
-				11000000000000000000010D /* GPUDieIllustrationView.swift in Sources */,
-				11000000000000000000010F /* NetworkPipesIllustrationView.swift in Sources */,
-				110000000000000000000111 /* DiskStorageTankIllustrationView.swift in Sources */,
-				110000000000000000000113 /* PowerBudgetIllustrationView.swift in Sources */,
 				110000000000000000000117 /* NotificationManager.swift in Sources */,
 				110000000000000000000121 /* AlertCoordinator.swift in Sources */,
 				110000000000000000000131 /* AppleSMCClient.swift in Sources */,

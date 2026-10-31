@@ -4,7 +4,8 @@ import iStatsCore
 
 /// Modern, intuitive Menu Bar studio pane.
 /// Features a live interactive menu bar preview strip with reordering,
-/// category-specific widget cards with live icons, and a unified Popover Stage.
+/// category-specific widget cards with live icons, layout/source options,
+/// fanless Mac support, and a unified Popover Stage.
 public struct PreferencesMenuBarPane: View {
     @ObservedObject public var store: PreferencesStore
     @ObservedObject public var coordinator: MetricsCoordinator
@@ -12,6 +13,7 @@ public struct PreferencesMenuBarPane: View {
     @State private var selectedCategory: MetricCategory = .cpu
     @State private var selectedWidgetStyle: MetricDisplayStyle = .bar
     @State private var selectedPopoverStyle: PopoverStyle = .cpuCluster
+    @State private var selectedThermalSource: MetricSource = .peak
 
     public init(
         store: PreferencesStore = .shared,
@@ -23,6 +25,18 @@ public struct PreferencesMenuBarPane: View {
 
     private var hasBattery: Bool {
         coordinator.latestPower?.value.hasBattery ?? true
+    }
+
+    private var isFanlessMac: Bool {
+        coordinator.latestFan?.value.isFanless == true || (coordinator.latestFan != nil && (coordinator.latestFan?.value.fans.isEmpty ?? false))
+    }
+
+    private var fanCount: Int {
+        coordinator.latestFan?.value.fans.count ?? 0
+    }
+
+    private var availableThermalSources: [MetricSource] {
+        MetricSource.allCases.filter { $0 != .battery || hasBattery }
     }
 
     public var body: some View {
@@ -182,7 +196,7 @@ public struct PreferencesMenuBarPane: View {
     }
 
     private func menuBarChip(item: MenuBarItemConfig, index: Int) -> some View {
-        let isSelected = (selectedCategory == item.category && selectedWidgetStyle == item.style)
+        let isSelected = (selectedCategory == item.category && selectedWidgetStyle == item.style && (item.category != .thermal || item.source == selectedThermalSource))
         let renderResult = MenuBarIconRenderer.render(
             config: item,
             coordinator: coordinator,
@@ -228,7 +242,12 @@ public struct PreferencesMenuBarPane: View {
                     .help("Move widget right")
 
                     Button(action: {
-                        store.setItemEnabled(category: item.category, style: item.style, isEnabled: false)
+                        store.setItemEnabled(
+                            category: item.category,
+                            style: item.style,
+                            source: item.source,
+                            isEnabled: false
+                        )
                     }) {
                         Image(systemName: "xmark")
                             .font(.system(size: 8, weight: .bold))
@@ -253,6 +272,9 @@ public struct PreferencesMenuBarPane: View {
         .onTapGesture {
             selectedCategory = item.category
             selectedWidgetStyle = item.style
+            if let src = item.source {
+                selectedThermalSource = src
+            }
             selectedPopoverStyle = store.resolvedPopoverStyle(for: item.category, widgetStyle: item.style)
         }
     }
@@ -267,6 +289,7 @@ public struct PreferencesMenuBarPane: View {
                     let activeCount = store.items(for: category).count
                     let isEnabled = store.isCategoryEnabled(category)
                     let catColor = preferenceCategoryColor(for: category)
+                    let isFanlessCategory = (category == .fan && isFanlessMac)
 
                     Button(action: {
                         selectedCategory = category
@@ -277,11 +300,19 @@ public struct PreferencesMenuBarPane: View {
                                 .font(.system(size: 10.5, weight: .semibold))
                                 .foregroundColor(isSelected ? .white : (isEnabled ? catColor : .secondary))
 
-                            Text(category.displayName)
+                            Text(isFanlessCategory ? "Fans (Passive)" : category.displayName)
                                 .font(.system(size: 11, weight: isSelected ? .semibold : .medium))
-                                .foregroundColor(isSelected ? .white : .primary)
+                                .foregroundColor(isSelected ? .white : (isFanlessCategory ? .secondary : .primary))
 
-                            if !isEnabled {
+                            if isFanlessCategory {
+                                Text("Passive")
+                                    .font(.system(size: 8.5, weight: .bold))
+                                    .padding(.horizontal, 4)
+                                    .padding(.vertical, 1)
+                                    .background(Color.secondary.opacity(0.15))
+                                    .clipShape(Capsule())
+                                    .foregroundColor(.secondary)
+                            } else if !isEnabled {
                                 Text("Off")
                                     .font(.system(size: 8.5, weight: .bold))
                                     .padding(.horizontal, 4)
@@ -307,6 +338,7 @@ public struct PreferencesMenuBarPane: View {
                         )
                     }
                     .buttonStyle(.plain)
+                    .help(isFanlessCategory ? "This Mac has no fans / Passive cooling" : category.displayName)
                 }
             }
         }
@@ -325,21 +357,29 @@ public struct PreferencesMenuBarPane: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(selectedCategory.displayName)
                     .font(.system(size: 14, weight: .bold))
-                Text(categoryDescription(for: selectedCategory))
-                    .font(.system(size: 11))
-                    .foregroundColor(.secondary)
+                if selectedCategory == .fan && isFanlessMac {
+                    Text("Passive cooling • This Mac has no fans.")
+                        .font(.system(size: 11))
+                        .foregroundColor(.secondary)
+                } else {
+                    Text(categoryDescription(for: selectedCategory))
+                        .font(.system(size: 11))
+                        .foregroundColor(.secondary)
+                }
             }
 
             Spacer()
 
-            Toggle("", isOn: Binding(
-                get: { store.isCategoryEnabled(selectedCategory) },
-                set: { store.setCategory(selectedCategory, isEnabled: $0) }
-            ))
-            .toggleStyle(.switch)
-            .controlSize(.small)
-            .labelsHidden()
-            .help("Enable or disable background telemetry sampling for \(selectedCategory.displayName)")
+            if !(selectedCategory == .fan && isFanlessMac) {
+                Toggle("", isOn: Binding(
+                    get: { store.isCategoryEnabled(selectedCategory) },
+                    set: { store.setCategory(selectedCategory, isEnabled: $0) }
+                ))
+                .toggleStyle(.switch)
+                .controlSize(.small)
+                .labelsHidden()
+                .help("Enable or disable background telemetry sampling for \(selectedCategory.displayName)")
+            }
         }
         .padding(12)
         .background(Color(nsColor: .controlBackgroundColor))
@@ -358,7 +398,24 @@ public struct PreferencesMenuBarPane: View {
                 .font(.system(size: 11.5, weight: .semibold))
                 .foregroundColor(.secondary)
 
-            if !store.isCategoryEnabled(selectedCategory) {
+            if selectedCategory == .fan && isFanlessMac {
+                HStack(spacing: 8) {
+                    Image(systemName: "fan.slash")
+                        .font(.system(size: 16))
+                        .foregroundColor(.secondary)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("This Mac has no fans")
+                            .font(.system(size: 12, weight: .semibold))
+                        Text("Passive cooling hardware does not report fan RPM speeds.")
+                            .font(.system(size: 11))
+                            .foregroundColor(.secondary)
+                    }
+                }
+                .padding(12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color.secondary.opacity(0.06))
+                .cornerRadius(8)
+            } else if !store.isCategoryEnabled(selectedCategory) {
                 HStack(spacing: 8) {
                     Image(systemName: "pause.circle")
                         .foregroundColor(.secondary)
@@ -373,87 +430,218 @@ public struct PreferencesMenuBarPane: View {
             } else {
                 let supportedStyles = MetricDisplayStyle.supportedStyles(for: selectedCategory, hasBattery: hasBattery)
                 ForEach(supportedStyles) { style in
-                    widgetStyleCard(style: style)
+                    if selectedCategory == .fan && style == .throughput && fanCount < 2 {
+                        widgetStyleCard(style: style, isDisabled: true, disabledReason: "Requires 2+ fans (single fan detected)")
+                    } else {
+                        widgetStyleCard(style: style)
+                    }
                 }
             }
         }
     }
 
-    private func widgetStyleCard(style: MetricDisplayStyle) -> some View {
+    private func widgetStyleCard(
+        style: MetricDisplayStyle,
+        isDisabled: Bool = false,
+        disabledReason: String? = nil
+    ) -> some View {
         let isSelected = (selectedWidgetStyle == style)
-        let isItemEnabled = store.isItemEnabled(category: selectedCategory, style: style)
+        let isThermalMultiSource = (selectedCategory == .thermal && (style == .text || style == .glyph))
+        let effectiveSource: MetricSource? = isThermalMultiSource ? selectedThermalSource : nil
+        let isItemEnabled = store.isExactItemEnabled(category: selectedCategory, style: style, source: effectiveSource)
+        let activeConfig = store.item(category: selectedCategory, style: style, source: effectiveSource)
         let customPopover = store.popoverStyle(for: selectedCategory, widgetStyle: style)
         let resolvedPopover = store.resolvedPopoverStyle(for: selectedCategory, widgetStyle: style)
 
+        let previewConfig = MenuBarItemConfig(
+            category: selectedCategory,
+            style: style,
+            source: effectiveSource,
+            throughputLayout: activeConfig?.throughputLayout ?? (style == .throughput ? .stacked : nil),
+            showLabel: activeConfig?.showLabel ?? false
+        )
         let renderResult = MenuBarIconRenderer.render(
-            config: MenuBarItemConfig(category: selectedCategory, style: style),
+            config: previewConfig,
             coordinator: coordinator,
             preferences: store
         )
 
-        return HStack(spacing: 12) {
-            // Live Menu Bar Output Badge
-            HStack(spacing: 4) {
-                if let img = renderResult.image {
-                    Image(nsImage: img)
-                        .renderingMode(img.isTemplate ? .template : .original)
+        return VStack(spacing: 8) {
+            HStack(spacing: 12) {
+                // Live Menu Bar Output Badge
+                HStack(spacing: 4) {
+                    if let img = renderResult.image {
+                        Image(nsImage: img)
+                            .renderingMode(img.isTemplate ? .template : .original)
+                    }
+                    if !renderResult.title.isEmpty {
+                        Text(renderResult.title)
+                            .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                    }
                 }
-                if !renderResult.title.isEmpty {
-                    Text(renderResult.title)
-                        .font(.system(size: 10, weight: .semibold, design: .monospaced))
-                }
-            }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 5)
-            .frame(minWidth: 46, minHeight: 24)
-            .background(Color.primary.opacity(0.07))
-            .clipShape(RoundedRectangle(cornerRadius: 6))
+                .padding(.horizontal, 8)
+                .padding(.vertical, 5)
+                .frame(minWidth: 46, minHeight: 24)
+                .background(Color.primary.opacity(0.07))
+                .clipShape(RoundedRectangle(cornerRadius: 6))
 
-            // Widget Information
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 6) {
-                    Text(style.displayName(for: selectedCategory))
-                        .font(.system(size: 12.5, weight: .semibold))
+                // Widget Information
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: 6) {
+                        Text(style.displayName(for: selectedCategory))
+                            .font(.system(size: 12.5, weight: .semibold))
 
-                    if customPopover != nil {
-                        Text("Custom Popover")
-                            .font(.system(size: 8.5, weight: .bold))
-                            .foregroundColor(.accentColor)
-                            .padding(.horizontal, 5)
-                            .padding(.vertical, 1.5)
-                            .background(Color.accentColor.opacity(0.12))
-                            .clipShape(Capsule())
+                        if let src = effectiveSource {
+                            MetricSourceBadge(source: src)
+                        }
+
+                        if customPopover != nil {
+                            Text("Custom Popover")
+                                .font(.system(size: 8.5, weight: .bold))
+                                .foregroundColor(.accentColor)
+                                .padding(.horizontal, 5)
+                                .padding(.vertical, 1.5)
+                                .background(Color.accentColor.opacity(0.12))
+                                .clipShape(Capsule())
+                        }
+                    }
+
+                    if let reason = disabledReason, isDisabled {
+                        Text(reason)
+                            .font(.system(size: 10.5))
+                            .foregroundColor(.secondary)
+                    } else {
+                        let openingTab = activeConfig?.resolvedPopoverConfig.openingTab ?? (style == .sparkline ? .history : .overview)
+                        Text("Opens on: \(openingTab.title(for: selectedCategory))")
+                            .font(.system(size: 10.5))
+                            .foregroundColor(.secondary)
                     }
                 }
 
-                Text("Opens: \(resolvedPopover.displayName(for: selectedCategory))")
-                    .font(.system(size: 10.5))
-                    .foregroundColor(.secondary)
+                Spacer()
+
+                if !isDisabled {
+                    // Selection Preview Button
+                    Button(action: {
+                        selectedWidgetStyle = style
+                        selectedPopoverStyle = resolvedPopover
+                    }) {
+                        Image(systemName: isSelected ? "eye.fill" : "eye")
+                            .font(.system(size: 12))
+                            .foregroundColor(isSelected ? .accentColor : .secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Preview and configure popover in the stage")
+
+                    // Show in Menu Bar Toggle
+                    Toggle("", isOn: Binding(
+                        get: { isItemEnabled },
+                        set: { enabled in
+                            store.setItemEnabled(
+                                category: selectedCategory,
+                                style: style,
+                                source: effectiveSource,
+                                throughputLayout: activeConfig?.throughputLayout ?? (style == .throughput ? .stacked : nil),
+                                showLabel: activeConfig?.showLabel ?? false,
+                                isEnabled: enabled
+                            )
+                        }
+                    ))
+                    .toggleStyle(.switch)
+                    .controlSize(.small)
+                    .labelsHidden()
+                    .help("Toggle visibility in macOS menu bar")
+                }
             }
 
-            Spacer()
+            // Widget-Level Options Inspector (Visible when selected)
+            if isSelected && !isDisabled {
+                Divider()
 
-            // Selection Preview Button
-            Button(action: {
-                selectedWidgetStyle = style
-                selectedPopoverStyle = resolvedPopover
-            }) {
-                Image(systemName: isSelected ? "eye.fill" : "eye")
-                    .font(.system(size: 12))
-                    .foregroundColor(isSelected ? .accentColor : .secondary)
+                VStack(alignment: .leading, spacing: 8) {
+                    // 1. Temperature Multi-source Picker
+                    if isThermalMultiSource {
+                        HStack(spacing: 8) {
+                            Text("Sensor Source:")
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundColor(.secondary)
+
+                            Picker("", selection: $selectedThermalSource) {
+                                ForEach(availableThermalSources, id: \.self) { src in
+                                    Text(src.displayName).tag(src)
+                                }
+                            }
+                            .pickerStyle(.menu)
+                            .controlSize(.small)
+                            .frame(maxWidth: 160)
+
+                            Spacer()
+
+                            let enabledSources = availableThermalSources.filter { src in
+                                store.isExactItemEnabled(category: .thermal, style: style, source: src)
+                            }
+                            if !enabledSources.isEmpty {
+                                Text("Active: \(enabledSources.map(\.shortLabel).joined(separator: ", "))")
+                                    .font(.system(size: 9.5))
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                    }
+
+                    // 2. Throughput Layout Picker (Network / Disk)
+                    if (selectedCategory == .network || selectedCategory == .disk) && style == .throughput {
+                        HStack(spacing: 8) {
+                            Text("Throughput Layout:")
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundColor(.secondary)
+
+                            Picker("", selection: Binding<ThroughputLayout>(
+                                get: { activeConfig?.throughputLayout ?? .stacked },
+                                set: { newLayout in
+                                    if isItemEnabled {
+                                        store.setItemEnabled(
+                                            category: selectedCategory,
+                                            style: style,
+                                            source: effectiveSource,
+                                            throughputLayout: newLayout,
+                                            showLabel: activeConfig?.showLabel ?? false,
+                                            isEnabled: true
+                                        )
+                                    }
+                                }
+                            )) {
+                                Text("Stacked (2 lines)").tag(ThroughputLayout.stacked)
+                                Text("Single Line").tag(ThroughputLayout.singleLine)
+                            }
+                            .pickerStyle(.segmented)
+                            .controlSize(.small)
+                            .frame(maxWidth: 200)
+                        }
+                    }
+
+                    // 3. 3-Letter Label Toggle (Gauges & Sparklines)
+                    if style == .gauge || style == .sparkline {
+                        Toggle("Show 3-letter label (e.g. \(selectedCategory.shortLabel))", isOn: Binding<Bool>(
+                            get: { activeConfig?.showLabel ?? false },
+                            set: { newShowLabel in
+                                if isItemEnabled {
+                                    store.setItemEnabled(
+                                        category: selectedCategory,
+                                        style: style,
+                                        source: effectiveSource,
+                                        throughputLayout: activeConfig?.throughputLayout,
+                                        showLabel: newShowLabel,
+                                        isEnabled: true
+                                    )
+                                }
+                            }
+                        ))
+                        .font(.system(size: 11))
+                        .controlSize(.small)
+                    }
+                }
+                .padding(.top, 2)
             }
-            .buttonStyle(.plain)
-            .help("Preview and configure popover in the stage")
-
-            // Show in Menu Bar Toggle
-            Toggle("", isOn: Binding(
-                get: { isItemEnabled },
-                set: { store.setItemEnabled(category: selectedCategory, style: style, isEnabled: $0) }
-            ))
-            .toggleStyle(.switch)
-            .controlSize(.small)
-            .labelsHidden()
-            .help("Toggle visibility in macOS menu bar")
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
@@ -466,56 +654,86 @@ public struct PreferencesMenuBarPane: View {
                 .strokeBorder(isSelected ? Color.accentColor.opacity(0.4) : Color.primary.opacity(0.08), lineWidth: 1)
         )
         .contentShape(Rectangle())
+        .opacity(isDisabled ? 0.6 : 1.0)
         .onTapGesture {
-            selectedWidgetStyle = style
-            selectedPopoverStyle = resolvedPopover
+            if !isDisabled {
+                selectedWidgetStyle = style
+                selectedPopoverStyle = resolvedPopover
+            }
         }
     }
 
     // MARK: - Popover Preview Stage
 
     private var popoverPreviewStage: some View {
-        VStack(spacing: 0) {
-            // Stage Header Bar with Single Unified Popover Picker
-            HStack(spacing: 8) {
+        let isThermalMultiSource = (selectedCategory == .thermal && (selectedWidgetStyle == .text || selectedWidgetStyle == .glyph))
+        let effectiveSource: MetricSource? = isThermalMultiSource ? selectedThermalSource : nil
+        let activeItem = store.item(category: selectedCategory, style: selectedWidgetStyle, source: effectiveSource)
+        let resolvedConfig = activeItem?.resolvedPopoverConfig ?? MenuBarItemConfig(category: selectedCategory, style: selectedWidgetStyle, source: effectiveSource).resolvedPopoverConfig
+        let supportedTabs = PopoverTab.supportedTabs(for: selectedCategory, hasBattery: hasBattery)
+
+        return VStack(spacing: 0) {
+            // Stage Header Bar with Purpose-Driven Popover Tab Options
+            HStack(spacing: 12) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("\(selectedCategory.displayName) • \(selectedWidgetStyle.displayName(for: selectedCategory))")
                         .font(.system(size: 12.5, weight: .semibold))
-                    Text("Select the popover opened by clicking this widget.")
+                    Text("Configure the opening tab and behavior for this widget.")
                         .font(.system(size: 10.5))
                         .foregroundColor(.secondary)
                 }
 
                 Spacer()
 
-                let supportedPopovers = PopoverStyle.supportedPopovers(for: selectedCategory, hasBattery: hasBattery)
-                let defaultStyle = PopoverStyle.defaultStyle(for: selectedCategory, widgetStyle: selectedWidgetStyle, hasBattery: hasBattery)
+                // "Opens on" Segmented Tab Picker
+                HStack(spacing: 6) {
+                    Text("Opens on:")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(.secondary)
 
-                Picker("", selection: Binding<PopoverStyle>(
-                    get: { selectedPopoverStyle },
-                    set: { newStyle in
-                        selectedPopoverStyle = newStyle
-                        store.setPopoverStyle(newStyle, for: selectedCategory, widgetStyle: selectedWidgetStyle, hasBattery: hasBattery)
+                    Picker("", selection: Binding<PopoverTab>(
+                        get: { resolvedConfig.openingTab },
+                        set: { newTab in
+                            var updated = resolvedConfig
+                            updated.openingTab = newTab
+                            store.setItemEnabled(
+                                category: selectedCategory,
+                                style: selectedWidgetStyle,
+                                source: effectiveSource,
+                                throughputLayout: activeItem?.throughputLayout,
+                                showLabel: activeItem?.showLabel ?? false,
+                                isEnabled: true
+                            )
+                            if let idx = store.menuBarItems.firstIndex(where: {
+                                $0.category == selectedCategory && $0.style == selectedWidgetStyle && $0.source == effectiveSource
+                            }) {
+                                store.menuBarItems[idx].popover = updated
+                            }
+                        }
+                    )) {
+                        ForEach(supportedTabs) { tab in
+                            Text(tab.title(for: selectedCategory)).tag(tab)
+                        }
                     }
-                )) {
-                    ForEach(supportedPopovers) { pStyle in
-                        let suffix = (pStyle == defaultStyle) ? " (Default)" : ""
-                        Text("\(pStyle.displayName(for: selectedCategory))\(suffix)").tag(pStyle)
-                    }
-                }
-                .pickerStyle(.menu)
-                .controlSize(.small)
-                .frame(width: 155)
-
-                if store.popoverStyle(for: selectedCategory, widgetStyle: selectedWidgetStyle) != nil {
-                    Button("Reset") {
-                        store.setPopoverStyle(nil, for: selectedCategory, widgetStyle: selectedWidgetStyle, hasBattery: hasBattery)
-                        selectedPopoverStyle = defaultStyle
-                    }
-                    .buttonStyle(.bordered)
+                    .pickerStyle(.segmented)
                     .controlSize(.small)
-                    .help("Reset to natural default popover")
                 }
+
+                // "Remember last tab" Toggle
+                Toggle("Remember last tab", isOn: Binding<Bool>(
+                    get: { resolvedConfig.rememberLastTab },
+                    set: { remember in
+                        var updated = resolvedConfig
+                        updated.rememberLastTab = remember
+                        if let idx = store.menuBarItems.firstIndex(where: {
+                            $0.category == selectedCategory && $0.style == selectedWidgetStyle && $0.source == effectiveSource
+                        }) {
+                            store.menuBarItems[idx].popover = updated
+                        }
+                    }
+                ))
+                .font(.system(size: 11))
+                .controlSize(.small)
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 10)
@@ -523,17 +741,16 @@ public struct PreferencesMenuBarPane: View {
 
             Divider()
 
-            // Interactive Popover View Canvas
+            // Interactive Popover View Canvas (Fixed 330 pt width)
             ScrollView {
                 VStack(spacing: 0) {
-                    ConfigPopoverFactory.makePopoverView(
+                    PopoverFactory.makeCategoryPopoverView(
                         category: selectedCategory,
-                        popoverStyle: selectedPopoverStyle,
+                        initialTab: resolvedConfig.openingTab,
+                        focusSource: effectiveSource,
                         coordinator: coordinator,
                         preferences: store
                     )
-                    .frame(width: 330)
-                    .background(Color(nsColor: .windowBackgroundColor))
                     .clipShape(RoundedRectangle(cornerRadius: 10))
                     .overlay(
                         RoundedRectangle(cornerRadius: 10)

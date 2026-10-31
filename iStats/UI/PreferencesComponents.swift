@@ -189,28 +189,29 @@ public struct SettingsBadge: View {
 // MARK: - Category Tint & Icon Helpers
 
 public func preferenceCategoryColor(for category: MetricCategory) -> Color {
-    switch category {
-    case .cpu: return .blue
-    case .memory: return .green
-    case .gpu: return .purple
-    case .thermal: return .orange
-    case .fan: return .cyan
-    case .network: return .teal
-    case .disk: return .indigo
-    case .power: return .mint
-    }
+    CategoryPalette.color(for: category)
 }
 
 public func preferenceCategoryIcon(for category: MetricCategory) -> String {
-    switch category {
-    case .cpu: return "cpu"
-    case .memory: return "memorychip"
-    case .thermal: return "thermometer.medium"
-    case .fan: return "fan"
-    case .gpu: return "display"
-    case .network: return "network"
-    case .disk: return "internaldrive"
-    case .power: return "bolt.fill"
+    category.symbolName
+}
+
+/// A compact badge indicating the hardware subcomponent source for a widget (e.g. Temperature source).
+public struct MetricSourceBadge: View {
+    public let source: MetricSource
+
+    public init(source: MetricSource) {
+        self.source = source
+    }
+
+    public var body: some View {
+        Text(source.shortLabel)
+            .font(.system(size: 9, weight: .bold, design: .monospaced))
+            .foregroundColor(.secondary)
+            .padding(.horizontal, 5)
+            .padding(.vertical, 1.5)
+            .background(Color.secondary.opacity(0.12))
+            .clipShape(Capsule())
     }
 }
 

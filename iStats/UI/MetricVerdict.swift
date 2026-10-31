@@ -1,13 +1,8 @@
 import SwiftUI
 import iStatsCore
 
-/// Semantic status severity level strictly adhering to the 4 universal status colors.
-public enum StatusLevel: String, Sendable, Equatable, CaseIterable {
-    case fine       // Green: Fine, Quiet, Plenty of space, Normal
-    case elevated   // Yellow: Warm, Busy, Spinning up, Getting full
-    case warning    // Orange: High, Loud, Under pressure, Warning
-    case critical   // Red: Problem now, Critical, Too hot, Almost full, Max
-
+/// Semantic status extensions for UI rendering.
+extension StatusLevel {
     public var color: Color {
         switch self {
         case .fine: return .green
@@ -65,24 +60,21 @@ public enum VerdictEvaluator {
         }
 
         let usage = s.totalUsage
-        let level: StatusLevel
+        let level = StatusThresholds.cpu(usagePercent: usage)
         let badge: String
         let sentence: String
 
-        if usage >= 90.0 {
-            level = .critical
+        switch level {
+        case .critical:
             badge = "Maxed"
             sentence = "The processor is maxed out"
-        } else if usage >= 65.0 {
-            level = .warning
+        case .warning:
             badge = "Very busy"
             sentence = "Heavy processing workload active"
-        } else if usage >= 25.0 {
-            level = .elevated
+        case .elevated:
             badge = "Busy"
             sentence = "Apps are using the processor"
-        } else {
-            level = .fine
+        case .fine:
             badge = "Fine"
             sentence = usage < 5.0 ? "Mostly idle" : "Working normally"
         }
@@ -109,21 +101,21 @@ public enum VerdictEvaluator {
             )
         }
 
-        let level: StatusLevel
+        let level = StatusThresholds.memory(pressure: s.pressure, swapUsedBytes: s.swapUsed)
         let badge: String
         let sentence: String
 
-        switch s.pressure {
-        case .normal:
-            level = .fine
+        switch level {
+        case .fine:
             badge = "Fine"
             sentence = "Plenty of memory available"
+        case .elevated:
+            badge = "Active"
+            sentence = "Swap active under nominal pressure"
         case .warning:
-            level = .warning
             badge = "Warning"
             sentence = "macOS is reclaiming memory. Apps may feel slower."
         case .critical:
-            level = .critical
             badge = "Critical"
             sentence = "The Mac is out of usable memory. Close some apps."
         }
@@ -408,20 +400,21 @@ public enum VerdictEvaluator {
         let used = Double(bootVol.used)
         let usedRatio = total > 0 ? (used / total) * 100.0 : 0.0
 
-        let level: StatusLevel
+        let level = StatusThresholds.disk(usedPercent: usedRatio)
         let badge: String
         let sentence: String
 
-        if usedRatio >= 95.0 {
-            level = .critical
+        switch level {
+        case .critical:
             badge = "Almost full"
             sentence = "macOS needs free space. Storage critical."
-        } else if usedRatio >= 85.0 {
-            level = .elevated
+        case .warning:
+            badge = "Nearly full"
+            sentence = "Storage is over 90% capacity"
+        case .elevated:
             badge = "Getting full"
             sentence = "Storage is over 85% capacity"
-        } else {
-            level = .fine
+        case .fine:
             badge = "Plenty of space"
             sentence = "Storage capacity is healthy"
         }

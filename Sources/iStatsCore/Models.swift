@@ -242,6 +242,11 @@ public struct ThermalSample: Sendable, Equatable, Codable {
         self.sensors = sensors
         self.pressure = pressure
     }
+
+    /// The maximum temperature reading across all sensors in this sample, if any.
+    public var peakTemperatureCelsius: Double? {
+        sensors.map(\.celsius).max()
+    }
 }
 
 /// A single fan reading.
@@ -627,6 +632,12 @@ public struct PowerSample: Sendable, Equatable, Codable {
 
     /// Whether the Mac is operating on battery power (normal or low).
     public var isUsingBatteryPower: Bool { variant == .discharging || variant == .lowBattery }
+
+    /// Computed battery health percentage from maximum capacity vs design capacity.
+    public var healthPercentage: Double? {
+        guard let cur = currentMaxCapacity, let des = designCapacity, des > 0 else { return nil }
+        return (Double(cur) / Double(des)) * 100.0
+    }
 }
 
 /// Distinct operational and visual power state variants.
