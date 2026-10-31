@@ -107,152 +107,240 @@ public struct HistoryTab: View {
     private var chartContent: some View {
         switch category {
         case .cpu:
-            let samples = coordinator.cpuHistory
-            let user = samples.map { $0.value.user }
-            let system = samples.map { $0.value.system }
-            TrendChart(
-                mode: .stacked(
-                    primary: user,
-                    secondary: system,
-                    primaryColor: CategoryPalette.cpu,
-                    secondaryColor: Color.red.opacity(0.70)
-                ),
-                fixedMax: 100.0,
-                height: 140,
-                sampleIntervalSeconds: preferences.refreshInterval,
-                showStatsStrip: true,
-                formatter: { String(format: "%.0f%%", $0) }
-            )
-
+            cpuChart
         case .memory:
+            memoryChart
+        case .gpu:
+            gpuChart
+        case .thermal:
+            thermalChart
+        case .fan:
+            fanChart
+        case .network:
+            networkChart
+        case .disk:
+            diskChart
+        case .power:
+            powerChart
+        }
+    }
+
+    private var cpuChart: some View {
+        let isExtended = selectedRange != .oneMinute
+        let duration = selectedRange.durationSeconds
+        let user: [Double]
+        let system: [Double]
+        if isExtended {
+            user = coordinator.scalarHistory(for: .cpuUser, duration: duration)
+            system = coordinator.scalarHistory(for: .cpuSystem, duration: duration)
+        } else {
+            let samples = coordinator.cpuHistory
+            user = samples.map { $0.value.user }
+            system = samples.map { $0.value.system }
+        }
+        return TrendChart(
+            mode: .stacked(
+                primary: user,
+                secondary: system,
+                primaryColor: CategoryPalette.cpu,
+                secondaryColor: Color.red.opacity(0.70)
+            ),
+            fixedMax: 100.0,
+            height: 140,
+            sampleIntervalSeconds: preferences.refreshInterval,
+            showStatsStrip: true,
+            formatter: { String(format: "%.0f%%", $0) }
+        )
+    }
+
+    private var memoryChart: some View {
+        let isExtended = selectedRange != .oneMinute
+        let duration = selectedRange.durationSeconds
+        let ratios: [Double]
+        if isExtended {
+            ratios = coordinator.scalarHistory(for: .memoryUsedPercent, duration: duration)
+        } else {
             let samples = coordinator.memoryHistory
-            let ratios = samples.map { sample -> Double in
+            ratios = samples.map { sample -> Double in
                 let mem = sample.value
                 guard mem.total > 0 else { return 0.0 }
                 return (Double(mem.used) / Double(mem.total)) * 100.0
             }
-            TrendChart(
-                mode: .single(
-                    values: ratios,
-                    color: CategoryPalette.memory,
-                    fillGradient: true
-                ),
-                fixedMax: 100.0,
-                height: 140,
-                sampleIntervalSeconds: preferences.refreshInterval,
-                showStatsStrip: true,
-                formatter: { String(format: "%.0f%%", $0) }
-            )
+        }
+        return TrendChart(
+            mode: .single(
+                values: ratios,
+                color: CategoryPalette.memory,
+                fillGradient: true
+            ),
+            fixedMax: 100.0,
+            height: 140,
+            sampleIntervalSeconds: preferences.refreshInterval,
+            showStatsStrip: true,
+            formatter: { String(format: "%.0f%%", $0) }
+        )
+    }
 
-        case .gpu:
+    private var gpuChart: some View {
+        let isExtended = selectedRange != .oneMinute
+        let duration = selectedRange.durationSeconds
+        let utils: [Double]
+        if isExtended {
+            utils = coordinator.scalarHistory(for: .gpuUtilization, duration: duration)
+        } else {
             let samples = coordinator.gpuHistory
-            let utils = samples.compactMap { $0.value.utilization }
-            TrendChart(
-                mode: .single(
-                    values: utils,
-                    color: CategoryPalette.gpu,
-                    fillGradient: true
-                ),
-                fixedMax: 100.0,
-                height: 140,
-                sampleIntervalSeconds: preferences.refreshInterval,
-                showStatsStrip: true,
-                formatter: { String(format: "%.0f%%", $0) }
-            )
+            utils = samples.compactMap { $0.value.utilization }
+        }
+        return TrendChart(
+            mode: .single(
+                values: utils,
+                color: CategoryPalette.gpu,
+                fillGradient: true
+            ),
+            fixedMax: 100.0,
+            height: 140,
+            sampleIntervalSeconds: preferences.refreshInterval,
+            showStatsStrip: true,
+            formatter: { String(format: "%.0f%%", $0) }
+        )
+    }
 
-        case .thermal:
+    private var thermalChart: some View {
+        let isExtended = selectedRange != .oneMinute
+        let duration = selectedRange.durationSeconds
+        let temps: [Double]
+        if isExtended {
+            let raw = coordinator.scalarHistory(for: .thermalPeakCelsius, duration: duration)
+            temps = raw.map { preferences.temperatureUnit == .fahrenheit ? Units.celsiusToFahrenheit($0) : $0 }
+        } else {
             let samples = coordinator.thermalHistory
-            let temps = samples.map { sample -> Double in
+            temps = samples.map { sample -> Double in
                 let matching = ThermalSensorClassifier.sensors(in: sample.value, for: selectedThermalSource)
                 let c = matching.map(\.celsius).max() ?? sample.value.peakTemperatureCelsius ?? 0.0
                 return preferences.temperatureUnit == .fahrenheit ? Units.celsiusToFahrenheit(c) : c
             }
-            TrendChart(
-                mode: .single(
-                    values: temps,
-                    color: CategoryPalette.thermal,
-                    fillGradient: true
-                ),
-                height: 140,
-                sampleIntervalSeconds: preferences.refreshInterval,
-                showStatsStrip: true,
-                formatter: { String(format: "%.0f°", $0) }
-            )
+        }
+        return TrendChart(
+            mode: .single(
+                values: temps,
+                color: CategoryPalette.thermal,
+                fillGradient: true
+            ),
+            height: 140,
+            sampleIntervalSeconds: preferences.refreshInterval,
+            showStatsStrip: true,
+            formatter: { String(format: "%.0f°", $0) }
+        )
+    }
 
-        case .fan:
+    private var fanChart: some View {
+        let isExtended = selectedRange != .oneMinute
+        let duration = selectedRange.durationSeconds
+        let maxRPMs: [Double]
+        if isExtended {
+            maxRPMs = coordinator.scalarHistory(for: .fanMaxRPM, duration: duration)
+        } else {
             let samples = coordinator.fanHistory
-            let maxRPMs = samples.map { sample -> Double in
+            maxRPMs = samples.map { sample -> Double in
                 Double(sample.value.fans.map(\.rpm).max() ?? 0)
             }
-            TrendChart(
-                mode: .single(
-                    values: maxRPMs,
-                    color: CategoryPalette.fan,
-                    fillGradient: true
-                ),
-                height: 140,
-                sampleIntervalSeconds: preferences.refreshInterval,
-                showStatsStrip: true,
-                formatter: { Units.formatRPM(Int($0)) }
-            )
-
-        case .network:
-            let samples = coordinator.networkHistory
-            let inRates = samples.map { $0.value.totalBytesInPerSec }
-            let outRates = samples.map { $0.value.totalBytesOutPerSec }
-            TrendChart(
-                mode: .mirrored(
-                    top: inRates,
-                    bottom: outRates,
-                    topColor: CategoryPalette.network,
-                    bottomColor: Color.pink.opacity(0.85),
-                    topLabel: "↓",
-                    bottomLabel: "↑"
-                ),
-                height: 140,
-                sampleIntervalSeconds: preferences.refreshInterval,
-                showStatsStrip: true,
-                formatter: {
-                    Units.formatCompactRate($0, unit: self.preferences.networkUnit, standard: self.preferences.byteUnitStandard)
-                }
-            )
-
-        case .disk:
-            let samples = coordinator.diskHistory
-            let readRates = samples.map { $0.value.io?.bytesReadPerSec ?? 0.0 }
-            let writeRates = samples.map { $0.value.io?.bytesWrittenPerSec ?? 0.0 }
-            TrendChart(
-                mode: .mirrored(
-                    top: readRates,
-                    bottom: writeRates,
-                    topColor: CategoryPalette.disk,
-                    bottomColor: Color.orange.opacity(0.85),
-                    topLabel: "R",
-                    bottomLabel: "W"
-                ),
-                height: 140,
-                sampleIntervalSeconds: preferences.refreshInterval,
-                showStatsStrip: true,
-                formatter: {
-                    Units.formatDiskRate($0, standard: self.preferences.byteUnitStandard)
-                }
-            )
-
-        case .power:
-            let samples = coordinator.powerHistory
-            let watts = samples.map { $0.value.powerDrawWatts ?? 0.0 }
-            TrendChart(
-                mode: .single(
-                    values: watts,
-                    color: CategoryPalette.power,
-                    fillGradient: true
-                ),
-                height: 140,
-                sampleIntervalSeconds: preferences.refreshInterval,
-                showStatsStrip: true,
-                formatter: { String(format: "%.1f W", $0) }
-            )
         }
+        return TrendChart(
+            mode: .single(
+                values: maxRPMs,
+                color: CategoryPalette.fan,
+                fillGradient: true
+            ),
+            height: 140,
+            sampleIntervalSeconds: preferences.refreshInterval,
+            showStatsStrip: true,
+            formatter: { Units.formatRPM(Int($0)) }
+        )
+    }
+
+    private var networkChart: some View {
+        let isExtended = selectedRange != .oneMinute
+        let duration = selectedRange.durationSeconds
+        let inRates: [Double]
+        let outRates: [Double]
+        if isExtended {
+            inRates = coordinator.scalarHistory(for: .networkInBytesPerSec, duration: duration)
+            outRates = coordinator.scalarHistory(for: .networkOutBytesPerSec, duration: duration)
+        } else {
+            let samples = coordinator.networkHistory
+            inRates = samples.map { $0.value.totalBytesInPerSec }
+            outRates = samples.map { $0.value.totalBytesOutPerSec }
+        }
+        return TrendChart(
+            mode: .mirrored(
+                top: inRates,
+                bottom: outRates,
+                topColor: CategoryPalette.network,
+                bottomColor: Color.pink.opacity(0.85),
+                topLabel: "↓",
+                bottomLabel: "↑"
+            ),
+            height: 140,
+            sampleIntervalSeconds: preferences.refreshInterval,
+            showStatsStrip: true,
+            formatter: {
+                Units.formatCompactRate($0, unit: self.preferences.networkUnit, standard: self.preferences.byteUnitStandard)
+            }
+        )
+    }
+
+    private var diskChart: some View {
+        let isExtended = selectedRange != .oneMinute
+        let duration = selectedRange.durationSeconds
+        let readRates: [Double]
+        let writeRates: [Double]
+        if isExtended {
+            readRates = coordinator.scalarHistory(for: .diskReadBytesPerSec, duration: duration)
+            writeRates = coordinator.scalarHistory(for: .diskWriteBytesPerSec, duration: duration)
+        } else {
+            let samples = coordinator.diskHistory
+            readRates = samples.map { $0.value.io?.bytesReadPerSec ?? 0.0 }
+            writeRates = samples.map { $0.value.io?.bytesWrittenPerSec ?? 0.0 }
+        }
+        return TrendChart(
+            mode: .mirrored(
+                top: readRates,
+                bottom: writeRates,
+                topColor: CategoryPalette.disk,
+                bottomColor: Color.orange.opacity(0.85),
+                topLabel: "R",
+                bottomLabel: "W"
+            ),
+            height: 140,
+            sampleIntervalSeconds: preferences.refreshInterval,
+            showStatsStrip: true,
+            formatter: {
+                Units.formatDiskRate($0, standard: self.preferences.byteUnitStandard)
+            }
+        )
+    }
+
+    private var powerChart: some View {
+        let isExtended = selectedRange != .oneMinute
+        let duration = selectedRange.durationSeconds
+        let watts: [Double]
+        if isExtended {
+            watts = coordinator.scalarHistory(for: .powerWatts, duration: duration)
+        } else {
+            let samples = coordinator.powerHistory
+            watts = samples.map { $0.value.powerDrawWatts ?? 0.0 }
+        }
+        return TrendChart(
+            mode: .single(
+                values: watts,
+                color: CategoryPalette.power,
+                fillGradient: true
+            ),
+            height: 140,
+            sampleIntervalSeconds: preferences.refreshInterval,
+            showStatsStrip: true,
+            formatter: { String(format: "%.1f W", $0) }
+        )
     }
 
     @ViewBuilder
