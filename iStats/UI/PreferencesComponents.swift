@@ -196,3 +196,22 @@ public func preferenceCategoryIcon(for category: MetricCategory) -> String {
     category.symbolName
 }
 
+/// A compact badge indicating the hardware subcomponent source for a widget (e.g. Temperature source).
+public struct MetricSourceBadge: View {
+    public let source: MetricSource
+
+    public init(source: MetricSource) {
+        self.source = source
+    }
+
+    public var body: some View {
+        Text(source.shortLabel)
+            .font(.system(size: 9, weight: .bold, design: .monospaced))
+            .foregroundColor(.secondary)
+            .padding(.horizontal, 5)
+            .padding(.vertical, 1.5)
+            .background(Color.secondary.opacity(0.12))
+            .clipShape(Capsule())
+    }
+}
+

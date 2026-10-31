@@ -330,6 +330,39 @@ final class SwiftUIViewsTests: XCTestCase {
         XCTAssertGreaterThan(fit.height, 50)
     }
 
+    func testPreferencesMenuBarPaneWithMultiSourceThermalAndFanlessState() {
+        let (defaults, prefs, coord, suiteName) = makeContext()
+        defer { cleanup(defaults: defaults, suiteName: suiteName) }
+
+        // Configure multi-source temperature widgets
+        prefs.menuBarItems = [
+            MenuBarItemConfig(category: .thermal, style: .text, source: .cpu),
+            MenuBarItemConfig(category: .thermal, style: .glyph, source: .gpu),
+            MenuBarItemConfig(category: .network, style: .throughput, throughputLayout: .singleLine),
+            MenuBarItemConfig(category: .cpu, style: .gauge, showLabel: true)
+        ]
+
+        // Fanless hardware sample
+        coord.handleReading(.fan(Sample(value: FanSample(fans: []))))
+        coord.handleReading(.thermal(Sample(value: ThermalSample(sensors: [
+            SensorReading(name: "CPU Core", celsius: 48.0),
+            SensorReading(name: "GPU MESA", celsius: 52.0)
+        ], pressure: .nominal))))
+
+        let pane = PreferencesMenuBarPane(store: prefs, coordinator: coord)
+        let hosting = NSHostingView(rootView: pane)
+        hosting.frame = CGRect(x: 0, y: 0, width: 700, height: 500)
+        hosting.layoutSubtreeIfNeeded()
+
+        let fit = hosting.fittingSize
+        XCTAssertGreaterThan(fit.width, 100)
+        XCTAssertGreaterThan(fit.height, 50)
+
+        // Verify active items retained in store
+        XCTAssertTrue(prefs.isExactItemEnabled(category: .thermal, style: .text, source: .cpu))
+        XCTAssertTrue(prefs.isExactItemEnabled(category: .thermal, style: .glyph, source: .gpu))
+    }
+
     func testPreferencesGeneralPaneLayout() {
         let (defaults, prefs, coord, suiteName) = makeContext()
         defer { cleanup(defaults: defaults, suiteName: suiteName) }
