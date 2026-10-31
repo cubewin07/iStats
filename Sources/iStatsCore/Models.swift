@@ -242,6 +242,11 @@ public struct ThermalSample: Sendable, Equatable, Codable {
         self.sensors = sensors
         self.pressure = pressure
     }
+
+    /// The maximum temperature reading across all sensors in this sample, if any.
+    public var peakTemperatureCelsius: Double? {
+        sensors.map(\.celsius).max()
+    }
 }
 
 /// A single fan reading.

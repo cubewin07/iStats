@@ -1,13 +1,8 @@
 import SwiftUI
 import iStatsCore
 
-/// Semantic status severity level strictly adhering to the 4 universal status colors.
-public enum StatusLevel: String, Sendable, Equatable, CaseIterable {
-    case fine       // Green: Fine, Quiet, Plenty of space, Normal
-    case elevated   // Yellow: Warm, Busy, Spinning up, Getting full
-    case warning    // Orange: High, Loud, Under pressure, Warning
-    case critical   // Red: Problem now, Critical, Too hot, Almost full, Max
-
+/// Semantic status extensions for UI rendering.
+extension StatusLevel {
     public var color: Color {
         switch self {
         case .fine: return .green
