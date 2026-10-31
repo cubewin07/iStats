@@ -32,6 +32,16 @@ public enum CategoryPalette {
         }
     }
 
+    // MARK: - Direct Category Color Accessors
+    public static var cpu: Color { color(for: .cpu) }
+    public static var memory: Color { color(for: .memory) }
+    public static var gpu: Color { color(for: .gpu) }
+    public static var thermal: Color { color(for: .thermal) }
+    public static var fan: Color { color(for: .fan) }
+    public static var network: Color { color(for: .network) }
+    public static var disk: Color { color(for: .disk) }
+    public static var power: Color { color(for: .power) }
+
     // MARK: - Dual Channel Series Colors
     public enum Series {
         // Network

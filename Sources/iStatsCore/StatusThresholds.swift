@@ -52,6 +52,11 @@ public enum StatusThresholds {
         }
     }
 
+    /// Evaluates memory health based on a MemorySample.
+    public static func memory(sample: MemorySample) -> StatusLevel {
+        memory(pressure: sample.pressure, swapUsedBytes: sample.swapUsed)
+    }
+
     /// Evaluates GPU utilization percentage.
     public static func gpu(utilizationPercent: Double) -> StatusLevel {
         if utilizationPercent >= 92.0 {
@@ -65,6 +70,20 @@ public enum StatusThresholds {
         }
     }
 
+    /// Evaluates thermal pressure directly to a status severity level.
+    public static func thermalPressure(_ pressure: ThermalPressure) -> StatusLevel {
+        switch pressure {
+        case .critical:
+            return .critical
+        case .serious:
+            return .warning
+        case .fair:
+            return .elevated
+        case .nominal:
+            return .fine
+        }
+    }
+
     /// Evaluates component temperature against source-specific thresholds and system thermal pressure.
     public static func temperature(
         celsius: Double,
@@ -72,17 +91,7 @@ public enum StatusThresholds {
         pressure: ThermalPressure? = nil
     ) -> StatusLevel {
         // OS thermal pressure overrides if more severe
-        let pressureLevel: StatusLevel
-        switch pressure {
-        case .critical:
-            pressureLevel = .critical
-        case .serious:
-            pressureLevel = .warning
-        case .fair:
-            pressureLevel = .elevated
-        case .nominal, .none:
-            pressureLevel = .fine
-        }
+        let pressureLevel: StatusLevel = pressure.map(thermalPressure) ?? .fine
 
         let tempLevel: StatusLevel
         switch source {

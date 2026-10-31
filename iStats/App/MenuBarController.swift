@@ -122,11 +122,11 @@ public final class MenuBarController: NSObject {
     /// Identifier for the fallback status item displayed when all menu items are disabled.
     public static let fallbackStatusItemId = "app.istats.fallback"
 
-    // MARK: - Popover Factory (ADR 0007)
+    // MARK: - Popover Factory (ADR 0007 / ADR 0008)
 
     /// Instantiates the dedicated NSHostingController for a given menu bar item configuration.
     public func makeHostingController(for config: MenuBarItemConfig) -> NSViewController {
-        ConfigPopoverFactory.makeHostingController(
+        PopoverFactory.makeHostingController(
             config: config,
             coordinator: coordinator,
             preferences: preferences
@@ -144,6 +144,7 @@ public final class MenuBarController: NSObject {
         p.behavior = .transient
         p.animates = true
         p.delegate = self
+        p.contentSize = NSSize(width: Tokens.popoverWidth, height: 350)
         return p
     }
 
@@ -152,15 +153,14 @@ public final class MenuBarController: NSObject {
         p.behavior = .transient
         p.animates = true
         p.delegate = self
+        p.contentSize = NSSize(width: Tokens.popoverWidth, height: 180)
         return p
     }
 
     private func ensurePopoverContent(for configId: String, popover: NSPopover) {
         guard popover.contentViewController == nil else { return }
         if configId == Self.fallbackStatusItemId {
-            popover.contentViewController = NSHostingController(
-                rootView: DetailPopoverView(coordinator: coordinator, preferences: preferences)
-            )
+            popover.contentViewController = PopoverFactory.makeFallbackHostingController()
             return
         }
         if let activeConfig = preferences.menuBarItems.first(where: { $0.id == configId }) {

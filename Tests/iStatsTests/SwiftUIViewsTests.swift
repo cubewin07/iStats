@@ -468,4 +468,94 @@ final class SwiftUIViewsTests: XCTestCase {
         stackHosting.layoutSubtreeIfNeeded()
         XCTAssertGreaterThan(stackHosting.fittingSize.height, 50)
     }
+
+    func testPopoverScaffoldSharedStatesAndTransitions() {
+        let (defaults, prefs, coord, suiteName) = makeContext()
+        defer { cleanup(defaults: defaults, suiteName: suiteName) }
+
+        // 1. Normal state with content
+        let normalScaffold = PopoverScaffold(
+            category: .cpu,
+            subtitle: "Normal operation",
+            statusLevel: .fine,
+            badgeText: "Fine",
+            tabs: [.overview, .detail, .history],
+            selectedTab: .constant(.overview),
+            preferences: prefs,
+            coordinator: coord
+        ) {
+            Text("CPU Overview Content")
+        }
+        let normalHosting = NSHostingView(rootView: normalScaffold)
+        normalHosting.frame = CGRect(x: 0, y: 0, width: 330, height: 350)
+        normalHosting.layoutSubtreeIfNeeded()
+        XCTAssertEqual(normalHosting.fittingSize.width, 330, "PopoverScaffold width must be exactly 330pt")
+        XCTAssertGreaterThan(normalHosting.fittingSize.height, 100)
+
+        // 2. Loading state (cold start / nil sample)
+        let loadingScaffold = PopoverScaffold(
+            category: .memory,
+            subtitle: "Loading...",
+            statusLevel: .fine,
+            badgeText: "Loading",
+            tabs: [.overview, .detail, .history],
+            selectedTab: .constant(.overview),
+            isLoading: true,
+            preferences: prefs,
+            coordinator: coord
+        ) {
+            Text("Should not be visible")
+        }
+        let loadingHosting = NSHostingView(rootView: loadingScaffold)
+        loadingHosting.frame = CGRect(x: 0, y: 0, width: 330, height: 350)
+        loadingHosting.layoutSubtreeIfNeeded()
+        XCTAssertEqual(loadingHosting.fittingSize.width, 330)
+
+        // 3. Unavailable state (.unavailable(reason:))
+        let unavailableScaffold = PopoverScaffold(
+            category: .gpu,
+            subtitle: "Sensor unavailable",
+            statusLevel: .warning,
+            badgeText: "Unavailable",
+            tabs: [.overview, .detail, .history],
+            selectedTab: .constant(.overview),
+            unavailableReason: "Access denied by sandbox",
+            preferences: prefs,
+            coordinator: coord
+        ) {
+            Text("Should not be visible")
+        }
+        let unavailableHosting = NSHostingView(rootView: unavailableScaffold)
+        unavailableHosting.frame = CGRect(x: 0, y: 0, width: 330, height: 350)
+        unavailableHosting.layoutSubtreeIfNeeded()
+        XCTAssertEqual(unavailableHosting.fittingSize.width, 330)
+
+        // 4. Paused state (preferences.isSamplingPaused == true)
+        prefs.isSamplingPaused = true
+        let pausedScaffold = PopoverScaffold(
+            category: .power,
+            subtitle: "Paused",
+            statusLevel: .fine,
+            badgeText: "Paused",
+            tabs: [.overview, .detail, .history],
+            selectedTab: .constant(.overview),
+            preferences: prefs,
+            coordinator: coord
+        ) {
+            Text("Should not be visible")
+        }
+        let pausedHosting = NSHostingView(rootView: pausedScaffold)
+        pausedHosting.frame = CGRect(x: 0, y: 0, width: 330, height: 350)
+        pausedHosting.layoutSubtreeIfNeeded()
+        XCTAssertEqual(pausedHosting.fittingSize.width, 330)
+
+        // 5. Footers across categories
+        for cat in MetricCategory.allCases {
+            let footer = PopoverFooter(category: cat, preferences: prefs, coordinator: coord)
+            let footerHosting = NSHostingView(rootView: footer)
+            footerHosting.frame = CGRect(x: 0, y: 0, width: 330, height: 30)
+            footerHosting.layoutSubtreeIfNeeded()
+            XCTAssertGreaterThan(footerHosting.fittingSize.width, 0)
+        }
+    }
 }

@@ -29,6 +29,7 @@ public final class PreferencesStore: ObservableObject, @unchecked Sendable {
         public static let menuBarDisplayMode = "iStats.menuBarDisplayMode"
         public static let menuBarItems = "iStats.menuBarItems"
         public static let widgetPopoverStyles = "iStats.widgetPopoverStyles"
+        public static let categoryLastTabs = "iStats.categoryLastTabs"
         public static let isSamplingPaused = "iStats.isSamplingPaused"
         public static let isAutoPausedByLowPowerMode = "iStats.isAutoPausedByLowPowerMode"
         public static let autoPauseOnLowPowerMode = "iStats.autoPauseOnLowPowerMode"
@@ -166,6 +167,13 @@ public final class PreferencesStore: ObservableObject, @unchecked Sendable {
             if let data = try? JSONEncoder().encode(widgetPopoverStyles) {
                 userDefaults.set(data, forKey: Keys.widgetPopoverStyles)
             }
+        }
+    }
+
+    /// Remembered active tab per category when rememberLastTab is true (ADR 0008).
+    @Published public var categoryLastTabs: [String: String] {
+        didSet {
+            userDefaults.set(categoryLastTabs, forKey: Keys.categoryLastTabs)
         }
     }
 
@@ -438,6 +446,7 @@ public final class PreferencesStore: ObservableObject, @unchecked Sendable {
             return copy
         }
         self.widgetPopoverStyles = loadedPopoverStyles
+        self.categoryLastTabs = userDefaults.dictionary(forKey: Keys.categoryLastTabs) as? [String: String] ?? [:]
 
         // Load sampling pause state (default: false) and Low Power Mode auto-pause (default: true)
         let paused = userDefaults.bool(forKey: Keys.isSamplingPaused)
@@ -636,6 +645,20 @@ public final class PreferencesStore: ObservableObject, @unchecked Sendable {
         if let idx = menuBarItems.firstIndex(where: { $0.category == category && $0.style == widgetStyle }) {
             menuBarItems[idx].popoverStyle = normalized
         }
+    }
+
+    /// Returns the remembered active tab for a category, if any.
+    public func lastSelectedTab(for category: MetricCategory) -> PopoverTab? {
+        guard let raw = categoryLastTabs[category.rawValue],
+              let tab = PopoverTab(rawValue: raw) else {
+            return nil
+        }
+        return tab
+    }
+
+    /// Sets the remembered active tab for a category.
+    public func setLastSelectedTab(_ tab: PopoverTab, for category: MetricCategory) {
+        categoryLastTabs[category.rawValue] = tab.rawValue
     }
 
     /// Returns all active menu bar items whose parent category is currently enabled.

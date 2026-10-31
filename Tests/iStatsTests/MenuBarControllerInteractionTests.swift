@@ -199,17 +199,17 @@ final class MenuBarControllerInteractionTests: XCTestCase {
         XCTAssertNotNil(memPopover)
         XCTAssertTrue(cpuPopover !== memPopover, "Each category config must own its own distinct NSPopover instance")
 
-        // 1. Click CPU button -> opens CPU dedicated popover (CPUUserSystemPopoverView for .gauge)
+        // 1. Click CPU button -> opens CPU dedicated popover (CPUPopover)
         controller.statusItemClicked(cpuButton)
         XCTAssertTrue(controller.currentlyShownButton === cpuButton)
         XCTAssertTrue(controller.popover === cpuPopover)
-        XCTAssertTrue(controller.popover.contentViewController is NSHostingController<CPUUserSystemPopoverView>)
+        XCTAssertTrue(controller.popover.contentViewController is NSHostingController<CPUPopover>)
 
-        // 2. Click Memory button -> closes CPU popover and opens Memory dedicated popover (MemoryAllocationPopoverView for .bar)
+        // 2. Click Memory button -> closes CPU popover and opens Memory dedicated popover (MemoryPopover)
         controller.statusItemClicked(memButton)
         XCTAssertTrue(controller.currentlyShownButton === memButton)
         XCTAssertTrue(controller.popover === memPopover)
-        XCTAssertTrue(controller.popover.contentViewController is NSHostingController<MemoryAllocationPopoverView>)
+        XCTAssertTrue(controller.popover.contentViewController is NSHostingController<MemoryPopover>)
 
         // 3. Click Memory button again -> toggles off/dismisses
         controller.statusItemClicked(memButton)
@@ -234,10 +234,10 @@ final class MenuBarControllerInteractionTests: XCTestCase {
             return
         }
 
-        // Click fallback button -> opens Universal Popover
+        // Click fallback button -> opens NoWidgetsActiveView
         controller.statusItemClicked(fallbackButton)
         XCTAssertTrue(controller.currentlyShownButton === fallbackButton)
-        XCTAssertTrue(controller.popover.contentViewController is NSHostingController<DetailPopoverView>)
+        XCTAssertTrue(controller.popover.contentViewController is NSHostingController<NoWidgetsActiveView>)
 
         controller.hidePopover()
         XCTAssertNil(controller.currentlyShownButton)
@@ -310,8 +310,8 @@ final class MenuBarControllerInteractionTests: XCTestCase {
 
         XCTAssertNotNil(controller.popover(for: cpuItem.id))
         XCTAssertNotNil(controller.popover(for: diskItem.id))
-        XCTAssertTrue(controller.popover(for: cpuItem.id)?.contentViewController is NSHostingController<CPUUserSystemPopoverView>)
-        XCTAssertTrue(controller.popover(for: diskItem.id)?.contentViewController is NSHostingController<DiskStorageTanksPopoverView>)
+        XCTAssertTrue(controller.popover(for: cpuItem.id)?.contentViewController is NSHostingController<CPUPopover>)
+        XCTAssertTrue(controller.popover(for: diskItem.id)?.contentViewController is NSHostingController<DiskPopover>)
 
         // Remove diskItem from preferences -> popover should be cleaned up
         prefs.menuBarItems = [cpuItem]
@@ -350,20 +350,20 @@ final class MenuBarControllerInteractionTests: XCTestCase {
         prefs.menuBarItems = [cpuTemp, gpuTemp, memTemp, ssdTemp, batTemp, ringTemp, histTemp]
         controller.syncStatusItems()
 
-        XCTAssertTrue(controller.popover(for: cpuTemp.id)?.contentViewController is NSHostingController<ThermalCPUPopoverView>)
-        XCTAssertTrue(controller.popover(for: gpuTemp.id)?.contentViewController is NSHostingController<ThermalGPUPopoverView>)
-        XCTAssertTrue(controller.popover(for: memTemp.id)?.contentViewController is NSHostingController<ThermalMemoryPopoverView>)
-        XCTAssertTrue(controller.popover(for: ssdTemp.id)?.contentViewController is NSHostingController<ThermalStoragePopoverView>)
-        XCTAssertTrue(controller.popover(for: batTemp.id)?.contentViewController is NSHostingController<ThermalBatteryPopoverView>)
-        XCTAssertTrue(controller.popover(for: ringTemp.id)?.contentViewController is NSHostingController<ThermalRingPopoverView>)
-        XCTAssertTrue(controller.popover(for: histTemp.id)?.contentViewController is NSHostingController<ThermalHistoryPopoverView>)
+        XCTAssertTrue(controller.popover(for: cpuTemp.id)?.contentViewController is NSHostingController<TemperaturePopover>)
+        XCTAssertTrue(controller.popover(for: gpuTemp.id)?.contentViewController is NSHostingController<TemperaturePopover>)
+        XCTAssertTrue(controller.popover(for: memTemp.id)?.contentViewController is NSHostingController<TemperaturePopover>)
+        XCTAssertTrue(controller.popover(for: ssdTemp.id)?.contentViewController is NSHostingController<TemperaturePopover>)
+        XCTAssertTrue(controller.popover(for: batTemp.id)?.contentViewController is NSHostingController<TemperaturePopover>)
+        XCTAssertTrue(controller.popover(for: ringTemp.id)?.contentViewController is NSHostingController<TemperaturePopover>)
+        XCTAssertTrue(controller.popover(for: histTemp.id)?.contentViewController is NSHostingController<TemperaturePopover>)
     }
 
     func testCustomPopoverSelectionRouting() {
         let (defaults, prefs, _, controller, suiteName) = makeContext()
         defer { cleanup(defaults: defaults, controller: controller, suiteName: suiteName) }
 
-        // 1. CPU Bar starts with default popover (CPUClusterPopoverView)
+        // 1. CPU Bar opens CPUPopover
         let cpuBar = MenuBarItemConfig(category: .cpu, style: .bar)
         prefs.menuBarItems = [cpuBar]
         controller.syncStatusItems()
@@ -374,31 +374,17 @@ final class MenuBarControllerInteractionTests: XCTestCase {
         }
 
         controller.statusItemClicked(button)
-        XCTAssertTrue(controller.popover.contentViewController is NSHostingController<CPUClusterPopoverView>)
+        XCTAssertTrue(controller.popover.contentViewController is NSHostingController<CPUPopover>)
         controller.hidePopover()
 
-        // 2. Customize CPU Bar to open Category Overview (CPUPopoverView)
-        prefs.setPopoverStyle(.categoryDefault, for: .cpu, widgetStyle: .bar)
+        // 2. Customize CPU Bar with custom popover config (opening on History)
+        var customCpu = cpuBar
+        customCpu.popover = PopoverConfig(openingTab: .history, rememberLastTab: false)
+        prefs.menuBarItems = [customCpu]
         controller.syncStatusItems()
 
         controller.statusItemClicked(button)
-        XCTAssertTrue(controller.popover.contentViewController is NSHostingController<CPUPopoverView>)
-        controller.hidePopover()
-
-        // 3. Customize CPU Bar to open History (CPUHistoryPopoverView)
-        prefs.setPopoverStyle(.history, for: .cpu, widgetStyle: .bar)
-        controller.syncStatusItems()
-
-        controller.statusItemClicked(button)
-        XCTAssertTrue(controller.popover.contentViewController is NSHostingController<CPUHistoryPopoverView>)
-        controller.hidePopover()
-
-        // 4. Reset popover style back to default (nil) -> restores CPUClusterPopoverView
-        prefs.setPopoverStyle(nil, for: .cpu, widgetStyle: .bar)
-        controller.syncStatusItems()
-
-        controller.statusItemClicked(button)
-        XCTAssertTrue(controller.popover.contentViewController is NSHostingController<CPUClusterPopoverView>)
+        XCTAssertTrue(controller.popover.contentViewController is NSHostingController<CPUPopover>)
         controller.hidePopover()
     }
 
@@ -416,12 +402,12 @@ final class MenuBarControllerInteractionTests: XCTestCase {
         prefs.menuBarItems = [batSymbol, chargeText, wattageThroughput, chargeRing, chargeBar, wattageHistory]
         controller.syncStatusItems()
 
-        XCTAssertTrue(controller.popover(for: batSymbol.id)?.contentViewController is NSHostingController<PowerPopoverView>)
-        XCTAssertTrue(controller.popover(for: chargeText.id)?.contentViewController is NSHostingController<PowerBudgetIllustrationPopoverView>)
-        XCTAssertTrue(controller.popover(for: wattageThroughput.id)?.contentViewController is NSHostingController<PowerWattagePopoverView>)
-        XCTAssertTrue(controller.popover(for: chargeRing.id)?.contentViewController is NSHostingController<PowerChargeRingPopoverView>)
-        XCTAssertTrue(controller.popover(for: chargeBar.id)?.contentViewController is NSHostingController<PowerBarPopoverView>)
-        XCTAssertTrue(controller.popover(for: wattageHistory.id)?.contentViewController is NSHostingController<PowerHistoryPopoverView>)
+        XCTAssertTrue(controller.popover(for: batSymbol.id)?.contentViewController is NSHostingController<PowerPopover>)
+        XCTAssertTrue(controller.popover(for: chargeText.id)?.contentViewController is NSHostingController<PowerPopover>)
+        XCTAssertTrue(controller.popover(for: wattageThroughput.id)?.contentViewController is NSHostingController<PowerPopover>)
+        XCTAssertTrue(controller.popover(for: chargeRing.id)?.contentViewController is NSHostingController<PowerPopover>)
+        XCTAssertTrue(controller.popover(for: chargeBar.id)?.contentViewController is NSHostingController<PowerPopover>)
+        XCTAssertTrue(controller.popover(for: wattageHistory.id)?.contentViewController is NSHostingController<PowerPopover>)
     }
 
     func testPauseSamplingStopsCoordinatorAndShowsMinimalIcon() {
@@ -454,10 +440,10 @@ final class MenuBarControllerInteractionTests: XCTestCase {
         }
         XCTAssertEqual(fallbackButton.toolTip, "iStats (Sampling Paused — Click to resume or open settings)")
 
-        // 2. Clicking the minimal icon opens DetailPopoverView and does NOT auto-restart sampling while paused
+        // 2. Clicking the minimal icon opens NoWidgetsActiveView and does NOT auto-restart sampling while paused
         controller.statusItemClicked(fallbackButton)
         XCTAssertTrue(controller.currentlyShownButton === fallbackButton)
-        XCTAssertTrue(controller.popover.contentViewController is NSHostingController<DetailPopoverView>)
+        XCTAssertTrue(controller.popover.contentViewController is NSHostingController<NoWidgetsActiveView>)
         coord.start() // Simulates .onAppear guard check
         XCTAssertFalse(coord.isRunning, "Coordinator must remain stopped while isSamplingPaused is true")
         controller.hidePopover()

@@ -511,7 +511,8 @@ public struct PreferencesMenuBarPane: View {
                             .font(.system(size: 10.5))
                             .foregroundColor(.secondary)
                     } else {
-                        Text("Opens: \(resolvedPopover.displayName(for: selectedCategory))")
+                        let openingTab = activeConfig?.resolvedPopoverConfig.openingTab ?? (style == .sparkline ? .history : .overview)
+                        Text("Opens on: \(openingTab.title(for: selectedCategory))")
                             .font(.system(size: 10.5))
                             .foregroundColor(.secondary)
                     }
@@ -665,47 +666,74 @@ public struct PreferencesMenuBarPane: View {
     // MARK: - Popover Preview Stage
 
     private var popoverPreviewStage: some View {
-        VStack(spacing: 0) {
-            // Stage Header Bar with Single Unified Popover Picker
-            HStack(spacing: 8) {
+        let isThermalMultiSource = (selectedCategory == .thermal && (selectedWidgetStyle == .text || selectedWidgetStyle == .glyph))
+        let effectiveSource: MetricSource? = isThermalMultiSource ? selectedThermalSource : nil
+        let activeItem = store.item(category: selectedCategory, style: selectedWidgetStyle, source: effectiveSource)
+        let resolvedConfig = activeItem?.resolvedPopoverConfig ?? MenuBarItemConfig(category: selectedCategory, style: selectedWidgetStyle, source: effectiveSource).resolvedPopoverConfig
+        let supportedTabs = PopoverTab.supportedTabs(for: selectedCategory, hasBattery: hasBattery)
+
+        return VStack(spacing: 0) {
+            // Stage Header Bar with Purpose-Driven Popover Tab Options
+            HStack(spacing: 12) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("\(selectedCategory.displayName) • \(selectedWidgetStyle.displayName(for: selectedCategory))")
                         .font(.system(size: 12.5, weight: .semibold))
-                    Text("Select the popover opened by clicking this widget.")
+                    Text("Configure the opening tab and behavior for this widget.")
                         .font(.system(size: 10.5))
                         .foregroundColor(.secondary)
                 }
 
                 Spacer()
 
-                let supportedPopovers = PopoverStyle.supportedPopovers(for: selectedCategory, hasBattery: hasBattery)
-                let defaultStyle = PopoverStyle.defaultStyle(for: selectedCategory, widgetStyle: selectedWidgetStyle, hasBattery: hasBattery)
+                // "Opens on" Segmented Tab Picker
+                HStack(spacing: 6) {
+                    Text("Opens on:")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(.secondary)
 
-                Picker("", selection: Binding<PopoverStyle>(
-                    get: { selectedPopoverStyle },
-                    set: { newStyle in
-                        selectedPopoverStyle = newStyle
-                        store.setPopoverStyle(newStyle, for: selectedCategory, widgetStyle: selectedWidgetStyle, hasBattery: hasBattery)
+                    Picker("", selection: Binding<PopoverTab>(
+                        get: { resolvedConfig.openingTab },
+                        set: { newTab in
+                            var updated = resolvedConfig
+                            updated.openingTab = newTab
+                            store.setItemEnabled(
+                                category: selectedCategory,
+                                style: selectedWidgetStyle,
+                                source: effectiveSource,
+                                throughputLayout: activeItem?.throughputLayout,
+                                showLabel: activeItem?.showLabel ?? false,
+                                isEnabled: true
+                            )
+                            if let idx = store.menuBarItems.firstIndex(where: {
+                                $0.category == selectedCategory && $0.style == selectedWidgetStyle && $0.source == effectiveSource
+                            }) {
+                                store.menuBarItems[idx].popover = updated
+                            }
+                        }
+                    )) {
+                        ForEach(supportedTabs) { tab in
+                            Text(tab.title(for: selectedCategory)).tag(tab)
+                        }
                     }
-                )) {
-                    ForEach(supportedPopovers) { pStyle in
-                        let suffix = (pStyle == defaultStyle) ? " (Default)" : ""
-                        Text("\(pStyle.displayName(for: selectedCategory))\(suffix)").tag(pStyle)
-                    }
-                }
-                .pickerStyle(.menu)
-                .controlSize(.small)
-                .frame(width: 155)
-
-                if store.popoverStyle(for: selectedCategory, widgetStyle: selectedWidgetStyle) != nil {
-                    Button("Reset") {
-                        store.setPopoverStyle(nil, for: selectedCategory, widgetStyle: selectedWidgetStyle, hasBattery: hasBattery)
-                        selectedPopoverStyle = defaultStyle
-                    }
-                    .buttonStyle(.bordered)
+                    .pickerStyle(.segmented)
                     .controlSize(.small)
-                    .help("Reset to natural default popover")
                 }
+
+                // "Remember last tab" Toggle
+                Toggle("Remember last tab", isOn: Binding<Bool>(
+                    get: { resolvedConfig.rememberLastTab },
+                    set: { remember in
+                        var updated = resolvedConfig
+                        updated.rememberLastTab = remember
+                        if let idx = store.menuBarItems.firstIndex(where: {
+                            $0.category == selectedCategory && $0.style == selectedWidgetStyle && $0.source == effectiveSource
+                        }) {
+                            store.menuBarItems[idx].popover = updated
+                        }
+                    }
+                ))
+                .font(.system(size: 11))
+                .controlSize(.small)
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 10)
@@ -713,17 +741,16 @@ public struct PreferencesMenuBarPane: View {
 
             Divider()
 
-            // Interactive Popover View Canvas
+            // Interactive Popover View Canvas (Fixed 330 pt width)
             ScrollView {
                 VStack(spacing: 0) {
-                    ConfigPopoverFactory.makePopoverView(
+                    PopoverFactory.makeCategoryPopoverView(
                         category: selectedCategory,
-                        popoverStyle: selectedPopoverStyle,
+                        initialTab: resolvedConfig.openingTab,
+                        focusSource: effectiveSource,
                         coordinator: coordinator,
                         preferences: store
                     )
-                    .frame(width: 330)
-                    .background(Color(nsColor: .windowBackgroundColor))
                     .clipShape(RoundedRectangle(cornerRadius: 10))
                     .overlay(
                         RoundedRectangle(cornerRadius: 10)
