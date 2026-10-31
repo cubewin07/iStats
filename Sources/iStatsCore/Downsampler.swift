@@ -56,3 +56,4 @@ public enum Downsampler {
         return result
     }
 }
+

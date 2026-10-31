@@ -56,3 +56,4 @@ public struct LegendRow: View {
     .padding()
     .frame(width: Tokens.popoverWidth)
 }
+

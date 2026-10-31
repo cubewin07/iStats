@@ -77,3 +77,4 @@ public struct SegmentedBar: View {
     .padding()
     .frame(width: Tokens.popoverWidth)
 }
+

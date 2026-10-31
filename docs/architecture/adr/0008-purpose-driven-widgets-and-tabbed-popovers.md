@@ -52,3 +52,4 @@ Phase 6 and ADR 0007 introduced per-category menu bar widgets and decoupled popo
 - **Code Simplification:** The monolithic 5,082-line `CategoryDetailPopoverView.swift` and redundant illustration files are retired in favor of modular, composable SwiftUI views under `iStats/UI/Popovers/` and `iStats/UI/Design/`.
 - **Consistency:** Design tokens (`Tokens.swift`, `CategoryPalette.swift`) and `StatusThresholds.swift` eliminate visual drift and inconsistent alert/verdict thresholds.
 - **Backwards Compatibility:** Legacy `MenuBarItemConfig` and `PopoverStyle` decodes map seamlessly to consolidated widget configurations and popover tabs with deduplication.
+

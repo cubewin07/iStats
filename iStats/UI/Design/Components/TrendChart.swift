@@ -421,3 +421,4 @@ public struct TrendChart: View {
     .padding()
     .frame(width: Tokens.popoverWidth)
 }
+

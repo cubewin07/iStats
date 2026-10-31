@@ -53,3 +53,4 @@ public struct StatRow: View {
     .padding()
     .frame(width: Tokens.popoverWidth)
 }
+

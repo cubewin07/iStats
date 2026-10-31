@@ -90,3 +90,4 @@ public struct PopoverConfig: Codable, Hashable, Equatable, Sendable {
         }
     }
 }
+
