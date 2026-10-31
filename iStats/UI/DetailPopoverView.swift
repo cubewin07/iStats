@@ -395,28 +395,10 @@ public struct DetailPopoverView: View {
     }
 
     private func categoryColor(for category: MetricCategory) -> Color {
-        switch category {
-        case .cpu: return .blue
-        case .memory: return .green
-        case .gpu: return .purple
-        case .thermal: return .orange
-        case .fan: return .cyan
-        case .network: return .teal
-        case .disk: return .indigo
-        case .power: return .green
-        }
+        CategoryPalette.color(for: category)
     }
 
     private func iconName(for category: MetricCategory) -> String {
-        switch category {
-        case .cpu: return "cpu"
-        case .memory: return "memorychip"
-        case .thermal: return "thermometer.medium"
-        case .fan: return "fan"
-        case .gpu: return "display"
-        case .network: return "network"
-        case .disk: return "internaldrive"
-        case .power: return "bolt.fill"
-        }
+        category.symbolName
     }
 }

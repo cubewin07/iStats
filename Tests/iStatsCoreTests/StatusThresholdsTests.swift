@@ -88,7 +88,8 @@ final class StatusThresholdsTests: XCTestCase {
 
     func testDiskThresholds() {
         XCTAssertEqual(StatusThresholds.disk(usedPercent: 70.0), .fine)
-        XCTAssertEqual(StatusThresholds.disk(usedPercent: 80.0), .elevated)
+        XCTAssertEqual(StatusThresholds.disk(usedPercent: 80.0), .fine)
+        XCTAssertEqual(StatusThresholds.disk(usedPercent: 85.0), .elevated)
         XCTAssertEqual(StatusThresholds.disk(usedPercent: 90.0), .warning)
         XCTAssertEqual(StatusThresholds.disk(usedPercent: 95.0), .critical)
     }

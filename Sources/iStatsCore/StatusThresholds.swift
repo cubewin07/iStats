@@ -152,7 +152,7 @@ public enum StatusThresholds {
             return .critical
         } else if usedPercent >= 90.0 {
             return .warning
-        } else if usedPercent >= 80.0 {
+        } else if usedPercent >= 85.0 {
             return .elevated
         } else {
             return .fine
