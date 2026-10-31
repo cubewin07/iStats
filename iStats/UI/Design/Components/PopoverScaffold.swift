@@ -287,8 +287,8 @@ public struct PopoverScaffold<Content: View>: View {
                         .padding(.vertical, 10)
                 }
             }
-            .frame(maxWidth: Tokens.popoverWidth)
-            .frame(maxHeight: Tokens.maxPopoverContentHeight)
+            .frame(maxWidth: Tokens.popoverWidth, maxHeight: Tokens.maxPopoverContentHeight, alignment: .top)
+            .clipped()
 
             Divider()
 

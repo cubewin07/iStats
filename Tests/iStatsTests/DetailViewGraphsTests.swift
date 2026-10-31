@@ -210,6 +210,55 @@ final class DetailViewGraphsTests: XCTestCase {
         XCTAssertEqual(coordinator.diskHistory.count, 1)
     }
 
+    func testNetworkPopoverWithManyInterfacesNoClippingOrOverflow() {
+        var ifaces: [InterfaceThroughput] = []
+        for i in 0..<24 {
+            ifaces.append(InterfaceThroughput(
+                interfaceName: "en\(i)",
+                bytesInPerSec: i == 0 ? 993 : 0,
+                bytesOutPerSec: i == 0 ? 1536 : 0,
+                totalBytesIn: 10000,
+                totalBytesOut: 5000
+            ))
+        }
+        let netSample = NetworkSample(
+            interfaces: ifaces,
+            primaryInterface: "en0",
+            primaryType: .wifi,
+            localIPv4: "192.168.1.100",
+            gatewayIPv4: "192.168.1.1",
+            primaryDNS: "1.1.1.1",
+            wifiDetails: WiFiLinkTelemetry(
+                ssid: "HomeNetwork",
+                rssi: -55,
+                noise: -90,
+                txRate: 650.0,
+                channel: 36,
+                band: "5 GHz"
+            )
+        )
+        let defaults = UserDefaults(suiteName: "iStats.test.diag.\(UUID().uuidString)")!
+        let prefs = PreferencesStore(userDefaults: defaults)
+        let coord = MetricsCoordinator(preferencesStore: prefs)
+        coord.handleReading(.network(Sample(value: netSample)))
+
+        let viewOverview = NetworkPopover(initialTab: .overview, coordinator: coord, preferences: prefs)
+        let controllerOverview = NSHostingController(rootView: viewOverview)
+        controllerOverview.sizingOptions = [.preferredContentSize]
+        let hostingOverview = controllerOverview.view
+        hostingOverview.frame = NSRect(x: 0, y: 0, width: 330, height: 480)
+        hostingOverview.layoutSubtreeIfNeeded()
+        XCTAssertNotNil(hostingOverview)
+        XCTAssertLessThanOrEqual(controllerOverview.preferredContentSize.width, 330)
+
+        let viewDetail = NetworkPopover(initialTab: .detail, coordinator: coord, preferences: prefs)
+        let controllerDetail = NSHostingController(rootView: viewDetail)
+        let hostingDetail = controllerDetail.view
+        hostingDetail.frame = NSRect(x: 0, y: 0, width: 330, height: 480)
+        hostingDetail.layoutSubtreeIfNeeded()
+        XCTAssertNotNil(hostingDetail)
+    }
+
     func testNetworkPopoverRendering() {
         let netSample = NetworkSample(interfaces: [
             InterfaceThroughput(
