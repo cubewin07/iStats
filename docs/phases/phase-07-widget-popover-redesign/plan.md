@@ -476,7 +476,9 @@ Phase package files in this folder:
 
 ## 10. Open decisions (answer before 7.0 closes)
 
-1. **Power colour:** pink (proposed, no clash with status colours) vs yellow (more conventional, clashes with "elevated").
-2. **Remember last tab** per category: on by default (proposed) or always open on the widget's configured tab?
-3. **Optional 7.6 (15-min history)** and **7.8 (top processes)**: include in this phase or defer?
-4. **Fans on fanless Macs:** hide the category (proposed) or show a disabled row?
+1. **Power colour:** **Pink** (`.pink`) accepted. Eliminates clash with status colors (green/yellow/orange/red) while distinct from all other category palettes.
+2. **Remember last tab** per category: **On by default** (`rememberLastTab = true`) accepted in `PopoverConfig`. Provides seamless continuity across popover toggles while allowing explicit widget overrides.
+3. **Optional 7.6 (15-min history)** and **7.8 (top processes)**:
+   - **Task 7.6 (15-min in-memory history)**: **Included** in Phase 7 via 900-sample scalar ring buffers with spike-preserving bucket downsampling.
+   - **Task 7.8 (Top processes sampler)**: **Deferred** to Phase 8 or a dedicated performance-profiled phase, pending libproc benchmarks and ADR 0009.
+4. **Fans on fanless Macs:** **Show disabled row** ("This Mac has no fans" / "Passive cooling") in Preferences accepted to preserve discoverability without misleading the user.
