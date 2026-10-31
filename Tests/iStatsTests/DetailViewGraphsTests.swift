@@ -654,4 +654,71 @@ final class DetailViewGraphsTests: XCTestCase {
         hosting.frame = CGRect(x: 0, y: 0, width: 330, height: 500)
         XCTAssertNotNil(hosting)
     }
+
+    // MARK: - TrendChartMath and TrendChart Tests
+
+    func testTrendChartMathStatsComputation() {
+        XCTAssertNil(TrendChartMath.computeStats(for: []))
+
+        let stats = TrendChartMath.computeStats(for: [10.0, 50.0, 30.0, 20.0])
+        XCTAssertNotNil(stats)
+        XCTAssertEqual(stats?.min, 10.0)
+        XCTAssertEqual(stats?.max, 50.0)
+        XCTAssertEqual(stats?.avg, 27.5)
+        XCTAssertEqual(stats?.now, 20.0)
+    }
+
+    func testTrendChartMathHoverIndex() {
+        XCTAssertNil(TrendChartMath.hoverIndex(for: 50, totalWidth: 0, count: 10))
+        XCTAssertNil(TrendChartMath.hoverIndex(for: 50, totalWidth: 100, count: 0))
+
+        XCTAssertEqual(TrendChartMath.hoverIndex(for: 0, totalWidth: 100, count: 11), 0)
+        XCTAssertEqual(TrendChartMath.hoverIndex(for: 50, totalWidth: 100, count: 11), 5)
+        XCTAssertEqual(TrendChartMath.hoverIndex(for: 100, totalWidth: 100, count: 11), 10)
+    }
+
+    func testTrendChartMathRelativeTimeFormatting() {
+        XCTAssertEqual(TrendChartMath.formatRelativeTime(secondsAgo: 0), "0s ago")
+        XCTAssertEqual(TrendChartMath.formatRelativeTime(secondsAgo: 14), "14s ago")
+        XCTAssertEqual(TrendChartMath.formatRelativeTime(secondsAgo: 120), "2m ago")
+        XCTAssertEqual(TrendChartMath.formatRelativeTime(secondsAgo: 150), "2m 30s ago")
+        XCTAssertEqual(TrendChartMath.formatRelativeTime(secondsAgo: 7200), "2h ago")
+    }
+
+    func testTrendChartMathMaxBoundCeiling() {
+        XCTAssertEqual(TrendChartMath.computeMaxBound(values: [20, 40], fixedMax: 100), 100.0)
+        XCTAssertEqual(TrendChartMath.computeMaxBound(values: [0, 0], fixedMax: nil, floor: 5.0), 5.0)
+        XCTAssertEqual(TrendChartMath.computeMaxBound(values: [100.0], fixedMax: nil, floor: 1.0), 115.0, accuracy: 0.001)
+    }
+
+    func testTrendChartRenderModes() {
+        let singleChart = TrendChart(
+            mode: .single(values: [10, 20, 30], color: .blue),
+            height: 60,
+            showStatsStrip: true
+        )
+        let singleHost = NSHostingView(rootView: singleChart)
+        singleHost.frame = CGRect(x: 0, y: 0, width: 330, height: 80)
+        singleHost.layoutSubtreeIfNeeded()
+        XCTAssertGreaterThan(singleHost.fittingSize.height, 40)
+
+        let stackedChart = TrendChart(
+            mode: .stacked(primary: [10, 20], secondary: [5, 10], primaryColor: .blue, secondaryColor: .red),
+            height: 60
+        )
+        let stackedHost = NSHostingView(rootView: stackedChart)
+        stackedHost.frame = CGRect(x: 0, y: 0, width: 330, height: 60)
+        stackedHost.layoutSubtreeIfNeeded()
+        XCTAssertGreaterThan(stackedHost.fittingSize.height, 40)
+
+        let mirroredChart = TrendChart(
+            mode: .mirrored(top: [100, 200], bottom: [50, 80], topColor: .indigo, bottomColor: .pink),
+            height: 140,
+            showStatsStrip: true
+        )
+        let mirroredHost = NSHostingView(rootView: mirroredChart)
+        mirroredHost.frame = CGRect(x: 0, y: 0, width: 330, height: 160)
+        mirroredHost.layoutSubtreeIfNeeded()
+        XCTAssertGreaterThan(mirroredHost.fittingSize.height, 80)
+    }
 }
