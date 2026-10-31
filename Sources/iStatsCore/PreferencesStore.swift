@@ -408,12 +408,11 @@ public final class PreferencesStore: ObservableObject, @unchecked Sendable {
            let items = try? JSONDecoder().decode([MenuBarItemConfig].self, from: data) {
             // Deduplicate items resulting from migration (e.g. if tachometer & gauge both present)
             // and filter out styles that are no longer supported for that category.
-            var seen = Set<String>()
+            let deduplicatedItems = MenuBarItemConfig.deduplicated(items)
             var sanitized: [MenuBarItemConfig] = []
-            for var item in items {
+            for var item in deduplicatedItems {
                 let supported = MetricDisplayStyle.supportedStyles(for: item.category)
-                if supported.contains(item.style), !seen.contains(item.id) {
-                    seen.insert(item.id)
+                if supported.contains(item.style) {
                     if let pop = item.popoverStyle {
                         let validPopovers = PopoverStyle.supportedPopovers(for: item.category)
                         let defaultPop = PopoverStyle.defaultStyle(for: item.category, widgetStyle: item.style)

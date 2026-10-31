@@ -237,10 +237,10 @@ final class MenuBarDirtyCheckingTests: XCTestCase {
         coord.handleReading(MetricReading.wrap(category: .cpu, value: cpuSample))
 
         let cpuText = MenuBarIconRenderer.computeVisualKey(config: MenuBarItemConfig(category: .cpu, style: .text), coordinator: coord, preferences: prefs)
-        XCTAssertEqual(cpuText, "cpu:text:25%")
+        XCTAssertEqual(cpuText, "cpu:text:25%:lbl=false")
 
         let cpuGauge = MenuBarIconRenderer.computeVisualKey(config: MenuBarItemConfig(category: .cpu, style: .gauge), coordinator: coord, preferences: prefs)
-        XCTAssertEqual(cpuGauge, "cpu:gauge:15:10")
+        XCTAssertEqual(cpuGauge, "cpu:gauge:15:10:lbl=false")
 
         let cpuSparkline = MenuBarIconRenderer.computeVisualKey(config: MenuBarItemConfig(category: .cpu, style: .sparkline), coordinator: coord, preferences: prefs)
         XCTAssertNil(cpuSparkline, "Sparkline continuous graphs must return nil visualKey")
@@ -250,30 +250,30 @@ final class MenuBarDirtyCheckingTests: XCTestCase {
         coord.handleReading(MetricReading.wrap(category: .memory, value: memSample))
 
         let memGauge = MenuBarIconRenderer.computeVisualKey(config: MenuBarItemConfig(category: .memory, style: .gauge), coordinator: coord, preferences: prefs)
-        XCTAssertEqual(memGauge, "mem:gauge:55:10:45:5")
+        XCTAssertEqual(memGauge, "mem:gauge:55:normal:lbl=false")
 
         let memBadge = MenuBarIconRenderer.computeVisualKey(config: MenuBarItemConfig(category: .memory, style: .symbol), coordinator: coord, preferences: prefs)
-        XCTAssertEqual(memBadge, "mem:badge:normal")
+        XCTAssertEqual(memBadge, "mem:badge:normal:lbl=false")
 
         // 3. GPU
         let gpuSample = GPUSample(utilization: 35.0, tempCelsius: 48.0)
         coord.handleReading(MetricReading.wrap(category: .gpu, value: gpuSample))
 
         let gpuGauge = MenuBarIconRenderer.computeVisualKey(config: MenuBarItemConfig(category: .gpu, style: .gauge), coordinator: coord, preferences: prefs)
-        XCTAssertEqual(gpuGauge, "gpu:gauge:35:48")
+        XCTAssertEqual(gpuGauge, "gpu:gauge:35:48:lbl=false")
 
         let gpuSymbol = MenuBarIconRenderer.computeVisualKey(config: MenuBarItemConfig(category: .gpu, style: .symbol), coordinator: coord, preferences: prefs)
-        XCTAssertEqual(gpuSymbol, "gpu:symbol:35:48")
+        XCTAssertEqual(gpuSymbol, "gpu:symbol:35:48:lbl=false")
 
         // 4. Power
         let pwrSample = PowerSample(hasBattery: true, charge: 92.0, state: .charging)
         coord.handleReading(MetricReading.wrap(category: .power, value: pwrSample))
 
         let pwrGauge = MenuBarIconRenderer.computeVisualKey(config: MenuBarItemConfig(category: .power, style: .gauge), coordinator: coord, preferences: prefs)
-        XCTAssertEqual(pwrGauge, "pwr:gauge:92:true:charging")
+        XCTAssertEqual(pwrGauge, "pwr:gauge:92:true:charging:lbl=false")
 
         let pwrSymbol = MenuBarIconRenderer.computeVisualKey(config: MenuBarItemConfig(category: .power, style: .symbol), coordinator: coord, preferences: prefs)
-        XCTAssertEqual(pwrSymbol, "pwr:symbol:92:charging:true")
+        XCTAssertEqual(pwrSymbol, "pwr:symbol:92:charging:true:lbl=false")
 
         // 5. Fan
         let fanSample = FanSample(fans: [FanReading(name: "Fan 1", rpm: 2100, minRPM: 1200, maxRPM: 5000)])
@@ -288,7 +288,7 @@ final class MenuBarDirtyCheckingTests: XCTestCase {
         coord.handleReading(MetricReading.wrap(category: .network, value: netSample))
 
         let netArrows = MenuBarIconRenderer.computeVisualKey(config: MenuBarItemConfig(category: .network, style: .symbol), coordinator: coord, preferences: prefs)
-        XCTAssertEqual(netArrows, "net:arrows:true:false")
+        XCTAssertEqual(netArrows, "net:arrows:true:false:lbl=false")
 
         // 7. Disk
         let diskSample = DiskSample(
@@ -298,10 +298,44 @@ final class MenuBarDirtyCheckingTests: XCTestCase {
         coord.handleReading(MetricReading.wrap(category: .disk, value: diskSample))
 
         let diskLeds = MenuBarIconRenderer.computeVisualKey(config: MenuBarItemConfig(category: .disk, style: .symbol), coordinator: coord, preferences: prefs)
-        XCTAssertEqual(diskLeds, "disk:leds:true:false")
+        XCTAssertEqual(diskLeds, "disk:leds:true:false:lbl=false")
 
         let diskGauge = MenuBarIconRenderer.computeVisualKey(config: MenuBarItemConfig(category: .disk, style: .gauge), coordinator: coord, preferences: prefs)
-        XCTAssertEqual(diskGauge, "disk:gauge:60")
+        XCTAssertEqual(diskGauge, "disk:gauge:60:lbl=false")
+    }
+
+    func testVisualKeyChangesOnSourceThroughputLayoutAndShowLabel() {
+        let (defaults, prefs, coord, controller, suiteName) = makeContext()
+        defer { cleanup(defaults: defaults, controller: controller, suiteName: suiteName) }
+
+        // showLabel change
+        let gaugeWithoutLabel = MenuBarItemConfig(category: .cpu, style: .gauge, showLabel: false)
+        let gaugeWithLabel = MenuBarItemConfig(category: .cpu, style: .gauge, showLabel: true)
+        let key1 = MenuBarIconRenderer.computeVisualKey(config: gaugeWithoutLabel, coordinator: coord, preferences: prefs)
+        let key2 = MenuBarIconRenderer.computeVisualKey(config: gaugeWithLabel, coordinator: coord, preferences: prefs)
+        XCTAssertNotEqual(key1, key2)
+
+        // throughputLayout change
+        let netStacked = MenuBarItemConfig(category: .network, style: .throughput, throughputLayout: .stacked)
+        let netSingle = MenuBarItemConfig(category: .network, style: .throughput, throughputLayout: .singleLine)
+        let netKey1 = MenuBarIconRenderer.computeVisualKey(config: netStacked, coordinator: coord, preferences: prefs)
+        let netKey2 = MenuBarIconRenderer.computeVisualKey(config: netSingle, coordinator: coord, preferences: prefs)
+        XCTAssertNotEqual(netKey1, netKey2)
+
+        // thermal source change
+        let thermalSample = ThermalSample(
+            sensors: [
+                SensorReading(name: "CPU Core", celsius: 45.0),
+                SensorReading(name: "GPU MESA", celsius: 65.0)
+            ],
+            pressure: .nominal
+        )
+        coord.handleReading(MetricReading.wrap(category: .thermal, value: thermalSample))
+        let thermCPU = MenuBarItemConfig(category: .thermal, style: .text, source: .cpu)
+        let thermGPU = MenuBarItemConfig(category: .thermal, style: .text, source: .gpu)
+        let thermKeyCPU = MenuBarIconRenderer.computeVisualKey(config: thermCPU, coordinator: coord, preferences: prefs)
+        let thermKeyGPU = MenuBarIconRenderer.computeVisualKey(config: thermGPU, coordinator: coord, preferences: prefs)
+        XCTAssertNotEqual(thermKeyCPU, thermKeyGPU)
     }
 
     // MARK: - 5. Regression Tests for Sub-Component & Tooltip Updates

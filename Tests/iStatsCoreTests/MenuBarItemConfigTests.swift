@@ -22,21 +22,21 @@ final class MenuBarItemConfigTests: XCTestCase {
     }
 
     func testCodableMigrationFromLegacyValues() throws {
-        // Test "tachometer" migration to .gauge
+        // Test "tachometer" migration to .glyph
         let jsonTachometer = """
         {"category":"fan","style":"tachometer"}
         """.data(using: .utf8)!
         let decodedTacho = try JSONDecoder().decode(MenuBarItemConfig.self, from: jsonTachometer)
-        XCTAssertEqual(decodedTacho.style, .gauge)
-        XCTAssertEqual(decodedTacho.id, "fan.gauge")
+        XCTAssertEqual(decodedTacho.style, .glyph)
+        XCTAssertEqual(decodedTacho.id, "fan.glyph")
 
-        // Test "blades" migration to .symbol
+        // Test "blades" migration to .glyph
         let jsonBlades = """
         {"category":"fan","style":"blades"}
         """.data(using: .utf8)!
         let decodedBlades = try JSONDecoder().decode(MenuBarItemConfig.self, from: jsonBlades)
-        XCTAssertEqual(decodedBlades.style, .symbol)
-        XCTAssertEqual(decodedBlades.id, "fan.symbol")
+        XCTAssertEqual(decodedBlades.style, .glyph)
+        XCTAssertEqual(decodedBlades.id, "fan.glyph")
     }
 
     func testDefaultConfigs() {
@@ -68,40 +68,156 @@ final class MenuBarItemConfigTests: XCTestCase {
         let cpuStyles = MetricDisplayStyle.supportedStyles(for: .cpu)
         XCTAssertEqual(cpuStyles, [.text, .gauge, .bar, .sparkline])
 
-        // Memory: [.text, .gauge, .bar, .sparkline, .symbol]
+        // Memory: [.text, .gauge, .bar, .sparkline]
         let memStyles = MetricDisplayStyle.supportedStyles(for: .memory)
-        XCTAssertEqual(memStyles, [.text, .gauge, .bar, .sparkline, .symbol])
+        XCTAssertEqual(memStyles, [.text, .gauge, .bar, .sparkline])
 
-        // GPU: [.text, .gauge, .bar, .sparkline, .symbol]
+        // GPU: [.text, .gauge, .bar, .sparkline]
         let gpuStyles = MetricDisplayStyle.supportedStyles(for: .gpu)
-        XCTAssertEqual(gpuStyles, [.text, .gauge, .bar, .sparkline, .symbol])
+        XCTAssertEqual(gpuStyles, [.text, .gauge, .bar, .sparkline])
 
-        // Thermal: [.text, .cpuTemp, .gpuTemp, .memoryTemp, .storageTemp, .batteryTemp, .gauge, .sparkline]
+        // Thermal: [.text, .glyph, .sparkline]
         let thermalStyles = MetricDisplayStyle.supportedStyles(for: .thermal, hasBattery: true)
-        XCTAssertEqual(thermalStyles, [.text, .cpuTemp, .gpuTemp, .memoryTemp, .storageTemp, .batteryTemp, .gauge, .sparkline])
+        XCTAssertEqual(thermalStyles, [.text, .glyph, .sparkline])
 
         let thermalDesktopStyles = MetricDisplayStyle.supportedStyles(for: .thermal, hasBattery: false)
-        XCTAssertEqual(thermalDesktopStyles, [.text, .cpuTemp, .gpuTemp, .memoryTemp, .storageTemp, .gauge, .sparkline])
-        XCTAssertFalse(thermalStyles.contains(.bar))
+        XCTAssertEqual(thermalDesktopStyles, [.text, .glyph, .sparkline])
 
-        // Fans: [.text, .throughput, .gauge, .bar, .sparkline, .symbol]
+        // Fans: [.text, .throughput, .glyph, .bar, .sparkline]
         let fanStyles = MetricDisplayStyle.supportedStyles(for: .fan)
-        XCTAssertEqual(fanStyles, [.text, .throughput, .gauge, .bar, .sparkline, .symbol])
+        XCTAssertEqual(fanStyles, [.text, .throughput, .glyph, .bar, .sparkline])
 
-        // Network: [.throughput, .bar, .sparkline, .symbol]
+        // Network: [.throughput, .sparkline, .symbol]
         let netStyles = MetricDisplayStyle.supportedStyles(for: .network)
-        XCTAssertEqual(netStyles, [.throughput, .bar, .sparkline, .symbol])
+        XCTAssertEqual(netStyles, [.throughput, .sparkline, .symbol])
 
-        // Disk: [.throughput, .gauge, .bar, .sparkline, .symbol]
+        // Disk: [.throughput, .sparkline, .symbol, .gauge, .text]
         let diskStyles = MetricDisplayStyle.supportedStyles(for: .disk)
-        XCTAssertEqual(diskStyles, [.throughput, .gauge, .bar, .sparkline, .symbol])
+        XCTAssertEqual(diskStyles, [.throughput, .sparkline, .symbol, .gauge, .text])
 
         // Power: with battery vs desktop without battery
         let pwrBatteryStyles = MetricDisplayStyle.supportedStyles(for: .power, hasBattery: true)
-        XCTAssertEqual(pwrBatteryStyles, [.text, .throughput, .gauge, .bar, .sparkline, .symbol])
+        XCTAssertEqual(pwrBatteryStyles, [.symbol, .text, .throughput, .sparkline])
 
         let pwrDesktopStyles = MetricDisplayStyle.supportedStyles(for: .power, hasBattery: false)
         XCTAssertEqual(pwrDesktopStyles, [.throughput, .sparkline])
+    }
+
+    func testMenuBarItemConfigMigrationTable() throws {
+        let decoder = JSONDecoder()
+
+        // memory.symbol -> memory.gauge
+        let memData = try decoder.decode(MenuBarItemConfig.self, from: """
+        {"category":"memory","style":"symbol"}
+        """.data(using: .utf8)!)
+        XCTAssertEqual(memData.style, .gauge)
+        XCTAssertEqual(memData.id, "memory.gauge")
+
+        // gpu.symbol -> gpu.gauge
+        let gpuData = try decoder.decode(MenuBarItemConfig.self, from: """
+        {"category":"gpu","style":"symbol"}
+        """.data(using: .utf8)!)
+        XCTAssertEqual(gpuData.style, .gauge)
+        XCTAssertEqual(gpuData.id, "gpu.gauge")
+
+        // thermal legacy styles -> text with source
+        let cpuTempData = try decoder.decode(MenuBarItemConfig.self, from: """
+        {"category":"thermal","style":"cpuTemp"}
+        """.data(using: .utf8)!)
+        XCTAssertEqual(cpuTempData.style, .text)
+        XCTAssertEqual(cpuTempData.source, .cpu)
+        XCTAssertEqual(cpuTempData.id, "thermal.text.cpu")
+
+        let gpuTempData = try decoder.decode(MenuBarItemConfig.self, from: """
+        {"category":"thermal","style":"gpuTemp"}
+        """.data(using: .utf8)!)
+        XCTAssertEqual(gpuTempData.style, .text)
+        XCTAssertEqual(gpuTempData.source, .gpu)
+        XCTAssertEqual(gpuTempData.id, "thermal.text.gpu")
+
+        let memTempData = try decoder.decode(MenuBarItemConfig.self, from: """
+        {"category":"thermal","style":"memoryTemp"}
+        """.data(using: .utf8)!)
+        XCTAssertEqual(memTempData.style, .text)
+        XCTAssertEqual(memTempData.source, .memory)
+        XCTAssertEqual(memTempData.id, "thermal.text.memory")
+
+        let ssdTempData = try decoder.decode(MenuBarItemConfig.self, from: """
+        {"category":"thermal","style":"storageTemp"}
+        """.data(using: .utf8)!)
+        XCTAssertEqual(ssdTempData.style, .text)
+        XCTAssertEqual(ssdTempData.source, .ssd)
+        XCTAssertEqual(ssdTempData.id, "thermal.text.ssd")
+
+        let batTempData = try decoder.decode(MenuBarItemConfig.self, from: """
+        {"category":"thermal","style":"batteryTemp"}
+        """.data(using: .utf8)!)
+        XCTAssertEqual(batTempData.style, .text)
+        XCTAssertEqual(batTempData.source, .battery)
+        XCTAssertEqual(batTempData.id, "thermal.text.battery")
+
+        // thermal.gauge -> glyph.peak
+        let thmGaugeData = try decoder.decode(MenuBarItemConfig.self, from: """
+        {"category":"thermal","style":"gauge"}
+        """.data(using: .utf8)!)
+        XCTAssertEqual(thmGaugeData.style, .glyph)
+        XCTAssertEqual(thmGaugeData.source, .peak)
+        XCTAssertEqual(thmGaugeData.id, "thermal.glyph.peak")
+
+        // fan.gauge / fan.symbol -> fan.glyph
+        let fanGaugeData = try decoder.decode(MenuBarItemConfig.self, from: """
+        {"category":"fan","style":"gauge"}
+        """.data(using: .utf8)!)
+        XCTAssertEqual(fanGaugeData.style, .glyph)
+        XCTAssertEqual(fanGaugeData.id, "fan.glyph")
+
+        let fanSymData = try decoder.decode(MenuBarItemConfig.self, from: """
+        {"category":"fan","style":"symbol"}
+        """.data(using: .utf8)!)
+        XCTAssertEqual(fanSymData.style, .glyph)
+        XCTAssertEqual(fanSymData.id, "fan.glyph")
+
+        // network.bar -> network.symbol
+        let netBarData = try decoder.decode(MenuBarItemConfig.self, from: """
+        {"category":"network","style":"bar"}
+        """.data(using: .utf8)!)
+        XCTAssertEqual(netBarData.style, .symbol)
+        XCTAssertEqual(netBarData.id, "network.symbol")
+
+        // disk.bar -> disk.text
+        let diskBarData = try decoder.decode(MenuBarItemConfig.self, from: """
+        {"category":"disk","style":"bar"}
+        """.data(using: .utf8)!)
+        XCTAssertEqual(diskBarData.style, .text)
+        XCTAssertEqual(diskBarData.id, "disk.text")
+
+        // power.gauge / power.bar -> power.symbol
+        let pwrGaugeData = try decoder.decode(MenuBarItemConfig.self, from: """
+        {"category":"power","style":"gauge"}
+        """.data(using: .utf8)!)
+        XCTAssertEqual(pwrGaugeData.style, .symbol)
+        XCTAssertEqual(pwrGaugeData.id, "power.symbol")
+
+        let pwrBarData = try decoder.decode(MenuBarItemConfig.self, from: """
+        {"category":"power","style":"bar"}
+        """.data(using: .utf8)!)
+        XCTAssertEqual(pwrBarData.style, .symbol)
+        XCTAssertEqual(pwrBarData.id, "power.symbol")
+    }
+
+    func testDeduplicationPreservesOrder() {
+        let item1 = MenuBarItemConfig(category: .cpu, style: .bar)
+        let item2 = MenuBarItemConfig(category: .memory, style: .gauge)
+        let item3 = MenuBarItemConfig(category: .network, style: .throughput)
+        let duplicateItem1 = MenuBarItemConfig(category: .cpu, style: .bar)
+
+        let items = [item1, item2, duplicateItem1, item3]
+        let deduped = MenuBarItemConfig.deduplicated(items)
+
+        XCTAssertEqual(deduped.count, 3)
+        XCTAssertEqual(deduped[0].id, item1.id)
+        XCTAssertEqual(deduped[1].id, item2.id)
+        XCTAssertEqual(deduped[2].id, item3.id)
     }
 
     func testExhaustivePopoverStyleSupportAndDefaultResolution() {
@@ -126,23 +242,19 @@ final class MenuBarItemConfigTests: XCTestCase {
 
     func testCategorySpecificDisplayNames() {
         XCTAssertEqual(MetricDisplayStyle.bar.displayName(for: .cpu), "Core Cluster")
-        XCTAssertEqual(MetricDisplayStyle.gauge.displayName(for: .cpu), "User/System")
-        XCTAssertEqual(MetricDisplayStyle.symbol.displayName(for: .memory), "Pressure")
+        XCTAssertEqual(MetricDisplayStyle.gauge.displayName(for: .cpu), "Load Ring")
+        XCTAssertEqual(MetricDisplayStyle.gauge.displayName(for: .memory), "Pressure Ring")
         XCTAssertEqual(MetricDisplayStyle.bar.displayName(for: .memory), "Allocation")
-        XCTAssertEqual(MetricDisplayStyle.symbol.displayName(for: .gpu), "GPU Die")
-        XCTAssertEqual(MetricDisplayStyle.text.displayName(for: .thermal), "Peak °C")
-        XCTAssertEqual(MetricDisplayStyle.cpuTemp.displayName(for: .thermal), "CPU °C")
-        XCTAssertEqual(MetricDisplayStyle.gpuTemp.displayName(for: .thermal), "GPU °C")
-        XCTAssertEqual(MetricDisplayStyle.memoryTemp.displayName(for: .thermal), "Memory °C")
-        XCTAssertEqual(MetricDisplayStyle.storageTemp.displayName(for: .thermal), "SSD °C")
-        XCTAssertEqual(MetricDisplayStyle.batteryTemp.displayName(for: .thermal), "Battery °C")
-        XCTAssertEqual(MetricDisplayStyle.gauge.displayName(for: .thermal), "Temp Ring")
+        XCTAssertEqual(MetricDisplayStyle.gauge.displayName(for: .gpu), "Load Ring")
+        XCTAssertEqual(MetricDisplayStyle.text.displayName(for: .thermal), "Temperature")
+        XCTAssertEqual(MetricDisplayStyle.glyph.displayName(for: .thermal), "Thermometer")
         XCTAssertEqual(MetricDisplayStyle.sparkline.displayName(for: .thermal), "Peak History")
-        XCTAssertEqual(MetricDisplayStyle.gauge.displayName(for: .fan), "Tachometer")
-        XCTAssertEqual(MetricDisplayStyle.symbol.displayName(for: .fan), "Blades")
+        XCTAssertEqual(MetricDisplayStyle.text.displayName(for: .fan), "Fan RPM")
+        XCTAssertEqual(MetricDisplayStyle.glyph.displayName(for: .fan), "Fan Glyph")
         XCTAssertEqual(MetricDisplayStyle.throughput.displayName(for: .network), "Up / Down")
-        XCTAssertEqual(MetricDisplayStyle.bar.displayName(for: .disk), "Storage Bar")
+        XCTAssertEqual(MetricDisplayStyle.text.displayName(for: .disk), "Free Space")
         XCTAssertEqual(MetricDisplayStyle.gauge.displayName(for: .disk), "Storage Ring")
+        XCTAssertEqual(MetricDisplayStyle.symbol.displayName(for: .power), "Battery")
         XCTAssertEqual(MetricDisplayStyle.throughput.displayName(for: .power), "Draw / Adapter W")
         XCTAssertEqual(MetricDisplayStyle.sparkline.displayName(for: .power), "Wattage History")
     }
@@ -207,12 +319,10 @@ final class MenuBarItemConfigTests: XCTestCase {
         // cpu.bar should be present
         XCTAssertTrue(store.isItemEnabled(category: .cpu, style: .bar))
 
-        // fan.gauge should be present only ONCE (deduplicated)
-        let fanGauges = store.menuBarItems.filter { $0.category == .fan && $0.style == .gauge }
-        XCTAssertEqual(fanGauges.count, 1)
-
-        // fan.blades migrated to fan.symbol
-        XCTAssertTrue(store.isItemEnabled(category: .fan, style: .symbol))
+        // fan.tachometer, fan.gauge, and fan.blades all migrate to fan.glyph and deduplicate to exactly 1
+        let fanGlyphs = store.menuBarItems.filter { $0.category == .fan && $0.style == .glyph }
+        XCTAssertEqual(fanGlyphs.count, 1)
+        XCTAssertTrue(store.isItemEnabled(category: .fan, style: .glyph))
 
         // cpu.symbol is unsupported on CPU and should be pruned
         XCTAssertFalse(store.isItemEnabled(category: .cpu, style: .symbol))

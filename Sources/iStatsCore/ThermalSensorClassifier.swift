@@ -50,10 +50,12 @@ public enum ThermalSensorClassifier {
     /// Classifies a raw sensor reading by its hardware channel name.
     public static func classify(_ sensor: SensorReading) -> MetricSource? {
         let name = sensor.name
+        if name.contains("Peak") {
+            return .peak
+        }
         if name.contains("CPU")
             || name.contains("Efficiency Core")
             || name.contains("Performance Core")
-            || name.contains("SoC")
             || name.contains("Package") {
             return .cpu
         }
