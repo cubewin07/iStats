@@ -53,6 +53,9 @@ public final class MetricsCoordinator: ObservableObject {
     /// The latest available GPU sample.
     @Published public private(set) var latestGPU: Sample<GPUSample>?
 
+    /// Rolling chronological history of per-core utilization (60 samples per core, in-memory only; ADR 0006).
+    @Published public private(set) var coreHistory: [Int: [Double]] = [:]
+
     /// Rolling chronological history of CPU samples queried on-demand from backing store.
     public var cpuHistory: [Sample<CPUSample>] { store.cpuHistory() }
 
@@ -358,6 +361,16 @@ public final class MetricsCoordinator: ObservableObject {
         switch category {
         case .cpu:
             self.latestCPU = store.latestCPU()
+            if let perCore = self.latestCPU?.value.perCore {
+                for (idx, val) in perCore.enumerated() {
+                    var ring = self.coreHistory[idx] ?? []
+                    ring.append(val)
+                    if ring.count > 60 {
+                        ring.removeFirst(ring.count - 60)
+                    }
+                    self.coreHistory[idx] = ring
+                }
+            }
         case .memory:
             self.latestMemory = store.latestMemory()
         case .network:

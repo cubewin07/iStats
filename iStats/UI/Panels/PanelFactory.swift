@@ -37,14 +37,25 @@ public enum PanelFactory {
         coordinator: MetricsCoordinator = .shared,
         preferences: PreferencesStore = .shared
     ) -> some View {
-        PanelHostView(
-            category: category,
-            initialTab: initialTab,
-            rememberLastTab: rememberLastTab,
-            focusSource: focusSource,
-            coordinator: coordinator,
-            preferences: preferences
-        )
+        switch category {
+        case .cpu:
+            CPUPanel(
+                initialTab: initialTab,
+                rememberLastTab: rememberLastTab,
+                focusSource: focusSource,
+                coordinator: coordinator,
+                preferences: preferences
+            )
+        default:
+            PanelHostView(
+                category: category,
+                initialTab: initialTab,
+                rememberLastTab: rememberLastTab,
+                focusSource: focusSource,
+                coordinator: coordinator,
+                preferences: preferences
+            )
+        }
     }
 }
 
