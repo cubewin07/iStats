@@ -185,4 +185,67 @@ final class PanelScaffoldTests: XCTestCase {
         XCTAssertEqual(fit.width, Instrument.Size.panelWidth, accuracy: 2.0)
         XCTAssertGreaterThan(fit.height, 150)
     }
+
+    func testGPUPanelRendersFullEnginesCleanly() {
+        let (defaults, prefs, coord, suiteName) = makeContext()
+        defer { cleanup(defaults: defaults, suiteName: suiteName) }
+
+        coord.handleReading(.gpu(Sample(value: GPUSample(
+            utilization: 62.0,
+            memoryUsed: 4 * 1024 * 1024 * 1024,
+            tempCelsius: 58.0,
+            powerWatts: 14.5,
+            coreCount: 16,
+            deviceName: "Apple M3 Pro",
+            allocatedMemory: 4 * 1024 * 1024 * 1024,
+            recommendedMaxMemory: 18 * 1024 * 1024 * 1024,
+            rendererUtilization: 55.0,
+            tilerUtilization: 30.0,
+            isUnifiedMemory: true,
+            displayCount: 1,
+            displayDescriptions: ["Built-in Liquid Retina XDR"],
+            recoveryCount: 0,
+            supportsRaytracing: true,
+            metalFeatureSet: "Metal 3"
+        ))))
+
+        let view = GPUPanel(coordinator: coord, preferences: prefs)
+        let hosting = NSHostingView(rootView: view)
+        hosting.frame = CGRect(x: 0, y: 0, width: Instrument.Size.panelWidth, height: 450)
+        hosting.layoutSubtreeIfNeeded()
+
+        let fit = hosting.fittingSize
+        XCTAssertEqual(fit.width, Instrument.Size.panelWidth, accuracy: 2.0)
+        XCTAssertGreaterThan(fit.height, 150)
+    }
+
+    func testGPUPanelDeviceOnlyFallbackAndRecoveryWarning() {
+        let (defaults, prefs, coord, suiteName) = makeContext()
+        defer { cleanup(defaults: defaults, suiteName: suiteName) }
+
+        coord.handleReading(.gpu(Sample(value: GPUSample(
+            utilization: 88.0,
+            memoryUsed: 2 * 1024 * 1024 * 1024,
+            tempCelsius: 65.0,
+            powerWatts: 20.0,
+            coreCount: 8,
+            deviceName: "Apple M1",
+            rendererUtilization: nil,
+            tilerUtilization: nil,
+            recoveryCount: 2
+        ))))
+
+        // Verify fallback title
+        XCTAssertEqual(PopoverTab.detail.title(for: .gpu, hasDetailedGPUEngines: false), "Device")
+        XCTAssertEqual(PopoverTab.detail.title(for: .gpu, hasDetailedGPUEngines: true), "Engines")
+
+        let view = GPUPanel(coordinator: coord, preferences: prefs)
+        let hosting = NSHostingView(rootView: view)
+        hosting.frame = CGRect(x: 0, y: 0, width: Instrument.Size.panelWidth, height: 450)
+        hosting.layoutSubtreeIfNeeded()
+
+        let fit = hosting.fittingSize
+        XCTAssertEqual(fit.width, Instrument.Size.panelWidth, accuracy: 2.0)
+        XCTAssertGreaterThan(fit.height, 150)
+    }
 }

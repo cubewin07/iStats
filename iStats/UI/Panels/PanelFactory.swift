@@ -54,6 +54,14 @@ public enum PanelFactory {
                 coordinator: coordinator,
                 preferences: preferences
             )
+        case .gpu:
+            GPUPanel(
+                initialTab: initialTab,
+                rememberLastTab: rememberLastTab,
+                focusSource: focusSource,
+                coordinator: coordinator,
+                preferences: preferences
+            )
         default:
             PanelHostView(
                 category: category,
