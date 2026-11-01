@@ -2116,9 +2116,9 @@ public struct MenuBarIconRenderer {
                 let compBytes = Double(mem.compressed)
 
                 let segments: [(bytes: Double, color: NSColor)] = [
-                    (activeBytes, NSColor.systemBlue),
-                    (wiredBytes, NSColor.systemRed),
-                    (compBytes, NSColor(srgbRed: 0.85, green: 0.65, blue: 0.10, alpha: 1.0))
+                    (activeBytes, NSColor(CategoryPalette.Series.memoryApp)),
+                    (wiredBytes, NSColor(CategoryPalette.Series.memoryWired)),
+                    (compBytes, NSColor(CategoryPalette.Series.memoryCompressed))
                 ]
 
                 var currentY = innerRect.minY

@@ -149,6 +149,14 @@ public struct TemperaturePopover: View {
             Spacer()
 
             if let c = tempC {
+                RangeBar(
+                    value: c,
+                    min: 25.0,
+                    max: 105.0,
+                    tintColor: level.color
+                )
+                .frame(width: 50)
+
                 HStack(spacing: 6) {
                     Circle()
                         .fill(level.color)
@@ -158,6 +166,7 @@ public struct TemperaturePopover: View {
                         .font(Tokens.monoValue)
                         .foregroundColor(level.color)
                 }
+                .frame(width: 55, alignment: .trailing)
             } else {
                 Text("—")
                     .font(Tokens.monoValue)

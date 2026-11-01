@@ -84,10 +84,12 @@ public struct FanPopover: View {
                 // Hero Metric + Sparkline
                 HStack(alignment: .top, spacing: Tokens.md) {
                     let maxRPM = fans.map(\.rpm).max() ?? 0
+                    let maxCap = fans.compactMap(\.maxRPM).max() ?? 6000
+                    let pctStr = maxCap > 0 ? " · \(Int((Double(maxRPM) / Double(maxCap)) * 100))%" : ""
                     HeroMetric(
                         primaryValue: Units.formatRPM(maxRPM),
                         unit: "",
-                        contextLine: "\(fans.count) active \(fans.count == 1 ? "fan" : "fans")"
+                        contextLine: "\(fans.count) active \(fans.count == 1 ? "fan" : "fans")\(pctStr)"
                     )
                     .frame(width: 130, alignment: .leading)
 
@@ -104,6 +106,20 @@ public struct FanPopover: View {
                         sampleIntervalSeconds: preferences.refreshInterval
                     )
                     .frame(maxWidth: .infinity)
+                }
+
+                // Thermal Cause Context Line
+                if let th = coordinator.latestThermal?.value, let peak = th.peakTemperatureCelsius {
+                    let formatted = Units.formatTemperature(peak, unit: preferences.temperatureUnit, fractionDigits: 0)
+                    HStack(spacing: 6) {
+                        Image(systemName: "flame")
+                            .font(.system(size: 11))
+                            .foregroundColor(CategoryPalette.thermal)
+                        Text("Thermal cause: Peak \(formatted)")
+                            .font(.system(size: 11))
+                            .foregroundColor(.secondary)
+                    }
+                    .padding(.horizontal, 4)
                 }
 
                 // Per-Fan RPM Range Bars

@@ -133,9 +133,10 @@ public struct PowerPopover: View {
                     }
 
                     if let adapter = pwr.adapterWatts, adapter > 0 {
+                        let nameStr = pwr.adapterName.map { " (\($0))" } ?? ""
                         StatRow(
                             label: "Power Adapter Connected",
-                            value: "\(adapter) W"
+                            value: "\(adapter) W\(nameStr)"
                         )
                     }
 
@@ -146,6 +147,17 @@ public struct PowerPopover: View {
                 }
                 .padding(10)
                 .cardBackground()
+
+                if pwr.variant == .powerDeficit {
+                    let draw = pwr.powerDrawWatts ?? 0
+                    let adapter = pwr.adapterWatts ?? 0
+                    let deficit = max(0.0, draw - adapter)
+                    StatusBanner(
+                        iconName: "exclamationmark.triangle.fill",
+                        message: "Power Deficit: Charger output (\(Int(adapter)) W) is less than system draw (\(String(format: "%.1f W", draw)), \(String(format: "%.1f W", deficit)) deficit). Battery will drain.",
+                        level: .warning
+                    )
+                }
             }
         }
     }
@@ -181,6 +193,27 @@ public struct PowerPopover: View {
                         StatRow(
                             label: "Condition",
                             value: cond
+                        )
+                    }
+
+                    if let volts = pwr.voltageVolts {
+                        StatRow(
+                            label: "Battery Voltage",
+                            value: String(format: "%.2f V", volts)
+                        )
+                    }
+
+                    if let amps = pwr.amperageMilliAmps {
+                        StatRow(
+                            label: "Battery Current Flow",
+                            value: String(format: "%.0f mA", amps)
+                        )
+                    }
+
+                    if let curMax = pwr.currentMaxCapacity, let desCap = pwr.designCapacity, desCap > 0 {
+                        StatRow(
+                            label: "Capacity vs Design",
+                            value: "\(curMax) mAh / \(desCap) mAh"
                         )
                     }
 

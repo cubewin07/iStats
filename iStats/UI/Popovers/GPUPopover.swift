@@ -121,6 +121,27 @@ public struct GPUPopover: View {
                             statusLevel: level
                         )
                     }
+
+                    if let allocated = gpu.allocatedMemory, let maxMem = gpu.recommendedMaxMemory, maxMem > 0 {
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack {
+                                Text("VRAM Working Set")
+                                    .font(Tokens.bodyLabel)
+                                    .foregroundColor(.secondary)
+                                Spacer()
+                                Text("\(Units.formatBytes(allocated, standard: preferences.byteUnitStandard)) / \(Units.formatBytes(maxMem, standard: preferences.byteUnitStandard))")
+                                    .font(Tokens.monoValue)
+                                    .foregroundColor(.primary)
+                            }
+                            RangeBar(
+                                value: Double(allocated),
+                                min: 0,
+                                max: Double(maxMem),
+                                tintColor: CategoryPalette.gpu
+                            )
+                        }
+                        .padding(.top, 2)
+                    }
                 }
                 .padding(10)
                 .cardBackground()
@@ -154,9 +175,33 @@ public struct GPUPopover: View {
                     if let deviceName = gpu.deviceName, !deviceName.isEmpty {
                         StatRow(label: "Metal Device", value: deviceName)
                     }
+
+                    if let unified = gpu.isUnifiedMemory {
+                        StatRow(label: "Memory Architecture", value: unified ? "Unified Memory" : "Discrete VRAM")
+                    }
+
+                    if let metal = gpu.metalFeatureSet, !metal.isEmpty {
+                        StatRow(label: "Metal Architecture", value: metal)
+                    }
+
+                    if let ray = gpu.supportsRaytracing {
+                        StatRow(label: "Hardware Ray Tracing", value: ray ? "Supported" : "Not Supported")
+                    }
+
+                    if let displays = gpu.displayDescriptions, !displays.isEmpty {
+                        StatRow(label: "Connected Displays", value: displays.joined(separator: ", "))
+                    }
                 }
                 .padding(10)
                 .cardBackground()
+
+                if let recoveries = gpu.recoveryCount, recoveries > 0 {
+                    StatusBanner(
+                        iconName: "exclamationmark.triangle.fill",
+                        message: "Driver recovery events: \(recoveries) GPU resets detected.",
+                        level: .warning
+                    )
+                }
 
                 if gpu.rendererUtilization == nil && gpu.tilerUtilization == nil {
                     Text("Per-engine hardware telemetry is synthesized via IOKit on this architecture.")

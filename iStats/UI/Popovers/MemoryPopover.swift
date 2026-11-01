@@ -95,36 +95,36 @@ public struct MemoryPopover: View {
                     .frame(maxWidth: .infinity)
                 }
 
-                // 4-Segment Memory Allocation Bar
+                // 4-Segment Memory Allocation Bar (Mint opacity ramp)
                 SegmentedBar(segments: [
-                    .init(value: appBytes, color: CategoryPalette.memory, label: "App"),
-                    .init(value: wiredBytes, color: Color.orange, label: "Wired"),
-                    .init(value: compBytes, color: Color.purple, label: "Compressed"),
-                    .init(value: freeBytes, color: Color.secondary.opacity(0.25), label: "Free")
+                    .init(value: appBytes, color: CategoryPalette.Series.memoryApp, label: "App"),
+                    .init(value: wiredBytes, color: CategoryPalette.Series.memoryWired, label: "Wired"),
+                    .init(value: compBytes, color: CategoryPalette.Series.memoryCompressed, label: "Compressed"),
+                    .init(value: freeBytes, color: CategoryPalette.Series.memoryCached, label: "Free")
                 ])
 
                 // Breakdown Legend Rows
                 VStack(spacing: 4) {
                     LegendRow(
-                        color: CategoryPalette.memory,
+                        color: CategoryPalette.Series.memoryApp,
                         label: "App Memory",
                         value: Units.formatBytes(UInt64(appBytes), standard: std),
                         shareText: total > 0 ? String(format: "%.0f%%", (appBytes / total) * 100.0) : nil
                     )
                     LegendRow(
-                        color: Color.orange,
+                        color: CategoryPalette.Series.memoryWired,
                         label: "Wired Memory",
                         value: Units.formatBytes(UInt64(wiredBytes), standard: std),
                         shareText: total > 0 ? String(format: "%.0f%%", (wiredBytes / total) * 100.0) : nil
                     )
                     LegendRow(
-                        color: Color.purple,
+                        color: CategoryPalette.Series.memoryCompressed,
                         label: "Compressed",
                         value: Units.formatBytes(UInt64(compBytes), standard: std),
                         shareText: total > 0 ? String(format: "%.0f%%", (compBytes / total) * 100.0) : nil
                     )
                     LegendRow(
-                        color: Color.secondary.opacity(0.4),
+                        color: CategoryPalette.Series.memoryCached,
                         label: "Cached Files / Free",
                         value: Units.formatBytes(UInt64(freeBytes + Double(mem.cached)), standard: std),
                         shareText: total > 0 ? String(format: "%.0f%%", ((freeBytes + Double(mem.cached)) / total) * 100.0) : nil
@@ -188,6 +188,20 @@ public struct MemoryPopover: View {
                     Text("Virtual Memory & Paging")
                         .font(Tokens.sectionTitle)
                         .foregroundColor(.secondary)
+
+                    if let active = mem.active {
+                        StatRow(
+                            label: "Active Memory",
+                            value: Units.formatBytes(active, standard: std)
+                        )
+                    }
+
+                    if let inactive = mem.inactive {
+                        StatRow(
+                            label: "Inactive Memory",
+                            value: Units.formatBytes(inactive, standard: std)
+                        )
+                    }
 
                     StatRow(
                         label: "Swap Used",
