@@ -107,6 +107,8 @@ public final class MenuBarController: NSObject {
         self.coordinator = coordinator
         super.init()
 
+        PanelController.shared.configure(preferences: preferences)
+
         fallbackPopover.behavior = .transient
         fallbackPopover.animates = true
         fallbackPopover.delegate = self
@@ -524,7 +526,54 @@ public final class MenuBarController: NSObject {
         }
     }
 
-    // MARK: - Popover Actions & Category Routing (ADR 0007)
+    // MARK: - Popover Actions & Category Routing (ADR 0007 / ADR 0009)
+
+    public var forceLegacyPopovers: Bool = false
+
+    public var useLegacyPopovers: Bool {
+        if forceLegacyPopovers { return true }
+        #if DEBUG
+        if CommandLine.arguments.contains("-legacyPopovers") || ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil || NSClassFromString("XCTestCase") != nil {
+            return true
+        }
+        #endif
+        return false
+    }
+
+    public func categoryForConfigId(_ rawId: String) -> MetricCategory? {
+        if rawId == Self.fallbackStatusItemId { return nil }
+        if let item = preferences.menuBarItems.first(where: { $0.id == rawId }) {
+            return item.category
+        }
+        let parts = rawId.components(separatedBy: ".")
+        return MetricCategory(rawValue: parts.first ?? rawId)
+    }
+
+    public func makePanelContentView(forConfigId rawId: String) -> AnyView {
+        if rawId == Self.fallbackStatusItemId {
+            return AnyView(
+                NoWidgetsActiveView()
+                    .environmentObject(preferences)
+                    .environmentObject(coordinator)
+            )
+        }
+        if let config = preferences.menuBarItems.first(where: { $0.id == rawId }) {
+            return AnyView(
+                PopoverFactory.makePopoverView(config: config)
+                    .environmentObject(preferences)
+                    .environmentObject(coordinator)
+            )
+        }
+        let parts = rawId.components(separatedBy: ".")
+        let categoryRaw = parts.first ?? rawId
+        let category = MetricCategory(rawValue: categoryRaw) ?? .cpu
+        let config = MenuBarItemConfig(category: category, style: .text)
+        return AnyView(
+            PopoverFactory.makePopoverView(config: config)
+                .environmentObject(preferences)
+                .environmentObject(coordinator)
+        )
+    }
 
     @objc public func statusItemClicked(_ sender: AnyObject?) {
         guard let button = sender as? NSStatusBarButton,
@@ -538,6 +587,21 @@ public final class MenuBarController: NSObject {
 
         if isRightClick {
             showContextMenu(for: button)
+            return
+        }
+
+        if !useLegacyPopovers {
+            let category = categoryForConfigId(rawId) ?? .cpu
+            currentlyShownButton = button
+            PanelController.shared.toggle(category: category, relativeTo: button) {
+                self.makePanelContentView(forConfigId: rawId)
+            }
+            if PanelController.shared.isPanelOpen(for: category) {
+                startScrubbingMonitor()
+            } else {
+                stopScrubbingMonitor()
+                currentlyShownButton = nil
+            }
             return
         }
 
@@ -665,6 +729,11 @@ public final class MenuBarController: NSObject {
 
     public func hidePopover() {
         stopScrubbingMonitor()
+        if !useLegacyPopovers {
+            PanelController.shared.close()
+            currentlyShownButton = nil
+            return
+        }
         if let button = currentlyShownButton,
            let rawId = button.identifier?.rawValue,
            let activePopover = popovers[rawId] {
@@ -710,7 +779,15 @@ public final class MenuBarController: NSObject {
             let buttonScreenRect = window.convertToScreen(button.convert(button.bounds, to: nil))
             let hitRect = buttonScreenRect.insetBy(dx: 0, dy: -6)
             if hitRect.contains(mouseLocation) {
-                showPopover(forConfigId: id, relativeTo: button, animated: false)
+                if !useLegacyPopovers {
+                    let category = categoryForConfigId(id) ?? .cpu
+                    currentlyShownButton = button
+                    PanelController.shared.handleStatusItemHover(category: category, button: button) {
+                        self.makePanelContentView(forConfigId: id)
+                    }
+                } else {
+                    showPopover(forConfigId: id, relativeTo: button, animated: false)
+                }
                 break
             }
         }

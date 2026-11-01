@@ -30,6 +30,7 @@ public final class PreferencesStore: ObservableObject, @unchecked Sendable {
         public static let menuBarItems = "iStats.menuBarItems"
         public static let widgetPopoverStyles = "iStats.widgetPopoverStyles"
         public static let categoryLastTabs = "iStats.categoryLastTabs"
+        public static let pinnedPanelOrigins = "iStats.pinnedPanelOrigins"
         public static let isSamplingPaused = "iStats.isSamplingPaused"
         public static let isAutoPausedByLowPowerMode = "iStats.isAutoPausedByLowPowerMode"
         public static let autoPauseOnLowPowerMode = "iStats.autoPauseOnLowPowerMode"
@@ -174,6 +175,13 @@ public final class PreferencesStore: ObservableObject, @unchecked Sendable {
     @Published public var categoryLastTabs: [String: String] {
         didSet {
             userDefaults.set(categoryLastTabs, forKey: Keys.categoryLastTabs)
+        }
+    }
+
+    /// Remembered pinned window origins per category (ADR 0009 / Task 8.3).
+    @Published public var pinnedPanelOrigins: [String: [Double]] {
+        didSet {
+            userDefaults.set(pinnedPanelOrigins, forKey: Keys.pinnedPanelOrigins)
         }
     }
 
@@ -447,6 +455,7 @@ public final class PreferencesStore: ObservableObject, @unchecked Sendable {
         }
         self.widgetPopoverStyles = loadedPopoverStyles
         self.categoryLastTabs = userDefaults.dictionary(forKey: Keys.categoryLastTabs) as? [String: String] ?? [:]
+        self.pinnedPanelOrigins = userDefaults.dictionary(forKey: Keys.pinnedPanelOrigins) as? [String: [Double]] ?? [:]
 
         // Load sampling pause state (default: false) and Low Power Mode auto-pause (default: true)
         let paused = userDefaults.bool(forKey: Keys.isSamplingPaused)
@@ -661,6 +670,23 @@ public final class PreferencesStore: ObservableObject, @unchecked Sendable {
         categoryLastTabs[category.rawValue] = tab.rawValue
     }
 
+    /// Returns the remembered pinned origin for a category panel, if any.
+    public func pinnedOrigin(for category: MetricCategory) -> CGPoint? {
+        guard let coords = pinnedPanelOrigins[category.rawValue], coords.count >= 2 else {
+            return nil
+        }
+        return CGPoint(x: coords[0], y: coords[1])
+    }
+
+    /// Sets or clears the remembered pinned origin for a category panel.
+    public func setPinnedOrigin(_ origin: CGPoint?, for category: MetricCategory) {
+        if let origin = origin {
+            pinnedPanelOrigins[category.rawValue] = [Double(origin.x), Double(origin.y)]
+        } else {
+            pinnedPanelOrigins.removeValue(forKey: category.rawValue)
+        }
+    }
+
     /// Returns all active menu bar items whose parent category is currently enabled.
     /// When sampling is paused (`isSamplingPaused == true`), returns an empty array so the
     /// menu bar collapses to the single minimal app icon.
@@ -725,6 +751,7 @@ public final class PreferencesStore: ObservableObject, @unchecked Sendable {
         self.menuBarItems = MenuBarItemConfig.defaultConfigs()
         self.widgetPopoverStyles = [:]
         self.categoryLastTabs = [:]
+        self.pinnedPanelOrigins = [:]
         self.isAutoPausedByLowPowerMode = false
         self.isSamplingPaused = false
         self.autoPauseOnLowPowerMode = true
