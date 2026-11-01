@@ -12,9 +12,9 @@ The only status file. Agent specs (`AGENTS.md`, `CLAUDE.md`) and phase plans do 
 
 | Field | Value |
 |-------|--------|
-| Phase | **8** — Premium panel redesign (planned; Phases 0–7 done, 480 tests green) |
-| Next task | **8.0** ADR 0009 "Instrument" design language + API spike ([`tasks/8.0`](./phases/phase-08-premium-redesign/tasks/8.0-adr-0009-and-spike.md)) |
-| Last closed | **7.7** Final cleanup, doc sync, and test validation (zero legacy popover debt) |
+| Phase | **8** — Premium panel redesign (in progress; Task 8.0 done, 473 tests green) |
+| Next task | **8.1** Design tokens v2 & CategoryPalette v2 ([`tasks/8.1`](./phases/phase-08-premium-redesign/tasks/8.1-tokens-and-palette.md)) |
+| Last closed | **8.0** ADR 0009 "Instrument" design language + API spike |
 | Blocked by | — |
 
 ---
@@ -31,7 +31,7 @@ The only status file. Agent specs (`AGENTS.md`, `CLAUDE.md`) and phase plans do 
 | 5 | Thermal, fan, GPU | **done** | ThermalSampler, FanSampler, GPUSampler, ADR 0003, ADR 0004, ADR 0005, and Phase 5 report complete. Live AppleSMC & IOKit accelerator telemetry validated on Apple Silicon. |
 | 6 | Polish & preferences | **done** | Full preferences (General, Categories, Units), 8 menu bar modes, SMAppService launch-at-login, Dock icon toggle, ADR 0006 zero-telemetry persistence, performance benchmark pass, docs/ADRs finalized, and `report.md` complete. |
 | 7 | Widget & popover redesign | **done** | ADR 0008, 32 high-signal widgets, 8 purpose-driven popovers (23 tabs), in-memory scalar history with spike-preserving downsampling (Task 7.6, 154 KB), design tokens & primitives, 20 legacy files deleted, report complete. 480 tests passing. |
-| 8 | Premium panel redesign ("Instrument") | **not started** | Plan: [`phase-08-premium-redesign/plan.md`](./phases/phase-08-premium-redesign/plan.md). Glass panel shell, design language v2, LiveChart, signature instrument per category, InsightEngine, top consumers, History v2. |
+| 8 | Premium panel redesign ("Instrument") | **in progress** | Plan: [`phase-08-premium-redesign/plan.md`](./phases/phase-08-premium-redesign/plan.md). ADR 0009 accepted, API spike verified on macOS SDK. Next: 8.1 tokens & palette v2. |
 
 Status values: `not started` · `in progress` · `docs on disk, not closed` · `done` · `blocked`.
 
@@ -92,6 +92,7 @@ Copy a row from [`docs/specs/tasks.md`](./specs/tasks.md) when you start it. Lea
 | 7.5 | Shared HistoryTab (`1m \| 5m \| 15m`) | **done** | `HistoryTab.swift` across all 8 categories |
 | 7.6 | Extended in-memory scalar trends & Downsampler | **done** | `Downsampler.swift`, `MetricsStore.swift` 900-sample scalar buffers (154 KB footprint), `MetricsStoreTests` |
 | 7.7 | Final cleanup: 20 legacy files removed, tests updated, full suite passing | **done** | [`docs/phases/phase-07-widget-popover-redesign/report.md`](./phases/phase-07-widget-popover-redesign/report.md), `swift test --scratch-path /tmp/istats-build` (176 passed), `xcodebuild test -scheme iStatsApp` (296 passed; 472 total) |
+| 8.0 | ADR 0009 "Instrument" design language + API spike | **done** | [`docs/handoffs/08-8.0-summary.md`](./handoffs/08-8.0-summary.md), `docs/architecture/adr/0009-instrument-design-language-and-glass-panels.md` |
 
 When a task is done, set Status to `done` and put the handoff summary path (or test command) in Evidence.
 

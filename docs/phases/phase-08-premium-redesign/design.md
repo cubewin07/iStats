@@ -1,6 +1,6 @@
 # Phase 8 — Design Specification ("Instrument" design language)
 
-Visual and interaction spec for the premium panels. All values are proposals until ADR 0009 (Task 8.0) signs them off. After that this file is the source of truth for implementors.
+Visual and interaction spec for the premium panels. Frozen and signed off by ADR 0009 (Task 8.0). This file is the canonical source of truth for implementors.
 
 ---
 

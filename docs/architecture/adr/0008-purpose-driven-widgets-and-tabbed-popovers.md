@@ -1,6 +1,6 @@
 # ADR 0008 — Purpose-Driven Widgets and Tabbed Category Popovers
 
-**Status:** Accepted  
+**Status:** Accepted (Presentation layer superseded by ADR 0009; data model retained)  
 **Supersedes:** ADR 0007 Decision 1 & 3 regarding the 33-style `PopoverStyle` binding model.  
 **Preserves:** ADR 0007 multi-`NSStatusItem` lifecycle management, System Settings preferences studio, and zero-telemetry disk persistence.
 
