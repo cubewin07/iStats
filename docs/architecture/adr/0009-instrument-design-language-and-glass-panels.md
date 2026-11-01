@@ -112,3 +112,4 @@ The API spike for Task 8.0 was compiled and verified against the macOS SDK with 
 | `sensoryFeedback(...)` | macOS 14.0+ | **Available** | `View.sensoryFeedback(_:trigger:)` for discrete user interactions; paired with `NSHapticFeedbackManager` for crosshair scrub snaps. |
 | `pointerStyle(...)` | macOS 15.0+ | **Available** | `View.pointerStyle(_ style: PointerStyle?)`. Provides `.link`, `.grabIdle`, `.columnResize`, etc., avoiding unbalancing `NSCursor` push/pop stacks. |
 | `NSPanel` (`borderless`, `nonactivating`) Key Window in `LSUIElement` | macOS 13.0+ | **Verified** | Custom `NSPanel` overriding `canBecomeKey = true` successfully receives key status, `keyDown` (Esc), and `performKeyEquivalent` (`⌘1–3`) without bringing the accessory app forward. |
+

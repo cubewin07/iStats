@@ -4,12 +4,7 @@ import iStatsCore
 /// Semantic status extensions for UI rendering.
 extension StatusLevel {
     public var color: Color {
-        switch self {
-        case .fine: return .green
-        case .elevated: return .yellow
-        case .warning: return .orange
-        case .critical: return .red
-        }
+        CategoryPalette.statusColor(for: self)
     }
 
     public var iconName: String {

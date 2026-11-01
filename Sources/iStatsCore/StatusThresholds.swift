@@ -7,6 +7,10 @@ public enum StatusLevel: String, Codable, CaseIterable, Sendable, Comparable {
     case warning    // High, loud, under pressure, warning threshold reached
     case critical   // Maxed out, overheating, emergency throttling
 
+    public var isQuiet: Bool {
+        self == .fine
+    }
+
     public var severityRank: Int {
         switch self {
         case .fine: return 0

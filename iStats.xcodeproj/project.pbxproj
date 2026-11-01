@@ -43,6 +43,8 @@
 		110000000000000000000189 /* NetworkPopover.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000188 /* NetworkPopover.swift */; };
 		11000000000000000000018B /* DiskPopover.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11000000000000000000018A /* DiskPopover.swift */; };
 		11000000000000000000018D /* PowerPopover.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11000000000000000000018C /* PowerPopover.swift */; };
+		110000000000000000000191 /* InstrumentTokens.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000190 /* InstrumentTokens.swift */; };
+		110000000000000000000193 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000192 /* Assets.xcassets */; };
 		11000000000000000000001F /* PreferencesWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11000000000000000000001E /* PreferencesWindowController.swift */; };
 		110000000000000000000031 /* CPUSampler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000030 /* CPUSampler.swift */; };
 		110000000000000000000033 /* MemorySampler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000032 /* MemorySampler.swift */; };
@@ -138,6 +140,8 @@
 		110000000000000000000188 /* NetworkPopover.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Popovers/NetworkPopover.swift; sourceTree = "<group>"; };
 		11000000000000000000018A /* DiskPopover.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Popovers/DiskPopover.swift; sourceTree = "<group>"; };
 		11000000000000000000018C /* PowerPopover.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Popovers/PowerPopover.swift; sourceTree = "<group>"; };
+		110000000000000000000190 /* InstrumentTokens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Instrument/InstrumentTokens.swift; sourceTree = "<group>"; };
+		110000000000000000000192 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		11000000000000000000001E /* PreferencesWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferencesWindowController.swift; sourceTree = "<group>"; };
 		110000000000000000000030 /* CPUSampler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CPUSampler.swift; sourceTree = "<group>"; };
 		110000000000000000000032 /* MemorySampler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemorySampler.swift; sourceTree = "<group>"; };
@@ -221,6 +225,7 @@
 				11000000000000000000000F /* Sampling */,
 				11000000000000000000000E /* UI */,
 				11000000000000000000000C /* Resources */,
+				110000000000000000000192 /* Assets.xcassets */,
 			);
 			path = iStats;
 			sourceTree = "<group>";
@@ -292,6 +297,7 @@
 				110000000000000000000188 /* NetworkPopover.swift */,
 				11000000000000000000018A /* DiskPopover.swift */,
 				11000000000000000000018C /* PowerPopover.swift */,
+				110000000000000000000190 /* InstrumentTokens.swift */,
 				1100000000000000000000F0 /* MenuBarIconRenderer.swift */,
 				110000000000000000000100 /* MetricVerdict.swift */,
 			);
@@ -442,6 +448,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				110000000000000000000193 /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -495,6 +502,7 @@
 				110000000000000000000189 /* NetworkPopover.swift in Sources */,
 				11000000000000000000018B /* DiskPopover.swift in Sources */,
 				11000000000000000000018D /* PowerPopover.swift in Sources */,
+				110000000000000000000191 /* InstrumentTokens.swift in Sources */,
 				11000000000000000000001F /* PreferencesWindowController.swift in Sources */,
 				110000000000000000000031 /* CPUSampler.swift in Sources */,
 				110000000000000000000033 /* MemorySampler.swift in Sources */,
