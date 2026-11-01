@@ -176,6 +176,16 @@ public enum ThermalRamp {
         ColorStop(temp: 105.0, r: 0xFF/255.0, g: 0x4D/255.0, b: 0x4D/255.0)
     ]
 
+    public static var linearGradient: LinearGradient {
+        LinearGradient(
+            gradient: Gradient(colors: stops.map {
+                Color(nsColor: NSColor(displayP3Red: $0.r, green: $0.g, blue: $0.b, alpha: 1.0))
+            }),
+            startPoint: .leading,
+            endPoint: .trailing
+        )
+    }
+
     /// Evaluates smooth Display P3 interpolated color across the 30–105 °C spectrum.
     public static func color(celsius: Double) -> Color {
         if celsius <= stops.first!.temp {

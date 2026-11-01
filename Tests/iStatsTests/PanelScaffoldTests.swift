@@ -248,4 +248,51 @@ final class PanelScaffoldTests: XCTestCase {
         XCTAssertEqual(fit.width, Instrument.Size.panelWidth, accuracy: 2.0)
         XCTAssertGreaterThan(fit.height, 150)
     }
+
+    func testTemperaturePanelRendersCleanly() {
+        let (defaults, prefs, coord, suiteName) = makeContext()
+        defer { cleanup(defaults: defaults, suiteName: suiteName) }
+
+        coord.handleReading(.thermal(Sample(value: ThermalSample(
+            sensors: [
+                SensorReading(name: "CPU Performance Core 1", celsius: 72.0),
+                SensorReading(name: "GPU Cluster 1", celsius: 65.0),
+                SensorReading(name: "Memory Proximity", celsius: 48.0),
+                SensorReading(name: "Storage NAND", celsius: 42.0),
+                SensorReading(name: "Battery Sensor 1", celsius: 32.0)
+            ],
+            pressure: .nominal
+        ))))
+
+        let view = TemperaturePanel(coordinator: coord, preferences: prefs)
+        let hosting = NSHostingView(rootView: view)
+        hosting.frame = CGRect(x: 0, y: 0, width: Instrument.Size.panelWidth, height: 450)
+        hosting.layoutSubtreeIfNeeded()
+
+        let fit = hosting.fittingSize
+        XCTAssertEqual(fit.width, Instrument.Size.panelWidth, accuracy: 2.0)
+        XCTAssertGreaterThan(fit.height, 150)
+    }
+
+    func testTemperaturePanelThermalPressureRibbon() {
+        let (defaults, prefs, coord, suiteName) = makeContext()
+        defer { cleanup(defaults: defaults, suiteName: suiteName) }
+
+        coord.handleReading(.thermal(Sample(value: ThermalSample(
+            sensors: [
+                SensorReading(name: "CPU Die", celsius: 98.0),
+                SensorReading(name: "GPU Die", celsius: 92.0)
+            ],
+            pressure: .serious
+        ))))
+
+        let view = TemperaturePanel(coordinator: coord, preferences: prefs)
+        let hosting = NSHostingView(rootView: view)
+        hosting.frame = CGRect(x: 0, y: 0, width: Instrument.Size.panelWidth, height: 450)
+        hosting.layoutSubtreeIfNeeded()
+
+        let fit = hosting.fittingSize
+        XCTAssertEqual(fit.width, Instrument.Size.panelWidth, accuracy: 2.0)
+        XCTAssertGreaterThan(fit.height, 150)
+    }
 }
