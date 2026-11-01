@@ -14,6 +14,11 @@ public enum Instrument {
         public static let xl: CGFloat = 16
         public static let xxl: CGFloat = 20
         public static let xxxl: CGFloat = 24
+
+        // Semantic aliases
+        public static let modulePadding: CGFloat = l
+        public static let eyebrowGap: CGFloat = s
+        public static let stackSpacing: CGFloat = m
     }
 
     // MARK: - Corner Radii
@@ -65,6 +70,11 @@ public enum Instrument {
 
     // MARK: - Surfaces & Depth
     public enum Surface {
+        /// Panel base surface backing
+        public static var panel: Color {
+            Color(nsColor: NSColor.windowBackgroundColor)
+        }
+
         /// Module background fill (4.5% light / 6.0% dark, no border)
         public static var module: Color {
             Color(nsColor: NSColor(name: nil, dynamicProvider: { appearance in
