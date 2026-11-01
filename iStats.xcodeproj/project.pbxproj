@@ -64,6 +64,7 @@
 		1100000000000000000001B9 /* PanelScaffold.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000001B8 /* PanelScaffold.swift */; };
 		1100000000000000000001BB /* PanelFactory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000001BA /* PanelFactory.swift */; };
 		1100000000000000000001BF /* CPUPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000001BE /* CPUPanel.swift */; };
+		1100000000000000000001C1 /* MemoryPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000001C0 /* MemoryPanel.swift */; };
 		110000000000000000000193 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000192 /* Assets.xcassets */; };
 		11000000000000000000001F /* PreferencesWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11000000000000000000001E /* PreferencesWindowController.swift */; };
 		110000000000000000000031 /* CPUSampler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000030 /* CPUSampler.swift */; };
@@ -182,6 +183,7 @@
 		1100000000000000000001B8 /* PanelScaffold.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Panels/PanelScaffold.swift; sourceTree = "<group>"; };
 		1100000000000000000001BA /* PanelFactory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Panels/PanelFactory.swift; sourceTree = "<group>"; };
 		1100000000000000000001BE /* CPUPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Panels/CPUPanel.swift; sourceTree = "<group>"; };
+		1100000000000000000001C0 /* MemoryPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Panels/MemoryPanel.swift; sourceTree = "<group>"; };
 		110000000000000000000192 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		11000000000000000000001E /* PreferencesWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferencesWindowController.swift; sourceTree = "<group>"; };
 		110000000000000000000030 /* CPUSampler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CPUSampler.swift; sourceTree = "<group>"; };
@@ -360,6 +362,7 @@
 				1100000000000000000001B8 /* PanelScaffold.swift */,
 				1100000000000000000001BA /* PanelFactory.swift */,
 				1100000000000000000001BE /* CPUPanel.swift */,
+				1100000000000000000001C0 /* MemoryPanel.swift */,
 				1100000000000000000000F0 /* MenuBarIconRenderer.swift */,
 				110000000000000000000100 /* MetricVerdict.swift */,
 			);
@@ -586,6 +589,7 @@
 				1100000000000000000001B9 /* PanelScaffold.swift in Sources */,
 				1100000000000000000001BB /* PanelFactory.swift in Sources */,
 				1100000000000000000001BF /* CPUPanel.swift in Sources */,
+				1100000000000000000001C1 /* MemoryPanel.swift in Sources */,
 				11000000000000000000001F /* PreferencesWindowController.swift in Sources */,
 				110000000000000000000031 /* CPUSampler.swift in Sources */,
 				110000000000000000000033 /* MemorySampler.swift in Sources */,

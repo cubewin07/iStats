@@ -117,4 +117,72 @@ final class PanelScaffoldTests: XCTestCase {
         wait(for: [expectation], timeout: 1.0)
         XCTAssertEqual(receivedCommand, .nextPage)
     }
+
+    func testMemoryPanelCompositionSumsToTotalViaSegmentLayout() {
+        // Real fixture: 16 GB unified memory
+        let total: UInt64 = 16 * 1024 * 1024 * 1024
+        let app: UInt64 = 4 * 1024 * 1024 * 1024
+        let wired: UInt64 = 3 * 1024 * 1024 * 1024
+        let compressed: UInt64 = 2 * 1024 * 1024 * 1024
+        let cached: UInt64 = 2 * 1024 * 1024 * 1024
+        let free: UInt64 = 5 * 1024 * 1024 * 1024
+
+        let sample = MemorySample(
+            total: total,
+            used: app + wired + compressed,
+            free: free,
+            wired: wired,
+            compressed: compressed,
+            cached: cached,
+            swapUsed: 512 * 1024 * 1024,
+            pressure: .normal,
+            appMemory: app
+        )
+
+        let values = [
+            Double(sample.appMemory ?? 0),
+            Double(sample.wired),
+            Double(sample.compressed),
+            Double(sample.cached),
+            Double(sample.free)
+        ]
+
+        let totalWidth: Double = 320.0
+        let gap: Double = 1.0
+        let widths = SegmentLayout.widths(
+            values: values,
+            totalWidth: totalWidth,
+            minVisible: 4.0,
+            gap: gap
+        )
+
+        let totalAllocated = widths.reduce(0.0, +) + (Double(widths.count - 1) * gap)
+        XCTAssertEqual(totalAllocated, totalWidth, accuracy: 0.001, "Allocated segment widths plus gaps must equal total container width")
+    }
+
+    func testMemoryPanelRendersCleanly() {
+        let (defaults, prefs, coord, suiteName) = makeContext()
+        defer { cleanup(defaults: defaults, suiteName: suiteName) }
+
+        coord.handleReading(.memory(Sample(value: MemorySample(
+            total: 16 * 1024 * 1024 * 1024,
+            used: 10 * 1024 * 1024 * 1024,
+            free: 6 * 1024 * 1024 * 1024,
+            wired: 3 * 1024 * 1024 * 1024,
+            compressed: 1 * 1024 * 1024 * 1024,
+            cached: 2 * 1024 * 1024 * 1024,
+            swapUsed: 100 * 1024 * 1024,
+            pressure: .warning,
+            appMemory: 6 * 1024 * 1024 * 1024
+        ))))
+
+        let view = MemoryPanel(coordinator: coord, preferences: prefs)
+        let hosting = NSHostingView(rootView: view)
+        hosting.frame = CGRect(x: 0, y: 0, width: Instrument.Size.panelWidth, height: 450)
+        hosting.layoutSubtreeIfNeeded()
+
+        let fit = hosting.fittingSize
+        XCTAssertEqual(fit.width, Instrument.Size.panelWidth, accuracy: 2.0)
+        XCTAssertGreaterThan(fit.height, 150)
+    }
 }

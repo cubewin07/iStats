@@ -21,6 +21,7 @@ public struct ArcGauge: View {
     public var startAngle: Double
     public var zones: [GaugeZone]
     public var tint: Color
+    public var size: CGFloat
     public var centerTitle: String?
     public var centerSubtitle: String?
 
@@ -31,6 +32,7 @@ public struct ArcGauge: View {
         startAngle: Double = 170.0,
         zones: [GaugeZone] = [],
         tint: Color = .accentColor,
+        size: CGFloat = 80,
         centerTitle: String? = nil,
         centerSubtitle: String? = nil
     ) {
@@ -40,6 +42,7 @@ public struct ArcGauge: View {
         self.startAngle = startAngle
         self.zones = zones
         self.tint = tint
+        self.size = size
         self.centerTitle = centerTitle
         self.centerSubtitle = centerSubtitle
     }
@@ -54,14 +57,14 @@ public struct ArcGauge: View {
             arcPath(from: startAngle, to: startAngle + sweep)
                 .stroke(
                     Instrument.Surface.inset,
-                    style: StrokeStyle(lineWidth: 6, lineCap: .round)
+                    style: StrokeStyle(lineWidth: size >= 100 ? 8 : 6, lineCap: .round)
                 )
 
             // Active Value Arc
             arcPath(from: startAngle, to: currentAngle)
                 .stroke(
                     activeColor(for: fraction),
-                    style: StrokeStyle(lineWidth: 6, lineCap: .round)
+                    style: StrokeStyle(lineWidth: size >= 100 ? 8 : 6, lineCap: .round)
                 )
                 .animation(motionPolicy == .full ? Motion.smooth : nil, value: value)
 
@@ -69,7 +72,7 @@ public struct ArcGauge: View {
             VStack(spacing: 0) {
                 if let title = centerTitle {
                     Text(title)
-                        .font(Instrument.Typography.display)
+                        .font(size >= 100 ? Instrument.Typography.title : Instrument.Typography.displayCompact)
                         .foregroundColor(.primary)
                 }
                 if let sub = centerSubtitle {
@@ -79,18 +82,20 @@ public struct ArcGauge: View {
                 }
             }
         }
-        .frame(width: 80, height: 80)
+        .frame(width: size, height: size)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(centerSubtitle ?? "Gauge")
         .accessibilityValue(centerTitle ?? "\(Int(value))")
     }
 
     private func arcPath(from: Double, to: Double) -> Path {
-        Path { path in
+        let center = CGPoint(x: size / 2.0, y: size / 2.0)
+        let radius = (size / 2.0) - (size >= 100 ? 10 : 8)
+        return Path { path in
             guard to > from else { return }
             path.addArc(
-                center: CGPoint(x: 40, y: 40),
-                radius: 32,
+                center: center,
+                radius: radius,
                 startAngle: .degrees(from),
                 endAngle: .degrees(to),
                 clockwise: false
