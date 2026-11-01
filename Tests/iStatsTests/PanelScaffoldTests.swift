@@ -457,4 +457,58 @@ final class PanelScaffoldTests: XCTestCase {
         XCTAssertEqual(fit.width, Instrument.Size.panelWidth, accuracy: 2.0)
         XCTAssertGreaterThan(fit.height, 150)
     }
+
+    func testPowerPanelBatteryMacRendersCleanly() {
+        let (defaults, prefs, coord, suiteName) = makeContext()
+        defer { cleanup(defaults: defaults, suiteName: suiteName) }
+
+        let sample = PowerSample(
+            hasBattery: true,
+            charge: 75.0,
+            state: .charging,
+            timeRemaining: 2400,
+            cycleCount: 120,
+            condition: "Normal",
+            designCapacity: 5000,
+            currentMaxCapacity: 4900,
+            powerDrawWatts: 20.0,
+            adapterWatts: 67.0,
+            voltageVolts: 12.0,
+            amperageMilliAmps: 2500.0,
+            designCycleCount: 1000,
+            adapterName: "Apple 67W Charger"
+        )
+        coord.handleReading(.power(Sample(value: sample)))
+
+        let view = PowerPanel(coordinator: coord, preferences: prefs)
+        let hosting = NSHostingView(rootView: view)
+        hosting.frame = CGRect(x: 0, y: 0, width: Instrument.Size.panelWidth, height: 450)
+        hosting.layoutSubtreeIfNeeded()
+
+        let fit = hosting.fittingSize
+        XCTAssertEqual(fit.width, Instrument.Size.panelWidth, accuracy: 2.0)
+        XCTAssertGreaterThan(fit.height, 150)
+    }
+
+    func testPowerPanelDesktopMacRendersCleanly() {
+        let (defaults, prefs, coord, suiteName) = makeContext()
+        defer { cleanup(defaults: defaults, suiteName: suiteName) }
+
+        let sample = PowerSample(
+            hasBattery: false,
+            powerDrawWatts: 45.0,
+            adapterWatts: 140.0,
+            adapterName: "Internal PSU"
+        )
+        coord.handleReading(.power(Sample(value: sample)))
+
+        let view = PowerPanel(coordinator: coord, preferences: prefs)
+        let hosting = NSHostingView(rootView: view)
+        hosting.frame = CGRect(x: 0, y: 0, width: Instrument.Size.panelWidth, height: 450)
+        hosting.layoutSubtreeIfNeeded()
+
+        let fit = hosting.fittingSize
+        XCTAssertEqual(fit.width, Instrument.Size.panelWidth, accuracy: 2.0)
+        XCTAssertGreaterThan(fit.height, 100)
+    }
 }

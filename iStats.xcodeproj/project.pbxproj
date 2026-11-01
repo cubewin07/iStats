@@ -72,6 +72,9 @@
 		1100000000000000000001CB /* SignalBarsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000001CA /* SignalBarsView.swift */; };
 		1100000000000000000001CD /* NetworkPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000001CC /* NetworkPanel.swift */; };
 		1100000000000000000001CF /* DiskPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000001CE /* DiskPanel.swift */; };
+		1100000000000000000001D1 /* BatteryGlyph.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000001D0 /* BatteryGlyph.swift */; };
+		1100000000000000000001D3 /* PowerFlowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000001D2 /* PowerFlowView.swift */; };
+		1100000000000000000001D5 /* PowerPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000001D4 /* PowerPanel.swift */; };
 		110000000000000000000193 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000192 /* Assets.xcassets */; };
 		11000000000000000000001F /* PreferencesWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11000000000000000000001E /* PreferencesWindowController.swift */; };
 		110000000000000000000031 /* CPUSampler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000030 /* CPUSampler.swift */; };
@@ -198,6 +201,9 @@
 		1100000000000000000001CA /* SignalBarsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Instrument/Kit/SignalBarsView.swift; sourceTree = "<group>"; };
 		1100000000000000000001CC /* NetworkPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Panels/NetworkPanel.swift; sourceTree = "<group>"; };
 		1100000000000000000001CE /* DiskPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Panels/DiskPanel.swift; sourceTree = "<group>"; };
+		1100000000000000000001D0 /* BatteryGlyph.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Instrument/Kit/BatteryGlyph.swift; sourceTree = "<group>"; };
+		1100000000000000000001D2 /* PowerFlowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Instrument/Kit/PowerFlowView.swift; sourceTree = "<group>"; };
+		1100000000000000000001D4 /* PowerPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Panels/PowerPanel.swift; sourceTree = "<group>"; };
 		110000000000000000000192 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		11000000000000000000001E /* PreferencesWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferencesWindowController.swift; sourceTree = "<group>"; };
 		110000000000000000000030 /* CPUSampler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CPUSampler.swift; sourceTree = "<group>"; };
@@ -384,6 +390,9 @@
 				1100000000000000000001CA /* SignalBarsView.swift */,
 				1100000000000000000001CC /* NetworkPanel.swift */,
 				1100000000000000000001CE /* DiskPanel.swift */,
+				1100000000000000000001D0 /* BatteryGlyph.swift */,
+				1100000000000000000001D2 /* PowerFlowView.swift */,
+				1100000000000000000001D4 /* PowerPanel.swift */,
 				1100000000000000000000F0 /* MenuBarIconRenderer.swift */,
 				110000000000000000000100 /* MetricVerdict.swift */,
 			);
@@ -618,6 +627,9 @@
 				1100000000000000000001CB /* SignalBarsView.swift in Sources */,
 				1100000000000000000001CD /* NetworkPanel.swift in Sources */,
 				1100000000000000000001CF /* DiskPanel.swift in Sources */,
+				1100000000000000000001D1 /* BatteryGlyph.swift in Sources */,
+				1100000000000000000001D3 /* PowerFlowView.swift in Sources */,
+				1100000000000000000001D5 /* PowerPanel.swift in Sources */,
 				11000000000000000000001F /* PreferencesWindowController.swift in Sources */,
 				110000000000000000000031 /* CPUSampler.swift in Sources */,
 				110000000000000000000033 /* MemorySampler.swift in Sources */,
