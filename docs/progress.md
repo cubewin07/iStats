@@ -12,9 +12,9 @@ The only status file. Agent specs (`AGENTS.md`, `CLAUDE.md`) and phase plans do 
 
 | Field | Value |
 |-------|--------|
-| Phase | **8** — Premium panel redesign (in progress; Task 8.1 done, 478 tests green) |
-| Next task | **8.2** Motion system & `LiveNumber` rolling numerals ([`tasks/8.2`](./phases/phase-08-premium-redesign/tasks/8.2-motion-and-live-number.md)) |
-| Last closed | **8.1** Design tokens v2 & CategoryPalette v2 |
+| Phase | **8** — Premium panel redesign (in progress; Task 8.2 done, 481 tests green) |
+| Next task | **8.3** Glass panel host (`MetricPanel`) ([`tasks/8.3`](./phases/phase-08-premium-redesign/tasks/8.3-glass-panel-host.md)) |
+| Last closed | **8.2** Motion system & `LiveNumber` rolling numerals |
 | Blocked by | — |
 
 ---
@@ -94,6 +94,7 @@ Copy a row from [`docs/specs/tasks.md`](./specs/tasks.md) when you start it. Lea
 | 7.7 | Final cleanup: 20 legacy files removed, tests updated, full suite passing | **done** | [`docs/phases/phase-07-widget-popover-redesign/report.md`](./phases/phase-07-widget-popover-redesign/report.md), `swift test --scratch-path /tmp/istats-build` (176 passed), `xcodebuild test -scheme iStatsApp` (296 passed; 472 total) |
 | 8.0 | ADR 0009 "Instrument" design language + API spike | **done** | [`docs/handoffs/08-8.0-summary.md`](./handoffs/08-8.0-summary.md), `docs/architecture/adr/0009-instrument-design-language-and-glass-panels.md` |
 | 8.1 | Design tokens v2 & CategoryPalette v2 | **done** | [`docs/handoffs/08-8.1-summary.md`](./handoffs/08-8.1-summary.md), `swift test` (181 passed), `xcodebuild test` (297 passed; 478 total) |
+| 8.2 | Motion system & `LiveNumber` rolling numerals | **done** | [`docs/handoffs/08-8.2-summary.md`](./handoffs/08-8.2-summary.md), `swift test` (184 passed), `xcodebuild test` (297 passed; 481 total) |
 
 When a task is done, set Status to `done` and put the handoff summary path (or test command) in Evidence.
 
