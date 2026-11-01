@@ -17,7 +17,7 @@ public struct ChartBand: Sendable {
 }
 
 /// Rendering modes for the hero `LiveChart` (ADR 0009 / Task 8.4).
-public enum LiveChartMode {
+public enum LiveChartMode: Sendable {
     case single(values: [Double], color: Color, deepColor: Color? = nil, fixedMax: Double? = nil)
     case stacked(primary: [Double], secondary: [Double], primaryColor: Color, secondaryColor: Color, fixedMax: Double? = nil)
     case mirrored(top: [Double], bottom: [Double], topColor: Color, bottomColor: Color, topLabel: String = "↓", bottomLabel: String = "↑", fixedMax: Double? = nil)

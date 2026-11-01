@@ -2,6 +2,21 @@ import AppKit
 import SwiftUI
 import iStatsCore
 
+/// Keyboard commands dispatched from MetricPanel to UI observers.
+public enum PanelCommand: Sendable, Equatable {
+    case previousPage
+    case nextPage
+    case selectPage(Int)
+    case togglePin
+    case togglePause
+    case openPreferences
+    case close
+}
+
+extension Notification.Name {
+    public static let panelCommandReceived = Notification.Name("iStats.panelCommandReceived")
+}
+
 /// A custom borderless glass panel hosting SwiftUI instrument views (ADR 0009 / Task 8.3).
 public final class MetricPanel: NSPanel {
 
@@ -13,6 +28,7 @@ public final class MetricPanel: NSPanel {
 
     public var onCloseRequested: (() -> Void)?
     public var onUnpinRequested: (() -> Void)?
+    public var onCommand: ((PanelCommand) -> Void)?
 
     public init(contentRect: NSRect = NSRect(x: 0, y: 0, width: Instrument.Size.panelWidth, height: 400)) {
         super.init(
@@ -51,14 +67,72 @@ public final class MetricPanel: NSPanel {
     }
 
     public override func keyDown(with event: NSEvent) {
+        let isCmd = event.modifierFlags.contains(.command)
+
         if event.keyCode == 53 { // Escape
             if isPinned {
                 onUnpinRequested?()
             } else {
                 onCloseRequested?()
             }
+            NotificationCenter.default.post(name: .panelCommandReceived, object: PanelCommand.close)
+            onCommand?(.close)
             return
         }
+
+        if isCmd {
+            switch event.charactersIgnoringModifiers?.lowercased() {
+            case "1":
+                NotificationCenter.default.post(name: .panelCommandReceived, object: PanelCommand.selectPage(1))
+                onCommand?(.selectPage(1))
+                return
+            case "2":
+                NotificationCenter.default.post(name: .panelCommandReceived, object: PanelCommand.selectPage(2))
+                onCommand?(.selectPage(2))
+                return
+            case "3":
+                NotificationCenter.default.post(name: .panelCommandReceived, object: PanelCommand.selectPage(3))
+                onCommand?(.selectPage(3))
+                return
+            case "p":
+                NotificationCenter.default.post(name: .panelCommandReceived, object: PanelCommand.togglePin)
+                onCommand?(.togglePin)
+                return
+            case ",":
+                NotificationCenter.default.post(name: .panelCommandReceived, object: PanelCommand.openPreferences)
+                onCommand?(.openPreferences)
+                return
+            case "w":
+                if isPinned {
+                    onUnpinRequested?()
+                } else {
+                    onCloseRequested?()
+                }
+                NotificationCenter.default.post(name: .panelCommandReceived, object: PanelCommand.close)
+                onCommand?(.close)
+                return
+            default:
+                break
+            }
+        } else {
+            switch event.keyCode {
+            case 123: // Left Arrow
+                NotificationCenter.default.post(name: .panelCommandReceived, object: PanelCommand.previousPage)
+                onCommand?(.previousPage)
+                return
+            case 124: // Right Arrow
+                NotificationCenter.default.post(name: .panelCommandReceived, object: PanelCommand.nextPage)
+                onCommand?(.nextPage)
+                return
+            case 49: // Space
+                NotificationCenter.default.post(name: .panelCommandReceived, object: PanelCommand.togglePause)
+                onCommand?(.togglePause)
+                return
+            default:
+                break
+            }
+        }
+
         super.keyDown(with: event)
     }
 

@@ -559,7 +559,7 @@ public final class MenuBarController: NSObject {
         }
         if let config = preferences.menuBarItems.first(where: { $0.id == rawId }) {
             return AnyView(
-                PopoverFactory.makePopoverView(config: config)
+                PanelFactory.makePanelView(config: config, coordinator: coordinator, preferences: preferences)
                     .environmentObject(preferences)
                     .environmentObject(coordinator)
             )
@@ -569,7 +569,7 @@ public final class MenuBarController: NSObject {
         let category = MetricCategory(rawValue: categoryRaw) ?? .cpu
         let config = MenuBarItemConfig(category: category, style: .text)
         return AnyView(
-            PopoverFactory.makePopoverView(config: config)
+            PanelFactory.makePanelView(config: config, coordinator: coordinator, preferences: preferences)
                 .environmentObject(preferences)
                 .environmentObject(coordinator)
         )

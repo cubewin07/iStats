@@ -32,6 +32,10 @@ public enum CategoryPalette {
 
     // MARK: - Category Tint Colors
 
+    public static func tint(for category: MetricCategory) -> Color {
+        color(for: category)
+    }
+
     public static func color(for category: MetricCategory) -> Color {
         Color(nsColor: nsColor(for: category))
     }
@@ -58,6 +62,10 @@ public enum CategoryPalette {
     }
 
     // MARK: - Category Deep Colors (~12° hue shift, darker, for gradient terminals)
+
+    public static func tintDeep(for category: MetricCategory) -> Color {
+        deep(for: category)
+    }
 
     public static func deep(for category: MetricCategory) -> Color {
         Color(nsColor: nsDeep(for: category))
