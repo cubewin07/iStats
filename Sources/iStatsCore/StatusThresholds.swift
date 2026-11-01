@@ -183,7 +183,7 @@ public enum StatusThresholds {
                 return .critical
             } else if chargePercent <= 20.0 {
                 return .warning
-            } else if chargePercent <= 30.0 {
+            } else if chargePercent <= 40.0 {
                 return .elevated
             }
         }

@@ -20,7 +20,7 @@ public final class MenuBarController: NSObject {
     private var pendingCategories = Set<MetricCategory>()
     private var isCategoryUpdateScheduled = false
     public private(set) var currentlyShownButton: NSStatusBarButton?
-    private var lastConfiguredPopoverStyles: [String: PopoverStyle] = [:]
+    private var lastConfiguredPopoverConfigs: [String: PopoverConfig] = [:]
     private var lastActiveItemOrder: [String] = []
     private var globalMouseMonitor: Any?
     private var localMouseMonitor: Any?
@@ -197,7 +197,7 @@ public final class MenuBarController: NSObject {
                 NSStatusBar.system.removeStatusItem(item)
                 statusItems.removeValue(forKey: id)
                 previousRenderStates.removeValue(forKey: id)
-                lastConfiguredPopoverStyles.removeValue(forKey: id)
+                lastConfiguredPopoverConfigs.removeValue(forKey: id)
                 if let p = popovers.removeValue(forKey: id) {
                     if p.isShown {
                         p.performClose(nil)
@@ -278,7 +278,7 @@ public final class MenuBarController: NSObject {
             NSStatusBar.system.removeStatusItem(item)
             statusItems.removeValue(forKey: id)
             previousRenderStates.removeValue(forKey: id)
-            lastConfiguredPopoverStyles.removeValue(forKey: id)
+            lastConfiguredPopoverConfigs.removeValue(forKey: id)
             if let p = popovers.removeValue(forKey: id) {
                 if p.isShown {
                     p.performClose(nil)
@@ -312,11 +312,11 @@ public final class MenuBarController: NSObject {
             hidePopover()
         }
 
-        // 3. Invalidate or swap cached popover content if custom popover style was updated
+        // 3. Invalidate or swap cached popover content if custom popover config was updated
         for config in activeConfigs {
-            let resolved = preferences.resolvedPopoverStyle(for: config.category, widgetStyle: config.style)
-            if lastConfiguredPopoverStyles[config.id] != resolved {
-                lastConfiguredPopoverStyles[config.id] = resolved
+            let popConfig = config.resolvedPopoverConfig
+            if lastConfiguredPopoverConfigs[config.id] != popConfig {
+                lastConfiguredPopoverConfigs[config.id] = popConfig
                 if let p = popovers[config.id] {
                     if p.isShown {
                         p.contentViewController = makeHostingController(for: config)

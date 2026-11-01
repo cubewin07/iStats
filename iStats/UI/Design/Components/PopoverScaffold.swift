@@ -155,6 +155,8 @@ public struct PopoverScaffold<Content: View>: View {
     public let badgeText: String
     public let tabs: [PopoverTab]
     @Binding public var selectedTab: PopoverTab
+    public var hasDetailedGPUEngines: Bool
+    public var rememberLastTab: Bool
     public var isLoading: Bool
     public var unavailableReason: String?
     @ObservedObject public var preferences: PreferencesStore
@@ -168,6 +170,8 @@ public struct PopoverScaffold<Content: View>: View {
         badgeText: String,
         tabs: [PopoverTab],
         selectedTab: Binding<PopoverTab>,
+        hasDetailedGPUEngines: Bool = true,
+        rememberLastTab: Bool = true,
         isLoading: Bool = false,
         unavailableReason: String? = nil,
         preferences: PreferencesStore = .shared,
@@ -180,6 +184,8 @@ public struct PopoverScaffold<Content: View>: View {
         self.badgeText = badgeText
         self.tabs = tabs
         self._selectedTab = selectedTab
+        self.hasDetailedGPUEngines = hasDetailedGPUEngines
+        self.rememberLastTab = rememberLastTab
         self.isLoading = isLoading
         self.unavailableReason = unavailableReason
         self.preferences = preferences
@@ -192,6 +198,8 @@ public struct PopoverScaffold<Content: View>: View {
         verdict: MetricVerdict,
         tabs: [PopoverTab],
         selectedTab: Binding<PopoverTab>,
+        hasDetailedGPUEngines: Bool = true,
+        rememberLastTab: Bool = true,
         isLoading: Bool = false,
         unavailableReason: String? = nil,
         preferences: PreferencesStore = .shared,
@@ -205,6 +213,8 @@ public struct PopoverScaffold<Content: View>: View {
             badgeText: verdict.badgeText,
             tabs: tabs,
             selectedTab: selectedTab,
+            hasDetailedGPUEngines: hasDetailedGPUEngines,
+            rememberLastTab: rememberLastTab,
             isLoading: isLoading,
             unavailableReason: unavailableReason,
             preferences: preferences,
@@ -230,7 +240,8 @@ public struct PopoverScaffold<Content: View>: View {
             TabBar(
                 category: category,
                 tabs: tabs,
-                selectedTab: $selectedTab
+                selectedTab: $selectedTab,
+                hasDetailedGPUEngines: hasDetailedGPUEngines
             )
             .padding(.horizontal, 14)
             .padding(.bottom, 10)
@@ -301,13 +312,10 @@ public struct PopoverScaffold<Content: View>: View {
         }
         .frame(width: Tokens.popoverWidth)
         .background(PopoverVisualEffectView())
-        .onAppear {
-            if let saved = preferences.lastSelectedTab(for: category), tabs.contains(saved) {
-                selectedTab = saved
-            }
-        }
         .onChange(of: selectedTab) { newTab in
-            preferences.setLastSelectedTab(newTab, for: category)
+            if rememberLastTab {
+                preferences.setLastSelectedTab(newTab, for: category)
+            }
         }
     }
 }

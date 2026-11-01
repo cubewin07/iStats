@@ -53,6 +53,7 @@ public enum PopoverFactory {
         makeCategoryPopoverView(
             category: config.category,
             initialTab: openingTab,
+            rememberLastTab: popConfig.rememberLastTab,
             focusSource: focusSource,
             coordinator: coordinator,
             preferences: preferences
@@ -64,6 +65,7 @@ public enum PopoverFactory {
     public static func makeCategoryPopoverView(
         category: MetricCategory,
         initialTab: PopoverTab = .overview,
+        rememberLastTab: Bool = true,
         focusSource: MetricSource? = nil,
         coordinator: MetricsCoordinator = .shared,
         preferences: PreferencesStore = .shared
@@ -72,24 +74,28 @@ public enum PopoverFactory {
         case .cpu:
             CPUPopover(
                 initialTab: initialTab,
+                rememberLastTab: rememberLastTab,
                 coordinator: coordinator,
                 preferences: preferences
             )
         case .memory:
             MemoryPopover(
                 initialTab: initialTab,
+                rememberLastTab: rememberLastTab,
                 coordinator: coordinator,
                 preferences: preferences
             )
         case .gpu:
             GPUPopover(
                 initialTab: initialTab,
+                rememberLastTab: rememberLastTab,
                 coordinator: coordinator,
                 preferences: preferences
             )
         case .thermal:
             TemperaturePopover(
                 initialTab: initialTab,
+                rememberLastTab: rememberLastTab,
                 focusSource: focusSource,
                 coordinator: coordinator,
                 preferences: preferences
@@ -97,24 +103,28 @@ public enum PopoverFactory {
         case .fan:
             FanPopover(
                 initialTab: initialTab,
+                rememberLastTab: rememberLastTab,
                 coordinator: coordinator,
                 preferences: preferences
             )
         case .network:
             NetworkPopover(
                 initialTab: initialTab,
+                rememberLastTab: rememberLastTab,
                 coordinator: coordinator,
                 preferences: preferences
             )
         case .disk:
             DiskPopover(
                 initialTab: initialTab,
+                rememberLastTab: rememberLastTab,
                 coordinator: coordinator,
                 preferences: preferences
             )
         case .power:
             PowerPopover(
                 initialTab: initialTab,
+                rememberLastTab: rememberLastTab,
                 coordinator: coordinator,
                 preferences: preferences
             )

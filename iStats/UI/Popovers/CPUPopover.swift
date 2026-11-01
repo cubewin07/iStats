@@ -11,12 +11,16 @@ public struct CPUPopover: View {
 
     @State private var hoveredCore: (index: Int, usage: Double)?
 
+    public let rememberLastTab: Bool
+
     public init(
         initialTab: PopoverTab = .overview,
+        rememberLastTab: Bool = true,
         coordinator: MetricsCoordinator = .shared,
         preferences: PreferencesStore = .shared
     ) {
         self._selectedTab = State(initialValue: initialTab)
+        self.rememberLastTab = rememberLastTab
         self.coordinator = coordinator
         self.preferences = preferences
     }
@@ -35,6 +39,7 @@ public struct CPUPopover: View {
             verdict: verdict,
             tabs: [.overview, .detail, .history],
             selectedTab: $selectedTab,
+            rememberLastTab: rememberLastTab,
             isLoading: coordinator.latestCPU == nil,
             unavailableReason: coordinator.categoryAvailability[.cpu]?.unavailableReason,
             preferences: preferences,

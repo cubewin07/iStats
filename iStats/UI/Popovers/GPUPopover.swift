@@ -9,12 +9,16 @@ public struct GPUPopover: View {
     @ObservedObject public var coordinator: MetricsCoordinator
     @ObservedObject public var preferences: PreferencesStore
 
+    public let rememberLastTab: Bool
+
     public init(
         initialTab: PopoverTab = .overview,
+        rememberLastTab: Bool = true,
         coordinator: MetricsCoordinator = .shared,
         preferences: PreferencesStore = .shared
     ) {
         self._selectedTab = State(initialValue: initialTab)
+        self.rememberLastTab = rememberLastTab
         self.coordinator = coordinator
         self.preferences = preferences
     }
@@ -37,6 +41,8 @@ public struct GPUPopover: View {
             verdict: verdict,
             tabs: [.overview, .detail, .history],
             selectedTab: $selectedTab,
+            hasDetailedGPUEngines: hasDetailedEngines,
+            rememberLastTab: rememberLastTab,
             isLoading: coordinator.latestGPU == nil,
             unavailableReason: coordinator.categoryAvailability[.gpu]?.unavailableReason,
             preferences: preferences,

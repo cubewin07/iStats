@@ -9,12 +9,16 @@ public struct PowerPopover: View {
     @ObservedObject public var coordinator: MetricsCoordinator
     @ObservedObject public var preferences: PreferencesStore
 
+    public let rememberLastTab: Bool
+
     public init(
         initialTab: PopoverTab = .overview,
+        rememberLastTab: Bool = true,
         coordinator: MetricsCoordinator = .shared,
         preferences: PreferencesStore = .shared
     ) {
         self._selectedTab = State(initialValue: initialTab)
+        self.rememberLastTab = rememberLastTab
         self.coordinator = coordinator
         self.preferences = preferences
     }
@@ -41,6 +45,7 @@ public struct PowerPopover: View {
             verdict: verdict,
             tabs: supportedTabs,
             selectedTab: $selectedTab,
+            rememberLastTab: rememberLastTab,
             isLoading: coordinator.latestPower == nil,
             unavailableReason: coordinator.categoryAvailability[.power]?.unavailableReason,
             preferences: preferences,

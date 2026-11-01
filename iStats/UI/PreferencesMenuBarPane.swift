@@ -696,14 +696,6 @@ public struct PreferencesMenuBarPane: View {
                         set: { newTab in
                             var updated = resolvedConfig
                             updated.openingTab = newTab
-                            store.setItemEnabled(
-                                category: selectedCategory,
-                                style: selectedWidgetStyle,
-                                source: effectiveSource,
-                                throughputLayout: activeItem?.throughputLayout,
-                                showLabel: activeItem?.showLabel ?? false,
-                                isEnabled: true
-                            )
                             if let idx = store.menuBarItems.firstIndex(where: {
                                 $0.category == selectedCategory && $0.style == selectedWidgetStyle && $0.source == effectiveSource
                             }) {
@@ -718,6 +710,7 @@ public struct PreferencesMenuBarPane: View {
                     .pickerStyle(.segmented)
                     .controlSize(.small)
                 }
+                .disabled(activeItem == nil)
 
                 // "Remember last tab" Toggle
                 Toggle("Remember last tab", isOn: Binding<Bool>(
@@ -734,6 +727,7 @@ public struct PreferencesMenuBarPane: View {
                 ))
                 .font(.system(size: 11))
                 .controlSize(.small)
+                .disabled(activeItem == nil)
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 10)

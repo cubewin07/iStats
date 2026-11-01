@@ -724,6 +724,7 @@ public final class PreferencesStore: ObservableObject, @unchecked Sendable {
         self.menuBarDisplayMode = .cpu
         self.menuBarItems = MenuBarItemConfig.defaultConfigs()
         self.widgetPopoverStyles = [:]
+        self.categoryLastTabs = [:]
         self.isAutoPausedByLowPowerMode = false
         self.isSamplingPaused = false
         self.autoPauseOnLowPowerMode = true

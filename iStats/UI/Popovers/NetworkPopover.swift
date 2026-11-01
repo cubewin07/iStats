@@ -10,12 +10,16 @@ public struct NetworkPopover: View {
     @ObservedObject public var preferences: PreferencesStore
     @State private var showAllInterfaces: Bool = false
 
+    public let rememberLastTab: Bool
+
     public init(
         initialTab: PopoverTab = .overview,
+        rememberLastTab: Bool = true,
         coordinator: MetricsCoordinator = .shared,
         preferences: PreferencesStore = .shared
     ) {
         self._selectedTab = State(initialValue: initialTab)
+        self.rememberLastTab = rememberLastTab
         self.coordinator = coordinator
         self.preferences = preferences
     }
@@ -63,6 +67,7 @@ public struct NetworkPopover: View {
             verdict: verdict,
             tabs: [.overview, .detail, .history],
             selectedTab: $selectedTab,
+            rememberLastTab: rememberLastTab,
             isLoading: coordinator.latestNetwork == nil,
             unavailableReason: coordinator.categoryAvailability[.network]?.unavailableReason,
             preferences: preferences,

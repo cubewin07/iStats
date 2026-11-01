@@ -9,12 +9,16 @@ public struct FanPopover: View {
     @ObservedObject public var coordinator: MetricsCoordinator
     @ObservedObject public var preferences: PreferencesStore
 
+    public let rememberLastTab: Bool
+
     public init(
         initialTab: PopoverTab = .overview,
+        rememberLastTab: Bool = true,
         coordinator: MetricsCoordinator = .shared,
         preferences: PreferencesStore = .shared
     ) {
         self._selectedTab = State(initialValue: initialTab)
+        self.rememberLastTab = rememberLastTab
         self.coordinator = coordinator
         self.preferences = preferences
     }
@@ -37,6 +41,7 @@ public struct FanPopover: View {
             verdict: verdict,
             tabs: [.overview, .history],
             selectedTab: $selectedTab,
+            rememberLastTab: rememberLastTab,
             isLoading: coordinator.latestFan == nil,
             unavailableReason: coordinator.categoryAvailability[.fan]?.unavailableReason,
             preferences: preferences,
