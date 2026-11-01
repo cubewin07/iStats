@@ -412,4 +412,49 @@ final class PanelScaffoldTests: XCTestCase {
         offlineHosting.layoutSubtreeIfNeeded()
         XCTAssertEqual(offlineHosting.fittingSize.width, Instrument.Size.panelWidth, accuracy: 2.0)
     }
+
+    func testDiskPanelRendersCleanly() {
+        let (defaults, prefs, coord, suiteName) = makeContext()
+        defer { cleanup(defaults: defaults, suiteName: suiteName) }
+
+        let sample = DiskSample(
+            volumes: [
+                VolumeCapacity(name: "Macintosh HD", mountPoint: "/", total: 500_000_000_000, used: 250_000_000_000, free: 250_000_000_000),
+                VolumeCapacity(name: "External Backup", mountPoint: "/Volumes/External Backup", total: 1_000_000_000_000, used: 400_000_000_000, free: 600_000_000_000)
+            ],
+            io: DiskIO(bytesReadPerSec: 25_000_000, bytesWrittenPerSec: 5_000_000, readOpsPerSec: 350, writeOpsPerSec: 90)
+        )
+        coord.handleReading(.disk(Sample(value: sample)))
+
+        let view = DiskPanel(coordinator: coord, preferences: prefs)
+        let hosting = NSHostingView(rootView: view)
+        hosting.frame = CGRect(x: 0, y: 0, width: Instrument.Size.panelWidth, height: 450)
+        hosting.layoutSubtreeIfNeeded()
+
+        let fit = hosting.fittingSize
+        XCTAssertEqual(fit.width, Instrument.Size.panelWidth, accuracy: 2.0)
+        XCTAssertGreaterThan(fit.height, 150)
+    }
+
+    func testDiskPanelLowSpaceRendersWarning() {
+        let (defaults, prefs, coord, suiteName) = makeContext()
+        defer { cleanup(defaults: defaults, suiteName: suiteName) }
+
+        let sample = DiskSample(
+            volumes: [
+                VolumeCapacity(name: "Macintosh HD", mountPoint: "/", total: 500_000_000_000, used: 480_000_000_000, free: 20_000_000_000)
+            ],
+            io: nil
+        )
+        coord.handleReading(.disk(Sample(value: sample)))
+
+        let view = DiskPanel(coordinator: coord, preferences: prefs)
+        let hosting = NSHostingView(rootView: view)
+        hosting.frame = CGRect(x: 0, y: 0, width: Instrument.Size.panelWidth, height: 400)
+        hosting.layoutSubtreeIfNeeded()
+
+        let fit = hosting.fittingSize
+        XCTAssertEqual(fit.width, Instrument.Size.panelWidth, accuracy: 2.0)
+        XCTAssertGreaterThan(fit.height, 150)
+    }
 }
