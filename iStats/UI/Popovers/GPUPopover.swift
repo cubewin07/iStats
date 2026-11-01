@@ -106,13 +106,6 @@ public struct GPUPopover: View {
                         )
                     }
 
-                    if let memUsed = gpu.memoryUsed {
-                        StatRow(
-                            label: "Graphics Working Set",
-                            value: Units.formatBytes(UInt64(memUsed) * 1024 * 1024, standard: preferences.byteUnitStandard)
-                        )
-                    }
-
                     if let temp = gpu.tempCelsius {
                         let level = StatusThresholds.temperature(celsius: temp, source: .gpu)
                         StatRow(
@@ -141,6 +134,11 @@ public struct GPUPopover: View {
                             )
                         }
                         .padding(.top, 2)
+                    } else if let memUsed = gpu.memoryUsed {
+                        StatRow(
+                            label: "Graphics Working Set",
+                            value: Units.formatBytes(memUsed, standard: preferences.byteUnitStandard)
+                        )
                     }
                 }
                 .padding(10)

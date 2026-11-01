@@ -84,8 +84,12 @@ public struct FanPopover: View {
                 // Hero Metric + Sparkline
                 HStack(alignment: .top, spacing: Tokens.md) {
                     let maxRPM = fans.map(\.rpm).max() ?? 0
-                    let maxCap = fans.compactMap(\.maxRPM).max() ?? 6000
-                    let pctStr = maxCap > 0 ? " · \(Int((Double(maxRPM) / Double(maxCap)) * 100))%" : ""
+                    let maxPossibleRPM = fans.compactMap(\.maxRPM).max() ?? 6000
+                    let minPossibleRPM = fans.compactMap(\.minRPM).min() ?? 1200
+                    let ratio: Double = (maxPossibleRPM > minPossibleRPM)
+                        ? max(0.0, min(1.0, Double(maxRPM - minPossibleRPM) / Double(maxPossibleRPM - minPossibleRPM)))
+                        : max(0.0, min(1.0, Double(maxRPM) / Double(maxPossibleRPM)))
+                    let pctStr = " · \(Int(ratio * 100))%"
                     HeroMetric(
                         primaryValue: Units.formatRPM(maxRPM),
                         unit: "",
@@ -111,11 +115,18 @@ public struct FanPopover: View {
                 // Thermal Cause Context Line
                 if let th = coordinator.latestThermal?.value, let peak = th.peakTemperatureCelsius {
                     let formatted = Units.formatTemperature(peak, unit: preferences.temperatureUnit, fractionDigits: 0)
+                    let hottestSensor = th.sensors.max(by: { $0.celsius < $1.celsius })
+                    let sourceLabel: String = {
+                        if let sensor = hottestSensor, let source = ThermalSensorClassifier.classify(sensor) {
+                            return " · \(source.displayName)"
+                        }
+                        return ""
+                    }()
                     HStack(spacing: 6) {
                         Image(systemName: "flame")
                             .font(.system(size: 11))
                             .foregroundColor(CategoryPalette.thermal)
-                        Text("Thermal cause: Peak \(formatted)")
+                        Text("Thermal cause: Peak \(formatted)\(sourceLabel)")
                             .font(.system(size: 11))
                             .foregroundColor(.secondary)
                     }

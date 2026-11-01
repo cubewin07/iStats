@@ -86,6 +86,11 @@ public final class MetricsCoordinator: ObservableObject {
         store.scalarHistory(for: key, duration: duration, maxPoints: maxPoints)
     }
 
+    /// Elapsed time interval (in seconds) between first and last sample within window (Task 7.6).
+    public func scalarTimeSpan(for key: ScalarSeriesKey, duration: TimeInterval? = nil) -> TimeInterval {
+        store.scalarTimeSpan(for: key, duration: duration)
+    }
+
     /// Live availability status per metric category.
     @Published public private(set) var categoryAvailability: [MetricCategory: Availability] = [:]
 

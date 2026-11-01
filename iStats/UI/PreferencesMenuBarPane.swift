@@ -696,9 +696,7 @@ public struct PreferencesMenuBarPane: View {
                         set: { newTab in
                             var updated = resolvedConfig
                             updated.openingTab = newTab
-                            if let idx = store.menuBarItems.firstIndex(where: {
-                                $0.category == selectedCategory && $0.style == selectedWidgetStyle && $0.source == effectiveSource
-                            }) {
+                            if let activeId = activeItem?.id, let idx = store.menuBarItems.firstIndex(where: { $0.id == activeId }) {
                                 store.menuBarItems[idx].popover = updated
                             }
                         }
@@ -718,9 +716,7 @@ public struct PreferencesMenuBarPane: View {
                     set: { remember in
                         var updated = resolvedConfig
                         updated.rememberLastTab = remember
-                        if let idx = store.menuBarItems.firstIndex(where: {
-                            $0.category == selectedCategory && $0.style == selectedWidgetStyle && $0.source == effectiveSource
-                        }) {
+                        if let activeId = activeItem?.id, let idx = store.menuBarItems.firstIndex(where: { $0.id == activeId }) {
                             store.menuBarItems[idx].popover = updated
                         }
                     }
@@ -741,6 +737,7 @@ public struct PreferencesMenuBarPane: View {
                     PopoverFactory.makeCategoryPopoverView(
                         category: selectedCategory,
                         initialTab: resolvedConfig.openingTab,
+                        rememberLastTab: false,
                         focusSource: effectiveSource,
                         coordinator: coordinator,
                         preferences: store

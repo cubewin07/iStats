@@ -349,6 +349,27 @@ public struct MetricsStore: Sendable, Equatable {
         scalarBuffers[key]?.count ?? 0
     }
 
+    /// Returns the elapsed time interval (in seconds) between the oldest and newest sample
+    /// within the given time window (or full buffer if duration is nil).
+    /// Returns 0 if there are fewer than 2 points.
+    public func scalarTimeSpan(for key: ScalarSeriesKey, duration: TimeInterval? = nil) -> TimeInterval {
+        guard let buffer = scalarBuffers[key] else { return 0 }
+        let points = buffer.elements
+        guard points.count >= 2, let newest = points.last?.timestamp else { return 0 }
+
+        let oldest: Date
+        if let duration = duration, duration > 0 {
+            let cutoff = newest.addingTimeInterval(-duration)
+            guard let firstInRange = points.first(where: { $0.timestamp > cutoff })?.timestamp else { return 0 }
+            oldest = firstInRange
+        } else {
+            guard let first = points.first?.timestamp else { return 0 }
+            oldest = first
+        }
+
+        return max(0, newest.timeIntervalSince(oldest))
+    }
+
     /// Queries the scalar history for a given series key over a specified time window (duration in seconds),
     /// downsampled to at most `maxPoints` using spike-preserving bucket downsampling.
     public func scalarHistory(

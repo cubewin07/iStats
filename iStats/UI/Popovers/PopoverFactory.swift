@@ -141,44 +141,46 @@ public enum PopoverFactory {
         let openingTab = (popConfig.rememberLastTab ? preferences.lastSelectedTab(for: config.category) : nil) ?? popConfig.openingTab
         let focusSource = config.source ?? popConfig.focusSource
 
+        let rememberLastTab = popConfig.rememberLastTab
+
         switch config.category {
         case .cpu:
-            let view = CPUPopover(initialTab: openingTab, coordinator: coordinator, preferences: preferences)
+            let view = CPUPopover(initialTab: openingTab, rememberLastTab: rememberLastTab, coordinator: coordinator, preferences: preferences)
             let controller = NSHostingController(rootView: view)
             controller.sizingOptions = [.preferredContentSize]
             return controller
         case .memory:
-            let view = MemoryPopover(initialTab: openingTab, coordinator: coordinator, preferences: preferences)
+            let view = MemoryPopover(initialTab: openingTab, rememberLastTab: rememberLastTab, coordinator: coordinator, preferences: preferences)
             let controller = NSHostingController(rootView: view)
             controller.sizingOptions = [.preferredContentSize]
             return controller
         case .gpu:
-            let view = GPUPopover(initialTab: openingTab, coordinator: coordinator, preferences: preferences)
+            let view = GPUPopover(initialTab: openingTab, rememberLastTab: rememberLastTab, coordinator: coordinator, preferences: preferences)
             let controller = NSHostingController(rootView: view)
             controller.sizingOptions = [.preferredContentSize]
             return controller
         case .thermal:
-            let view = TemperaturePopover(initialTab: openingTab, focusSource: focusSource, coordinator: coordinator, preferences: preferences)
+            let view = TemperaturePopover(initialTab: openingTab, rememberLastTab: rememberLastTab, focusSource: focusSource, coordinator: coordinator, preferences: preferences)
             let controller = NSHostingController(rootView: view)
             controller.sizingOptions = [.preferredContentSize]
             return controller
         case .fan:
-            let view = FanPopover(initialTab: openingTab, coordinator: coordinator, preferences: preferences)
+            let view = FanPopover(initialTab: openingTab, rememberLastTab: rememberLastTab, coordinator: coordinator, preferences: preferences)
             let controller = NSHostingController(rootView: view)
             controller.sizingOptions = [.preferredContentSize]
             return controller
         case .network:
-            let view = NetworkPopover(initialTab: openingTab, coordinator: coordinator, preferences: preferences)
+            let view = NetworkPopover(initialTab: openingTab, rememberLastTab: rememberLastTab, coordinator: coordinator, preferences: preferences)
             let controller = NSHostingController(rootView: view)
             controller.sizingOptions = [.preferredContentSize]
             return controller
         case .disk:
-            let view = DiskPopover(initialTab: openingTab, coordinator: coordinator, preferences: preferences)
+            let view = DiskPopover(initialTab: openingTab, rememberLastTab: rememberLastTab, coordinator: coordinator, preferences: preferences)
             let controller = NSHostingController(rootView: view)
             controller.sizingOptions = [.preferredContentSize]
             return controller
         case .power:
-            let view = PowerPopover(initialTab: openingTab, coordinator: coordinator, preferences: preferences)
+            let view = PowerPopover(initialTab: openingTab, rememberLastTab: rememberLastTab, coordinator: coordinator, preferences: preferences)
             let controller = NSHostingController(rootView: view)
             controller.sizingOptions = [.preferredContentSize]
             return controller

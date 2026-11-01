@@ -312,6 +312,11 @@ public struct PopoverScaffold<Content: View>: View {
         }
         .frame(width: Tokens.popoverWidth)
         .background(PopoverVisualEffectView())
+        .onAppear {
+            if !tabs.contains(selectedTab) {
+                selectedTab = tabs.first ?? .overview
+            }
+        }
         .onChange(of: selectedTab) { newTab in
             if rememberLastTab {
                 preferences.setLastSelectedTab(newTab, for: category)

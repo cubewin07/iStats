@@ -110,8 +110,14 @@ public struct HistoryTab: View {
         .padding(.vertical, 4)
     }
 
-    private func effectiveInterval(for count: Int, duration: Double, isExtended: Bool) -> Double {
+    private func effectiveInterval(for count: Int, duration: Double, isExtended: Bool, key: ScalarSeriesKey? = nil) -> Double {
         if isExtended && count > 1 {
+            if let key = key {
+                let actualSpan = coordinator.scalarTimeSpan(for: key, duration: duration)
+                if actualSpan > 0 {
+                    return min(duration, actualSpan) / Double(count - 1)
+                }
+            }
             return duration / Double(count - 1)
         } else {
             return preferences.refreshInterval
@@ -153,7 +159,7 @@ public struct HistoryTab: View {
             user = samples.map { $0.value.user }
             system = samples.map { $0.value.system }
         }
-        let interval = effectiveInterval(for: max(user.count, system.count), duration: duration, isExtended: isExtended)
+        let interval = effectiveInterval(for: max(user.count, system.count), duration: duration, isExtended: isExtended, key: .cpuUser)
         return TrendChart(
             mode: .stacked(
                 primary: user,
@@ -183,7 +189,7 @@ public struct HistoryTab: View {
                 return (Double(mem.used) / Double(mem.total)) * 100.0
             }
         }
-        let interval = effectiveInterval(for: ratios.count, duration: duration, isExtended: isExtended)
+        let interval = effectiveInterval(for: ratios.count, duration: duration, isExtended: isExtended, key: .memoryUsedPercent)
         return TrendChart(
             mode: .single(
                 values: ratios,
@@ -208,7 +214,7 @@ public struct HistoryTab: View {
             let samples = coordinator.gpuHistory
             utils = samples.compactMap { $0.value.utilization }
         }
-        let interval = effectiveInterval(for: utils.count, duration: duration, isExtended: isExtended)
+        let interval = effectiveInterval(for: utils.count, duration: duration, isExtended: isExtended, key: .gpuUtilization)
         return TrendChart(
             mode: .single(
                 values: utils,
@@ -238,7 +244,7 @@ public struct HistoryTab: View {
                 return preferences.temperatureUnit == .fahrenheit ? Units.celsiusToFahrenheit(c) : c
             }
         }
-        let interval = effectiveInterval(for: temps.count, duration: duration, isExtended: isExtended)
+        let interval = effectiveInterval(for: temps.count, duration: duration, isExtended: isExtended, key: .thermalPeakCelsius)
         return TrendChart(
             mode: .single(
                 values: temps,
@@ -264,7 +270,7 @@ public struct HistoryTab: View {
                 Double(sample.value.fans.map(\.rpm).max() ?? 0)
             }
         }
-        let interval = effectiveInterval(for: maxRPMs.count, duration: duration, isExtended: isExtended)
+        let interval = effectiveInterval(for: maxRPMs.count, duration: duration, isExtended: isExtended, key: .fanMaxRPM)
         return TrendChart(
             mode: .single(
                 values: maxRPMs,
@@ -291,7 +297,7 @@ public struct HistoryTab: View {
             inRates = samples.map { $0.value.totalBytesInPerSec }
             outRates = samples.map { $0.value.totalBytesOutPerSec }
         }
-        let interval = effectiveInterval(for: max(inRates.count, outRates.count), duration: duration, isExtended: isExtended)
+        let interval = effectiveInterval(for: max(inRates.count, outRates.count), duration: duration, isExtended: isExtended, key: .networkInBytesPerSec)
         return TrendChart(
             mode: .mirrored(
                 top: inRates,
@@ -323,7 +329,7 @@ public struct HistoryTab: View {
             readRates = samples.map { $0.value.io?.bytesReadPerSec ?? 0.0 }
             writeRates = samples.map { $0.value.io?.bytesWrittenPerSec ?? 0.0 }
         }
-        let interval = effectiveInterval(for: max(readRates.count, writeRates.count), duration: duration, isExtended: isExtended)
+        let interval = effectiveInterval(for: max(readRates.count, writeRates.count), duration: duration, isExtended: isExtended, key: .diskReadBytesPerSec)
         return TrendChart(
             mode: .mirrored(
                 top: readRates,
@@ -352,7 +358,7 @@ public struct HistoryTab: View {
             let samples = coordinator.powerHistory
             watts = samples.map { $0.value.powerDrawWatts ?? 0.0 }
         }
-        let interval = effectiveInterval(for: watts.count, duration: duration, isExtended: isExtended)
+        let interval = effectiveInterval(for: watts.count, duration: duration, isExtended: isExtended, key: .powerWatts)
         return TrendChart(
             mode: .single(
                 values: watts,
