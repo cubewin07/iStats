@@ -829,4 +829,46 @@ public struct GPUSample: Sendable, Equatable, Codable {
     }
 }
 
+/// Statistics for a single running process or application bundle.
+public struct ProcessInfoItem: Sendable, Equatable, Codable, Identifiable {
+    public var id: Int32 { pid }
+    public let pid: Int32
+    public let name: String
+    public let bundleID: String?
+    public let cpuPercent: Double
+    public let memoryBytes: UInt64
+
+    public init(
+        pid: Int32,
+        name: String,
+        bundleID: String? = nil,
+        cpuPercent: Double = 0.0,
+        memoryBytes: UInt64 = 0
+    ) {
+        self.pid = pid
+        self.name = name
+        self.bundleID = bundleID
+        self.cpuPercent = cpuPercent
+        self.memoryBytes = memoryBytes
+    }
+}
+
+/// Demand-driven top process snapshot across CPU and Memory.
+public struct ProcessSample: Sendable, Equatable, Codable {
+    public let topCPU: [ProcessInfoItem]
+    public let topMemory: [ProcessInfoItem]
+    public let skippedCount: Int
+
+    public init(
+        topCPU: [ProcessInfoItem] = [],
+        topMemory: [ProcessInfoItem] = [],
+        skippedCount: Int = 0
+    ) {
+        self.topCPU = topCPU
+        self.topMemory = topMemory
+        self.skippedCount = skippedCount
+    }
+}
+
+
 

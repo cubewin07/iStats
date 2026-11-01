@@ -72,6 +72,12 @@ public struct MemoryPanel: View {
                 preferences.setLastSelectedTab(newTab, for: .memory)
             }
         }
+        .onAppear {
+            coordinator.startProcessDemand()
+        }
+        .onDisappear {
+            coordinator.stopProcessDemand()
+        }
     }
 
     // MARK: - Glance Derivation
@@ -136,8 +142,23 @@ public struct MemoryPanel: View {
 
                 // Signature Instrument 2: Composition Capsule
                 compositionModule(sample: s)
+
+                // Top Consumers (Task 8.9)
+                topConsumersModule
             }
         }
+    }
+
+    @ViewBuilder
+    private var topConsumersModule: some View {
+        let processSample = coordinator.latestProcesses?.value
+        TopConsumersModule(
+            criterion: .memory,
+            processes: processSample?.topMemory ?? [],
+            skippedCount: processSample?.skippedCount ?? 0,
+            sparklines: [:],
+            standard: preferences.byteUnitStandard
+        )
     }
 
     private func pressureArcModule(sample: MemorySample) -> some View {

@@ -56,6 +56,16 @@ public final class MetricsCoordinator: ObservableObject {
     /// Rolling chronological history of per-core utilization (60 samples per core, in-memory only; ADR 0006).
     @Published public private(set) var coreHistory: [Int: [Double]] = [:]
 
+    /// The latest available top processes snapshot (demand-driven, in memory only; ADR 0006 / Task 8.9).
+    @Published public private(set) var latestProcesses: Sample<ProcessSample>?
+
+    /// Rolling chronological history of CPU percentage per process (30 samples, in-memory only; ADR 0006).
+    @Published public private(set) var processCPUHistory: [Int32: [Double]] = [:]
+
+    private let processSampler = ProcessSampler()
+    private var processDemandCount: Int = 0
+    private var processSamplingTask: Task<Void, Never>?
+
     /// Rolling chronological history of CPU samples queried on-demand from backing store.
     public var cpuHistory: [Sample<CPUSample>] { store.cpuHistory() }
 
@@ -473,6 +483,53 @@ public final class MetricsCoordinator: ObservableObject {
             guard let self = self else { return }
             if let reading = await self.scheduler.sampleOnce(category: category) {
                 self.handleReading(reading)
+            }
+        }
+    }
+
+    // MARK: - Demand-Driven Top Processes (Task 8.9)
+
+    public func startProcessDemand() {
+        processDemandCount += 1
+        guard processDemandCount == 1 else { return }
+        startProcessSamplingLoop()
+    }
+
+    public func stopProcessDemand() {
+        processDemandCount = max(0, processDemandCount - 1)
+        guard processDemandCount == 0 else { return }
+        processSamplingTask?.cancel()
+        processSamplingTask = nil
+    }
+
+    public func updateProcessesForTesting(_ sample: ProcessSample) {
+        self.latestProcesses = Sample(value: sample)
+    }
+
+    private func startProcessSamplingLoop() {
+        processSamplingTask?.cancel()
+        processSamplingTask = Task.detached(priority: .utility) { [weak self, processSampler] in
+            while !Task.isCancelled {
+                let sample = processSampler.sample()
+                await MainActor.run { [weak self] in
+                    guard let self = self else { return }
+                    self.latestProcesses = Sample(value: sample)
+
+                    // Track rolling 30-sample history for top processes
+                    for item in sample.topCPU {
+                        var history = self.processCPUHistory[item.pid] ?? []
+                        history.append(item.cpuPercent)
+                        if history.count > 30 {
+                            history.removeFirst(history.count - 30)
+                        }
+                        self.processCPUHistory[item.pid] = history
+                    }
+                }
+                do {
+                    try await Task.sleep(nanoseconds: 2_000_000_000)
+                } catch {
+                    break
+                }
             }
         }
     }

@@ -72,6 +72,12 @@ public struct CPUPanel: View {
                 preferences.setLastSelectedTab(newTab, for: .cpu)
             }
         }
+        .onAppear {
+            coordinator.startProcessDemand()
+        }
+        .onDisappear {
+            coordinator.stopProcessDemand()
+        }
     }
 
     // MARK: - Glance Derivation
@@ -131,8 +137,23 @@ public struct CPUPanel: View {
 
                 // Load Average Module
                 loadAverageModule(sample: s)
+
+                // Top Consumers (Task 8.9)
+                topConsumersModule
             }
         }
+    }
+
+    @ViewBuilder
+    private var topConsumersModule: some View {
+        let processSample = coordinator.latestProcesses?.value
+        TopConsumersModule(
+            criterion: .cpu,
+            processes: processSample?.topCPU ?? [],
+            skippedCount: processSample?.skippedCount ?? 0,
+            sparklines: coordinator.processCPUHistory,
+            standard: preferences.byteUnitStandard
+        )
     }
 
     private func coreMapModule(sample: CPUSample) -> some View {

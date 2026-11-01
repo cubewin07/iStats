@@ -75,6 +75,9 @@
 		1100000000000000000001D1 /* BatteryGlyph.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000001D0 /* BatteryGlyph.swift */; };
 		1100000000000000000001D3 /* PowerFlowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000001D2 /* PowerFlowView.swift */; };
 		1100000000000000000001D5 /* PowerPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000001D4 /* PowerPanel.swift */; };
+		1100000000000000000001D7 /* ProcessSampler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000001D6 /* ProcessSampler.swift */; };
+		1100000000000000000001D9 /* TopConsumersModule.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000001D8 /* TopConsumersModule.swift */; };
+		1100000000000000000001DB /* ProcessSamplerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000001DA /* ProcessSamplerTests.swift */; };
 		110000000000000000000193 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000192 /* Assets.xcassets */; };
 		11000000000000000000001F /* PreferencesWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11000000000000000000001E /* PreferencesWindowController.swift */; };
 		110000000000000000000031 /* CPUSampler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000030 /* CPUSampler.swift */; };
@@ -204,6 +207,9 @@
 		1100000000000000000001D0 /* BatteryGlyph.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Instrument/Kit/BatteryGlyph.swift; sourceTree = "<group>"; };
 		1100000000000000000001D2 /* PowerFlowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Instrument/Kit/PowerFlowView.swift; sourceTree = "<group>"; };
 		1100000000000000000001D4 /* PowerPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Panels/PowerPanel.swift; sourceTree = "<group>"; };
+		1100000000000000000001D6 /* ProcessSampler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcessSampler.swift; sourceTree = "<group>"; };
+		1100000000000000000001D8 /* TopConsumersModule.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Instrument/Kit/TopConsumersModule.swift; sourceTree = "<group>"; };
+		1100000000000000000001DA /* ProcessSamplerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcessSamplerTests.swift; sourceTree = "<group>"; };
 		110000000000000000000192 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		11000000000000000000001E /* PreferencesWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferencesWindowController.swift; sourceTree = "<group>"; };
 		110000000000000000000030 /* CPUSampler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CPUSampler.swift; sourceTree = "<group>"; };
@@ -324,6 +330,7 @@
 				1100000000000000000000A0 /* ThermalSampler.swift */,
 				1100000000000000000000B0 /* FanSampler.swift */,
 				1100000000000000000000C0 /* GPUSampler.swift */,
+				1100000000000000000001D6 /* ProcessSampler.swift */,
 				110000000000000000000130 /* AppleSMCClient.swift */,
 			);
 			path = Sampling;
@@ -393,6 +400,7 @@
 				1100000000000000000001D0 /* BatteryGlyph.swift */,
 				1100000000000000000001D2 /* PowerFlowView.swift */,
 				1100000000000000000001D4 /* PowerPanel.swift */,
+				1100000000000000000001D8 /* TopConsumersModule.swift */,
 				1100000000000000000000F0 /* MenuBarIconRenderer.swift */,
 				110000000000000000000100 /* MetricVerdict.swift */,
 			);
@@ -446,6 +454,7 @@
 				110000000000000000000134 /* MenuBarDirtyCheckingTests.swift */,
 				110000000000000000000136 /* CoordinatorBatchingTests.swift */,
 				1100000000000000000001BC /* PanelScaffoldTests.swift */,
+				1100000000000000000001DA /* ProcessSamplerTests.swift */,
 			);
 			path = iStatsTests;
 			sourceTree = "<group>";
@@ -630,6 +639,8 @@
 				1100000000000000000001D1 /* BatteryGlyph.swift in Sources */,
 				1100000000000000000001D3 /* PowerFlowView.swift in Sources */,
 				1100000000000000000001D5 /* PowerPanel.swift in Sources */,
+				1100000000000000000001D7 /* ProcessSampler.swift in Sources */,
+				1100000000000000000001D9 /* TopConsumersModule.swift in Sources */,
 				11000000000000000000001F /* PreferencesWindowController.swift in Sources */,
 				110000000000000000000031 /* CPUSampler.swift in Sources */,
 				110000000000000000000033 /* MemorySampler.swift in Sources */,
@@ -681,6 +692,7 @@
 				110000000000000000000135 /* MenuBarDirtyCheckingTests.swift in Sources */,
 				110000000000000000000137 /* CoordinatorBatchingTests.swift in Sources */,
 				1100000000000000000001BD /* PanelScaffoldTests.swift in Sources */,
+				1100000000000000000001DB /* ProcessSamplerTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
