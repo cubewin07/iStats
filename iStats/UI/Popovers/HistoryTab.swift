@@ -59,6 +59,9 @@ public struct HistoryTab: View {
                                 let isSelected = selectedThermalSource == src
                                 Button {
                                     selectedThermalSource = src
+                                    if selectedRange != .oneMinute && src != .peak {
+                                        selectedRange = .oneMinute
+                                    }
                                 } label: {
                                     Text(src.shortLabel)
                                         .font(.system(size: 10, weight: isSelected ? .bold : .medium))
@@ -91,16 +94,28 @@ public struct HistoryTab: View {
                 .pickerStyle(.segmented)
                 .controlSize(.mini)
                 .frame(width: 120)
+                .onChange(of: selectedRange) { newRange in
+                    if newRange != .oneMinute && selectedThermalSource != .peak {
+                        selectedThermalSource = .peak
+                    }
+                }
             }
 
-            // 140 pt Primary TrendChart
+            // Primary TrendChart
             chartContent
-                .frame(height: 140)
 
             // Category-Specific Legend Subtext
             chartLegendSubtext
         }
         .padding(.vertical, 4)
+    }
+
+    private func effectiveInterval(for count: Int, duration: Double, isExtended: Bool) -> Double {
+        if isExtended && count > 1 {
+            return duration / Double(count - 1)
+        } else {
+            return preferences.refreshInterval
+        }
     }
 
     @ViewBuilder
@@ -138,6 +153,7 @@ public struct HistoryTab: View {
             user = samples.map { $0.value.user }
             system = samples.map { $0.value.system }
         }
+        let interval = effectiveInterval(for: max(user.count, system.count), duration: duration, isExtended: isExtended)
         return TrendChart(
             mode: .stacked(
                 primary: user,
@@ -147,7 +163,7 @@ public struct HistoryTab: View {
             ),
             fixedMax: 100.0,
             height: 140,
-            sampleIntervalSeconds: preferences.refreshInterval,
+            sampleIntervalSeconds: interval,
             showStatsStrip: true,
             formatter: { String(format: "%.0f%%", $0) }
         )
@@ -167,6 +183,7 @@ public struct HistoryTab: View {
                 return (Double(mem.used) / Double(mem.total)) * 100.0
             }
         }
+        let interval = effectiveInterval(for: ratios.count, duration: duration, isExtended: isExtended)
         return TrendChart(
             mode: .single(
                 values: ratios,
@@ -175,7 +192,7 @@ public struct HistoryTab: View {
             ),
             fixedMax: 100.0,
             height: 140,
-            sampleIntervalSeconds: preferences.refreshInterval,
+            sampleIntervalSeconds: interval,
             showStatsStrip: true,
             formatter: { String(format: "%.0f%%", $0) }
         )
@@ -191,6 +208,7 @@ public struct HistoryTab: View {
             let samples = coordinator.gpuHistory
             utils = samples.compactMap { $0.value.utilization }
         }
+        let interval = effectiveInterval(for: utils.count, duration: duration, isExtended: isExtended)
         return TrendChart(
             mode: .single(
                 values: utils,
@@ -199,7 +217,7 @@ public struct HistoryTab: View {
             ),
             fixedMax: 100.0,
             height: 140,
-            sampleIntervalSeconds: preferences.refreshInterval,
+            sampleIntervalSeconds: interval,
             showStatsStrip: true,
             formatter: { String(format: "%.0f%%", $0) }
         )
@@ -220,6 +238,7 @@ public struct HistoryTab: View {
                 return preferences.temperatureUnit == .fahrenheit ? Units.celsiusToFahrenheit(c) : c
             }
         }
+        let interval = effectiveInterval(for: temps.count, duration: duration, isExtended: isExtended)
         return TrendChart(
             mode: .single(
                 values: temps,
@@ -227,7 +246,7 @@ public struct HistoryTab: View {
                 fillGradient: true
             ),
             height: 140,
-            sampleIntervalSeconds: preferences.refreshInterval,
+            sampleIntervalSeconds: interval,
             showStatsStrip: true,
             formatter: { String(format: "%.0f°", $0) }
         )
@@ -245,6 +264,7 @@ public struct HistoryTab: View {
                 Double(sample.value.fans.map(\.rpm).max() ?? 0)
             }
         }
+        let interval = effectiveInterval(for: maxRPMs.count, duration: duration, isExtended: isExtended)
         return TrendChart(
             mode: .single(
                 values: maxRPMs,
@@ -252,7 +272,7 @@ public struct HistoryTab: View {
                 fillGradient: true
             ),
             height: 140,
-            sampleIntervalSeconds: preferences.refreshInterval,
+            sampleIntervalSeconds: interval,
             showStatsStrip: true,
             formatter: { Units.formatRPM(Int($0)) }
         )
@@ -271,6 +291,7 @@ public struct HistoryTab: View {
             inRates = samples.map { $0.value.totalBytesInPerSec }
             outRates = samples.map { $0.value.totalBytesOutPerSec }
         }
+        let interval = effectiveInterval(for: max(inRates.count, outRates.count), duration: duration, isExtended: isExtended)
         return TrendChart(
             mode: .mirrored(
                 top: inRates,
@@ -281,7 +302,7 @@ public struct HistoryTab: View {
                 bottomLabel: "↑"
             ),
             height: 140,
-            sampleIntervalSeconds: preferences.refreshInterval,
+            sampleIntervalSeconds: interval,
             showStatsStrip: true,
             formatter: {
                 Units.formatCompactRate($0, unit: self.preferences.networkUnit, standard: self.preferences.byteUnitStandard)
@@ -302,6 +323,7 @@ public struct HistoryTab: View {
             readRates = samples.map { $0.value.io?.bytesReadPerSec ?? 0.0 }
             writeRates = samples.map { $0.value.io?.bytesWrittenPerSec ?? 0.0 }
         }
+        let interval = effectiveInterval(for: max(readRates.count, writeRates.count), duration: duration, isExtended: isExtended)
         return TrendChart(
             mode: .mirrored(
                 top: readRates,
@@ -312,7 +334,7 @@ public struct HistoryTab: View {
                 bottomLabel: "W"
             ),
             height: 140,
-            sampleIntervalSeconds: preferences.refreshInterval,
+            sampleIntervalSeconds: interval,
             showStatsStrip: true,
             formatter: {
                 Units.formatDiskRate($0, standard: self.preferences.byteUnitStandard)
@@ -330,6 +352,7 @@ public struct HistoryTab: View {
             let samples = coordinator.powerHistory
             watts = samples.map { $0.value.powerDrawWatts ?? 0.0 }
         }
+        let interval = effectiveInterval(for: watts.count, duration: duration, isExtended: isExtended)
         return TrendChart(
             mode: .single(
                 values: watts,
@@ -337,7 +360,7 @@ public struct HistoryTab: View {
                 fillGradient: true
             ),
             height: 140,
-            sampleIntervalSeconds: preferences.refreshInterval,
+            sampleIntervalSeconds: interval,
             showStatsStrip: true,
             formatter: { String(format: "%.1f W", $0) }
         )
@@ -373,7 +396,11 @@ public struct HistoryTab: View {
             case .gpu:
                 Text("Graphics processor load over time").font(.system(size: 9.5)).foregroundColor(.secondary)
             case .thermal:
-                Text("Peak sensor temperature (\(preferences.temperatureUnit.symbol))").font(.system(size: 9.5)).foregroundColor(.secondary)
+                if selectedRange == .oneMinute {
+                    Text("\(selectedThermalSource.displayName) temperature (\(preferences.temperatureUnit.symbol))").font(.system(size: 9.5)).foregroundColor(.secondary)
+                } else {
+                    Text("Peak sensor temperature (\(preferences.temperatureUnit.symbol))").font(.system(size: 9.5)).foregroundColor(.secondary)
+                }
             case .fan:
                 Text("Maximum fan speed across all cooling units").font(.system(size: 9.5)).foregroundColor(.secondary)
             case .power:
