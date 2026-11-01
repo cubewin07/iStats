@@ -295,4 +295,39 @@ final class PanelScaffoldTests: XCTestCase {
         XCTAssertEqual(fit.width, Instrument.Size.panelWidth, accuracy: 2.0)
         XCTAssertGreaterThan(fit.height, 150)
     }
+
+    func testFanPanelActiveFansRendersCleanly() {
+        let (defaults, prefs, coord, suiteName) = makeContext()
+        defer { cleanup(defaults: defaults, suiteName: suiteName) }
+
+        coord.handleReading(.fan(Sample(value: FanSample(fans: [
+            FanReading(name: "Left Fan", rpm: 1450, minRPM: 1200, maxRPM: 5800),
+            FanReading(name: "Right Fan", rpm: 1520, minRPM: 1200, maxRPM: 6000)
+        ]))))
+
+        let view = FanPanel(coordinator: coord, preferences: prefs)
+        let hosting = NSHostingView(rootView: view)
+        hosting.frame = CGRect(x: 0, y: 0, width: Instrument.Size.panelWidth, height: 450)
+        hosting.layoutSubtreeIfNeeded()
+
+        let fit = hosting.fittingSize
+        XCTAssertEqual(fit.width, Instrument.Size.panelWidth, accuracy: 2.0)
+        XCTAssertGreaterThan(fit.height, 150)
+    }
+
+    func testFanPanelFanlessMacRendersEmptyStateWithAction() {
+        let (defaults, prefs, coord, suiteName) = makeContext()
+        defer { cleanup(defaults: defaults, suiteName: suiteName) }
+
+        coord.handleReading(.fan(Sample(value: FanSample(fans: []))))
+
+        let view = FanPanel(coordinator: coord, preferences: prefs)
+        let hosting = NSHostingView(rootView: view)
+        hosting.frame = CGRect(x: 0, y: 0, width: Instrument.Size.panelWidth, height: 350)
+        hosting.layoutSubtreeIfNeeded()
+
+        let fit = hosting.fittingSize
+        XCTAssertEqual(fit.width, Instrument.Size.panelWidth, accuracy: 2.0)
+        XCTAssertGreaterThan(fit.height, 100)
+    }
 }

@@ -110,6 +110,14 @@ public final class PanelController: NSObject {
         activePanel?.isVisible == true && currentCategory == category
     }
 
+    /// Swaps the active open panel to a different category (e.g. from Fanless state to Temperature).
+    public func swapToCategory(_ category: MetricCategory) {
+        guard let button = currentButton else { return }
+        show(category: category, relativeTo: button) {
+            PanelFactory.makeCategoryPanelView(category: category)
+        }
+    }
+
     // MARK: - Menu Tracking (F2)
 
     /// Instantly switches panels when the user hovers over another status item while a panel is open.
