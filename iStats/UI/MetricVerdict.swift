@@ -21,9 +21,24 @@ extension StatusLevel {
 public struct MetricVerdict: Sendable, Equatable {
     public let level: StatusLevel
     public let badgeText: String
-    public let dadSentence: String
+    public let headline: String
+    public var dadSentence: String { headline }
     public let primaryValue: String
     public let secondaryValue: String?
+
+    public init(
+        level: StatusLevel,
+        badgeText: String,
+        headline: String,
+        primaryValue: String,
+        secondaryValue: String? = nil
+    ) {
+        self.level = level
+        self.badgeText = badgeText
+        self.headline = headline
+        self.primaryValue = primaryValue
+        self.secondaryValue = secondaryValue
+    }
 
     public init(
         level: StatusLevel,
@@ -32,11 +47,7 @@ public struct MetricVerdict: Sendable, Equatable {
         primaryValue: String,
         secondaryValue: String? = nil
     ) {
-        self.level = level
-        self.badgeText = badgeText
-        self.dadSentence = dadSentence
-        self.primaryValue = primaryValue
-        self.secondaryValue = secondaryValue
+        self.init(level: level, badgeText: badgeText, headline: dadSentence, primaryValue: primaryValue, secondaryValue: secondaryValue)
     }
 }
 

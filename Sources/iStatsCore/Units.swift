@@ -112,6 +112,16 @@ public enum Units {
         return String(format: "%.\(fractionDigits)f %@", value, suffixes[index])
     }
 
+    /// Convenience SI byte formatter (1000 base).
+    public static func formatBytesSI(_ bytes: Int64, fractionDigits: Int = 1) -> String {
+        formatBytes(UInt64(max(0, bytes)), standard: .si, fractionDigits: fractionDigits)
+    }
+
+    /// Convenience IEC byte formatter (1024 base).
+    public static func formatBytesIEC(_ bytes: Int64, fractionDigits: Int = 1) -> String {
+        formatBytes(UInt64(max(0, bytes)), standard: .iec, fractionDigits: fractionDigits)
+    }
+
     /// Convert bytes-per-second to bits-per-second (network displays sometimes use bits).
     public static func bytesPerSecToBitsPerSec(_ bytesPerSec: Double) -> Double {
         bytesPerSec * 8.0
