@@ -330,4 +330,86 @@ final class PanelScaffoldTests: XCTestCase {
         XCTAssertEqual(fit.width, Instrument.Size.panelWidth, accuracy: 2.0)
         XCTAssertGreaterThan(fit.height, 100)
     }
+
+    func testNetworkPanelWiFiRendersCleanly() {
+        let (defaults, prefs, coord, suiteName) = makeContext()
+        defer { cleanup(defaults: defaults, suiteName: suiteName) }
+
+        let sample = NetworkSample(
+            interfaces: [
+                InterfaceThroughput(
+                    interfaceName: "en0",
+                    bytesInPerSec: 1_250_000,
+                    bytesOutPerSec: 250_000,
+                    totalBytesIn: 10_000_000,
+                    totalBytesOut: 2_000_000,
+                    ipv4Address: "192.168.1.50",
+                    type: .wifi
+                )
+            ],
+            primaryInterface: "en0",
+            primaryType: .wifi,
+            localIPv4: "192.168.1.50",
+            gatewayIPv4: "192.168.1.1",
+            primaryDNS: "1.1.1.1",
+            wifiDetails: WiFiLinkTelemetry(
+                ssid: "HomeNetwork-5G",
+                rssi: -55,
+                noise: -92,
+                txRate: 866.0,
+                channel: 36,
+                band: "5 GHz"
+            )
+        )
+        coord.handleReading(.network(Sample(value: sample)))
+
+        let view = NetworkPanel(coordinator: coord, preferences: prefs)
+        let hosting = NSHostingView(rootView: view)
+        hosting.frame = CGRect(x: 0, y: 0, width: Instrument.Size.panelWidth, height: 450)
+        hosting.layoutSubtreeIfNeeded()
+
+        let fit = hosting.fittingSize
+        XCTAssertEqual(fit.width, Instrument.Size.panelWidth, accuracy: 2.0)
+        XCTAssertGreaterThan(fit.height, 150)
+    }
+
+    func testNetworkPanelEthernetAndOfflineRendersCleanly() {
+        let (defaults, prefs, coord, suiteName) = makeContext()
+        defer { cleanup(defaults: defaults, suiteName: suiteName) }
+
+        // Test Ethernet
+        let ethSample = NetworkSample(
+            interfaces: [
+                InterfaceThroughput(
+                    interfaceName: "en1",
+                    bytesInPerSec: 50_000_000,
+                    bytesOutPerSec: 10_000_000,
+                    totalBytesIn: 500_000_000,
+                    totalBytesOut: 100_000_000,
+                    ipv4Address: "10.0.0.12",
+                    type: .ethernet
+                )
+            ],
+            primaryInterface: "en1",
+            primaryType: .ethernet,
+            localIPv4: "10.0.0.12"
+        )
+        coord.handleReading(.network(Sample(value: ethSample)))
+
+        let ethView = NetworkPanel(coordinator: coord, preferences: prefs)
+        let ethHosting = NSHostingView(rootView: ethView)
+        ethHosting.frame = CGRect(x: 0, y: 0, width: Instrument.Size.panelWidth, height: 450)
+        ethHosting.layoutSubtreeIfNeeded()
+        XCTAssertEqual(ethHosting.fittingSize.width, Instrument.Size.panelWidth, accuracy: 2.0)
+
+        // Test Offline
+        let offlineSample = NetworkSample(interfaces: [])
+        coord.handleReading(.network(Sample(value: offlineSample)))
+
+        let offlineView = NetworkPanel(coordinator: coord, preferences: prefs)
+        let offlineHosting = NSHostingView(rootView: offlineView)
+        offlineHosting.frame = CGRect(x: 0, y: 0, width: Instrument.Size.panelWidth, height: 450)
+        offlineHosting.layoutSubtreeIfNeeded()
+        XCTAssertEqual(offlineHosting.fittingSize.width, Instrument.Size.panelWidth, accuracy: 2.0)
+    }
 }

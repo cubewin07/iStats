@@ -12,9 +12,9 @@ The only status file. Agent specs (`AGENTS.md`, `CLAUDE.md`) and phase plans do 
 
 | Field | Value |
 |-------|--------|
-| Phase | **8** — Premium panel redesign (in progress; Task 8.8e done, 543 tests green) |
-| Next task | **8.8f** Network panel ([`tasks/8.8f`](./phases/phase-08-premium-redesign/tasks/8.8f-network-panel.md)) |
-| Last closed | **8.8e** Fans panel: Turbine + Fanless State |
+| Phase | **8** — Premium panel redesign (in progress; Task 8.8f done, 546 tests green) |
+| Next task | **8.8g** Disk panel ([`tasks/8.8g`](./phases/phase-08-premium-redesign/tasks/8.8g-disk-panel.md)) |
+| Last closed | **8.8f** Network panel: Mirrored Waveform + Link Card |
 | Blocked by | — |
 
 ---
@@ -105,6 +105,13 @@ Copy a row from [`docs/specs/tasks.md`](./specs/tasks.md) when you start it. Lea
 | 8.8c | GPU panel: Engine Rings (`GPUPanel`) | **done** | [`docs/handoffs/08-8.8c-summary.md`](./handoffs/08-8.8c-summary.md), `swift test` (219 passed), `xcodebuild test` (306 passed; 525 total) |
 | 8.8d | Temperature panel: Thermal Spectrum (`TemperaturePanel`, `SpectrumLayout`) | **done** | [`docs/handoffs/08-8.8d-summary.md`](./handoffs/08-8.8d-summary.md), `swift test` (226 passed), `xcodebuild test` (308 passed; 534 total) |
 | 8.8e | Fans panel: Turbine + Fanless State (`FanPanel`, `TurbineShape`, `FanMath`) | **done** | [`docs/handoffs/08-8.8e-summary.md`](./handoffs/08-8.8e-summary.md), `swift test` (233 passed), `xcodebuild test` (310 passed; 543 total) |
+| 8.8f | Network panel: Mirrored Waveform + Link Card (`NetworkPanel`, `SignalBarsView`) | **done** | [`docs/handoffs/08-8.8f-summary.md`](./handoffs/08-8.8f-summary.md), `swift test` (234 passed), `xcodebuild test` (312 passed; 546 total) |
+| 8.8g | Disk panel: Storage Bar + I/O Waveform | pending | [`tasks/8.8g-disk-panel.md`](./phases/phase-08-premium-redesign/tasks/8.8g-disk-panel.md) |
+| 8.8h | Power panel: Battery Glyph + Power Flow | pending | [`tasks/8.8h-power-panel.md`](./phases/phase-08-premium-redesign/tasks/8.8h-power-panel.md) |
+| 8.9 | Top consumers (`ProcessSampler`, background `libproc`) | pending | [`tasks/8.9-top-consumers.md`](./phases/phase-08-premium-redesign/tasks/8.9-top-consumers.md) |
+| 8.10 | History v2: range control, annotations, scrub, channel isolation | pending | [`tasks/8.10-history-v2.md`](./phases/phase-08-premium-redesign/tasks/8.10-history-v2.md) |
+| 8.11 | Accessibility & appearance matrix | pending | [`tasks/8.11-accessibility-appearance-matrix.md`](./phases/phase-08-premium-redesign/tasks/8.11-accessibility-appearance-matrix.md) |
+| 8.12 | Performance budget, legacy deletion, docs sync, report | pending | [`tasks/8.12-performance-cleanup-report.md`](./phases/phase-08-premium-redesign/tasks/8.12-performance-cleanup-report.md) |
 
 When a task is done, set Status to `done` and put the handoff summary path (or test command) in Evidence.
 

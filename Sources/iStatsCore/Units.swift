@@ -216,6 +216,28 @@ public enum Units {
         }
     }
 
+    /// Splits a transfer rate into numerical value, unit string, and format specifier for dynamic LiveNumber displays.
+    public static func rateComponents(
+        _ bytesPerSec: Double,
+        unit: NetworkUnit = .bytesPerSecond,
+        standard: ByteUnitStandard = .iec
+    ) -> (value: Double, unit: String, format: String) {
+        guard bytesPerSec.isFinite && !bytesPerSec.isNaN && bytesPerSec >= 0 else {
+            return (0.0, unit == .bytesPerSecond ? "B/s" : "bps", "%.0f")
+        }
+        let base: Double = (unit == .bytesPerSecond && standard == .si) || unit == .bitsPerSecond ? 1000.0 : 1024.0
+        let effectiveVal = unit == .bitsPerSecond ? bytesPerSecToBitsPerSec(bytesPerSec) : bytesPerSec
+        var value = max(0.0, effectiveVal)
+        var index = 0
+        let suffixes = unit == .bitsPerSecond ? bitPerSecSuffixes : (standard == .si ? bytePerSecSiSuffixes : bytePerSecIecSuffixes)
+        while value >= base && index < suffixes.count - 1 {
+            value /= base
+            index += 1
+        }
+        let format = (index > 0 && value < 10.0) ? "%.1f" : "%.0f"
+        return (value, suffixes[index], format)
+    }
+
     // MARK: Frequency
 
     private static let hzSuffixes = ["Hz", "kHz", "MHz", "GHz", "THz"]
