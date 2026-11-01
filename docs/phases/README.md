@@ -28,6 +28,7 @@ Each phase folder is a self-contained module containing:
 | **4** | [`phase-04-battery-power`](./phase-04-battery-power/) | Battery & Power | IOPowerSources, AppleSmartBattery | Med | Battery health matches `system_profiler`/`pmset` |
 | **5** | [`phase-05-thermal-fan-gpu`](./phase-05-thermal-fan-gpu/) | Thermal, Fan & GPU | AppleSMC, IOKit, IOReport | **High** | Spike done; available sensors validated vs `powermetrics`; ADR 0003 finalized |
 | **6** | [`phase-06-polish-prefs`](./phase-06-polish-prefs/) | Polish & Preferences | SwiftUI, SMAppService | Low–Med | All prefs persist; footprint measured; docs finalized |
+| **8** | [`phase-08-premium-redesign`](./phase-08-premium-redesign/) | Premium Panel Redesign ("Instrument") | NSPanel, SwiftUI Canvas/TimelineView, Liquid Glass (gated), libproc | Med–High | Glass panel shell, signature instrument per category, perf budget met, a11y matrix signed off |
 
 ---
 

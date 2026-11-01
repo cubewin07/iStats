@@ -12,8 +12,8 @@ The only status file. Agent specs (`AGENTS.md`, `CLAUDE.md`) and phase plans do 
 
 | Field | Value |
 |-------|--------|
-| Phase | **Complete** (Phases 0–7 done, all 472 tests green) |
-| Next task | — |
+| Phase | **8** — Premium panel redesign (planned; Phases 0–7 done, 472 tests green) |
+| Next task | **8.0** ADR 0009 "Instrument" design language + API spike ([`tasks/8.0`](./phases/phase-08-premium-redesign/tasks/8.0-adr-0009-and-spike.md)) |
 | Last closed | **7.7** Final cleanup, doc sync, and test validation (zero legacy popover debt) |
 | Blocked by | — |
 
@@ -31,6 +31,7 @@ The only status file. Agent specs (`AGENTS.md`, `CLAUDE.md`) and phase plans do 
 | 5 | Thermal, fan, GPU | **done** | ThermalSampler, FanSampler, GPUSampler, ADR 0003, ADR 0004, ADR 0005, and Phase 5 report complete. Live AppleSMC & IOKit accelerator telemetry validated on Apple Silicon. |
 | 6 | Polish & preferences | **done** | Full preferences (General, Categories, Units), 8 menu bar modes, SMAppService launch-at-login, Dock icon toggle, ADR 0006 zero-telemetry persistence, performance benchmark pass, docs/ADRs finalized, and `report.md` complete. |
 | 7 | Widget & popover redesign | **done** | ADR 0008, 32 high-signal widgets, 8 purpose-driven popovers (23 tabs), in-memory scalar history with spike-preserving downsampling (Task 7.6, 154 KB), design tokens & primitives, 20 legacy files deleted, report complete. 472 tests passing. |
+| 8 | Premium panel redesign ("Instrument") | **not started** | Plan: [`phase-08-premium-redesign/plan.md`](./phases/phase-08-premium-redesign/plan.md). Glass panel shell, design language v2, LiveChart, signature instrument per category, InsightEngine, top consumers, History v2. |
 
 Status values: `not started` · `in progress` · `docs on disk, not closed` · `done` · `blocked`.
 
