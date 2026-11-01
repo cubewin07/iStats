@@ -1,23 +1,6 @@
 import SwiftUI
 import iStatsCore
 
-/// Selectable time range windows for history graphs (Task 7.5, Task 7.6).
-public enum HistoryTimeRange: String, CaseIterable, Identifiable, Sendable {
-    case oneMinute = "1m"
-    case fiveMinutes = "5m"
-    case fifteenMinutes = "15m"
-
-    public var id: String { rawValue }
-
-    public var durationSeconds: Double {
-        switch self {
-        case .oneMinute: return 60
-        case .fiveMinutes: return 300
-        case .fifteenMinutes: return 900
-        }
-    }
-}
-
 /// Unified History tab view used across all 8 category popovers (ADR 0008, Task 7.5).
 /// Features a time range selector, high-signal 140 pt vector TrendChart with hover scrubber,
 /// and Min / Avg / Max / Now statistics.

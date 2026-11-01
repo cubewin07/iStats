@@ -76,7 +76,7 @@ public struct PowerPanel: View {
             case .detail:
                 healthPage(sample: sample)
             case .history:
-                HistoryTab(category: .power, coordinator: coordinator, preferences: preferences)
+                HistoryPage(category: .power, coordinator: coordinator, preferences: preferences)
             }
         }
     }

@@ -73,7 +73,7 @@ public struct TemperaturePanel: View {
             case .detail:
                 detailPage(sample: sample)
             case .history:
-                historyPage(sample: sample)
+                HistoryPage(category: .thermal, coordinator: coordinator, preferences: preferences)
             }
         }
         .onChange(of: selectedTab) { newTab in
@@ -319,25 +319,7 @@ public struct TemperaturePanel: View {
             }
     }
 
-    // MARK: - History Page
 
-    @ViewBuilder
-    private func historyPage(sample: ThermalSample?) -> some View {
-        Module(eyebrow: "Extended Thermal Trends") {
-            VStack(alignment: .leading, spacing: 8) {
-                MetricRow(
-                    label: "Sampling Window",
-                    valueText: "Active 60s Buffer"
-                )
-                if let peakC = coordinator.scalarHistory(for: .thermalPeakCelsius, duration: 60).max() {
-                    MetricRow(
-                        label: "Peak System Temp",
-                        valueText: Units.formatTemperature(peakC, unit: preferences.temperatureUnit, fractionDigits: 1)
-                    )
-                }
-            }
-        }
-    }
 }
 
 #if DEBUG

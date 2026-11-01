@@ -57,6 +57,7 @@ public struct PanelScaffold<Content: View>: View {
     @ViewBuilder public let content: (PopoverTab) -> Content
 
     @State private var scrubSummary: String? = nil
+    @Namespace private var chartNamespace
 
     public init(
         category: MetricCategory,
@@ -131,6 +132,7 @@ public struct PanelScaffold<Content: View>: View {
         }
         .padding(Instrument.Space.xl)
         .frame(width: Instrument.Size.panelWidth)
+        .environment(\.chartNamespace, chartNamespace)
         .onReceive(NotificationCenter.default.publisher(for: .panelCommandReceived)) { notification in
             if let cmd = notification.object as? PanelCommand {
                 handleCommand(cmd)
@@ -314,6 +316,9 @@ public struct PanelScaffold<Content: View>: View {
             if let avail = availability, !avail.isAvailable {
                 Color.clear
                     .frame(height: 12)
+            } else if selection == .history {
+                Color.clear
+                    .frame(height: 0)
             } else if let mode = glance.chartMode {
                 LiveChart(
                     category: category,
@@ -328,6 +333,7 @@ public struct PanelScaffold<Content: View>: View {
                         }
                     }
                 )
+                .matchedGeometryEffect(id: "panelChart-\(category.rawValue)", in: chartNamespace)
                 .opacity(isPaused ? 0.4 : 1.0)
             } else {
                 Color.clear
@@ -451,3 +457,17 @@ public struct PanelScaffold<Content: View>: View {
         }
     }
 }
+
+// MARK: - Chart Namespace Environment
+
+private struct ChartNamespaceKey: EnvironmentKey {
+    static let defaultValue: Namespace.ID? = nil
+}
+
+extension EnvironmentValues {
+    public var chartNamespace: Namespace.ID? {
+        get { self[ChartNamespaceKey.self] }
+        set { self[ChartNamespaceKey.self] = newValue }
+    }
+}
+

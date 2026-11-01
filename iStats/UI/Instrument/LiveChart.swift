@@ -74,6 +74,10 @@ public struct LiveChart: View {
     public var sampleIntervalSeconds: Double
     public var showAverageLine: Bool
     public var showPeakMarker: Bool
+    public var showAxisTicks: Bool
+    public var valueFormatter: ((Double) -> String)?
+    public var isolatedChannel: Int?
+    public var scrubIndex: Int?
     public var onScrub: ((_ index: Int?, _ value: Double?, _ secondsAgo: Double?) -> Void)?
 
     @State private var hoverLocation: CGPoint?
@@ -89,6 +93,10 @@ public struct LiveChart: View {
         sampleIntervalSeconds: Double = 1.0,
         showAverageLine: Bool = false,
         showPeakMarker: Bool = false,
+        showAxisTicks: Bool = false,
+        valueFormatter: ((Double) -> String)? = nil,
+        isolatedChannel: Int? = nil,
+        scrubIndex: Int? = nil,
         onScrub: ((_ index: Int?, _ value: Double?, _ secondsAgo: Double?) -> Void)? = nil
     ) {
         self.category = category
@@ -97,7 +105,39 @@ public struct LiveChart: View {
         self.sampleIntervalSeconds = sampleIntervalSeconds
         self.showAverageLine = showAverageLine
         self.showPeakMarker = showPeakMarker
+        self.showAxisTicks = showAxisTicks
+        self.valueFormatter = valueFormatter
+        self.isolatedChannel = isolatedChannel
+        self.scrubIndex = scrubIndex
         self.onScrub = onScrub
+    }
+
+    public var resolvedPrimaryValues: [Double] {
+        if let iso = isolatedChannel {
+            switch mode {
+            case .stacked(let p, let s, _, _, _):
+                return iso == 1 ? s : p
+            case .mirrored(let top, let bot, _, _, _, _, _):
+                return iso == 1 ? bot : top
+            default:
+                return mode.primaryValues
+            }
+        }
+        return mode.primaryValues
+    }
+
+    public var resolvedPrimaryColor: Color {
+        if let iso = isolatedChannel {
+            switch mode {
+            case .stacked(_, _, let p, let s, _):
+                return iso == 1 ? s : p
+            case .mirrored(_, _, let top, let bot, _, _, _):
+                return iso == 1 ? bot : top
+            default:
+                return mode.primaryColor
+            }
+        }
+        return mode.primaryColor
     }
 
     public var body: some View {
@@ -117,8 +157,14 @@ public struct LiveChart: View {
                 }
 
                 // Interactive Crosshair & Scrub Lens
-                if let hover = hoverLocation, let index = hoveredIndex {
-                    crosshairOverlay(x: hover.x, index: index, width: width, height: chartHeight)
+                let activeIndex = hoveredIndex ?? scrubIndex
+                if let index = activeIndex {
+                    let values = resolvedPrimaryValues
+                    if index < values.count {
+                        let dx = width / CGFloat(max(1, values.count - 1))
+                        let x = hoverLocation?.x ?? (CGFloat(index) * dx)
+                        crosshairOverlay(x: x, index: index, width: width, height: chartHeight)
+                    }
                 }
             }
             .mask(
@@ -169,6 +215,9 @@ public struct LiveChart: View {
             switch mode {
             case .single(let values, let color, let deep, let fixedMax):
                 let maxBound = LiveChartMath.computeMaxBound(values: values, fixedMax: fixedMax)
+                if showAxisTicks {
+                    drawAxisTicks(context: &context, maxBound: maxBound, width: w, height: h)
+                }
                 drawSingleSeries(
                     context: &context,
                     values: values,
@@ -183,6 +232,9 @@ public struct LiveChart: View {
             case .stacked(let primary, let secondary, let pColor, let sColor, let fixedMax):
                 let totals = zip(primary, secondary).map(+)
                 let maxBound = LiveChartMath.computeMaxBound(values: totals, fixedMax: fixedMax)
+                if showAxisTicks {
+                    drawAxisTicks(context: &context, maxBound: maxBound, width: w, height: h)
+                }
                 drawStackedSeries(
                     context: &context,
                     primary: primary,
@@ -198,6 +250,9 @@ public struct LiveChart: View {
             case .mirrored(let top, let bot, let topColor, let botColor, _, _, let fixedMax):
                 let combinedMax = max(top.max() ?? 0.0, bot.max() ?? 0.0)
                 let maxBound = LiveChartMath.computeMaxBound(values: [combinedMax], fixedMax: fixedMax)
+                if showAxisTicks {
+                    drawAxisTicks(context: &context, maxBound: maxBound, width: w, height: h)
+                }
                 drawMirroredSeries(
                     context: &context,
                     top: top,
@@ -212,6 +267,9 @@ public struct LiveChart: View {
 
             case .banded(let values, let bands, let fixedMax):
                 let maxBound = LiveChartMath.computeMaxBound(values: values, fixedMax: fixedMax)
+                if showAxisTicks {
+                    drawAxisTicks(context: &context, maxBound: maxBound, width: w, height: h)
+                }
                 drawBandedSeries(
                     context: &context,
                     values: values,
@@ -326,6 +384,20 @@ public struct LiveChart: View {
             peakPath.addLine(to: CGPoint(x: markerRect.minX, y: markerRect.maxY))
             peakPath.closeSubpath()
             context.fill(peakPath, with: .color(color))
+
+            let peakVal = values[peakIdx]
+            let labelText = valueFormatter?(peakVal) ?? String(format: "%.0f", peakVal)
+            let isNearRight = peakPoint.x > width - 45
+            let isNearLeft = peakPoint.x < 35
+            let anchor: UnitPoint = isNearRight ? .topTrailing : (isNearLeft ? .topLeading : .bottom)
+            let labelY = isNearRight || isNearLeft ? peakPoint.y - 18 : peakPoint.y - 14
+            context.draw(
+                Text(labelText)
+                    .font(Instrument.Typography.micro)
+                    .foregroundColor(color),
+                at: CGPoint(x: peakPoint.x, y: labelY),
+                anchor: anchor
+            )
         }
 
         // 5. Live Head Dot (5 pt with pulse ring)
@@ -374,6 +446,9 @@ public struct LiveChart: View {
         let totalSegments = LiveChartMath.smoothSegments(points: totalPoints)
         let primarySegments = LiveChartMath.smoothSegments(points: primaryPoints)
 
+        let primaryOpacity = (isolatedChannel == 1 ? 0.15 : 1.0)
+        let secondaryOpacity = (isolatedChannel == 0 ? 0.15 : 1.0)
+
         // Fill secondary (total to primary)
         var totalFill = Path()
         if let first = totalSegments.first {
@@ -386,7 +461,7 @@ public struct LiveChart: View {
                 totalFill.addLine(to: CGPoint(x: last.end.x, y: height))
             }
             totalFill.closeSubpath()
-            context.fill(totalFill, with: .color(secondaryColor.opacity(0.24)))
+            context.fill(totalFill, with: .color(secondaryColor.opacity(0.24 * secondaryOpacity)))
         }
 
         // Fill primary (primary to bottom)
@@ -401,7 +476,7 @@ public struct LiveChart: View {
                 primaryFill.addLine(to: CGPoint(x: last.end.x, y: height))
             }
             primaryFill.closeSubpath()
-            context.fill(primaryFill, with: .color(primaryColor.opacity(0.35)))
+            context.fill(primaryFill, with: .color(primaryColor.opacity(0.35 * primaryOpacity)))
         }
 
         // Stroke primary line
@@ -411,7 +486,7 @@ public struct LiveChart: View {
             for seg in primarySegments {
                 pStroke.addCurve(to: CGPoint(x: seg.end.x, y: seg.end.y), control1: CGPoint(x: seg.control1.x, y: seg.control1.y), control2: CGPoint(x: seg.control2.x, y: seg.control2.y))
             }
-            context.stroke(pStroke, with: .color(primaryColor), style: StrokeStyle(lineWidth: 1.5, lineCap: .round, lineJoin: .round))
+            context.stroke(pStroke, with: .color(primaryColor.opacity(primaryOpacity)), style: StrokeStyle(lineWidth: 1.5, lineCap: .round, lineJoin: .round))
         }
 
         // Stroke total line
@@ -421,7 +496,52 @@ public struct LiveChart: View {
             for seg in totalSegments {
                 tStroke.addCurve(to: CGPoint(x: seg.end.x, y: seg.end.y), control1: CGPoint(x: seg.control1.x, y: seg.control1.y), control2: CGPoint(x: seg.control2.x, y: seg.control2.y))
             }
-            context.stroke(tStroke, with: .color(secondaryColor), style: StrokeStyle(lineWidth: 1.5, lineCap: .round, lineJoin: .round))
+            context.stroke(tStroke, with: .color(secondaryColor.opacity(secondaryOpacity)), style: StrokeStyle(lineWidth: 1.5, lineCap: .round, lineJoin: .round))
+        }
+
+        // Optional Average line
+        if showAverageLine {
+            let activeSeries = resolvedPrimaryValues
+            if let stats = LiveChartMath.computeStats(for: activeSeries) {
+                let avgY = height * CGFloat(1.0 - (stats.avg / maxBound))
+                var avgPath = Path()
+                avgPath.move(to: CGPoint(x: 0, y: avgY))
+                avgPath.addLine(to: CGPoint(x: width, y: avgY))
+                context.stroke(
+                    avgPath,
+                    with: .color(resolvedPrimaryColor.opacity(0.4)),
+                    style: StrokeStyle(lineWidth: 1.0, dash: [4, 4])
+                )
+            }
+        }
+
+        // Optional Peak marker ▲
+        if showPeakMarker {
+            let activeSeries = resolvedPrimaryValues
+            if let peakIdx = LiveChartMath.peakIndex(values: activeSeries), peakIdx < totalPoints.count {
+                let peakPoint = (isolatedChannel == 1 ? totalPoints[peakIdx] : primaryPoints[peakIdx])
+                let markerRect = CGRect(x: peakPoint.x - 4, y: peakPoint.y - 10, width: 8, height: 6)
+                var peakPath = Path()
+                peakPath.move(to: CGPoint(x: markerRect.midX, y: markerRect.minY))
+                peakPath.addLine(to: CGPoint(x: markerRect.maxX, y: markerRect.maxY))
+                peakPath.addLine(to: CGPoint(x: markerRect.minX, y: markerRect.maxY))
+                peakPath.closeSubpath()
+                context.fill(peakPath, with: .color(resolvedPrimaryColor))
+
+                let peakVal = activeSeries[peakIdx]
+                let labelText = valueFormatter?(peakVal) ?? String(format: "%.0f", peakVal)
+                let isNearRight = peakPoint.x > width - 45
+                let isNearLeft = peakPoint.x < 35
+                let anchor: UnitPoint = isNearRight ? .topTrailing : (isNearLeft ? .topLeading : .bottom)
+                let labelY = isNearRight || isNearLeft ? peakPoint.y - 18 : peakPoint.y - 14
+                context.draw(
+                    Text(labelText)
+                        .font(Instrument.Typography.micro)
+                        .foregroundColor(resolvedPrimaryColor),
+                    at: CGPoint(x: peakPoint.x, y: labelY),
+                    anchor: anchor
+                )
+            }
         }
     }
 
@@ -463,6 +583,9 @@ public struct LiveChart: View {
         let topSegments = LiveChartMath.smoothSegments(points: topPoints)
         let bottomSegments = LiveChartMath.smoothSegments(points: bottomPoints)
 
+        let topOpacity = (isolatedChannel == 1 ? 0.15 : 1.0)
+        let bottomOpacity = (isolatedChannel == 0 ? 0.15 : 1.0)
+
         // Midline separator
         var midLine = Path()
         midLine.move(to: CGPoint(x: 0, y: midY))
@@ -481,7 +604,7 @@ public struct LiveChart: View {
                 topFill.addLine(to: CGPoint(x: last.end.x, y: midY))
             }
             topFill.closeSubpath()
-            context.fill(topFill, with: .color(topColor.opacity(0.24)))
+            context.fill(topFill, with: .color(topColor.opacity(0.24 * topOpacity)))
         }
 
         var topStroke = Path()
@@ -490,7 +613,7 @@ public struct LiveChart: View {
             for seg in topSegments {
                 topStroke.addCurve(to: CGPoint(x: seg.end.x, y: seg.end.y), control1: CGPoint(x: seg.control1.x, y: seg.control1.y), control2: CGPoint(x: seg.control2.x, y: seg.control2.y))
             }
-            context.stroke(topStroke, with: .color(topColor), style: StrokeStyle(lineWidth: 1.5, lineCap: .round, lineJoin: .round))
+            context.stroke(topStroke, with: .color(topColor.opacity(topOpacity)), style: StrokeStyle(lineWidth: 1.5, lineCap: .round, lineJoin: .round))
         }
 
         // Bottom fill and stroke
@@ -505,7 +628,7 @@ public struct LiveChart: View {
                 botFill.addLine(to: CGPoint(x: last.end.x, y: midY))
             }
             botFill.closeSubpath()
-            context.fill(botFill, with: .color(bottomColor.opacity(0.24)))
+            context.fill(botFill, with: .color(bottomColor.opacity(0.24 * bottomOpacity)))
         }
 
         var botStroke = Path()
@@ -514,7 +637,62 @@ public struct LiveChart: View {
             for seg in bottomSegments {
                 botStroke.addCurve(to: CGPoint(x: seg.end.x, y: seg.end.y), control1: CGPoint(x: seg.control1.x, y: seg.control1.y), control2: CGPoint(x: seg.control2.x, y: seg.control2.y))
             }
-            context.stroke(botStroke, with: .color(bottomColor), style: StrokeStyle(lineWidth: 1.5, lineCap: .round, lineJoin: .round))
+            context.stroke(botStroke, with: .color(bottomColor.opacity(bottomOpacity)), style: StrokeStyle(lineWidth: 1.5, lineCap: .round, lineJoin: .round))
+        }
+
+        // Optional Average line
+        if showAverageLine {
+            let activeSeries = resolvedPrimaryValues
+            if let stats = LiveChartMath.computeStats(for: activeSeries) {
+                let isBottom = (isolatedChannel == 1)
+                let avgYFrac = CGFloat(stats.avg / maxBound)
+                let avgY = isBottom ? midY + (halfHeight * avgYFrac) : midY - (halfHeight * avgYFrac)
+                var avgPath = Path()
+                avgPath.move(to: CGPoint(x: 0, y: avgY))
+                avgPath.addLine(to: CGPoint(x: width, y: avgY))
+                context.stroke(
+                    avgPath,
+                    with: .color(resolvedPrimaryColor.opacity(0.4)),
+                    style: StrokeStyle(lineWidth: 1.0, dash: [4, 4])
+                )
+            }
+        }
+
+        // Optional Peak marker ▲
+        if showPeakMarker {
+            let activeSeries = resolvedPrimaryValues
+            let isBottom = (isolatedChannel == 1)
+            let points = isBottom ? bottomPoints : topPoints
+            if let peakIdx = LiveChartMath.peakIndex(values: activeSeries), peakIdx < points.count {
+                let peakPoint = points[peakIdx]
+                let markerRect = CGRect(x: peakPoint.x - 4, y: isBottom ? peakPoint.y + 4 : peakPoint.y - 10, width: 8, height: 6)
+                var peakPath = Path()
+                if isBottom {
+                    peakPath.move(to: CGPoint(x: markerRect.midX, y: markerRect.maxY))
+                    peakPath.addLine(to: CGPoint(x: markerRect.maxX, y: markerRect.minY))
+                    peakPath.addLine(to: CGPoint(x: markerRect.minX, y: markerRect.minY))
+                } else {
+                    peakPath.move(to: CGPoint(x: markerRect.midX, y: markerRect.minY))
+                    peakPath.addLine(to: CGPoint(x: markerRect.maxX, y: markerRect.maxY))
+                    peakPath.addLine(to: CGPoint(x: markerRect.minX, y: markerRect.maxY))
+                }
+                peakPath.closeSubpath()
+                context.fill(peakPath, with: .color(resolvedPrimaryColor))
+
+                let peakVal = activeSeries[peakIdx]
+                let labelText = valueFormatter?(peakVal) ?? String(format: "%.0f", peakVal)
+                let isNearRight = peakPoint.x > width - 45
+                let isNearLeft = peakPoint.x < 35
+                let anchor: UnitPoint = isNearRight ? (isBottom ? .bottomTrailing : .topTrailing) : (isNearLeft ? (isBottom ? .bottomLeading : .topLeading) : (isBottom ? .top : .bottom))
+                let labelY = isBottom ? peakPoint.y + 14 : peakPoint.y - 14
+                context.draw(
+                    Text(labelText)
+                        .font(Instrument.Typography.micro)
+                        .foregroundColor(resolvedPrimaryColor),
+                    at: CGPoint(x: peakPoint.x, y: labelY),
+                    anchor: anchor
+                )
+            }
         }
     }
 
@@ -552,17 +730,53 @@ public struct LiveChart: View {
         )
     }
 
+    private func drawAxisTicks(
+        context: inout GraphicsContext,
+        maxBound: Double,
+        width: CGFloat,
+        height: CGFloat
+    ) {
+        guard maxBound > 0 else { return }
+        let ticks = LiveChartMath.niceTicks(max: maxBound, count: 3).filter { $0 > 0 && $0 <= maxBound }
+        for tick in ticks {
+            let yFraction = CGFloat(tick / maxBound)
+            let y = height * (1.0 - yFraction)
+
+            var gridPath = Path()
+            gridPath.move(to: CGPoint(x: 0, y: y))
+            gridPath.addLine(to: CGPoint(x: width - 36, y: y))
+            context.stroke(
+                gridPath,
+                with: .color(Color.primary.opacity(0.06)),
+                style: StrokeStyle(lineWidth: 0.5, dash: [3, 4])
+            )
+
+            let label = valueFormatter?(tick) ?? String(format: "%.0f", tick)
+            context.draw(
+                Text(label)
+                    .font(Instrument.Typography.micro)
+                    .foregroundColor(.secondary.opacity(0.55)),
+                at: CGPoint(x: width - 2, y: y),
+                anchor: .trailing
+            )
+        }
+    }
+
     // MARK: - Interaction & Crosshair Lens
 
     @ViewBuilder
     private func crosshairOverlay(x: CGFloat, index: Int, width: CGFloat, height: CGFloat) -> some View {
-        let values = mode.primaryValues
+        let values = resolvedPrimaryValues
         if index < values.count {
             let val = values[index]
             let maxBound = LiveChartMath.computeMaxBound(values: values)
             let yFrac = CGFloat(max(0.0, min(maxBound, val)) / max(maxBound, 0.001))
             let pointY = height * (1.0 - yFrac)
-            let color = mode.primaryColor
+            let color = resolvedPrimaryColor
+
+            let secondsAgo = Double(values.count - 1 - index) * sampleIntervalSeconds
+            let timeStr = formatRelativeTime(secondsAgo)
+            let valStr = valueFormatter?(val) ?? String(format: "%.1f", val)
 
             ZStack(alignment: .topLeading) {
                 // Vertical crosshair hair line
@@ -580,7 +794,39 @@ public struct LiveChart: View {
                             .stroke(Color.white, lineWidth: 1.5)
                     )
                     .position(x: x, y: pointY)
+
+                // Relative time lens readout
+                HStack(spacing: 3) {
+                    Text(timeStr)
+                        .foregroundColor(.secondary)
+                    Text("·")
+                        .foregroundColor(.secondary.opacity(0.6))
+                    Text(valStr)
+                        .foregroundColor(.primary)
+                }
+                .font(Instrument.Typography.micro)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2.5)
+                .background(
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(Color(nsColor: .windowBackgroundColor).opacity(0.92))
+                        .shadow(color: .black.opacity(0.2), radius: 2, y: 1)
+                )
+                .position(x: min(max(x, 48), width - 48), y: max(12, pointY - 16))
             }
+        }
+    }
+
+    private func formatRelativeTime(_ seconds: Double) -> String {
+        let sec = Int(seconds.rounded())
+        if sec <= 0 {
+            return "now"
+        } else if sec < 60 {
+            return "\(sec)s ago"
+        } else {
+            let m = sec / 60
+            let s = sec % 60
+            return s == 0 ? "\(m)m ago" : "\(m)m \(s)s ago"
         }
     }
 
@@ -588,7 +834,7 @@ public struct LiveChart: View {
         switch phase {
         case .active(let loc):
             hoverLocation = loc
-            let values = mode.primaryValues
+            let values = resolvedPrimaryValues
             guard !values.isEmpty else { return }
             let idx = LiveChartMath.hoverIndex(for: Double(loc.x), totalWidth: Double(width), count: values.count)
             hoveredIndex = idx
@@ -617,10 +863,11 @@ public struct LiveChart: View {
     }
 
     private func copyScrubbedValue() {
-        let values = mode.primaryValues
-        guard let idx = hoveredIndex, idx < values.count else { return }
-        let val = values[idx]
-        let formatted = String(format: "%.1f", val)
+        let values = resolvedPrimaryValues
+        let idx = hoveredIndex ?? scrubIndex
+        guard let validIdx = idx, validIdx < values.count else { return }
+        let val = values[validIdx]
+        let formatted = valueFormatter?(val) ?? String(format: "%.1f", val)
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(formatted, forType: .string)
     }

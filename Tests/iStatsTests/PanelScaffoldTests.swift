@@ -511,4 +511,62 @@ final class PanelScaffoldTests: XCTestCase {
         XCTAssertEqual(fit.width, Instrument.Size.panelWidth, accuracy: 2.0)
         XCTAssertGreaterThan(fit.height, 100)
     }
+
+    func testHistoryPageRendersAcrossAll8Categories() {
+        let (defaults, prefs, coord, suiteName) = makeContext()
+        defer { cleanup(defaults: defaults, suiteName: suiteName) }
+
+        // Populate 15 samples per category to exceed empty state threshold
+        for i in 0..<15 {
+            let usage = 20.0 + Double(i) * 2.0
+            coord.handleReading(.cpu(Sample(value: CPUSample(totalUsage: usage, perCore: [usage, usage], user: usage * 0.6, system: usage * 0.4, idle: 100 - usage))))
+            coord.handleReading(.memory(Sample(value: MemorySample(total: 16 * 1024 * 1024 * 1024, used: 8 * 1024 * 1024 * 1024, free: 8 * 1024 * 1024 * 1024, wired: 2 * 1024 * 1024 * 1024, compressed: 1 * 1024 * 1024 * 1024, cached: 2 * 1024 * 1024 * 1024, swapUsed: 0, pressure: .normal))))
+            coord.handleReading(.gpu(Sample(value: GPUSample(utilization: usage, memoryUsed: 1024, tempCelsius: 52.0, powerWatts: 8.0))))
+            coord.handleReading(.thermal(Sample(value: ThermalSample(sensors: [SensorReading(name: "CPU Core", celsius: 50.0 + Double(i))], pressure: .nominal))))
+            coord.handleReading(.fan(Sample(value: FanSample(fans: [FanReading(name: "Left Fan", rpm: 1800 + i * 10, minRPM: 1200, maxRPM: 5500)]))))
+            coord.handleReading(.network(Sample(value: NetworkSample(interfaces: [InterfaceThroughput(interfaceName: "en0", bytesInPerSec: 5000000 + Double(i * 1000), bytesOutPerSec: 1200000, totalBytesIn: 10000000, totalBytesOut: 2000000)]))))
+            coord.handleReading(.disk(Sample(value: DiskSample(volumes: [VolumeCapacity(name: "Macintosh HD", mountPoint: "/", total: 500_000_000_000, used: 250_000_000_000, free: 250_000_000_000)], io: DiskIO(bytesReadPerSec: 5000000 + Double(i * 1000), bytesWrittenPerSec: 2000000, readOpsPerSec: 100, writeOpsPerSec: 50)))))
+            coord.handleReading(.power(Sample(value: PowerSample(hasBattery: true, charge: 90.0, state: .charging, timeRemaining: 3600, powerDrawWatts: 25.0 + Double(i)))))
+        }
+
+        for category in MetricCategory.allCases {
+            let view = HistoryPage(category: category, coordinator: coord, preferences: prefs)
+            let hosting = NSHostingView(rootView: view)
+            hosting.frame = CGRect(x: 0, y: 0, width: Instrument.Size.panelWidth, height: 300)
+            hosting.layoutSubtreeIfNeeded()
+
+            let fit = hosting.fittingSize
+            XCTAssertGreaterThan(fit.height, 50, "HistoryPage for \(category) should render with height > 50pt")
+        }
+    }
+
+    func testHistoryRangePersistenceAndSwitching() {
+        let (defaults, prefs, _, suiteName) = makeContext()
+        defer { cleanup(defaults: defaults, suiteName: suiteName) }
+
+        XCTAssertEqual(prefs.historyRange(for: .cpu), .oneMinute)
+        prefs.setHistoryRange(.fiveMinutes, for: .cpu)
+        XCTAssertEqual(prefs.historyRange(for: .cpu), .fiveMinutes)
+        prefs.setHistoryRange(.fifteenMinutes, for: .network)
+        XCTAssertEqual(prefs.historyRange(for: .network), .fifteenMinutes)
+        XCTAssertEqual(prefs.historyRange(for: .cpu), .fiveMinutes)
+    }
+
+    func testHistoryPageEmptyStateBelow10Samples() {
+        let (defaults, prefs, coord, suiteName) = makeContext()
+        defer { cleanup(defaults: defaults, suiteName: suiteName) }
+
+        // Only 3 samples
+        for i in 0..<3 {
+            coord.handleReading(.cpu(Sample(value: CPUSample(totalUsage: 25.0, perCore: [25.0], user: 15.0, system: 10.0, idle: 75.0))))
+        }
+
+        let view = HistoryPage(category: .cpu, coordinator: coord, preferences: prefs)
+        let hosting = NSHostingView(rootView: view)
+        hosting.frame = CGRect(x: 0, y: 0, width: Instrument.Size.panelWidth, height: 300)
+        hosting.layoutSubtreeIfNeeded()
+
+        let fit = hosting.fittingSize
+        XCTAssertGreaterThan(fit.height, 50)
+    }
 }

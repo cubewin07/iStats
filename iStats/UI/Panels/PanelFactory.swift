@@ -469,14 +469,7 @@ public struct PanelHostView: View {
                 }
             }
         case .history:
-            Module(eyebrow: "Extended History") {
-                VStack(spacing: 8) {
-                    MetricRow(
-                        label: "Window",
-                        valueText: "Last 15 minutes"
-                    )
-                }
-            }
+            HistoryPage(category: category, coordinator: coordinator, preferences: preferences)
         }
     }
 }

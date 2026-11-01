@@ -92,7 +92,7 @@ public struct NetworkPanel: View {
             case .detail:
                 connectionPage(sample: sample)
             case .history:
-                HistoryTab(category: .network, coordinator: coordinator, preferences: preferences)
+                HistoryPage(category: .network, coordinator: coordinator, preferences: preferences)
             }
         }
     }

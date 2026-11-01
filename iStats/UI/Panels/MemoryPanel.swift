@@ -64,7 +64,7 @@ public struct MemoryPanel: View {
             case .detail:
                 detailPage(sample: sample)
             case .history:
-                historyPage(sample: sample)
+                HistoryPage(category: .memory, coordinator: coordinator, preferences: preferences)
             }
         }
         .onChange(of: selectedTab) { newTab in
@@ -381,23 +381,5 @@ public struct MemoryPanel: View {
         }
     }
 
-    // MARK: - History Page
 
-    @ViewBuilder
-    private func historyPage(sample: MemorySample?) -> some View {
-        Module(eyebrow: "Extended Memory Trends") {
-            VStack(alignment: .leading, spacing: 8) {
-                MetricRow(
-                    label: "Sampling Window",
-                    valueText: "Active 60s Buffer"
-                )
-                if let peak = coordinator.scalarHistory(for: .memoryUsedPercent, duration: 60).max() {
-                    MetricRow(
-                        label: "Peak Memory Pressure",
-                        valueText: String(format: "%.1f%%", peak)
-                    )
-                }
-            }
-        }
-    }
 }

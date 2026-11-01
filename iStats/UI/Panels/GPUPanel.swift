@@ -68,7 +68,7 @@ public struct GPUPanel: View {
             case .detail:
                 detailPage(sample: sample)
             case .history:
-                historyPage(sample: sample)
+                HistoryPage(category: .gpu, coordinator: coordinator, preferences: preferences)
             }
         }
         .onChange(of: selectedTab) { newTab in
@@ -384,25 +384,7 @@ public struct GPUPanel: View {
         }
     }
 
-    // MARK: - History Page
 
-    @ViewBuilder
-    private func historyPage(sample: GPUSample?) -> some View {
-        Module(eyebrow: "Extended GPU Trends") {
-            VStack(alignment: .leading, spacing: 8) {
-                MetricRow(
-                    label: "Sampling Window",
-                    valueText: "Active 60s Buffer"
-                )
-                if let peak = coordinator.scalarHistory(for: .gpuUtilization, duration: 60).max() {
-                    MetricRow(
-                        label: "Peak Utilization",
-                        valueText: String(format: "%.0f%%", peak)
-                    )
-                }
-            }
-        }
-    }
 }
 
 #if DEBUG

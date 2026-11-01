@@ -30,6 +30,7 @@ public final class PreferencesStore: ObservableObject, @unchecked Sendable {
         public static let menuBarItems = "iStats.menuBarItems"
         public static let widgetPopoverStyles = "iStats.widgetPopoverStyles"
         public static let categoryLastTabs = "iStats.categoryLastTabs"
+        public static let categoryHistoryRanges = "iStats.categoryHistoryRanges"
         public static let pinnedPanelOrigins = "iStats.pinnedPanelOrigins"
         public static let isSamplingPaused = "iStats.isSamplingPaused"
         public static let isAutoPausedByLowPowerMode = "iStats.isAutoPausedByLowPowerMode"
@@ -175,6 +176,13 @@ public final class PreferencesStore: ObservableObject, @unchecked Sendable {
     @Published public var categoryLastTabs: [String: String] {
         didSet {
             userDefaults.set(categoryLastTabs, forKey: Keys.categoryLastTabs)
+        }
+    }
+
+    /// Remembered history time range per category (Tasks 7.5, 8.10).
+    @Published public var categoryHistoryRanges: [String: String] {
+        didSet {
+            userDefaults.set(categoryHistoryRanges, forKey: Keys.categoryHistoryRanges)
         }
     }
 
@@ -455,6 +463,7 @@ public final class PreferencesStore: ObservableObject, @unchecked Sendable {
         }
         self.widgetPopoverStyles = loadedPopoverStyles
         self.categoryLastTabs = userDefaults.dictionary(forKey: Keys.categoryLastTabs) as? [String: String] ?? [:]
+        self.categoryHistoryRanges = userDefaults.dictionary(forKey: Keys.categoryHistoryRanges) as? [String: String] ?? [:]
         self.pinnedPanelOrigins = userDefaults.dictionary(forKey: Keys.pinnedPanelOrigins) as? [String: [Double]] ?? [:]
 
         // Load sampling pause state (default: false) and Low Power Mode auto-pause (default: true)
@@ -670,6 +679,20 @@ public final class PreferencesStore: ObservableObject, @unchecked Sendable {
         categoryLastTabs[category.rawValue] = tab.rawValue
     }
 
+    /// Returns the remembered history time range for a category (default: .oneMinute).
+    public func historyRange(for category: MetricCategory) -> HistoryTimeRange {
+        guard let raw = categoryHistoryRanges[category.rawValue],
+              let range = HistoryTimeRange(rawValue: raw) else {
+            return .oneMinute
+        }
+        return range
+    }
+
+    /// Sets the remembered history time range for a category.
+    public func setHistoryRange(_ range: HistoryTimeRange, for category: MetricCategory) {
+        categoryHistoryRanges[category.rawValue] = range.rawValue
+    }
+
     /// Returns the remembered pinned origin for a category panel, if any.
     public func pinnedOrigin(for category: MetricCategory) -> CGPoint? {
         guard let coords = pinnedPanelOrigins[category.rawValue], coords.count >= 2 else {
@@ -751,6 +774,7 @@ public final class PreferencesStore: ObservableObject, @unchecked Sendable {
         self.menuBarItems = MenuBarItemConfig.defaultConfigs()
         self.widgetPopoverStyles = [:]
         self.categoryLastTabs = [:]
+        self.categoryHistoryRanges = [:]
         self.pinnedPanelOrigins = [:]
         self.isAutoPausedByLowPowerMode = false
         self.isSamplingPaused = false

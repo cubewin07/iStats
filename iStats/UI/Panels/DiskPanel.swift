@@ -73,7 +73,7 @@ public struct DiskPanel: View {
             case .detail:
                 volumesPage(sample: sample)
             case .history:
-                HistoryTab(category: .disk, coordinator: coordinator, preferences: preferences)
+                HistoryPage(category: .disk, coordinator: coordinator, preferences: preferences)
             }
         }
     }

@@ -64,7 +64,7 @@ public struct CPUPanel: View {
             case .detail:
                 detailPage(sample: sample)
             case .history:
-                historyPage(sample: sample)
+                HistoryPage(category: .cpu, coordinator: coordinator, preferences: preferences)
             }
         }
         .onChange(of: selectedTab) { newTab in
@@ -373,22 +373,5 @@ public struct CPUPanel: View {
 
     // MARK: - History Page
 
-    @ViewBuilder
-    private func historyPage(sample: CPUSample?) -> some View {
-        Module(eyebrow: "Extended CPU Trends") {
-            VStack(alignment: .leading, spacing: 8) {
-                MetricRow(
-                    label: "Sampling Window",
-                    valueText: "Active 60s Buffer"
-                )
-                if let peak = coordinator.scalarHistory(for: .cpuUser, duration: 60).max() {
-                    MetricRow(
-                        label: "User Peak",
-                        valueText: "\(Int(round(peak)))",
-                        unit: "%"
-                    )
-                }
-            }
-        }
-    }
+
 }

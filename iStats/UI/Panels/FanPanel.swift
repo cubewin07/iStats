@@ -69,7 +69,7 @@ public struct FanPanel: View {
             case .detail:
                 nowPage(sample: sample)
             case .history:
-                historyPage(sample: sample)
+                HistoryPage(category: .fan, coordinator: coordinator, preferences: preferences)
             }
         }
         .onChange(of: selectedTab) { newTab in
@@ -198,23 +198,7 @@ public struct FanPanel: View {
 
     // MARK: - History Page
 
-    @ViewBuilder
-    private func historyPage(sample: FanSample?) -> some View {
-        Module(eyebrow: "Extended Fan Trends") {
-            VStack(alignment: .leading, spacing: 8) {
-                MetricRow(
-                    label: "Sampling Window",
-                    valueText: "Active 60s Buffer"
-                )
-                if let peak = coordinator.scalarHistory(for: .fanMaxRPM, duration: 60).max() {
-                    MetricRow(
-                        label: "Peak Fan Speed",
-                        valueText: Units.formatRPM(Int(peak))
-                    )
-                }
-            }
-        }
-    }
+
 }
 
 #if DEBUG

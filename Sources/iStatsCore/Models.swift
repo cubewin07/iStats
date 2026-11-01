@@ -870,5 +870,23 @@ public struct ProcessSample: Sendable, Equatable, Codable {
     }
 }
 
+/// Selectable time range windows for history graphs (Tasks 7.5, 7.6, 8.10).
+public enum HistoryTimeRange: String, CaseIterable, Identifiable, Sendable, Codable {
+    case oneMinute = "1m"
+    case fiveMinutes = "5m"
+    case fifteenMinutes = "15m"
+
+    public var id: String { rawValue }
+
+    public var durationSeconds: Double {
+        switch self {
+        case .oneMinute: return 60
+        case .fiveMinutes: return 300
+        case .fifteenMinutes: return 900
+        }
+    }
+}
+
+
 
 
