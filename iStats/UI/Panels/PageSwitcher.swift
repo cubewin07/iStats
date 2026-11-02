@@ -74,3 +74,4 @@ public struct PageSwitcher: View {
         }
     }
 }
+

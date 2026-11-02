@@ -107,3 +107,4 @@ final class LiveChartMathTests: XCTestCase {
         XCTAssertEqual(LiveChartMath.hoverIndex(for: 100, totalWidth: 100, count: 4), 3)
     }
 }
+

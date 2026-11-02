@@ -91,3 +91,4 @@ final class SpectrumLayoutTests: XCTestCase {
         XCTAssertLessThanOrEqual(placed[2].x, 200.0)
     }
 }
+

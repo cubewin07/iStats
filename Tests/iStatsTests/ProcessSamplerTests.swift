@@ -43,3 +43,4 @@ final class ProcessSamplerTests: XCTestCase {
         // Should be stopped cleanly
     }
 }
+

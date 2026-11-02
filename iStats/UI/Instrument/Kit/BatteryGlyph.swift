@@ -142,3 +142,4 @@ struct BatteryGlyph_Previews: PreviewProvider {
     }
 }
 #endif
+

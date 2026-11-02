@@ -161,3 +161,4 @@ public struct TopConsumersModule: View {
         }
     }
 }
+

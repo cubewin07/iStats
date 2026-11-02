@@ -69,3 +69,4 @@ final class InstrumentGeometryTests: XCTestCase {
         XCTAssertEqual(GaugeMath.angle(value: 50.0, range: degenerate, sweep: 180.0, startAngle: 0.0), 0.0)
     }
 }
+

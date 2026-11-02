@@ -48,3 +48,4 @@ public enum FanMath {
         (time * speedRPS * 360.0).truncatingRemainder(dividingBy: 360.0)
     }
 }
+

@@ -139,3 +139,4 @@ final class ProcessRankingTests: XCTestCase {
         XCTAssertEqual(sample.topMemory.first?.memoryBytes, 500_000_000)
     }
 }
+

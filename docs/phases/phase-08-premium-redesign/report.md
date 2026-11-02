@@ -137,3 +137,4 @@ Both the SwiftPM CLI and Xcode test suites pass with 100% success and 0 failures
 | **Differentiate Without Color** | SF symbols (`checkmark.circle`, `info.circle`, etc.) replace colored dots; secondary chart series render with dashed strokes (`dash: [4, 3]`). |
 | **Reduce Motion** | Digit roll morphs degrade to crossfades; continuous chart gliding and turbine rotation disable. |
 | **VoiceOver** | Every panel, meter, and chart exposes semantic labels, values, and contextual narrative summaries. |
+

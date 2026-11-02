@@ -110,3 +110,4 @@ final class InsightEngineTests: XCTestCase {
         XCTAssertNil(InsightEngine.best(series: [], interval: 1.0, unit: .percent))
     }
 }
+

@@ -94,3 +94,4 @@ public final class ProcessSampler: @unchecked Sendable {
         return sample
     }
 }
+

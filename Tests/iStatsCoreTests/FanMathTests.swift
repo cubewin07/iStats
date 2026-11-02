@@ -47,3 +47,4 @@ final class FanMathTests: XCTestCase {
         XCTAssertEqual(fullRev, 0.0, accuracy: 0.001)
     }
 }
+
