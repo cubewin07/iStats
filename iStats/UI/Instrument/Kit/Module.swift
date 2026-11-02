@@ -14,6 +14,7 @@ public struct Module<Content: View, Trailing: View>: View {
     public let content: Content
 
     @State private var isHovered: Bool = false
+    @Environment(\.colorSchemeContrast) private var colorSchemeContrast
 
     public init(
         eyebrow: String? = nil,
@@ -41,6 +42,14 @@ public struct Module<Content: View, Trailing: View>: View {
             .background(
                 RoundedRectangle(cornerRadius: Instrument.Radius.module, style: .continuous)
                     .fill(isHovered ? Instrument.Surface.moduleHover : Instrument.Surface.module)
+            )
+            .overlay(
+                Group {
+                    if colorSchemeContrast == .increased {
+                        RoundedRectangle(cornerRadius: Instrument.Radius.module, style: .continuous)
+                            .stroke(Color.primary.opacity(0.25), lineWidth: 1)
+                    }
+                }
             )
             .onHover { hovering in
                 withAnimation(Motion.snappy) {

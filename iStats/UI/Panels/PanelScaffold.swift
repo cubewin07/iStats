@@ -99,10 +99,14 @@ public struct PanelScaffold<Content: View>: View {
             eyebrowRow
                 .frame(height: 28)
                 .padding(.bottom, 8)
+                .accessibilityElement(children: .contain)
+                .accessibilityLabel("\(category.displayName) Header")
 
             // Zone ②: Glance (display numeral + headline + insight)
             glanceHeader
                 .padding(.bottom, 6)
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel("\(category.displayName) Glance")
 
             // Zone ③: Living Chart (full-bleed, 72 pt)
             chartZone
@@ -117,6 +121,7 @@ public struct PanelScaffold<Content: View>: View {
                     action: onTogglePause
                 )
                 .padding(.top, 6)
+                .accessibilityElement(children: .combine)
             } else if !status.isQuiet, let message = ribbon {
                 StatusRibbon(
                     status: status,
@@ -125,10 +130,12 @@ public struct PanelScaffold<Content: View>: View {
                     action: ribbonAction
                 )
                 .padding(.top, 6)
+                .accessibilityElement(children: .combine)
             }
 
             // Zone ⑤: Page Body
             pageContent
+                .accessibilityElement(children: .contain)
         }
         .padding(Instrument.Space.xl)
         .frame(width: Instrument.Size.panelWidth)
@@ -257,6 +264,8 @@ public struct PanelScaffold<Content: View>: View {
                         HStack(alignment: .firstTextBaseline, spacing: 3) {
                             Text(custom)
                                 .font(Instrument.Typography.display)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.7)
                             if !glance.unit.isEmpty {
                                 Text(glance.unit)
                                     .font(Instrument.Typography.unit)

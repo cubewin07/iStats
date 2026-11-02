@@ -34,6 +34,8 @@ public struct LiveNumber: View {
                     .foregroundStyle(.secondary)
             }
         }
+        .lineLimit(1)
+        .minimumScaleFactor(0.7)
         .accessibilityElement(children: .ignore)
         .accessibilityValue(accessibilityText)
     }

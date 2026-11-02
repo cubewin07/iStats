@@ -14,6 +14,7 @@ public struct MetricRow: View {
     public var isCopyable: Bool
 
     @State private var isHovered: Bool = false
+    @Environment(\.accessibilityDifferentiateWithoutColor) private var differentiateWithoutColor
 
     public init(
         label: String,
@@ -39,9 +40,15 @@ public struct MetricRow: View {
         HStack(spacing: 8) {
             // Optional status dot (only when >= elevated, per Principle 3)
             if let level = statusLevel, !level.isQuiet {
-                Circle()
-                    .fill(level.color)
-                    .frame(width: 6, height: 6)
+                if differentiateWithoutColor {
+                    Image(systemName: level.symbolName)
+                        .font(.system(size: 8, weight: .semibold))
+                        .foregroundColor(level.color)
+                } else {
+                    Circle()
+                        .fill(level.color)
+                        .frame(width: 6, height: 6)
+                }
             }
 
             Text(label)

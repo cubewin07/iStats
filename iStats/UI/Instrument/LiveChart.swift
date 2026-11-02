@@ -67,6 +67,7 @@ public enum LiveChartMode: Sendable {
 /// Full-bleed, gliding, interactive hero chart for Instrument panels (ADR 0009 / Task 8.4).
 public struct LiveChart: View {
     @Environment(\.motionPolicy) private var motionPolicy
+    @Environment(\.accessibilityDifferentiateWithoutColor) private var differentiateWithoutColor
 
     public let mode: LiveChartMode
     public var category: MetricCategory
@@ -496,7 +497,10 @@ public struct LiveChart: View {
             for seg in totalSegments {
                 tStroke.addCurve(to: CGPoint(x: seg.end.x, y: seg.end.y), control1: CGPoint(x: seg.control1.x, y: seg.control1.y), control2: CGPoint(x: seg.control2.x, y: seg.control2.y))
             }
-            context.stroke(tStroke, with: .color(secondaryColor.opacity(secondaryOpacity)), style: StrokeStyle(lineWidth: 1.5, lineCap: .round, lineJoin: .round))
+            let strokeStyle = differentiateWithoutColor
+                ? StrokeStyle(lineWidth: 1.5, lineCap: .round, lineJoin: .round, dash: [4, 3])
+                : StrokeStyle(lineWidth: 1.5, lineCap: .round, lineJoin: .round)
+            context.stroke(tStroke, with: .color(secondaryColor.opacity(secondaryOpacity)), style: strokeStyle)
         }
 
         // Optional Average line
@@ -637,7 +641,10 @@ public struct LiveChart: View {
             for seg in bottomSegments {
                 botStroke.addCurve(to: CGPoint(x: seg.end.x, y: seg.end.y), control1: CGPoint(x: seg.control1.x, y: seg.control1.y), control2: CGPoint(x: seg.control2.x, y: seg.control2.y))
             }
-            context.stroke(botStroke, with: .color(bottomColor.opacity(bottomOpacity)), style: StrokeStyle(lineWidth: 1.5, lineCap: .round, lineJoin: .round))
+            let strokeStyle = differentiateWithoutColor
+                ? StrokeStyle(lineWidth: 1.5, lineCap: .round, lineJoin: .round, dash: [4, 3])
+                : StrokeStyle(lineWidth: 1.5, lineCap: .round, lineJoin: .round)
+            context.stroke(botStroke, with: .color(bottomColor.opacity(bottomOpacity)), style: strokeStyle)
         }
 
         // Optional Average line

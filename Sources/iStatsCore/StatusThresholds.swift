@@ -20,6 +20,15 @@ public enum StatusLevel: String, Codable, CaseIterable, Sendable, Comparable {
         }
     }
 
+    public var symbolName: String {
+        switch self {
+        case .fine: return "checkmark.circle"
+        case .elevated: return "info.circle"
+        case .warning: return "exclamationmark.triangle"
+        case .critical: return "exclamationmark.octagon"
+        }
+    }
+
     public static func < (lhs: StatusLevel, rhs: StatusLevel) -> Bool {
         lhs.severityRank < rhs.severityRank
     }
