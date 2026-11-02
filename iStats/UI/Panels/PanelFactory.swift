@@ -473,3 +473,33 @@ public struct PanelHostView: View {
         }
     }
 }
+
+/// The fallback panel view shown when no widgets are currently active in the menu bar.
+public struct NoWidgetsActiveView: View {
+    public init() {}
+
+    public var body: some View {
+        VStack(spacing: Instrument.Space.l) {
+            Image(systemName: "menubar.rectangle")
+                .font(.system(size: 28))
+                .foregroundColor(.secondary)
+
+            VStack(spacing: Instrument.Space.xs) {
+                Text("No Widgets Active")
+                    .font(Instrument.Typography.title)
+                Text("Enable metrics to display them in your menu bar.")
+                    .font(Instrument.Typography.caption)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+
+            Button("Open Preferences...") {
+                PreferencesWindowController.shared.showPreferences()
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.small)
+        }
+        .padding(Instrument.Space.xxl)
+        .frame(width: Instrument.Size.panelWidth)
+    }
+}

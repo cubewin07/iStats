@@ -20,9 +20,9 @@ final class SwiftUIViewsTests: XCTestCase {
         defaults.removePersistentDomain(forName: suiteName)
     }
 
-    // MARK: - 1. PopoverFactory Layout and Data Binding
+    // MARK: - 1. PanelFactory Layout and Data Binding
 
-    func testPopoverFactoryAllCategoriesWithData() {
+    func testPanelFactoryAllCategoriesWithData() {
         let (defaults, prefs, coord, suiteName) = makeContext()
         defer { cleanup(defaults: defaults, suiteName: suiteName) }
 
@@ -37,9 +37,9 @@ final class SwiftUIViewsTests: XCTestCase {
         coord.handleReading(.power(Sample(value: PowerSample(hasBattery: true, charge: 85.0, state: .discharging, timeRemaining: 7200))))
 
         for category in MetricCategory.allCases {
-            let view = PopoverFactory.makeCategoryPopoverView(category: category, coordinator: coord, preferences: prefs)
+            let view = PanelFactory.makeCategoryPanelView(category: category, coordinator: coord, preferences: prefs)
             let hosting = NSHostingView(rootView: AnyView(view))
-            hosting.frame = CGRect(x: 0, y: 0, width: 330, height: 500)
+            hosting.frame = CGRect(x: 0, y: 0, width: 352, height: 500)
             hosting.layoutSubtreeIfNeeded()
 
             let fit = hosting.fittingSize
@@ -48,15 +48,15 @@ final class SwiftUIViewsTests: XCTestCase {
         }
     }
 
-    func testPopoverFactoryColdStartPlaceholders() {
+    func testPanelFactoryColdStartPlaceholders() {
         let (defaults, prefs, coord, suiteName) = makeContext()
         defer { cleanup(defaults: defaults, suiteName: suiteName) }
 
         // Empty coordinator (cold start) -> all categories should calculate valid layout
         for category in MetricCategory.allCases {
-            let view = PopoverFactory.makeCategoryPopoverView(category: category, coordinator: coord, preferences: prefs)
+            let view = PanelFactory.makeCategoryPanelView(category: category, coordinator: coord, preferences: prefs)
             let hosting = NSHostingView(rootView: AnyView(view))
-            hosting.frame = CGRect(x: 0, y: 0, width: 330, height: 500)
+            hosting.frame = CGRect(x: 0, y: 0, width: 352, height: 500)
             hosting.layoutSubtreeIfNeeded()
 
             let fit = hosting.fittingSize
@@ -65,9 +65,9 @@ final class SwiftUIViewsTests: XCTestCase {
         }
     }
 
-    // MARK: - 2. PopoverFactory Exhaustive 32-Widget Permutations Test
+    // MARK: - 2. PanelFactory Exhaustive 32-Widget Permutations Test
 
-    func testPopoverFactoryExhaustiveRenderAcrossAllCatalogWidgets() {
+    func testPanelFactoryExhaustiveRenderAcrossAllCatalogWidgets() {
         let (defaults, prefs, coord, suiteName) = makeContext()
         defer { cleanup(defaults: defaults, suiteName: suiteName) }
 
@@ -96,41 +96,34 @@ final class SwiftUIViewsTests: XCTestCase {
         coord.handleReading(.power(Sample(value: PowerSample(hasBattery: true, charge: 75.0, state: .discharging, timeRemaining: 5400, powerDrawWatts: 18.0, adapterWatts: 0.0))))
 
         for config in MenuBarItemConfig.allAvailableItems {
-            let view = PopoverFactory.makePopoverView(
+            let view = PanelFactory.makePanelView(
                 config: config,
                 coordinator: coord,
                 preferences: prefs
             )
             let hosting = NSHostingView(rootView: AnyView(view))
-            hosting.frame = CGRect(x: 0, y: 0, width: 330, height: 500)
+            hosting.frame = CGRect(x: 0, y: 0, width: 352, height: 500)
             hosting.layoutSubtreeIfNeeded()
             let fit = hosting.fittingSize
             XCTAssertGreaterThan(fit.width, 100, "Populated width for \(config.category) - \(config.style) should be >= 100pt")
             XCTAssertGreaterThan(fit.height, 50, "Populated height for \(config.category) - \(config.style) should be >= 50pt")
-
-            let controller = PopoverFactory.makeHostingController(
-                config: config,
-                coordinator: coord,
-                preferences: prefs
-            )
-            XCTAssertNotNil(controller.view)
         }
     }
 
-    // MARK: - 3. 8 Purpose-Driven Popovers Concrete Layout & Tabs
+    // MARK: - 3. 8 Purpose-Driven Panels Concrete Layout & Tabs
 
     func test8PurposeDrivenPopoversLayout() {
         let (defaults, prefs, coord, suiteName) = makeContext()
         defer { cleanup(defaults: defaults, suiteName: suiteName) }
 
-        let cpu = CPUPopover(coordinator: coord, preferences: prefs)
-        let mem = MemoryPopover(coordinator: coord, preferences: prefs)
-        let gpu = GPUPopover(coordinator: coord, preferences: prefs)
-        let temp = TemperaturePopover(coordinator: coord, preferences: prefs)
-        let fan = FanPopover(coordinator: coord, preferences: prefs)
-        let net = NetworkPopover(coordinator: coord, preferences: prefs)
-        let disk = DiskPopover(coordinator: coord, preferences: prefs)
-        let power = PowerPopover(coordinator: coord, preferences: prefs)
+        let cpu = CPUPanel(coordinator: coord, preferences: prefs)
+        let mem = MemoryPanel(coordinator: coord, preferences: prefs)
+        let gpu = GPUPanel(coordinator: coord, preferences: prefs)
+        let temp = TemperaturePanel(coordinator: coord, preferences: prefs)
+        let fan = FanPanel(coordinator: coord, preferences: prefs)
+        let net = NetworkPanel(coordinator: coord, preferences: prefs)
+        let disk = DiskPanel(coordinator: coord, preferences: prefs)
+        let power = PowerPanel(coordinator: coord, preferences: prefs)
 
         let popovers: [AnyView] = [
             AnyView(cpu), AnyView(mem), AnyView(gpu), AnyView(temp),
@@ -252,157 +245,40 @@ final class SwiftUIViewsTests: XCTestCase {
         XCTAssertGreaterThan(fit.height, 50)
     }
 
-    // MARK: - 6. Design System Components Smoke Tests
+    // MARK: - 6. Instrument Kit Components Smoke Tests
 
     func testDesignPrimitivesRenderCleanly() {
-        let header = PopoverHeader(
-            category: .cpu,
-            subtitle: "Working normally",
-            statusLevel: .fine,
-            badgeText: "Fine"
-        )
-        let headerHosting = NSHostingView(rootView: header)
-        headerHosting.frame = CGRect(x: 0, y: 0, width: 330, height: 40)
-        headerHosting.layoutSubtreeIfNeeded()
-        XCTAssertGreaterThan(headerHosting.fittingSize.width, 100)
+        let eyebrow = SectionEyebrow("CORE UTILIZATION")
+        let eyebrowHosting = NSHostingView(rootView: eyebrow)
+        eyebrowHosting.frame = CGRect(x: 0, y: 0, width: 352, height: 20)
+        eyebrowHosting.layoutSubtreeIfNeeded()
+        XCTAssertGreaterThan(eyebrowHosting.fittingSize.width, 50)
 
-        let tabBar = TabBar(
-            category: .cpu,
-            tabs: [.overview, .detail, .history],
-            selectedTab: .constant(.overview)
-        )
-        let tabHosting = NSHostingView(rootView: tabBar)
-        tabHosting.frame = CGRect(x: 0, y: 0, width: 330, height: 30)
-        tabHosting.layoutSubtreeIfNeeded()
-        XCTAssertGreaterThan(tabHosting.fittingSize.width, 100)
+        let row = MetricRow(label: "CPU Usage", valueText: "42%", statusLevel: .fine)
+        let rowHosting = NSHostingView(rootView: row)
+        rowHosting.frame = CGRect(x: 0, y: 0, width: 352, height: 24)
+        rowHosting.layoutSubtreeIfNeeded()
+        XCTAssertGreaterThan(rowHosting.fittingSize.width, 50)
 
-        let hero = HeroMetric(
-            primaryValue: "42",
-            unit: "%",
-            contextLine: "on 10 cores"
-        )
-        let heroHosting = NSHostingView(rootView: hero)
-        heroHosting.frame = CGRect(x: 0, y: 0, width: 330, height: 60)
-        heroHosting.layoutSubtreeIfNeeded()
-        XCTAssertGreaterThan(heroHosting.fittingSize.width, 50)
+        let meter = Meter(progress: 0.42, tint: .cyan)
+        let meterHosting = NSHostingView(rootView: meter)
+        meterHosting.frame = CGRect(x: 0, y: 0, width: 352, height: 6)
+        meterHosting.layoutSubtreeIfNeeded()
+        XCTAssertGreaterThan(meterHosting.fittingSize.height, 0)
 
-        let segmented = SegmentedBar(segments: [
-            .init(value: 50, color: .blue, label: "A"),
-            .init(value: 50, color: .red, label: "B")
+        let capsule = SplitCapsule(segments: [
+            CapsuleSegment(value: 0.6, color: .blue, label: "User"),
+            CapsuleSegment(value: 0.4, color: .orange, label: "System")
         ])
-        let segHosting = NSHostingView(rootView: segmented)
-        segHosting.frame = CGRect(x: 0, y: 0, width: 330, height: 10)
-        segHosting.layoutSubtreeIfNeeded()
-        XCTAssertGreaterThan(segHosting.fittingSize.height, 0)
+        let capHosting = NSHostingView(rootView: capsule)
+        capHosting.frame = CGRect(x: 0, y: 0, width: 352, height: 10)
+        capHosting.layoutSubtreeIfNeeded()
+        XCTAssertGreaterThan(capHosting.fittingSize.height, 0)
 
-        let legend = LegendRow(color: .mint, label: "App", value: "4 GB", shareText: "50%")
-        let stat = StatRow(label: "Key", value: "Val", statusLevel: .warning)
-        let range = RangeBar(value: 50, min: 0, max: 100)
-        let copy = CopyableValue(label: "IP", value: "127.0.0.1")
-        let banner = StatusBanner(iconName: "info.circle", message: "Notice", level: .elevated)
-        let skeleton = SkeletonView(width: 100, height: 16)
-
-        let stack = VStack {
-            legend
-            stat
-            range
-            copy
-            banner
-            skeleton
-        }
-        let stackHosting = NSHostingView(rootView: stack)
-        stackHosting.frame = CGRect(x: 0, y: 0, width: 330, height: 200)
-        stackHosting.layoutSubtreeIfNeeded()
-        XCTAssertGreaterThan(stackHosting.fittingSize.height, 50)
-    }
-
-    func testPopoverScaffoldSharedStatesAndTransitions() {
-        let (defaults, prefs, coord, suiteName) = makeContext()
-        defer { cleanup(defaults: defaults, suiteName: suiteName) }
-
-        // 1. Normal state with content
-        let normalScaffold = PopoverScaffold(
-            category: .cpu,
-            subtitle: "Normal operation",
-            statusLevel: .fine,
-            badgeText: "Fine",
-            tabs: [.overview, .detail, .history],
-            selectedTab: .constant(.overview),
-            preferences: prefs,
-            coordinator: coord
-        ) {
-            Text("CPU Overview Content")
-        }
-        let normalHosting = NSHostingView(rootView: normalScaffold)
-        normalHosting.frame = CGRect(x: 0, y: 0, width: 330, height: 350)
-        normalHosting.layoutSubtreeIfNeeded()
-        XCTAssertEqual(normalHosting.fittingSize.width, 330, "PopoverScaffold width must be exactly 330pt")
-        XCTAssertGreaterThan(normalHosting.fittingSize.height, 100)
-
-        // 2. Loading state (cold start / nil sample)
-        let loadingScaffold = PopoverScaffold(
-            category: .memory,
-            subtitle: "Loading...",
-            statusLevel: .fine,
-            badgeText: "Loading",
-            tabs: [.overview, .detail, .history],
-            selectedTab: .constant(.overview),
-            isLoading: true,
-            preferences: prefs,
-            coordinator: coord
-        ) {
-            Text("Should not be visible")
-        }
-        let loadingHosting = NSHostingView(rootView: loadingScaffold)
-        loadingHosting.frame = CGRect(x: 0, y: 0, width: 330, height: 350)
-        loadingHosting.layoutSubtreeIfNeeded()
-        XCTAssertEqual(loadingHosting.fittingSize.width, 330)
-
-        // 3. Unavailable state (.unavailable(reason:))
-        let unavailableScaffold = PopoverScaffold(
-            category: .gpu,
-            subtitle: "Sensor unavailable",
-            statusLevel: .warning,
-            badgeText: "Unavailable",
-            tabs: [.overview, .detail, .history],
-            selectedTab: .constant(.overview),
-            unavailableReason: "Access denied by sandbox",
-            preferences: prefs,
-            coordinator: coord
-        ) {
-            Text("Should not be visible")
-        }
-        let unavailableHosting = NSHostingView(rootView: unavailableScaffold)
-        unavailableHosting.frame = CGRect(x: 0, y: 0, width: 330, height: 350)
-        unavailableHosting.layoutSubtreeIfNeeded()
-        XCTAssertEqual(unavailableHosting.fittingSize.width, 330)
-
-        // 4. Paused state (preferences.isSamplingPaused == true)
-        prefs.isSamplingPaused = true
-        let pausedScaffold = PopoverScaffold(
-            category: .power,
-            subtitle: "Paused",
-            statusLevel: .fine,
-            badgeText: "Paused",
-            tabs: [.overview, .detail, .history],
-            selectedTab: .constant(.overview),
-            preferences: prefs,
-            coordinator: coord
-        ) {
-            Text("Should not be visible")
-        }
-        let pausedHosting = NSHostingView(rootView: pausedScaffold)
-        pausedHosting.frame = CGRect(x: 0, y: 0, width: 330, height: 350)
-        pausedHosting.layoutSubtreeIfNeeded()
-        XCTAssertEqual(pausedHosting.fittingSize.width, 330)
-
-        // 5. Footers across categories
-        for cat in MetricCategory.allCases {
-            let footer = PopoverFooter(category: cat, preferences: prefs, coordinator: coord)
-            let footerHosting = NSHostingView(rootView: footer)
-            footerHosting.frame = CGRect(x: 0, y: 0, width: 330, height: 30)
-            footerHosting.layoutSubtreeIfNeeded()
-            XCTAssertGreaterThan(footerHosting.fittingSize.width, 0)
-        }
+        let ribbon = StatusRibbon(status: .warning, message: "High workload active")
+        let ribHosting = NSHostingView(rootView: ribbon)
+        ribHosting.frame = CGRect(x: 0, y: 0, width: 352, height: 24)
+        ribHosting.layoutSubtreeIfNeeded()
+        XCTAssertGreaterThan(ribHosting.fittingSize.width, 50)
     }
 }

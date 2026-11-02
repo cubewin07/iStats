@@ -28,7 +28,8 @@ Each phase folder is a self-contained module containing:
 | **4** | [`phase-04-battery-power`](./phase-04-battery-power/) | Battery & Power | IOPowerSources, AppleSmartBattery | Med | Battery health matches `system_profiler`/`pmset` |
 | **5** | [`phase-05-thermal-fan-gpu`](./phase-05-thermal-fan-gpu/) | Thermal, Fan & GPU | AppleSMC, IOKit, IOReport | **High** | Spike done; available sensors validated vs `powermetrics`; ADR 0003 finalized |
 | **6** | [`phase-06-polish-prefs`](./phase-06-polish-prefs/) | Polish & Preferences | SwiftUI, SMAppService | Low–Med | All prefs persist; footprint measured; docs finalized |
-| **8** | [`phase-08-premium-redesign`](./phase-08-premium-redesign/) | Premium Panel Redesign ("Instrument") | NSPanel, SwiftUI Canvas/TimelineView, Liquid Glass (gated), libproc | Med–High | Glass panel shell, signature instrument per category, perf budget met, a11y matrix signed off |
+| **7** | [`phase-07-widget-popover-redesign`](./phase-07-widget-popover-redesign/) | Widget & Popover Redesign | SwiftUI, AppKit | Med | 32 unified widgets, 8 tabbed popovers, downsampling, legacy deletion |
+| **8** | [`phase-08-premium-redesign`](./phase-08-premium-redesign/) | Premium Panel Redesign ("Instrument") | NSPanel, SwiftUI Canvas, Liquid Glass, libproc | Med–High | Glass panel shell, 8 bespoke signature instruments, perf budget met, zero NSPopover debt |
 
 ---
 
@@ -47,6 +48,12 @@ Phase 0 (docs) ──► Phase 1 (foundation) ──► Phase 2 (CPU/Mem)
                                               │
                                               ▼
                                    Phase 6 (Polish & Prefs)
+                                              │
+                                              ▼
+                                   Phase 7 (Widget & Popover Redesign)
+                                              │
+                                              ▼
+                                   Phase 8 (Instrument Premium Redesign)
 ```
 
 Phases 2, 3, and 4 are largely independent after Phase 1 and could be reordered; the recommended order builds from most-documented to least.

@@ -220,9 +220,9 @@ final class GPUSamplerTests: XCTestCase {
         let coord = MetricsCoordinator(scheduler: SampleScheduler(), store: MetricsStore(), preferencesStore: PreferencesStore.shared)
         coord.handleReading(.gpu(Sample(value: sample)))
 
-        let view = GPUPopover(coordinator: coord)
+        let view = GPUPanel(coordinator: coord)
         let hosting = NSHostingView(rootView: view)
-        hosting.frame = NSRect(x: 0, y: 0, width: 330, height: 400)
+        hosting.frame = NSRect(x: 0, y: 0, width: 352, height: 400)
         XCTAssertNotNil(hosting)
     }
 
@@ -247,9 +247,9 @@ final class GPUSamplerTests: XCTestCase {
         let coord = MetricsCoordinator(scheduler: SampleScheduler(), store: MetricsStore(), preferencesStore: PreferencesStore.shared)
         coord.handleReading(.gpu(Sample(value: sample)))
 
-        let view = GPUPopover(initialTab: .detail, coordinator: coord)
+        let view = GPUPanel(initialTab: .detail, coordinator: coord)
         let hosting = NSHostingView(rootView: view)
-        hosting.frame = NSRect(x: 0, y: 0, width: 330, height: 400)
+        hosting.frame = NSRect(x: 0, y: 0, width: 352, height: 400)
         XCTAssertNotNil(hosting)
     }
 
@@ -277,18 +277,18 @@ final class GPUSamplerTests: XCTestCase {
         let coord = MetricsCoordinator(scheduler: SampleScheduler(), store: MetricsStore(), preferencesStore: prefs)
         coord.handleReading(.gpu(Sample(value: sample)))
 
-        let view = GPUPopover(coordinator: coord, preferences: prefs)
+        let view = GPUPanel(coordinator: coord, preferences: prefs)
         let hosting = NSHostingView(rootView: view)
-        hosting.frame = NSRect(x: 0, y: 0, width: 330, height: 400)
+        hosting.frame = NSRect(x: 0, y: 0, width: 352, height: 400)
         XCTAssertNotNil(hosting)
     }
 
     @MainActor
     func testGPUPopoverRendersUnavailable() {
         let coord = MetricsCoordinator(scheduler: SampleScheduler(), store: MetricsStore(), preferencesStore: PreferencesStore.shared)
-        let view = GPUPopover(coordinator: coord)
+        let view = GPUPanel(coordinator: coord)
         let hosting = NSHostingView(rootView: view)
-        hosting.frame = NSRect(x: 0, y: 0, width: 330, height: 400)
+        hosting.frame = NSRect(x: 0, y: 0, width: 352, height: 400)
         XCTAssertNotNil(hosting)
     }
 

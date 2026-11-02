@@ -175,7 +175,7 @@ final class ThermalSamplerTests: XCTestCase {
         let coord = MetricsCoordinator(scheduler: SampleScheduler(), store: MetricsStore(), preferencesStore: PreferencesStore.shared)
         coord.handleReading(.thermal(Sample(value: sample)))
 
-        let view = TemperaturePopover(
+        let view = TemperaturePanel(
             coordinator: coord
         )
 
@@ -194,7 +194,7 @@ final class ThermalSamplerTests: XCTestCase {
         coord.handleReading(.thermal(Sample(value: sample)))
         PreferencesStore.shared.temperatureUnit = .fahrenheit
 
-        let view = TemperaturePopover(
+        let view = TemperaturePanel(
             coordinator: coord
         )
 

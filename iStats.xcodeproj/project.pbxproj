@@ -20,29 +20,6 @@
 		110000000000000000000149 /* PreferencesAboutPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000148 /* PreferencesAboutPane.swift */; };
 		110000000000000000000151 /* Tokens.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000150 /* Tokens.swift */; };
 		110000000000000000000153 /* CategoryPalette.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000152 /* CategoryPalette.swift */; };
-		110000000000000000000161 /* PopoverHeader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000160 /* PopoverHeader.swift */; };
-		110000000000000000000163 /* TabBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000162 /* TabBar.swift */; };
-		110000000000000000000165 /* HeroMetric.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000164 /* HeroMetric.swift */; };
-		110000000000000000000167 /* SegmentedBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000166 /* SegmentedBar.swift */; };
-		110000000000000000000169 /* LegendRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000168 /* LegendRow.swift */; };
-		11000000000000000000016B /* StatRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11000000000000000000016A /* StatRow.swift */; };
-		11000000000000000000016D /* StatGrid.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11000000000000000000016C /* StatGrid.swift */; };
-		11000000000000000000016F /* RangeBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11000000000000000000016E /* RangeBar.swift */; };
-		110000000000000000000171 /* CopyableValue.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000170 /* CopyableValue.swift */; };
-		110000000000000000000173 /* StatusBanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000172 /* StatusBanner.swift */; };
-		110000000000000000000175 /* SkeletonView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000174 /* SkeletonView.swift */; };
-		110000000000000000000177 /* TrendChart.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000176 /* TrendChart.swift */; };
-		110000000000000000000179 /* PopoverScaffold.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000178 /* PopoverScaffold.swift */; };
-		11000000000000000000017B /* PopoverFactory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11000000000000000000017A /* PopoverFactory.swift */; };
-		11000000000000000000017D /* HistoryTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11000000000000000000017C /* HistoryTab.swift */; };
-		11000000000000000000017F /* CPUPopover.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11000000000000000000017E /* CPUPopover.swift */; };
-		110000000000000000000181 /* MemoryPopover.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000180 /* MemoryPopover.swift */; };
-		110000000000000000000183 /* GPUPopover.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000182 /* GPUPopover.swift */; };
-		110000000000000000000185 /* TemperaturePopover.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000184 /* TemperaturePopover.swift */; };
-		110000000000000000000187 /* FanPopover.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000186 /* FanPopover.swift */; };
-		110000000000000000000189 /* NetworkPopover.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000188 /* NetworkPopover.swift */; };
-		11000000000000000000018B /* DiskPopover.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11000000000000000000018A /* DiskPopover.swift */; };
-		11000000000000000000018D /* PowerPopover.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11000000000000000000018C /* PowerPopover.swift */; };
 		110000000000000000000191 /* InstrumentTokens.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000190 /* InstrumentTokens.swift */; };
 		110000000000000000000195 /* Motion.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000194 /* Motion.swift */; };
 		110000000000000000000197 /* LiveNumber.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000196 /* LiveNumber.swift */; };
@@ -112,8 +89,6 @@
 		1100000000000000000000E7 /* PerformancePassTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000000E6 /* PerformancePassTests.swift */; };
 		1100000000000000000000F1 /* MenuBarIconRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000000F0 /* MenuBarIconRenderer.swift */; };
 		110000000000000000000045 /* iStatsCore in Frameworks */ = {isa = PBXBuildFile; productRef = 110000000000000000000005 /* iStatsCore */; };
-		110000000000000000000101 /* MetricVerdict.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000100 /* MetricVerdict.swift */; };
-		110000000000000000000115 /* PopoverVerdictTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000114 /* PopoverVerdictTests.swift */; };
 		110000000000000000000117 /* NotificationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000116 /* NotificationManager.swift */; };
 		110000000000000000000119 /* NotificationManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000118 /* NotificationManagerTests.swift */; };
 		110000000000000000000121 /* AlertCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000120 /* AlertCoordinator.swift */; };
@@ -154,29 +129,6 @@
 		110000000000000000000148 /* PreferencesAboutPane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferencesAboutPane.swift; sourceTree = "<group>"; };
 		110000000000000000000150 /* Tokens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Design/Tokens.swift; sourceTree = "<group>"; };
 		110000000000000000000152 /* CategoryPalette.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Design/CategoryPalette.swift; sourceTree = "<group>"; };
-		110000000000000000000160 /* PopoverHeader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Design/Components/PopoverHeader.swift; sourceTree = "<group>"; };
-		110000000000000000000162 /* TabBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Design/Components/TabBar.swift; sourceTree = "<group>"; };
-		110000000000000000000164 /* HeroMetric.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Design/Components/HeroMetric.swift; sourceTree = "<group>"; };
-		110000000000000000000166 /* SegmentedBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Design/Components/SegmentedBar.swift; sourceTree = "<group>"; };
-		110000000000000000000168 /* LegendRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Design/Components/LegendRow.swift; sourceTree = "<group>"; };
-		11000000000000000000016A /* StatRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Design/Components/StatRow.swift; sourceTree = "<group>"; };
-		11000000000000000000016C /* StatGrid.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Design/Components/StatGrid.swift; sourceTree = "<group>"; };
-		11000000000000000000016E /* RangeBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Design/Components/RangeBar.swift; sourceTree = "<group>"; };
-		110000000000000000000170 /* CopyableValue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Design/Components/CopyableValue.swift; sourceTree = "<group>"; };
-		110000000000000000000172 /* StatusBanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Design/Components/StatusBanner.swift; sourceTree = "<group>"; };
-		110000000000000000000174 /* SkeletonView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Design/Components/SkeletonView.swift; sourceTree = "<group>"; };
-		110000000000000000000176 /* TrendChart.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Design/Components/TrendChart.swift; sourceTree = "<group>"; };
-		110000000000000000000178 /* PopoverScaffold.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Design/Components/PopoverScaffold.swift; sourceTree = "<group>"; };
-		11000000000000000000017A /* PopoverFactory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Popovers/PopoverFactory.swift; sourceTree = "<group>"; };
-		11000000000000000000017C /* HistoryTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Popovers/HistoryTab.swift; sourceTree = "<group>"; };
-		11000000000000000000017E /* CPUPopover.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Popovers/CPUPopover.swift; sourceTree = "<group>"; };
-		110000000000000000000180 /* MemoryPopover.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Popovers/MemoryPopover.swift; sourceTree = "<group>"; };
-		110000000000000000000182 /* GPUPopover.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Popovers/GPUPopover.swift; sourceTree = "<group>"; };
-		110000000000000000000184 /* TemperaturePopover.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Popovers/TemperaturePopover.swift; sourceTree = "<group>"; };
-		110000000000000000000186 /* FanPopover.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Popovers/FanPopover.swift; sourceTree = "<group>"; };
-		110000000000000000000188 /* NetworkPopover.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Popovers/NetworkPopover.swift; sourceTree = "<group>"; };
-		11000000000000000000018A /* DiskPopover.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Popovers/DiskPopover.swift; sourceTree = "<group>"; };
-		11000000000000000000018C /* PowerPopover.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Popovers/PowerPopover.swift; sourceTree = "<group>"; };
 		110000000000000000000190 /* InstrumentTokens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Instrument/InstrumentTokens.swift; sourceTree = "<group>"; };
 		110000000000000000000194 /* Motion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Instrument/Motion.swift; sourceTree = "<group>"; };
 		110000000000000000000196 /* LiveNumber.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Instrument/LiveNumber.swift; sourceTree = "<group>"; };
@@ -246,8 +198,6 @@
 		1100000000000000000000E4 /* SystemIntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemIntegrationTests.swift; sourceTree = "<group>"; };
 		1100000000000000000000E6 /* PerformancePassTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PerformancePassTests.swift; sourceTree = "<group>"; };
 		1100000000000000000000F0 /* MenuBarIconRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarIconRenderer.swift; sourceTree = "<group>"; };
-		110000000000000000000100 /* MetricVerdict.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetricVerdict.swift; sourceTree = "<group>"; };
-		110000000000000000000114 /* PopoverVerdictTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PopoverVerdictTests.swift; sourceTree = "<group>"; };
 		110000000000000000000116 /* NotificationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationManager.swift; sourceTree = "<group>"; };
 		110000000000000000000118 /* NotificationManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationManagerTests.swift; sourceTree = "<group>"; };
 		110000000000000000000120 /* AlertCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlertCoordinator.swift; sourceTree = "<group>"; };
@@ -351,29 +301,6 @@
 				110000000000000000000148 /* PreferencesAboutPane.swift */,
 				110000000000000000000150 /* Tokens.swift */,
 				110000000000000000000152 /* CategoryPalette.swift */,
-				110000000000000000000160 /* PopoverHeader.swift */,
-				110000000000000000000162 /* TabBar.swift */,
-				110000000000000000000164 /* HeroMetric.swift */,
-				110000000000000000000166 /* SegmentedBar.swift */,
-				110000000000000000000168 /* LegendRow.swift */,
-				11000000000000000000016A /* StatRow.swift */,
-				11000000000000000000016C /* StatGrid.swift */,
-				11000000000000000000016E /* RangeBar.swift */,
-				110000000000000000000170 /* CopyableValue.swift */,
-				110000000000000000000172 /* StatusBanner.swift */,
-				110000000000000000000174 /* SkeletonView.swift */,
-				110000000000000000000176 /* TrendChart.swift */,
-				110000000000000000000178 /* PopoverScaffold.swift */,
-				11000000000000000000017A /* PopoverFactory.swift */,
-				11000000000000000000017C /* HistoryTab.swift */,
-				11000000000000000000017E /* CPUPopover.swift */,
-				110000000000000000000180 /* MemoryPopover.swift */,
-				110000000000000000000182 /* GPUPopover.swift */,
-				110000000000000000000184 /* TemperaturePopover.swift */,
-				110000000000000000000186 /* FanPopover.swift */,
-				110000000000000000000188 /* NetworkPopover.swift */,
-				11000000000000000000018A /* DiskPopover.swift */,
-				11000000000000000000018C /* PowerPopover.swift */,
 				110000000000000000000190 /* InstrumentTokens.swift */,
 				110000000000000000000194 /* Motion.swift */,
 				110000000000000000000196 /* LiveNumber.swift */,
@@ -407,7 +334,6 @@
 				1100000000000000000001DC /* HistoryPage.swift */,
 				1100000000000000000001D8 /* TopConsumersModule.swift */,
 				1100000000000000000000F0 /* MenuBarIconRenderer.swift */,
-				110000000000000000000100 /* MetricVerdict.swift */,
 			);
 			path = UI;
 			sourceTree = "<group>";
@@ -448,7 +374,6 @@
 				1100000000000000000000E0 /* MenuBarDisplayTests.swift */,
 				1100000000000000000000E4 /* SystemIntegrationTests.swift */,
 				1100000000000000000000E6 /* PerformancePassTests.swift */,
-				110000000000000000000114 /* PopoverVerdictTests.swift */,
 				110000000000000000000118 /* NotificationManagerTests.swift */,
 				110000000000000000000122 /* AlertCoordinatorTests.swift */,
 				110000000000000000000124 /* MenuBarItemMatrixTests.swift */,
@@ -590,29 +515,6 @@
 				110000000000000000000149 /* PreferencesAboutPane.swift in Sources */,
 				110000000000000000000151 /* Tokens.swift in Sources */,
 				110000000000000000000153 /* CategoryPalette.swift in Sources */,
-				110000000000000000000161 /* PopoverHeader.swift in Sources */,
-				110000000000000000000163 /* TabBar.swift in Sources */,
-				110000000000000000000165 /* HeroMetric.swift in Sources */,
-				110000000000000000000167 /* SegmentedBar.swift in Sources */,
-				110000000000000000000169 /* LegendRow.swift in Sources */,
-				11000000000000000000016B /* StatRow.swift in Sources */,
-				11000000000000000000016D /* StatGrid.swift in Sources */,
-				11000000000000000000016F /* RangeBar.swift in Sources */,
-				110000000000000000000171 /* CopyableValue.swift in Sources */,
-				110000000000000000000173 /* StatusBanner.swift in Sources */,
-				110000000000000000000175 /* SkeletonView.swift in Sources */,
-				110000000000000000000177 /* TrendChart.swift in Sources */,
-				110000000000000000000179 /* PopoverScaffold.swift in Sources */,
-				11000000000000000000017B /* PopoverFactory.swift in Sources */,
-				11000000000000000000017D /* HistoryTab.swift in Sources */,
-				11000000000000000000017F /* CPUPopover.swift in Sources */,
-				110000000000000000000181 /* MemoryPopover.swift in Sources */,
-				110000000000000000000183 /* GPUPopover.swift in Sources */,
-				110000000000000000000185 /* TemperaturePopover.swift in Sources */,
-				110000000000000000000187 /* FanPopover.swift in Sources */,
-				110000000000000000000189 /* NetworkPopover.swift in Sources */,
-				11000000000000000000018B /* DiskPopover.swift in Sources */,
-				11000000000000000000018D /* PowerPopover.swift in Sources */,
 				110000000000000000000191 /* InstrumentTokens.swift in Sources */,
 				110000000000000000000195 /* Motion.swift in Sources */,
 				110000000000000000000197 /* LiveNumber.swift in Sources */,
@@ -660,7 +562,6 @@
 				1100000000000000000000B1 /* FanSampler.swift in Sources */,
 				1100000000000000000000C1 /* GPUSampler.swift in Sources */,
 				1100000000000000000000F1 /* MenuBarIconRenderer.swift in Sources */,
-				110000000000000000000101 /* MetricVerdict.swift in Sources */,
 				110000000000000000000117 /* NotificationManager.swift in Sources */,
 				110000000000000000000121 /* AlertCoordinator.swift in Sources */,
 				110000000000000000000131 /* AppleSMCClient.swift in Sources */,
@@ -688,7 +589,6 @@
 				1100000000000000000000E1 /* MenuBarDisplayTests.swift in Sources */,
 				1100000000000000000000E5 /* SystemIntegrationTests.swift in Sources */,
 				1100000000000000000000E7 /* PerformancePassTests.swift in Sources */,
-				110000000000000000000115 /* PopoverVerdictTests.swift in Sources */,
 				110000000000000000000119 /* NotificationManagerTests.swift in Sources */,
 				110000000000000000000123 /* AlertCoordinatorTests.swift in Sources */,
 				110000000000000000000125 /* MenuBarItemMatrixTests.swift in Sources */,

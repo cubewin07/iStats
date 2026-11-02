@@ -122,9 +122,9 @@ final class DetailViewGraphsTests: XCTestCase {
         let coord = MetricsCoordinator(scheduler: SampleScheduler(), store: MetricsStore(), preferencesStore: PreferencesStore.shared)
         coord.handleReading(.cpu(Sample(value: sample)))
 
-        let view = CPUPopover(coordinator: coord)
+        let view = CPUPanel(coordinator: coord)
         let hosting = NSHostingView(rootView: view)
-        hosting.frame = CGRect(x: 0, y: 0, width: 330, height: 400)
+        hosting.frame = CGRect(x: 0, y: 0, width: 352, height: 400)
         XCTAssertNotNil(hosting)
     }
 
@@ -141,9 +141,9 @@ final class DetailViewGraphsTests: XCTestCase {
         )
         let coord24 = MetricsCoordinator(scheduler: SampleScheduler(), store: MetricsStore(), preferencesStore: PreferencesStore.shared)
         coord24.handleReading(.cpu(Sample(value: highCoreSample)))
-        let view24 = CPUPopover(initialTab: .detail, coordinator: coord24)
+        let view24 = CPUPanel(initialTab: .detail, coordinator: coord24)
         let hosting24 = NSHostingView(rootView: view24)
-        hosting24.frame = CGRect(x: 0, y: 0, width: 330, height: 450)
+        hosting24.frame = CGRect(x: 0, y: 0, width: 352, height: 450)
         XCTAssertNotNil(hosting24)
 
         // Intel / No topology
@@ -156,9 +156,9 @@ final class DetailViewGraphsTests: XCTestCase {
         )
         let coordIntel = MetricsCoordinator(scheduler: SampleScheduler(), store: MetricsStore(), preferencesStore: PreferencesStore.shared)
         coordIntel.handleReading(.cpu(Sample(value: intelSample)))
-        let viewIntel = CPUPopover(coordinator: coordIntel)
+        let viewIntel = CPUPanel(coordinator: coordIntel)
         let hostingIntel = NSHostingView(rootView: viewIntel)
-        hostingIntel.frame = CGRect(x: 0, y: 0, width: 330, height: 400)
+        hostingIntel.frame = CGRect(x: 0, y: 0, width: 352, height: 400)
         XCTAssertNotNil(hostingIntel)
     }
 
@@ -242,19 +242,19 @@ final class DetailViewGraphsTests: XCTestCase {
         let coord = MetricsCoordinator(preferencesStore: prefs)
         coord.handleReading(.network(Sample(value: netSample)))
 
-        let viewOverview = NetworkPopover(initialTab: .overview, coordinator: coord, preferences: prefs)
+        let viewOverview = NetworkPanel(initialTab: .overview, coordinator: coord, preferences: prefs)
         let controllerOverview = NSHostingController(rootView: viewOverview)
         controllerOverview.sizingOptions = [.preferredContentSize]
         let hostingOverview = controllerOverview.view
-        hostingOverview.frame = NSRect(x: 0, y: 0, width: 330, height: 480)
+        hostingOverview.frame = NSRect(x: 0, y: 0, width: 352, height: 480)
         hostingOverview.layoutSubtreeIfNeeded()
         XCTAssertNotNil(hostingOverview)
-        XCTAssertLessThanOrEqual(controllerOverview.preferredContentSize.width, 330)
+        XCTAssertLessThanOrEqual(controllerOverview.preferredContentSize.width, 352)
 
-        let viewDetail = NetworkPopover(initialTab: .detail, coordinator: coord, preferences: prefs)
+        let viewDetail = NetworkPanel(initialTab: .detail, coordinator: coord, preferences: prefs)
         let controllerDetail = NSHostingController(rootView: viewDetail)
         let hostingDetail = controllerDetail.view
-        hostingDetail.frame = NSRect(x: 0, y: 0, width: 330, height: 480)
+        hostingDetail.frame = NSRect(x: 0, y: 0, width: 352, height: 480)
         hostingDetail.layoutSubtreeIfNeeded()
         XCTAssertNotNil(hostingDetail)
     }
@@ -288,17 +288,17 @@ final class DetailViewGraphsTests: XCTestCase {
         // Bytes/sec IEC
         prefs.networkUnit = .bytesPerSecond
         prefs.byteUnitStandard = .iec
-        let viewBytesIEC = NetworkPopover(coordinator: coordinator, preferences: prefs)
+        let viewBytesIEC = NetworkPanel(coordinator: coordinator, preferences: prefs)
         let hostingBytesIEC = NSHostingView(rootView: viewBytesIEC)
-        hostingBytesIEC.frame = CGRect(x: 0, y: 0, width: 330, height: 400)
+        hostingBytesIEC.frame = CGRect(x: 0, y: 0, width: 352, height: 400)
         XCTAssertNotNil(hostingBytesIEC)
 
         // Bits/sec SI
         prefs.networkUnit = .bitsPerSecond
         prefs.byteUnitStandard = .si
-        let viewBitsSI = NetworkPopover(coordinator: coordinator, preferences: prefs)
+        let viewBitsSI = NetworkPanel(coordinator: coordinator, preferences: prefs)
         let hostingBitsSI = NSHostingView(rootView: viewBitsSI)
-        hostingBitsSI.frame = CGRect(x: 0, y: 0, width: 330, height: 400)
+        hostingBitsSI.frame = CGRect(x: 0, y: 0, width: 352, height: 400)
         XCTAssertNotNil(hostingBitsSI)
 
         // Empty / nil sample
@@ -307,7 +307,7 @@ final class DetailViewGraphsTests: XCTestCase {
             store: MetricsStore(),
             preferencesStore: prefs
         )
-        let viewNil = NetworkPopover(coordinator: emptyCoord, preferences: prefs)
+        let viewNil = NetworkPanel(coordinator: emptyCoord, preferences: prefs)
         let hostingNil = NSHostingView(rootView: viewNil)
         XCTAssertNotNil(hostingNil)
 
@@ -349,9 +349,9 @@ final class DetailViewGraphsTests: XCTestCase {
             wifiDetails: wifiDetails
         )
         coordinator.handleReading(.network(Sample(value: enrichedSample)))
-        let viewEnriched = NetworkPopover(initialTab: .detail, coordinator: coordinator, preferences: prefs)
+        let viewEnriched = NetworkPanel(initialTab: .detail, coordinator: coordinator, preferences: prefs)
         let hostingEnriched = NSHostingView(rootView: viewEnriched)
-        hostingEnriched.frame = CGRect(x: 0, y: 0, width: 330, height: 400)
+        hostingEnriched.frame = CGRect(x: 0, y: 0, width: 352, height: 400)
         XCTAssertNotNil(hostingEnriched)
 
         // Enriched Ethernet sample
@@ -374,9 +374,9 @@ final class DetailViewGraphsTests: XCTestCase {
             primaryDNS: "8.8.8.8"
         )
         coordinator.handleReading(.network(Sample(value: ethernetSample)))
-        let viewEthernet = NetworkPopover(coordinator: coordinator, preferences: prefs)
+        let viewEthernet = NetworkPanel(coordinator: coordinator, preferences: prefs)
         let hostingEthernet = NSHostingView(rootView: viewEthernet)
-        hostingEthernet.frame = CGRect(x: 0, y: 0, width: 330, height: 400)
+        hostingEthernet.frame = CGRect(x: 0, y: 0, width: 352, height: 400)
         XCTAssertNotNil(hostingEthernet)
     }
 
@@ -397,9 +397,9 @@ final class DetailViewGraphsTests: XCTestCase {
 
         // With I/O
         coordinator.handleReading(.disk(Sample(value: sampleWithIO)))
-        let viewWithIO = DiskPopover(coordinator: coordinator, preferences: prefs)
+        let viewWithIO = DiskPanel(coordinator: coordinator, preferences: prefs)
         let hostingWithIO = NSHostingView(rootView: viewWithIO)
-        hostingWithIO.frame = CGRect(x: 0, y: 0, width: 330, height: 400)
+        hostingWithIO.frame = CGRect(x: 0, y: 0, width: 352, height: 400)
         XCTAssertNotNil(hostingWithIO)
 
         // Without I/O (graceful degradation)
@@ -410,9 +410,9 @@ final class DetailViewGraphsTests: XCTestCase {
             preferencesStore: prefs
         )
         coordNoIO.handleReading(.disk(Sample(value: sampleWithoutIO)))
-        let viewWithoutIO = DiskPopover(coordinator: coordNoIO, preferences: prefs)
+        let viewWithoutIO = DiskPanel(coordinator: coordNoIO, preferences: prefs)
         let hostingWithoutIO = NSHostingView(rootView: viewWithoutIO)
-        hostingWithoutIO.frame = CGRect(x: 0, y: 0, width: 330, height: 400)
+        hostingWithoutIO.frame = CGRect(x: 0, y: 0, width: 352, height: 400)
         XCTAssertNotNil(hostingWithoutIO)
 
         // Nil sample
@@ -421,7 +421,7 @@ final class DetailViewGraphsTests: XCTestCase {
             store: MetricsStore(),
             preferencesStore: prefs
         )
-        let viewNil = DiskPopover(coordinator: coordNil, preferences: prefs)
+        let viewNil = DiskPanel(coordinator: coordNil, preferences: prefs)
         let hostingNil = NSHostingView(rootView: viewNil)
         XCTAssertNotNil(hostingNil)
     }
@@ -451,9 +451,9 @@ final class DetailViewGraphsTests: XCTestCase {
         coordinator.handleReading(.disk(Sample(value: disk)))
 
         for category in MetricCategory.allCases {
-            let view = PopoverFactory.makeCategoryPopoverView(category: category, coordinator: coordinator, preferences: prefs)
+            let view = PanelFactory.makeCategoryPanelView(category: category, coordinator: coordinator, preferences: prefs)
             let hosting = NSHostingView(rootView: view)
-            hosting.frame = CGRect(x: 0, y: 0, width: 330, height: 400)
+            hosting.frame = CGRect(x: 0, y: 0, width: 352, height: 400)
             XCTAssertNotNil(hosting)
         }
     }
@@ -511,9 +511,9 @@ final class DetailViewGraphsTests: XCTestCase {
         )
         coordinator.handleReading(.power(Sample(value: sample)))
 
-        let view = PowerPopover(coordinator: coordinator, preferences: prefs)
+        let view = PowerPanel(coordinator: coordinator, preferences: prefs)
         let hosting = NSHostingView(rootView: view)
-        hosting.frame = CGRect(x: 0, y: 0, width: 330, height: 400)
+        hosting.frame = CGRect(x: 0, y: 0, width: 352, height: 400)
         XCTAssertNotNil(hosting)
     }
 
@@ -539,9 +539,9 @@ final class DetailViewGraphsTests: XCTestCase {
         )
         coordinator.handleReading(.power(Sample(value: sample)))
 
-        let view = PowerPopover(coordinator: coordinator, preferences: prefs)
+        let view = PowerPanel(coordinator: coordinator, preferences: prefs)
         let hosting = NSHostingView(rootView: view)
-        hosting.frame = CGRect(x: 0, y: 0, width: 330, height: 400)
+        hosting.frame = CGRect(x: 0, y: 0, width: 352, height: 400)
         XCTAssertNotNil(hosting)
     }
 
@@ -568,9 +568,9 @@ final class DetailViewGraphsTests: XCTestCase {
         )
         coordinator.handleReading(.power(Sample(value: sample)))
 
-        let view = PowerPopover(coordinator: coordinator, preferences: prefs)
+        let view = PowerPanel(coordinator: coordinator, preferences: prefs)
         let hosting = NSHostingView(rootView: view)
-        hosting.frame = CGRect(x: 0, y: 0, width: 330, height: 400)
+        hosting.frame = CGRect(x: 0, y: 0, width: 352, height: 400)
         XCTAssertNotNil(hosting)
     }
 
@@ -597,9 +597,9 @@ final class DetailViewGraphsTests: XCTestCase {
         )
         coordinator.handleReading(.power(Sample(value: sample)))
 
-        let view = PowerPopover(coordinator: coordinator, preferences: prefs)
+        let view = PowerPanel(coordinator: coordinator, preferences: prefs)
         let hosting = NSHostingView(rootView: view)
-        hosting.frame = CGRect(x: 0, y: 0, width: 330, height: 400)
+        hosting.frame = CGRect(x: 0, y: 0, width: 352, height: 400)
         XCTAssertNotNil(hosting)
     }
 
@@ -612,9 +612,9 @@ final class DetailViewGraphsTests: XCTestCase {
             preferencesStore: prefs
         )
 
-        let view = PowerPopover(coordinator: coordinator, preferences: prefs)
+        let view = PowerPanel(coordinator: coordinator, preferences: prefs)
         let hosting = NSHostingView(rootView: view)
-        hosting.frame = CGRect(x: 0, y: 0, width: 330, height: 400)
+        hosting.frame = CGRect(x: 0, y: 0, width: 352, height: 400)
         XCTAssertNotNil(hosting)
     }
 
@@ -654,18 +654,19 @@ final class DetailViewGraphsTests: XCTestCase {
         XCTAssertEqual(TrendChartMath.computeMaxBound(values: [100.0], fixedMax: nil, floor: 1.0), 115.0, accuracy: 0.001)
     }
 
-    func testTrendChartRenderModes() {
-        let singleChart = TrendChart(
+    func testLiveChartRenderModes() {
+        let singleChart = LiveChart(
+            category: .cpu,
             mode: .single(values: [10, 20, 30], color: .blue),
-            height: 60,
-            showStatsStrip: true
+            height: 60
         )
         let singleHost = NSHostingView(rootView: singleChart)
         singleHost.frame = CGRect(x: 0, y: 0, width: 330, height: 80)
         singleHost.layoutSubtreeIfNeeded()
         XCTAssertGreaterThan(singleHost.fittingSize.height, 40)
 
-        let stackedChart = TrendChart(
+        let stackedChart = LiveChart(
+            category: .cpu,
             mode: .stacked(primary: [10, 20], secondary: [5, 10], primaryColor: .blue, secondaryColor: .red),
             height: 60
         )
@@ -674,10 +675,10 @@ final class DetailViewGraphsTests: XCTestCase {
         stackedHost.layoutSubtreeIfNeeded()
         XCTAssertGreaterThan(stackedHost.fittingSize.height, 40)
 
-        let mirroredChart = TrendChart(
+        let mirroredChart = LiveChart(
+            category: .network,
             mode: .mirrored(top: [100, 200], bottom: [50, 80], topColor: .indigo, bottomColor: .pink),
-            height: 140,
-            showStatsStrip: true
+            height: 140
         )
         let mirroredHost = NSHostingView(rootView: mirroredChart)
         mirroredHost.frame = CGRect(x: 0, y: 0, width: 330, height: 160)

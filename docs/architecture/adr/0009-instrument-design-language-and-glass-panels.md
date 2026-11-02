@@ -1,6 +1,6 @@
 # ADR 0009 — "Instrument" Design Language and Glass Panels
 
-**Status:** Accepted  
+**Status:** Accepted / Implemented (Phase 8)  
 **Supersedes:** ADR 0008 popover presentation layer (`iStats/UI/Popovers/` and `iStats/UI/Design/`).  
 **Preserves:** ADR 0008 data model (`PopoverTab`, `PopoverConfig`, `MetricVerdict` thresholds, `TrendChartMath`, `Downsampler`, 900-sample in-memory scalar history), multi-`NSStatusItem` lifecycle (ADR 0007), background sampling (ADR 0002), and zero telemetry disk persistence (ADR 0006).
 

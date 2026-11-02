@@ -228,4 +228,21 @@ public enum LiveChartMath {
         let observed = values.max() ?? 0.0
         return max(observed * 1.15, floor)
     }
+
+    /// Formats relative time elapsed from sample index and interval.
+    public static func formatRelativeTime(secondsAgo: Double) -> String {
+        let sec = max(0, Int(round(secondsAgo)))
+        if sec < 60 {
+            return "\(sec)s ago"
+        } else if sec < 3600 {
+            let mins = sec / 60
+            let rem = sec % 60
+            return rem > 0 ? "\(mins)m \(rem)s ago" : "\(mins)m ago"
+        } else {
+            return "\(sec / 3600)h ago"
+        }
+    }
 }
+
+/// Backward compatibility alias for folded TrendChartMath
+public typealias TrendChartMath = LiveChartMath

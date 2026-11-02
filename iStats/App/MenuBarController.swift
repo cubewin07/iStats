@@ -8,11 +8,6 @@ public final class MenuBarController: NSObject {
     /// Active status items in the macOS menu bar, mapped by item configuration ID (ADR 0007).
     public private(set) var statusItems: [String: NSStatusItem] = [:]
 
-    /// Active dedicated popovers in the macOS menu bar, mapped by item configuration ID (ADR 0007).
-    /// Each category configuration owns its own dedicated NSPopover instance.
-    public private(set) var popovers: [String: NSPopover] = [:]
-
-    private let fallbackPopover: NSPopover
     public let preferences: PreferencesStore
     public let coordinator: MetricsCoordinator
 
@@ -20,7 +15,6 @@ public final class MenuBarController: NSObject {
     private var pendingCategories = Set<MetricCategory>()
     private var isCategoryUpdateScheduled = false
     public private(set) var currentlyShownButton: NSStatusBarButton?
-    private var lastConfiguredPopoverConfigs: [String: PopoverConfig] = [:]
     private var lastActiveItemOrder: [String] = []
     private var globalMouseMonitor: Any?
     private var localMouseMonitor: Any?
@@ -66,52 +60,15 @@ public final class MenuBarController: NSObject {
         dirtyCheckBypassCount = 0
     }
 
-    /// Returns the currently active popover, or the popover matching currentlyShownButton,
-    /// or fallback/primary popover for backward compatibility.
-    public var popover: NSPopover {
-        if let button = currentlyShownButton,
-           let rawId = button.identifier?.rawValue,
-           let p = popovers[rawId] {
-            ensurePopoverContent(for: rawId, popover: p)
-            return p
-        }
-        for (id, p) in popovers where p.isShown {
-            ensurePopoverContent(for: id, popover: p)
-            return p
-        }
-        if let fallbackP = popovers[Self.fallbackStatusItemId] {
-            ensurePopoverContent(for: Self.fallbackStatusItemId, popover: fallbackP)
-            return fallbackP
-        }
-        if let (firstId, firstP) = popovers.first {
-            ensurePopoverContent(for: firstId, popover: firstP)
-            return firstP
-        }
-        ensurePopoverContent(for: Self.fallbackStatusItemId, popover: fallbackPopover)
-        return fallbackPopover
-    }
-
-    /// Helper to retrieve the dedicated popover for a specific category config ID.
-    public func popover(for configId: String) -> NSPopover? {
-        guard let p = popovers[configId] else { return nil }
-        ensurePopoverContent(for: configId, popover: p)
-        return p
-    }
-
     public init(
         preferences: PreferencesStore = .shared,
         coordinator: MetricsCoordinator = .shared
     ) {
-        self.fallbackPopover = NSPopover()
         self.preferences = preferences
         self.coordinator = coordinator
         super.init()
 
         PanelController.shared.configure(preferences: preferences)
-
-        fallbackPopover.behavior = .transient
-        fallbackPopover.animates = true
-        fallbackPopover.delegate = self
 
         syncStatusItems()
         setupSubscriptions()
@@ -124,62 +81,6 @@ public final class MenuBarController: NSObject {
     /// Identifier for the fallback status item displayed when all menu items are disabled.
     public static let fallbackStatusItemId = "app.istats.fallback"
 
-    // MARK: - Popover Factory (ADR 0007 / ADR 0008)
-
-    /// Instantiates the dedicated NSHostingController for a given menu bar item configuration.
-    public func makeHostingController(for config: MenuBarItemConfig) -> NSViewController {
-        PopoverFactory.makeHostingController(
-            config: config,
-            coordinator: coordinator,
-            preferences: preferences
-        )
-    }
-
-    /// Backward-compatible category-only hosting controller factory.
-    public func makeHostingController(for category: MetricCategory) -> NSViewController {
-        let config = MenuBarItemConfig(category: category, style: .text)
-        return makeHostingController(for: config)
-    }
-
-    private func createPopover(for config: MenuBarItemConfig) -> NSPopover {
-        let p = NSPopover()
-        p.behavior = .transient
-        p.animates = true
-        p.delegate = self
-        p.contentSize = NSSize(width: Tokens.popoverWidth, height: 350)
-        return p
-    }
-
-    private func createFallbackPopover() -> NSPopover {
-        let p = NSPopover()
-        p.behavior = .transient
-        p.animates = true
-        p.delegate = self
-        p.contentSize = NSSize(width: Tokens.popoverWidth, height: 180)
-        return p
-    }
-
-    private func ensurePopoverContent(for configId: String, popover: NSPopover) {
-        guard popover.contentViewController == nil else { return }
-        if configId == Self.fallbackStatusItemId {
-            popover.contentViewController = PopoverFactory.makeFallbackHostingController()
-            return
-        }
-        if let activeConfig = preferences.menuBarItems.first(where: { $0.id == configId }) {
-            popover.contentViewController = makeHostingController(for: activeConfig)
-            return
-        }
-        let parts = configId.components(separatedBy: ".")
-        let categoryRaw = parts.first ?? configId
-        let styleRaw = parts.dropFirst().joined(separator: ".")
-        if let category = MetricCategory(rawValue: categoryRaw) {
-            let style = MetricDisplayStyle(rawValue: styleRaw) ?? .text
-            let popoverStyle = preferences.popoverStyle(for: category, widgetStyle: style)
-            let config = MenuBarItemConfig(category: category, style: style, popoverStyle: popoverStyle)
-            popover.contentViewController = makeHostingController(for: config)
-        }
-    }
-
     // MARK: - Status Item Lifecycle & Synchronization (ADR 0007)
 
     /// Synchronizes active NSStatusItems with the current preferences (activeMenuBarItems).
@@ -190,35 +91,24 @@ public final class MenuBarController: NSObject {
 
         if activeConfigs.isEmpty {
             lastActiveItemOrder = []
-            // If a popover was shown on a category item, close it cleanly first
+            // If a panel was shown on a category item, close it cleanly first
             if let current = currentlyShownButton, current.identifier?.rawValue != Self.fallbackStatusItemId {
-                hidePopover()
+                hidePanel()
             }
-            // Remove any leftover category status items and popovers
+            // Remove any leftover category status items
             for (id, item) in statusItems where id != Self.fallbackStatusItemId {
                 NSStatusBar.system.removeStatusItem(item)
                 statusItems.removeValue(forKey: id)
                 previousRenderStates.removeValue(forKey: id)
-                lastConfiguredPopoverConfigs.removeValue(forKey: id)
-                if let p = popovers.removeValue(forKey: id) {
-                    if p.isShown {
-                        p.performClose(nil)
-                    }
-                    p.contentViewController = nil
-                }
             }
 
             // Install or keep fallback status item with iStats app icon so user is never orphaned
             let fallbackItem: NSStatusItem
             if let existing = statusItems[Self.fallbackStatusItemId] {
                 fallbackItem = existing
-                if popovers[Self.fallbackStatusItemId] == nil {
-                    popovers[Self.fallbackStatusItemId] = createFallbackPopover()
-                }
             } else {
                 let created = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
                 statusItems[Self.fallbackStatusItemId] = created
-                popovers[Self.fallbackStatusItemId] = createFallbackPopover()
                 fallbackItem = created
             }
 
@@ -246,16 +136,10 @@ public final class MenuBarController: NSObject {
         // Active items exist: clean up fallback item if present
         if let fallbackItem = statusItems.removeValue(forKey: Self.fallbackStatusItemId) {
             if let current = currentlyShownButton, current.identifier?.rawValue == Self.fallbackStatusItemId {
-                hidePopover()
+                hidePanel()
             }
             NSStatusBar.system.removeStatusItem(fallbackItem)
             previousRenderStates.removeValue(forKey: Self.fallbackStatusItemId)
-            if let p = popovers.removeValue(forKey: Self.fallbackStatusItemId) {
-                if p.isShown {
-                    p.performClose(nil)
-                }
-                p.contentViewController = nil
-            }
         }
 
         // If the exact same items were reordered, rebuild status items in the new order so NSStatusBar positions them accordingly
@@ -272,24 +156,17 @@ public final class MenuBarController: NSObject {
         }
         lastActiveItemOrder = currentOrder
 
-        // 1. Remove status items and popovers for items/categories that have been disabled or deleted
+        // 1. Remove status items for items/categories that have been disabled or deleted
         for (id, item) in statusItems where !activeIds.contains(id) {
             if let current = currentlyShownButton, current.identifier?.rawValue == id {
-                hidePopover()
+                hidePanel()
             }
             NSStatusBar.system.removeStatusItem(item)
             statusItems.removeValue(forKey: id)
             previousRenderStates.removeValue(forKey: id)
-            lastConfiguredPopoverConfigs.removeValue(forKey: id)
-            if let p = popovers.removeValue(forKey: id) {
-                if p.isShown {
-                    p.performClose(nil)
-                }
-                p.contentViewController = nil
-            }
         }
 
-        // 2. Create and configure status items and dedicated popovers for newly active items
+        // 2. Create and configure status items for newly active items
         for config in activeConfigs where statusItems[config.id] == nil {
             let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
             if let button = item.button {
@@ -299,37 +176,22 @@ public final class MenuBarController: NSObject {
                 button.identifier = NSUserInterfaceItemIdentifier(config.id)
             }
             statusItems[config.id] = item
-            if popovers[config.id] == nil {
-                popovers[config.id] = createPopover(for: config)
-            }
         }
 
-        // Re-anchor active popover to the newly rebuilt button if items were reordered
+        // Re-anchor active panel to the newly rebuilt button if items were reordered
         if let openId = reanchoredId, let newButton = statusItems[openId]?.button {
             currentlyShownButton = newButton
-            if let p = popovers[openId] {
-                p.show(relativeTo: newButton.bounds, of: newButton, preferredEdge: .minY)
-            }
-        } else if reanchoredId != nil {
-            hidePopover()
-        }
-
-        // 3. Invalidate or swap cached popover content if custom popover config was updated
-        for config in activeConfigs {
-            let popConfig = config.resolvedPopoverConfig
-            if lastConfiguredPopoverConfigs[config.id] != popConfig {
-                lastConfiguredPopoverConfigs[config.id] = popConfig
-                if let p = popovers[config.id] {
-                    if p.isShown {
-                        p.contentViewController = makeHostingController(for: config)
-                    } else {
-                        p.contentViewController = nil
-                    }
+            let category = categoryForConfigId(openId) ?? .cpu
+            if PanelController.shared.isPanelOpen(for: category) {
+                PanelController.shared.show(category: category, relativeTo: newButton) {
+                    self.makePanelContentView(forConfigId: openId)
                 }
             }
+        } else if reanchoredId != nil {
+            hidePanel()
         }
 
-        // 4. Re-render all active status items
+        // 3. Re-render all active status items
         updateAllStatusItems()
     }
 
@@ -526,19 +388,7 @@ public final class MenuBarController: NSObject {
         }
     }
 
-    // MARK: - Popover Actions & Category Routing (ADR 0007 / ADR 0009)
-
-    public var forceLegacyPopovers: Bool = false
-
-    public var useLegacyPopovers: Bool {
-        if forceLegacyPopovers { return true }
-        #if DEBUG
-        if CommandLine.arguments.contains("-legacyPopovers") || ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil || NSClassFromString("XCTestCase") != nil {
-            return true
-        }
-        #endif
-        return false
-    }
+    // MARK: - Panel Actions & Category Routing (ADR 0009)
 
     public func categoryForConfigId(_ rawId: String) -> MetricCategory? {
         if rawId == Self.fallbackStatusItemId { return nil }
@@ -590,27 +440,17 @@ public final class MenuBarController: NSObject {
             return
         }
 
-        if !useLegacyPopovers {
-            let category = categoryForConfigId(rawId) ?? .cpu
-            currentlyShownButton = button
-            PanelController.shared.toggle(category: category, relativeTo: button) {
-                self.makePanelContentView(forConfigId: rawId)
-            }
-            if PanelController.shared.isPanelOpen(for: category) {
-                startScrubbingMonitor()
-            } else {
-                stopScrubbingMonitor()
-                currentlyShownButton = nil
-            }
-            return
+        let category = categoryForConfigId(rawId) ?? .cpu
+        currentlyShownButton = button
+        PanelController.shared.toggle(category: category, relativeTo: button) {
+            self.makePanelContentView(forConfigId: rawId)
         }
-
-        if currentlyShownButton === button {
-            hidePopover()
-            return
+        if PanelController.shared.isPanelOpen(for: category) {
+            startScrubbingMonitor()
+        } else {
+            stopScrubbingMonitor()
+            currentlyShownButton = nil
         }
-
-        showPopover(forConfigId: rawId, relativeTo: button, animated: true)
     }
 
     /// Shows a standard macOS context menu on right-click.
@@ -664,107 +504,34 @@ public final class MenuBarController: NSObject {
         NSApplication.shared.terminate(nil)
     }
 
-    /// Shows the dedicated popover for a specific category anchored to a menu bar button.
-    public func showPopover(for category: MetricCategory, relativeTo button: NSStatusBarButton) {
+    /// Shows the dedicated panel for a specific category anchored to a menu bar button.
+    public func showPanel(for category: MetricCategory, relativeTo button: NSStatusBarButton) {
         let rawId = button.identifier?.rawValue ?? category.rawValue
-        showPopover(forConfigId: rawId, relativeTo: button, animated: true)
-    }
-
-    /// Shows the universal popover displaying all metrics or app overview.
-    public func showUniversalPopover(relativeTo button: NSStatusBarButton) {
-        showPopover(forConfigId: Self.fallbackStatusItemId, relativeTo: button, animated: true)
-    }
-
-    /// Dedicated popover presenter with optional animation (disabled during hover scrubbing for instantaneous switching).
-    public func showPopover(forConfigId rawId: String, relativeTo button: NSStatusBarButton, animated: Bool = true) {
-        let targetPopover: NSPopover
-        if let existing = popovers[rawId] {
-            targetPopover = existing
-        } else if rawId == Self.fallbackStatusItemId {
-            let p = createFallbackPopover()
-            popovers[rawId] = p
-            targetPopover = p
-        } else {
-            let parts = rawId.components(separatedBy: ".")
-            let categoryRaw = parts.first ?? rawId
-            let styleRaw = parts.dropFirst().joined(separator: ".")
-            if let category = MetricCategory(rawValue: categoryRaw) {
-                let style = MetricDisplayStyle(rawValue: styleRaw) ?? .text
-                let popoverStyle = preferences.popoverStyle(for: category, widgetStyle: style)
-                let config = MenuBarItemConfig(category: category, style: style, popoverStyle: popoverStyle)
-                let p = createPopover(for: config)
-                popovers[rawId] = p
-                targetPopover = p
-            } else {
-                let p = createFallbackPopover()
-                popovers[rawId] = p
-                targetPopover = p
-            }
-        }
-
-        // Update active button first so synchronous performClose notifications during scrubbing
-        // recognize that a new popover is actively being displayed.
         currentlyShownButton = button
-
-        // Close any currently visible popover without tearing down controllers during scrubbing
-        for (_, p) in popovers where p !== targetPopover && p.isShown {
-            p.animates = animated
-            p.performClose(nil)
-            p.animates = true
+        PanelController.shared.show(category: category, relativeTo: button) {
+            self.makePanelContentView(forConfigId: rawId)
         }
-        if fallbackPopover !== targetPopover && fallbackPopover.isShown {
-            fallbackPopover.animates = animated
-            fallbackPopover.performClose(nil)
-            fallbackPopover.animates = true
-        }
-
-        ensurePopoverContent(for: rawId, popover: targetPopover)
-        targetPopover.animates = animated
-        targetPopover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
-        targetPopover.contentViewController?.view.window?.makeKey()
-        targetPopover.animates = true
-
         startScrubbingMonitor()
     }
 
+    /// Backward-compatibility forwarder
+    public func showPopover(for category: MetricCategory, relativeTo button: NSStatusBarButton) {
+        showPanel(for: category, relativeTo: button)
+    }
+
     public func hidePopover() {
+        hidePanel()
+    }
+
+    public func hidePanel() {
         stopScrubbingMonitor()
-        if !useLegacyPopovers {
-            PanelController.shared.close()
-            currentlyShownButton = nil
-            return
-        }
-        if let button = currentlyShownButton,
-           let rawId = button.identifier?.rawValue,
-           let activePopover = popovers[rawId] {
-            if activePopover.isShown {
-                activePopover.performClose(nil)
-            }
-        }
-        for (_, p) in popovers where p.isShown {
-            p.performClose(nil)
-        }
-        if fallbackPopover.isShown {
-            fallbackPopover.performClose(nil)
-        }
+        PanelController.shared.close()
         currentlyShownButton = nil
-        teardownInactivePopoverControllers()
     }
 
-    /// Releases cached NSHostingControllers when all popovers are closed to ensure zero background SwiftUI re-evaluation during sampling passes.
-    private func teardownInactivePopoverControllers() {
-        guard currentlyShownButton == nil else { return }
-        for (_, p) in popovers where !p.isShown {
-            p.contentViewController = nil
-        }
-        if !fallbackPopover.isShown {
-            fallbackPopover.contentViewController = nil
-        }
-    }
+    // MARK: - Menu Bar Scrubbing (ADR 0007 / ADR 0009)
 
-    // MARK: - Menu Bar Scrubbing (ADR 0007 & iStat Parity)
-
-    /// Handles cursor motion across status item buttons when a popover is actively presented.
+    /// Handles cursor motion across status item buttons when a panel is actively presented.
     public func handleMouseMovedDuringScrubbing(to mouseLocation: NSPoint) {
         guard let currentButton = currentlyShownButton, currentButton.window != nil else {
             stopScrubbingMonitor()
@@ -779,14 +546,10 @@ public final class MenuBarController: NSObject {
             let buttonScreenRect = window.convertToScreen(button.convert(button.bounds, to: nil))
             let hitRect = buttonScreenRect.insetBy(dx: 0, dy: -6)
             if hitRect.contains(mouseLocation) {
-                if !useLegacyPopovers {
-                    let category = categoryForConfigId(id) ?? .cpu
-                    currentlyShownButton = button
-                    PanelController.shared.handleStatusItemHover(category: category, button: button) {
-                        self.makePanelContentView(forConfigId: id)
-                    }
-                } else {
-                    showPopover(forConfigId: id, relativeTo: button, animated: false)
+                let category = categoryForConfigId(id) ?? .cpu
+                currentlyShownButton = button
+                PanelController.shared.handleStatusItemHover(category: category, button: button) {
+                    self.makePanelContentView(forConfigId: id)
                 }
                 break
             }
@@ -935,26 +698,4 @@ public final class MenuBarController: NSObject {
     }
 }
 
-// MARK: - NSPopoverDelegate
 
-extension MenuBarController: NSPopoverDelegate {
-    public func popoverDidClose(_ notification: Notification) {
-        if let closed = notification.object as? NSPopover {
-            // When the active popover closes without transitioning to another item, the popover session ends.
-            if let button = currentlyShownButton,
-               let rawId = button.identifier?.rawValue {
-                if popovers[rawId] === closed || fallbackPopover === closed || popovers[rawId] == nil {
-                    currentlyShownButton = nil
-                    stopScrubbingMonitor()
-                    teardownInactivePopoverControllers()
-                }
-            } else {
-                let anyShown = popovers.values.contains(where: { $0.isShown }) || fallbackPopover.isShown
-                if !anyShown {
-                    stopScrubbingMonitor()
-                    teardownInactivePopoverControllers()
-                }
-            }
-        }
-    }
-}

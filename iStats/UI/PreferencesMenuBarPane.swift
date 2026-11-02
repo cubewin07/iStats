@@ -731,10 +731,10 @@ public struct PreferencesMenuBarPane: View {
 
             Divider()
 
-            // Interactive Popover View Canvas (Fixed 330 pt width)
+            // Interactive Panel View Canvas (Fixed 352 pt width)
             ScrollView {
                 VStack(spacing: 0) {
-                    PopoverFactory.makeCategoryPopoverView(
+                    PanelFactory.makeCategoryPanelView(
                         category: selectedCategory,
                         initialTab: resolvedConfig.openingTab,
                         rememberLastTab: false,
@@ -742,9 +742,9 @@ public struct PreferencesMenuBarPane: View {
                         coordinator: coordinator,
                         preferences: store
                     )
-                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                    .clipShape(RoundedRectangle(cornerRadius: Instrument.Radius.panel))
                     .overlay(
-                        RoundedRectangle(cornerRadius: 10)
+                        RoundedRectangle(cornerRadius: Instrument.Radius.panel)
                             .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
                     )
                     .shadow(color: Color.black.opacity(0.12), radius: 8, x: 0, y: 4)

@@ -347,7 +347,7 @@ final class MenuBarDisplayTests: XCTestCase {
 
     func testCategoryPopoverInstantiation() {
         for category in MetricCategory.allCases {
-            let view = PopoverFactory.makeCategoryPopoverView(
+            let view = PanelFactory.makeCategoryPanelView(
                 category: category,
                 coordinator: .shared,
                 preferences: .shared

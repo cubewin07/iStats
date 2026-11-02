@@ -90,13 +90,13 @@ final class MemoryPressureTests: XCTestCase {
 
     @MainActor
     func testMemoryPressureUIViewsRendering() {
-        let normalBanner = StatusBanner(iconName: "info.circle", message: "Normal", level: .fine)
-        let warningBanner = StatusBanner(iconName: "exclamationmark.triangle.fill", message: "Warning", level: .warning)
-        let criticalBanner = StatusBanner(iconName: "exclamationmark.octagon.fill", message: "Critical", level: .critical)
+        let normalRibbon = StatusRibbon(status: .fine, message: "Pressure Nominal")
+        let warningRibbon = StatusRibbon(status: .warning, message: "Pressure Elevated")
+        let criticalRibbon = StatusRibbon(status: .critical, message: "Pressure Critical")
 
-        XCTAssertNotNil(normalBanner.body)
-        XCTAssertNotNil(warningBanner.body)
-        XCTAssertNotNil(criticalBanner.body)
+        XCTAssertNotNil(normalRibbon.body)
+        XCTAssertNotNil(warningRibbon.body)
+        XCTAssertNotNil(criticalRibbon.body)
 
         for pressure in [MemoryPressure.normal, MemoryPressure.warning, MemoryPressure.critical] {
             let sample = MemorySample(
@@ -113,8 +113,8 @@ final class MemoryPressureTests: XCTestCase {
             let coord = MetricsCoordinator(scheduler: SampleScheduler(), store: MetricsStore(), preferencesStore: PreferencesStore.shared)
             coord.handleReading(.memory(Sample(value: sample)))
 
-            let memoryPopover = MemoryPopover(coordinator: coord)
-            XCTAssertNotNil(memoryPopover.body)
+            let memoryPanel = MemoryPanel(coordinator: coord)
+            XCTAssertNotNil(memoryPanel.body)
         }
     }
 }

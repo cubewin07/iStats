@@ -212,45 +212,45 @@ final class SandboxDegradationTests: XCTestCase {
     @MainActor
     func testTemperaturePopoverRendersUnavailableState() {
         let coordNil = MetricsCoordinator(scheduler: SampleScheduler(), store: MetricsStore(), preferencesStore: PreferencesStore.shared)
-        let viewNil = TemperaturePopover(coordinator: coordNil)
+        let viewNil = TemperaturePanel(coordinator: coordNil)
         XCTAssertNotNil(viewNil.body)
 
         let coordEmpty = MetricsCoordinator(scheduler: SampleScheduler(), store: MetricsStore(), preferencesStore: PreferencesStore.shared)
         coordEmpty.handleReading(.thermal(Sample(value: ThermalSample(sensors: [], pressure: nil))))
-        let viewEmpty = TemperaturePopover(coordinator: coordEmpty)
+        let viewEmpty = TemperaturePanel(coordinator: coordEmpty)
         XCTAssertNotNil(viewEmpty.body)
     }
 
     @MainActor
     func testFanPopoverRendersUnavailableState() {
         let coordNil = MetricsCoordinator(scheduler: SampleScheduler(), store: MetricsStore(), preferencesStore: PreferencesStore.shared)
-        let viewNil = FanPopover(coordinator: coordNil)
+        let viewNil = FanPanel(coordinator: coordNil)
         XCTAssertNotNil(viewNil.body)
 
         let coordEmpty = MetricsCoordinator(scheduler: SampleScheduler(), store: MetricsStore(), preferencesStore: PreferencesStore.shared)
         coordEmpty.handleReading(.fan(Sample(value: FanSample(fans: []))))
-        let viewEmpty = FanPopover(coordinator: coordEmpty)
+        let viewEmpty = FanPanel(coordinator: coordEmpty)
         XCTAssertNotNil(viewEmpty.body)
     }
 
     @MainActor
     func testGPUPopoverRendersUnavailableState() {
         let coordNil = MetricsCoordinator(scheduler: SampleScheduler(), store: MetricsStore(), preferencesStore: PreferencesStore.shared)
-        let viewNil = GPUPopover(coordinator: coordNil)
+        let viewNil = GPUPanel(coordinator: coordNil)
         XCTAssertNotNil(viewNil.body)
 
         let coordEmpty = MetricsCoordinator(scheduler: SampleScheduler(), store: MetricsStore(), preferencesStore: PreferencesStore.shared)
         coordEmpty.handleReading(.gpu(Sample(value: GPUSample())))
-        let viewEmpty = GPUPopover(coordinator: coordEmpty)
+        let viewEmpty = GPUPanel(coordinator: coordEmpty)
         XCTAssertNotNil(viewEmpty.body)
     }
 
     @MainActor
     func testCategoryPopoversRenderAllUnavailablePhase5CategoriesGracefully() {
         let coordNil = MetricsCoordinator(scheduler: SampleScheduler(), store: MetricsStore(), preferencesStore: PreferencesStore.shared)
-        let gpuPopover = GPUPopover(coordinator: coordNil)
-        let tempPopover = TemperaturePopover(coordinator: coordNil)
-        let fanPopover = FanPopover(coordinator: coordNil)
+        let gpuPopover = GPUPanel(coordinator: coordNil)
+        let tempPopover = TemperaturePanel(coordinator: coordNil)
+        let fanPopover = FanPanel(coordinator: coordNil)
         XCTAssertNotNil(gpuPopover.body)
         XCTAssertNotNil(tempPopover.body)
         XCTAssertNotNil(fanPopover.body)
@@ -259,9 +259,9 @@ final class SandboxDegradationTests: XCTestCase {
         coordEmpty.handleReading(.gpu(Sample(value: GPUSample())))
         coordEmpty.handleReading(.thermal(Sample(value: ThermalSample(sensors: [], pressure: nil))))
         coordEmpty.handleReading(.fan(Sample(value: FanSample(fans: []))))
-        let gpuEmpty = GPUPopover(coordinator: coordEmpty)
-        let tempEmpty = TemperaturePopover(coordinator: coordEmpty)
-        let fanEmpty = FanPopover(coordinator: coordEmpty)
+        let gpuEmpty = GPUPanel(coordinator: coordEmpty)
+        let tempEmpty = TemperaturePanel(coordinator: coordEmpty)
+        let fanEmpty = FanPanel(coordinator: coordEmpty)
         XCTAssertNotNil(gpuEmpty.body)
         XCTAssertNotNil(tempEmpty.body)
         XCTAssertNotNil(fanEmpty.body)

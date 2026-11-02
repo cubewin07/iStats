@@ -211,3 +211,22 @@ public enum ThermalRamp {
         return Color.orange
     }
 }
+
+// MARK: - StatusLevel UI Convenience
+
+extension StatusLevel {
+    /// Semantic status color conforming to CategoryPalette.
+    public var color: Color {
+        CategoryPalette.statusColor(for: self)
+    }
+
+    /// Semantic SF Symbol name representing this status level.
+    public var iconName: String {
+        switch self {
+        case .fine: return "checkmark.circle.fill"
+        case .elevated: return "info.circle.fill"
+        case .warning: return "exclamationmark.triangle.fill"
+        case .critical: return "exclamationmark.octagon.fill"
+        }
+    }
+}

@@ -143,7 +143,7 @@ final class FanSamplerTests: XCTestCase {
         let coord = MetricsCoordinator(scheduler: SampleScheduler(), store: MetricsStore(), preferencesStore: PreferencesStore.shared)
         coord.handleReading(.fan(Sample(value: sample)))
 
-        let view = FanPopover(coordinator: coord)
+        let view = FanPanel(coordinator: coord)
         XCTAssertNotNil(view.body)
     }
 
@@ -153,7 +153,7 @@ final class FanSamplerTests: XCTestCase {
         let coord = MetricsCoordinator(scheduler: SampleScheduler(), store: MetricsStore(), preferencesStore: PreferencesStore.shared)
         coord.handleReading(.fan(Sample(value: sample)))
 
-        let view = FanPopover(coordinator: coord)
+        let view = FanPanel(coordinator: coord)
         XCTAssertNotNil(view.body)
     }
 
@@ -163,7 +163,7 @@ final class FanSamplerTests: XCTestCase {
         coord.handleReading(.fan(Sample(value: FanSample(fans: [
             FanReading(name: "System Fan", rpm: 1500, minRPM: 1000, maxRPM: 5000)
         ]))))
-        let popover = FanPopover(coordinator: coord)
+        let popover = FanPanel(coordinator: coord)
         XCTAssertNotNil(popover.body)
     }
 
