@@ -21,8 +21,22 @@ public enum CategoryPalette {
 
     public static func dynamicNSColor(lightHex: String, darkHex: String) -> NSColor {
         NSColor(name: nil, dynamicProvider: { appearance in
-            let isDark = appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-            return nsColorFromHex(isDark ? darkHex : lightHex)
+            let match = appearance.bestMatch(from: [
+                .accessibilityHighContrastDarkAqua,
+                .darkAqua,
+                .accessibilityHighContrastAqua,
+                .aqua
+            ])
+            let isDark = (match == .darkAqua || match == .accessibilityHighContrastDarkAqua)
+            let isHighContrast = (match == .accessibilityHighContrastDarkAqua || match == .accessibilityHighContrastAqua)
+
+            let baseHex = isDark ? darkHex : lightHex
+            let baseColor = nsColorFromHex(baseHex)
+            if isHighContrast {
+                return isDark ? (baseColor.blended(withFraction: 0.25, of: .white) ?? baseColor)
+                              : (baseColor.blended(withFraction: 0.25, of: .black) ?? baseColor)
+            }
+            return baseColor
         })
     }
 
@@ -43,21 +57,21 @@ public enum CategoryPalette {
     public static func nsColor(for category: MetricCategory) -> NSColor {
         switch category {
         case .cpu:
-            return dynamicNSColor(lightHex: "#2E6BF0", darkHex: "#5C8DFF")
+            return dynamicNSColor(lightHex: "#0058D6", darkHex: "#5C8DFF")
         case .memory:
-            return dynamicNSColor(lightHex: "#0FA37F", darkHex: "#33D1A6")
+            return dynamicNSColor(lightHex: "#006E80", darkHex: "#33D1A6")
         case .gpu:
-            return dynamicNSColor(lightHex: "#7C4DEB", darkHex: "#A386FF")
+            return dynamicNSColor(lightHex: "#6D28D9", darkHex: "#A386FF")
         case .thermal:
-            return dynamicNSColor(lightHex: "#E2611E", darkHex: "#FF8A4C")
+            return dynamicNSColor(lightHex: "#B54308", darkHex: "#FF8A4C")
         case .fan:
-            return dynamicNSColor(lightHex: "#0C93B8", darkHex: "#3CC6E8")
+            return dynamicNSColor(lightHex: "#0B6E66", darkHex: "#3CC6E8")
         case .network:
-            return dynamicNSColor(lightHex: "#4F55E6", darkHex: "#8389FF")
+            return dynamicNSColor(lightHex: "#087054", darkHex: "#8389FF")
         case .disk:
-            return dynamicNSColor(lightHex: "#D23D72", darkHex: "#FF6E9C")
+            return dynamicNSColor(lightHex: "#364FC7", darkHex: "#FF6E9C")
         case .power:
-            return dynamicNSColor(lightHex: "#2AA44F", darkHex: "#4ADE80")
+            return dynamicNSColor(lightHex: "#147530", darkHex: "#4ADE80")
         }
     }
 
@@ -74,21 +88,21 @@ public enum CategoryPalette {
     public static func nsDeep(for category: MetricCategory) -> NSColor {
         switch category {
         case .cpu:
-            return dynamicNSColor(lightHex: "#244DBA", darkHex: "#3B5BDB")
+            return dynamicNSColor(lightHex: "#003E99", darkHex: "#3B5BDB")
         case .memory:
-            return dynamicNSColor(lightHex: "#0D8265", darkHex: "#13997A")
+            return dynamicNSColor(lightHex: "#004D5A", darkHex: "#13997A")
         case .gpu:
-            return dynamicNSColor(lightHex: "#5A38B8", darkHex: "#6E4BD8")
+            return dynamicNSColor(lightHex: "#4C1D95", darkHex: "#6E4BD8")
         case .thermal:
-            return dynamicNSColor(lightHex: "#BF421E", darkHex: "#E0532A")
+            return dynamicNSColor(lightHex: "#7C2D12", darkHex: "#E0532A")
         case .fan:
-            return dynamicNSColor(lightHex: "#0A7491", darkHex: "#1A8FB5")
+            return dynamicNSColor(lightHex: "#044E46", darkHex: "#1A8FB5")
         case .network:
-            return dynamicNSColor(lightHex: "#3A3FB8", darkHex: "#5A5FE0")
+            return dynamicNSColor(lightHex: "#064E3B", darkHex: "#5A5FE0")
         case .disk:
-            return dynamicNSColor(lightHex: "#A82E59", darkHex: "#D8467A")
+            return dynamicNSColor(lightHex: "#25368A", darkHex: "#D8467A")
         case .power:
-            return dynamicNSColor(lightHex: "#1B7A38", darkHex: "#22A355")
+            return dynamicNSColor(lightHex: "#0E4B20", darkHex: "#22A355")
         }
     }
 
@@ -121,18 +135,18 @@ public enum CategoryPalette {
     public enum Series {
         // Network
         public static let networkDownload = CategoryPalette.color(for: .network)
-        public static let networkUpload = CategoryPalette.dynamicColor(lightHex: "#D9683B", darkHex: "#FF8A5B")
+        public static let networkUpload = CategoryPalette.dynamicColor(lightHex: "#6D28D9", darkHex: "#A78BFA")
 
         // Disk
         public static let diskRead = CategoryPalette.color(for: .disk)
-        public static let diskWrite = CategoryPalette.dynamicColor(lightHex: "#C98E18", darkHex: "#F5B83D")
+        public static let diskWrite = CategoryPalette.dynamicColor(lightHex: "#B8470B", darkHex: "#FF8A4C")
 
         // CPU
         public static let cpuUser = CategoryPalette.color(for: .cpu)
-        public static let cpuSystem = CategoryPalette.dynamicColor(lightHex: "#D94F43", darkHex: "#FF6B5E")
+        public static let cpuSystem = CategoryPalette.dynamicColor(lightHex: "#C23B1E", darkHex: "#FF7A59")
 
         // Memory composition
-        public static let memoryApp = CategoryPalette.color(for: .memory)
+        public static let memoryApp = CategoryPalette.dynamicColor(lightHex: "#005EB8", darkHex: "#38BDF8")
         public static let memoryWired = CategoryPalette.deep(for: .memory)
         public static let memoryCompressed = CategoryPalette.color(for: .memory).opacity(0.55)
         public static let memoryCached = CategoryPalette.color(for: .memory).opacity(0.28)
@@ -146,13 +160,13 @@ public enum CategoryPalette {
     public static func statusNSColor(for level: StatusLevel) -> NSColor {
         switch level {
         case .fine:
-            return dynamicNSColor(lightHex: "#2AA44F", darkHex: "#4ADE80")
+            return dynamicNSColor(lightHex: "#147530", darkHex: "#4ADE80")
         case .elevated:
-            return dynamicNSColor(lightHex: "#C98A00", darkHex: "#FFC53D")
+            return dynamicNSColor(lightHex: "#9E5800", darkHex: "#FFC53D")
         case .warning:
-            return dynamicNSColor(lightHex: "#E06A00", darkHex: "#FF9F45")
+            return dynamicNSColor(lightHex: "#B83E00", darkHex: "#FF9F45")
         case .critical:
-            return dynamicNSColor(lightHex: "#D92D2D", darkHex: "#FF5C5C")
+            return dynamicNSColor(lightHex: "#C42014", darkHex: "#FF5C5C")
         }
     }
 }

@@ -860,7 +860,7 @@ public struct MenuBarIconRenderer {
                         value2: outCompact,
                         fixedWidth: 82.0,
                         color1: CategoryPalette.nsColor(for: .network),
-                        color2: CategoryPalette.nsColor(for: .power)
+                        color2: NSColor(CategoryPalette.Series.networkUpload)
                     )
                 } else {
                     return drawNetworkStackedThroughput(inBytes: inBytes, outBytes: outBytes, unit: unit, standard: standard)
@@ -927,7 +927,7 @@ public struct MenuBarIconRenderer {
                         value2: wCompact,
                         fixedWidth: 82.0,
                         color1: CategoryPalette.nsColor(for: .disk),
-                        color2: NSColor.systemOrange
+                        color2: NSColor(CategoryPalette.Series.diskWrite)
                     )
                 } else {
                     return drawDiskStackedThroughput(readBytes: readBytes, writeBytes: writeBytes, standard: standard)
@@ -1562,12 +1562,12 @@ public struct MenuBarIconRenderer {
                 }
                 outFill.line(to: NSPoint(x: graphBounds.maxX - 1.0, y: midY))
                 outFill.close()
-                CategoryPalette.nsColor(for: .power).withAlphaComponent(0.25).setFill()
+                NSColor(CategoryPalette.Series.networkUpload).withAlphaComponent(0.25).setFill()
                 outFill.fill()
 
                 outLine.lineWidth = 1.2
                 outLine.lineJoinStyle = .round
-                CategoryPalette.nsColor(for: .power).setStroke()
+                NSColor(CategoryPalette.Series.networkUpload).setStroke()
                 outLine.stroke()
             }
 
@@ -1668,12 +1668,12 @@ public struct MenuBarIconRenderer {
                 }
                 wFill.line(to: NSPoint(x: graphBounds.maxX - 1.0, y: midY))
                 wFill.close()
-                NSColor.systemOrange.withAlphaComponent(0.25).setFill()
+                NSColor(CategoryPalette.Series.diskWrite).withAlphaComponent(0.25).setFill()
                 wFill.fill()
 
                 wLine.lineWidth = 1.2
                 wLine.lineJoinStyle = .round
-                NSColor.systemOrange.setStroke()
+                NSColor(CategoryPalette.Series.diskWrite).setStroke()
                 wLine.stroke()
             }
 
@@ -2017,7 +2017,7 @@ public struct MenuBarIconRenderer {
                 sArc.appendArc(withCenter: center, radius: radius, startAngle: startAngle, endAngle: endAngle, clockwise: true)
                 sArc.lineWidth = lineWidth
                 sArc.lineCapStyle = .butt
-                NSColor.systemRed.withAlphaComponent(0.70).setStroke()
+                NSColor(CategoryPalette.Series.cpuSystem).withAlphaComponent(0.70).setStroke()
                 sArc.stroke()
             }
 

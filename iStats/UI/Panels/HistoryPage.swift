@@ -23,6 +23,7 @@ public struct HistoryPage: View {
 
     @Environment(\.motionPolicy) private var motionPolicy
     @Environment(\.chartNamespace) private var chartNamespace
+    @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
 
     public init(
         category: MetricCategory,
@@ -48,6 +49,12 @@ public struct HistoryPage: View {
 
     public var body: some View {
         let seriesData = buildSeriesData()
+        let resolvedPolicy = MotionPolicy.resolve(
+            reduceMotion: accessibilityReduceMotion,
+            lowPower: coordinator.isLowPowerModeActive,
+            paused: preferences.isSamplingPaused,
+            visible: true
+        )
 
         VStack(spacing: Instrument.Space.l) {
             // Top Controls Bar (Channel Isolation / Source Chips + Glass Range Segment)
@@ -87,6 +94,7 @@ public struct HistoryPage: View {
             }
         }
         .padding(.vertical, 2)
+        .motionPolicy(resolvedPolicy)
         .onAppear {
             selectedRange = preferences.historyRange(for: category)
         }
@@ -114,12 +122,16 @@ public struct HistoryPage: View {
                             Text(src.shortLabel)
                                 .font(Instrument.Typography.micro)
                                 .fontWeight(isSelected ? .semibold : .regular)
-                                .foregroundColor(isSelected ? .white : .primary)
+                                .foregroundColor(isSelected ? .primary : .secondary)
                                 .padding(.horizontal, 7)
                                 .padding(.vertical, 3)
                                 .background(
                                     Capsule()
-                                        .fill(isSelected ? CategoryPalette.tint(for: .thermal) : Color.primary.opacity(0.06))
+                                        .fill(isSelected ? CategoryPalette.tint(for: .thermal).opacity(0.18) : Color.primary.opacity(0.06))
+                                        .overlay(
+                                            Capsule()
+                                                .stroke(isSelected ? CategoryPalette.tint(for: .thermal).opacity(0.6) : Color.clear, lineWidth: 1)
+                                        )
                                 )
                         }
                         .buttonStyle(.plain)
@@ -206,7 +218,7 @@ public struct HistoryPage: View {
                         .padding(.vertical, 3)
                         .background(
                             RoundedRectangle(cornerRadius: 4)
-                                .fill(isSelected ? Color.white.opacity(0.12) : Color.clear)
+                                .fill(isSelected ? Color.primary.opacity(0.12) : Color.clear)
                         )
                 }
                 .buttonStyle(.plain)

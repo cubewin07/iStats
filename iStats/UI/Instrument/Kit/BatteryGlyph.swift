@@ -89,14 +89,14 @@ public struct BatteryGlyph: View {
                     if isCharging {
                         Image(systemName: "bolt.fill")
                             .font(.system(size: 14, weight: .bold))
-                            .foregroundColor(.white)
-                            .shadow(color: Color.black.opacity(0.4), radius: 1, x: 0, y: 1)
+                            .foregroundColor((charge ?? 0) > 45 ? .white : .primary)
+                            .shadow(color: (charge ?? 0) > 45 ? Color.black.opacity(0.4) : Color.clear, radius: 1, x: 0, y: 1)
                     } else if let c = charge {
                         Text("\(Int(round(c)))%")
                             .font(Instrument.Typography.caption)
                             .fontWeight(.bold)
-                            .foregroundColor(.white)
-                            .shadow(color: Color.black.opacity(0.5), radius: 1, x: 0, y: 1)
+                            .foregroundColor(c > 45 ? .white : .primary)
+                            .shadow(color: c > 45 ? Color.black.opacity(0.5) : Color.clear, radius: 1, x: 0, y: 1)
                     } else {
                         Text("—")
                             .font(Instrument.Typography.caption)
@@ -115,6 +115,18 @@ public struct BatteryGlyph: View {
         .frame(width: 88, height: 40)
         .onAppear {
             if isCharging && motionPolicy == .full {
+                withAnimation(
+                    .easeInOut(duration: 1.6)
+                    .repeatForever(autoreverses: false)
+                ) {
+                    shimmerPhase = 1.0
+                }
+            }
+        }
+        .onChange(of: motionPolicy) { newPolicy in
+            if newPolicy != .full {
+                shimmerPhase = 0.0
+            } else if isCharging {
                 withAnimation(
                     .easeInOut(duration: 1.6)
                     .repeatForever(autoreverses: false)

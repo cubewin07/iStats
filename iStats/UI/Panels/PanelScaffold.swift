@@ -58,6 +58,8 @@ public struct PanelScaffold<Content: View>: View {
 
     @State private var scrubSummary: String? = nil
     @Namespace private var chartNamespace
+    @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
+    @ObservedObject private var coordinator = MetricsCoordinator.shared
 
     public init(
         category: MetricCategory,
@@ -94,6 +96,13 @@ public struct PanelScaffold<Content: View>: View {
     }
 
     public var body: some View {
+        let resolvedPolicy = MotionPolicy.resolve(
+            reduceMotion: accessibilityReduceMotion,
+            lowPower: coordinator.isLowPowerModeActive,
+            paused: isPaused,
+            visible: true
+        )
+
         VStack(alignment: .leading, spacing: 0) {
             // Zone ①: Eyebrow row (28 pt)
             eyebrowRow
@@ -112,7 +121,7 @@ public struct PanelScaffold<Content: View>: View {
             chartZone
                 .padding(.horizontal, -Instrument.Space.xl)
 
-            // Zone ④: Status Ribbon (shown only at >= .elevated or paused)
+            // Zone ④: Status Ribbon (shown only at >= .elevated or paused or explicit message)
             if isPaused {
                 StatusRibbon(
                     status: .elevated,
@@ -122,7 +131,7 @@ public struct PanelScaffold<Content: View>: View {
                 )
                 .padding(.top, 6)
                 .accessibilityElement(children: .combine)
-            } else if !status.isQuiet, let message = ribbon {
+            } else if let message = ribbon, (!status.isQuiet || status == .fine) {
                 StatusRibbon(
                     status: status,
                     message: message,
@@ -140,6 +149,7 @@ public struct PanelScaffold<Content: View>: View {
         .padding(Instrument.Space.xl)
         .frame(width: Instrument.Size.panelWidth)
         .environment(\.chartNamespace, chartNamespace)
+        .motionPolicy(resolvedPolicy)
         .onReceive(NotificationCenter.default.publisher(for: .panelCommandReceived)) { notification in
             if let cmd = notification.object as? PanelCommand {
                 handleCommand(cmd)

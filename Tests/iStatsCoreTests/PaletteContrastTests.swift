@@ -99,4 +99,75 @@ final class PaletteContrastTests: XCTestCase {
             )
         }
     }
+
+    func testLightCategoryTintsContrastOnLightSurfaces() {
+        let whiteBg = PaletteContrast.lightBackground
+        let glassBg = RGBColor(hex: "#F2F2F7")!
+
+        let lightPalette: [(String, String)] = [
+            ("CPU", "#0058D6"),
+            ("Memory", "#006E80"),
+            ("GPU", "#6D28D9"),
+            ("Thermal", "#B54308"),
+            ("Fan", "#0B6E66"),
+            ("Network", "#087054"),
+            ("Disk", "#364FC7"),
+            ("Power", "#147530")
+        ]
+
+        for (category, hex) in lightPalette {
+            guard let color = RGBColor(hex: hex) else {
+                XCTFail("Failed to parse hex \(hex) for \(category)")
+                continue
+            }
+            let whiteRatio = color.contrastRatio(with: whiteBg)
+            let glassRatio = color.contrastRatio(with: glassBg)
+
+            XCTAssertGreaterThanOrEqual(
+                whiteRatio,
+                4.5,
+                "\(category) light tint (\(hex)) contrast ratio \(whiteRatio) is below 4.5:1 on white background"
+            )
+            XCTAssertGreaterThanOrEqual(
+                glassRatio,
+                4.5,
+                "\(category) light tint (\(hex)) contrast ratio \(glassRatio) is below 4.5:1 on light glass background"
+            )
+        }
+    }
+
+    func testLightStatusAndSeriesColorsContrastOnLightSurfaces() {
+        let whiteBg = PaletteContrast.lightBackground
+        let glassBg = RGBColor(hex: "#F2F2F7")!
+
+        let colors: [(String, String)] = [
+            ("Elevated", "#9E5800"),
+            ("Warning", "#B83E00"),
+            ("Critical", "#C42014"),
+            ("CPUSystem", "#C23B1E"),
+            ("NetUpload", "#6D28D9"),
+            ("DiskWrite", "#B8470B"),
+            ("MemoryApp", "#005EB8")
+        ]
+
+        for (name, hex) in colors {
+            guard let color = RGBColor(hex: hex) else {
+                XCTFail("Failed to parse hex \(hex) for \(name)")
+                continue
+            }
+            let whiteRatio = color.contrastRatio(with: whiteBg)
+            let glassRatio = color.contrastRatio(with: glassBg)
+
+            XCTAssertGreaterThanOrEqual(
+                whiteRatio,
+                4.5,
+                "\(name) light color (\(hex)) contrast ratio \(whiteRatio) is below 4.5:1 on white background"
+            )
+            XCTAssertGreaterThanOrEqual(
+                glassRatio,
+                4.5,
+                "\(name) light color (\(hex)) contrast ratio \(glassRatio) is below 4.5:1 on light glass background"
+            )
+        }
+    }
 }
