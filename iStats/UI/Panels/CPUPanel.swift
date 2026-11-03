@@ -102,7 +102,8 @@ public struct CPUPanel: View {
             unit: "%",
             headline: headline,
             insight: insight,
-            chartMode: chartMode
+            chartMode: chartMode,
+            scrubFormat: { String(format: "%.1f%%", $0) }
         )
     }
 
@@ -126,7 +127,7 @@ public struct CPUPanel: View {
         return nil
     }
 
-    // MARK: - Now Page (Core Map + Load)
+    // MARK: - Now Page (Core Map + Top Consumers)
 
     @ViewBuilder
     private func nowPage(sample: CPUSample?) -> some View {
@@ -134,9 +135,6 @@ public struct CPUPanel: View {
             VStack(spacing: Instrument.Space.m) {
                 // Signature Instrument: Core Map
                 coreMapModule(sample: s)
-
-                // Load Average Module
-                loadAverageModule(sample: s)
 
                 // Top Consumers (Task 8.9)
                 topConsumersModule
@@ -164,10 +162,17 @@ public struct CPUPanel: View {
         return Module(
             eyebrow: hoveredCoreInfo ?? "Core Map",
             trailing: {
-                if let freq = sample.frequencyHz, freq > 0 {
-                    Text(Units.formatFrequencyHz(freq))
-                        .font(Instrument.Typography.micro)
-                        .foregroundColor(.secondary)
+                HStack(spacing: 8) {
+                    if let load = sample.loadAverage?.oneMinute {
+                        Text("Load 1m: \(String(format: "%.2f", load))")
+                            .font(Instrument.Typography.micro)
+                            .foregroundColor(.secondary)
+                    }
+                    if let freq = sample.frequencyHz, freq > 0 {
+                        Text(Units.formatFrequencyHz(freq))
+                            .font(Instrument.Typography.micro)
+                            .foregroundColor(.secondary)
+                    }
                 }
             }
         ) {
@@ -181,6 +186,7 @@ public struct CPUPanel: View {
                             let coreIdx = pStart + i
                             let val = coreIdx < sample.perCore.count ? sample.perCore[coreIdx] / 100.0 : 0.0
                             return ClusterBarData(
+                                id: "p-\(coreIdx)",
                                 index: coreIdx + 1,
                                 utilization: val,
                                 color: CategoryPalette.tint(for: .cpu),
@@ -215,6 +221,7 @@ public struct CPUPanel: View {
                         let eBars = (0..<eCount).map { i -> ClusterBarData in
                             let val = i < sample.perCore.count ? sample.perCore[i] / 100.0 : 0.0
                             return ClusterBarData(
+                                id: "e-\(i)",
                                 index: i + 1,
                                 utilization: val,
                                 color: Color(red: 0.1, green: 0.65, blue: 0.75), // Glacier tint
@@ -246,6 +253,7 @@ public struct CPUPanel: View {
                     // Unified Cores Strip (Intel / Unknown Topology)
                     let bars = sample.perCore.enumerated().map { i, val in
                         ClusterBarData(
+                            id: "u-\(i)",
                             index: i + 1,
                             utilization: val / 100.0,
                             color: CategoryPalette.tint(for: .cpu),
@@ -301,6 +309,9 @@ public struct CPUPanel: View {
     private func detailPage(sample: CPUSample?) -> some View {
         if let s = sample {
             VStack(spacing: Instrument.Space.m) {
+                // Signature Instrument: Load Average Dot Plot
+                loadAverageModule(sample: s)
+
                 // User / System / Idle Split Capsule
                 Module(eyebrow: "Composition") {
                     VStack(alignment: .leading, spacing: 8) {

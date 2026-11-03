@@ -64,6 +64,12 @@ public struct HistoryPage: View {
 
                 Spacer()
 
+                if let summary = scrubSummary {
+                    Text(summary)
+                        .font(Instrument.Typography.caption)
+                        .foregroundColor(.primary)
+                }
+
                 // Trailing: Glass Segmented Range Control
                 rangeControl
             }

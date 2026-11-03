@@ -84,7 +84,7 @@ public struct MemoryPanel: View {
 
     private func deriveGlance(sample: MemorySample?) -> PanelGlance {
         let usedGB = sample.map { Double($0.used) / 1_073_741_824.0 } ?? 0.0
-        let totalFormatted = sample.map { Units.formatBytesIEC(Int64($0.total), fractionDigits: 0) } ?? "16 GB"
+        let totalFormatted = sample.map { Units.formatBytes(UInt64($0.total), standard: preferences.byteUnitStandard) } ?? "16 GB"
         let headline = PanelHeadline.memory(sample: sample)
         let usedHistory = coordinator.scalarHistory(for: .memoryUsedPercent, duration: 60)
         let insight = InsightEngine.insights(series: usedHistory, interval: 1.0, unit: .percent).first?.text
@@ -100,7 +100,8 @@ public struct MemoryPanel: View {
             unit: "of \(totalFormatted)",
             headline: headline,
             insight: insight,
-            chartMode: chartMode
+            chartMode: chartMode,
+            scrubFormat: { "\(Int(round($0)))% used" }
         )
     }
 
@@ -204,36 +205,28 @@ public struct MemoryPanel: View {
 
                 // Trailing Column of MetricRows
                 VStack(spacing: 4) {
+                    if let app = sample.appMemory {
+                        MetricRow(
+                            label: "App Memory",
+                            valueText: Units.formatBytes(UInt64(app), standard: preferences.byteUnitStandard)
+                        )
+                    }
+
                     MetricRow(
                         label: "Wired",
-                        valueText: Units.formatBytesIEC(Int64(sample.wired), fractionDigits: 1)
+                        valueText: Units.formatBytes(UInt64(sample.wired), standard: preferences.byteUnitStandard)
                     )
 
                     MetricRow(
                         label: "Compressed",
-                        valueText: Units.formatBytesIEC(Int64(sample.compressed), fractionDigits: 1)
+                        valueText: Units.formatBytes(UInt64(sample.compressed), standard: preferences.byteUnitStandard)
                     )
-
-                    if sample.swapUsed > 0 {
-                        MetricRow(
-                            label: "Swap Used",
-                            valueText: Units.formatBytesIEC(Int64(sample.swapUsed), fractionDigits: 1),
-                            statusLevel: sample.swapUsed > 1_000_000_000 ? .warning : .elevated
-                        )
-                    } else {
-                        MetricRow(
-                            label: "Swap Used",
-                            valueText: "0 B",
-                            statusLevel: .fine
-                        )
-                    }
                 }
             }
         }
     }
 
     private func compositionModule(sample: MemorySample) -> some View {
-        let total = Double(max(1, sample.total))
         var segments: [CapsuleSegment] = []
 
         if let app = sample.appMemory, app > 0 {
@@ -277,9 +270,9 @@ public struct MemoryPanel: View {
         }
 
         return Module(
-            eyebrow: hoveredSegmentSummary ?? "Memory Composition",
+            eyebrow: "Memory Composition",
             trailing: {
-                Text(Units.formatBytesIEC(Int64(sample.total), fractionDigits: 0))
+                Text(Units.formatBytes(UInt64(sample.total), standard: preferences.byteUnitStandard))
                     .font(Instrument.Typography.micro)
                     .foregroundColor(.secondary)
             }
@@ -289,7 +282,15 @@ public struct MemoryPanel: View {
                     segments: segments,
                     height: 12,
                     minVisibleWidth: 4,
-                    gap: 1
+                    gap: 1,
+                    onHoverSegment: { seg in
+                        if let s = seg {
+                            let pct = Int(round(s.value / Double(max(1, sample.total)) * 100.0))
+                            hoveredSegmentSummary = "\(s.label): \(Units.formatBytes(UInt64(s.value), standard: preferences.byteUnitStandard)) (\(pct)%)"
+                        } else {
+                            hoveredSegmentSummary = nil
+                        }
+                    }
                 )
 
                 // Segment labels legend
@@ -305,6 +306,15 @@ public struct MemoryPanel: View {
                         }
                     }
                 }
+
+                // Composition Footer: hovered segment or Swap status
+                HStack {
+                    Text(hoveredSegmentSummary ?? (sample.swapUsed > 0 ? "Swap: \(Units.formatBytes(UInt64(sample.swapUsed), standard: preferences.byteUnitStandard)) used" : "Swap unused"))
+                        .font(Instrument.Typography.micro)
+                        .foregroundColor(.secondary)
+                    Spacer()
+                }
+                .padding(.top, 2)
             }
         }
     }
@@ -344,11 +354,11 @@ public struct MemoryPanel: View {
                             )
 
                             HStack {
-                                Text("Used: \(Units.formatBytesIEC(Int64(s.swapUsed), fractionDigits: 1))")
+                                Text("Used: \(Units.formatBytes(UInt64(s.swapUsed), standard: preferences.byteUnitStandard))")
                                     .font(Instrument.Typography.micro)
                                     .foregroundColor(.secondary)
                                 Spacer()
-                                Text("Total: \(Units.formatBytesIEC(Int64(totalSwap), fractionDigits: 1))")
+                                Text("Total: \(Units.formatBytes(UInt64(totalSwap), standard: preferences.byteUnitStandard))")
                                     .font(Instrument.Typography.micro)
                                     .foregroundColor(.secondary)
                             }
@@ -362,18 +372,18 @@ public struct MemoryPanel: View {
                         if let act = s.active {
                             MetricRow(
                                 label: "Active Pages",
-                                valueText: Units.formatBytesIEC(Int64(act), fractionDigits: 1)
+                                valueText: Units.formatBytes(UInt64(act), standard: preferences.byteUnitStandard)
                             )
                         }
                         if let inact = s.inactive {
                             MetricRow(
                                 label: "Inactive Pages",
-                                valueText: Units.formatBytesIEC(Int64(inact), fractionDigits: 1)
+                                valueText: Units.formatBytes(UInt64(inact), standard: preferences.byteUnitStandard)
                             )
                         }
                         MetricRow(
                             label: "Free Memory",
-                            valueText: Units.formatBytesIEC(Int64(s.free), fractionDigits: 1)
+                            valueText: Units.formatBytes(UInt64(s.free), standard: preferences.byteUnitStandard)
                         )
                     }
                 }

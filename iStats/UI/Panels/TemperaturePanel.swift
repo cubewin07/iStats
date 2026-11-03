@@ -96,7 +96,7 @@ public struct TemperaturePanel: View {
 
         let peakHistoryC = coordinator.scalarHistory(for: .thermalPeakCelsius, duration: 60)
         let peakHistory = peakHistoryC.map { unit == .fahrenheit ? Units.celsiusToFahrenheit($0) : $0 }
-        let insight = InsightEngine.insights(series: peakHistory, interval: 1.0, unit: .celsius).first?.text
+        let insight = InsightEngine.insights(series: peakHistoryC, interval: 1.0, unit: .celsius, thresholds: .thermalCelsius()).first?.text
 
         let chartMode = LiveChartMode.single(
             values: peakHistory,
@@ -110,7 +110,8 @@ public struct TemperaturePanel: View {
             unit: unit.symbol,
             headline: headline,
             insight: insight,
-            chartMode: chartMode
+            chartMode: chartMode,
+            scrubFormat: { Units.formatTemperature($0, unit: unit, fractionDigits: 1) }
         )
     }
 
@@ -153,7 +154,7 @@ public struct TemperaturePanel: View {
     @ViewBuilder
     private func spectrumBarModule(sample: ThermalSample) -> some View {
         let markers = buildMarkers(sample: sample)
-        let barWidth: Double = 320.0
+        let barWidth: Double = Double(Instrument.Size.panelWidth - 2 * Instrument.Space.xl - 2 * Instrument.Space.modulePadding)
         let placed = SpectrumLayout.place(markers: markers, width: barWidth, minSpacing: 16.0)
         let maxTier = placed.map(\.tier).max() ?? 0
         let topPadding = CGFloat(maxTier) * 16.0
@@ -268,10 +269,29 @@ public struct TemperaturePanel: View {
             let unit = preferences.temperatureUnit
             let groupedSensors = groupSensors(sensors: s.sensors)
 
-            ScrollView(.vertical, showsIndicators: false) {
-                VStack(alignment: .leading, spacing: Instrument.Space.l) {
-                    ForEach(groupedSensors, id: \.source.id) { group in
-                        Module(eyebrow: "\(group.source.displayName) Sensors (\(group.sensors.count))") {
+            VStack(alignment: .leading, spacing: Instrument.Space.l) {
+                ForEach(groupedSensors, id: \.source.id) { group in
+                    let isExpanded = expandedGroups.contains(group.source)
+                    Module(
+                        eyebrow: "\(group.source.displayName) Sensors (\(group.sensors.count))",
+                        trailing: {
+                            Button {
+                                withAnimation(Motion.snappy) {
+                                    if isExpanded {
+                                        expandedGroups.remove(group.source)
+                                    } else {
+                                        expandedGroups.insert(group.source)
+                                    }
+                                }
+                            } label: {
+                                Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                                    .font(.system(size: 11, weight: .semibold))
+                                    .foregroundColor(.secondary)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    ) {
+                        if isExpanded {
                             VStack(alignment: .leading, spacing: 6) {
                                 ForEach(group.sensors, id: \.name) { sensor in
                                     let formatted = Units.formatTemperature(sensor.celsius, unit: unit, fractionDigits: 1)

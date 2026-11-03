@@ -13,6 +13,7 @@ public struct PanelGlance: Sendable {
     public var insight: String?
     public var chartMode: LiveChartMode?
     public var chartHeight: CGFloat
+    public var scrubFormat: (@Sendable (Double) -> String)?
 
     public init(
         value: Double? = nil,
@@ -23,7 +24,8 @@ public struct PanelGlance: Sendable {
         headline: String = "",
         insight: String? = nil,
         chartMode: LiveChartMode? = nil,
-        chartHeight: CGFloat = 72
+        chartHeight: CGFloat = 72,
+        scrubFormat: (@Sendable (Double) -> String)? = nil
     ) {
         self.value = value
         self.formattedValue = formattedValue
@@ -34,6 +36,7 @@ public struct PanelGlance: Sendable {
         self.insight = insight
         self.chartMode = chartMode
         self.chartHeight = chartHeight
+        self.scrubFormat = scrubFormat
     }
 }
 
@@ -343,10 +346,12 @@ public struct PanelScaffold<Content: View>: View {
                     category: category,
                     mode: mode,
                     height: glance.chartHeight,
+                    valueFormatter: glance.scrubFormat,
                     onScrub: { index, val, secAgo in
                         if let val = val, let secAgo = secAgo {
                             let agoFormatted = formatScrubInterval(secAgo)
-                            scrubSummary = "\(agoFormatted) · \(String(format: glance.format, val))\(glance.unit)"
+                            let formattedVal = glance.scrubFormat?(val) ?? "\(String(format: glance.format, val))\(glance.unit)"
+                            scrubSummary = "\(agoFormatted) · \(formattedVal)"
                         } else {
                             scrubSummary = nil
                         }
@@ -392,9 +397,24 @@ public struct PanelScaffold<Content: View>: View {
                             .padding(.vertical, 2)
                     }
                     .frame(maxHeight: 380)
+                    .mask(
+                        VStack(spacing: 0) {
+                            LinearGradient(colors: [.clear, .black], startPoint: .top, endPoint: .bottom)
+                                .frame(height: 6)
+                            Rectangle().fill(Color.black)
+                            LinearGradient(colors: [.black, .clear], startPoint: .top, endPoint: .bottom)
+                                .frame(height: 8)
+                        }
+                    )
                 }
             }
             .padding(.top, 8)
+            .onAppear {
+                PanelController.shared.updateFittingHeight(animated: false)
+            }
+            .onChange(of: selection) { _ in
+                PanelController.shared.updateFittingHeight(animated: true)
+            }
         }
     }
 

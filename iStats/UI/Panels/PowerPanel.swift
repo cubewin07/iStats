@@ -79,6 +79,11 @@ public struct PowerPanel: View {
                 HistoryPage(category: .power, coordinator: coordinator, preferences: preferences)
             }
         }
+        .onChange(of: selectedTab) { newTab in
+            if rememberLastTab {
+                preferences.setLastSelectedTab(newTab, for: .power)
+            }
+        }
     }
 
     // MARK: - Glance Derivation
@@ -110,7 +115,8 @@ public struct PowerPanel: View {
                 headline: headline,
                 insight: insight,
                 chartMode: chartMode,
-                chartHeight: 56
+                chartHeight: 56,
+                scrubFormat: { "\(Int(round($0)))%" }
             )
         } else {
             // Desktop Mac
@@ -137,7 +143,8 @@ public struct PowerPanel: View {
                 headline: headline,
                 insight: insight,
                 chartMode: chartMode,
-                chartHeight: 56
+                chartHeight: 56,
+                scrubFormat: { String(format: "%.1f W", $0) }
             )
         }
     }
@@ -279,36 +286,49 @@ public struct PowerPanel: View {
                 // Health Rings & Cycles
                 Module(eyebrow: "Battery Health & Capacity") {
                     HStack(spacing: Instrument.Space.l) {
-                        let health = s.healthPercentage ?? 100.0
-                        RingStack(
-                            rings: [
-                                RingData(
-                                    fraction: health / 100.0,
-                                    color: CategoryPalette.color(for: .power),
-                                    label: "Health"
-                                )
-                            ],
-                            size: 72,
-                            ringWidth: 7
-                        )
+                        let health = s.healthPercentage
+                        if let h = health {
+                            RingStack(
+                                rings: [
+                                    RingData(
+                                        fraction: h / 100.0,
+                                        color: CategoryPalette.color(for: .power),
+                                        label: "Health"
+                                    )
+                                ],
+                                size: 72,
+                                ringWidth: 7
+                            )
+                        }
 
                         VStack(alignment: .leading, spacing: 6) {
-                            Text("\(Int(round(health)))% Maximum Capacity")
-                                .font(Instrument.Typography.headline)
-                                .foregroundColor(.primary)
+                            if let h = health {
+                                Text("\(Int(round(h)))% Maximum Capacity")
+                                    .font(Instrument.Typography.headline)
+                                    .foregroundColor(.primary)
+                            } else {
+                                Text("Health Capacity Unavailable")
+                                    .font(Instrument.Typography.headline)
+                                    .foregroundColor(.secondary)
+                            }
 
-                            let cycles = s.cycleCount ?? 0
-                            let designCycles = s.designCycleCount ?? 1000
-                            Text("\(cycles) of \(designCycles) charge cycles")
-                                .font(Instrument.Typography.caption)
-                                .foregroundColor(.secondary)
+                            if let cycles = s.cycleCount {
+                                let designCycles = s.designCycleCount ?? 1000
+                                Text("\(cycles) of \(designCycles) charge cycles")
+                                    .font(Instrument.Typography.caption)
+                                    .foregroundColor(.secondary)
 
-                            let cycleProgress = Double(cycles) / Double(max(1, designCycles))
-                            Meter(
-                                progress: cycleProgress,
-                                height: .small,
-                                tint: CategoryPalette.color(for: .power)
-                            )
+                                let cycleProgress = Double(cycles) / Double(max(1, designCycles))
+                                Meter(
+                                    progress: cycleProgress,
+                                    height: .small,
+                                    tint: CategoryPalette.color(for: .power)
+                                )
+                            } else {
+                                Text("Cycle Count Unavailable")
+                                    .font(Instrument.Typography.caption)
+                                    .foregroundColor(.secondary)
+                            }
                         }
                     }
                 }

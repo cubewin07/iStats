@@ -97,7 +97,8 @@ public struct GPUPanel: View {
             unit: "%",
             headline: headline,
             insight: insight,
-            chartMode: chartMode
+            chartMode: chartMode,
+            scrubFormat: { String(format: "%.0f%%", $0) }
         )
     }
 
@@ -210,13 +211,14 @@ public struct GPUPanel: View {
         }
     }
 
-    @ViewBuilder
     private func vramWorkingSetModule(allocated: UInt64, maxMem: UInt64) -> some View {
         let ratio = maxMem > 0 ? (Double(allocated) / Double(maxMem)) : 0.0
         let formattedAlloc = Units.formatBytes(allocated, standard: preferences.byteUnitStandard)
         let formattedMax = Units.formatBytes(maxMem, standard: preferences.byteUnitStandard)
 
-        Module(eyebrow: "VRAM Working Set") {
+        let vramTint = ratio > 0.90 ? CategoryPalette.statusColor(for: .critical) : (ratio > 0.75 ? CategoryPalette.statusColor(for: .elevated) : CategoryPalette.tint(for: .gpu))
+
+        return Module(eyebrow: "VRAM Working Set") {
             HStack {
                 Text("\(formattedAlloc) / \(formattedMax)")
                     .font(Instrument.Typography.caption)
@@ -226,8 +228,8 @@ public struct GPUPanel: View {
             Meter(
                 progress: ratio,
                 height: .medium,
-                tint: CategoryPalette.tint(for: .gpu),
-                deepTint: CategoryPalette.tintDeep(for: .gpu)
+                tint: vramTint,
+                deepTint: ratio > 0.75 ? nil : CategoryPalette.tintDeep(for: .gpu)
             )
         }
     }

@@ -76,6 +76,11 @@ public struct DiskPanel: View {
                 HistoryPage(category: .disk, coordinator: coordinator, preferences: preferences)
             }
         }
+        .onChange(of: selectedTab) { newTab in
+            if rememberLastTab {
+                preferences.setLastSelectedTab(newTab, for: .disk)
+            }
+        }
     }
 
     // MARK: - Glance Derivation
@@ -112,7 +117,8 @@ public struct DiskPanel: View {
             headline: headline,
             insight: insight,
             chartMode: chartMode,
-            chartHeight: 56
+            chartHeight: 56,
+            scrubFormat: { Units.formatDiskRate($0, standard: std) }
         )
     }
 

@@ -95,6 +95,11 @@ public struct NetworkPanel: View {
                 HistoryPage(category: .network, coordinator: coordinator, preferences: preferences)
             }
         }
+        .onChange(of: selectedTab) { newTab in
+            if rememberLastTab {
+                preferences.setLastSelectedTab(newTab, for: .network)
+            }
+        }
     }
 
     // MARK: - Glance Derivation
@@ -140,7 +145,8 @@ public struct NetworkPanel: View {
             headline: headline,
             insight: insight,
             chartMode: chartMode,
-            chartHeight: 56
+            chartHeight: 56,
+            scrubFormat: { Units.formatNetworkRate($0, unit: unit, standard: std) }
         )
     }
 
@@ -229,11 +235,14 @@ public struct NetworkPanel: View {
                                 .font(Instrument.Typography.headline)
                                 .foregroundColor(.primary)
 
-                            let bandText = wifi.band ?? "5 GHz"
-                            let channelText = wifi.channel.map { " · Ch \($0)" } ?? ""
-                            Text("\(bandText)\(channelText)")
-                                .font(Instrument.Typography.caption)
-                                .foregroundColor(.secondary)
+                            let bandText = wifi.band
+                            let channelText = wifi.channel.map { "Ch \($0)" }
+                            let detailText = [bandText, channelText].compactMap { $0 }.joined(separator: " · ")
+                            if !detailText.isEmpty {
+                                Text(detailText)
+                                    .font(Instrument.Typography.caption)
+                                    .foregroundColor(.secondary)
+                            }
                         }
 
                         Spacer()

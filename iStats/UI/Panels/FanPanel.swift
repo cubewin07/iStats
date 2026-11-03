@@ -86,7 +86,7 @@ public struct FanPanel: View {
         let headline = PanelHeadline.fan(sample: sample)
 
         let rpmHistory = coordinator.scalarHistory(for: .fanMaxRPM, duration: 60)
-        let insight = isFanless ? "Passive silent cooling" : InsightEngine.insights(series: rpmHistory, interval: 1.0, unit: .rpm).first?.text
+        let insight = isFanless ? "Passive silent cooling" : InsightEngine.insights(series: rpmHistory, interval: 1.0, unit: .rpm, thresholds: .fanRPM()).first?.text
 
         let chartMode: LiveChartMode? = isFanless ? nil : .single(
             values: rpmHistory,
@@ -95,12 +95,14 @@ public struct FanPanel: View {
         )
 
         return PanelGlance(
-            value: isFanless ? 0.0 : Double(maxRPM),
+            value: isFanless ? nil : Double(maxRPM),
+            formattedValue: isFanless ? "Passive" : nil,
             format: "%.0f",
-            unit: isFanless ? "—" : "rpm",
+            unit: isFanless ? "" : "rpm",
             headline: headline,
             insight: insight,
-            chartMode: chartMode
+            chartMode: chartMode,
+            scrubFormat: { "\(Int(round($0))) RPM" }
         )
     }
 
@@ -112,7 +114,7 @@ public struct FanPanel: View {
             fanlessModule
         } else if let s = sample, !s.fans.isEmpty {
             VStack(alignment: .leading, spacing: Instrument.Space.l) {
-                ForEach(Array(s.fans.enumerated()), id: \.element.name) { index, fan in
+                ForEach(Array(s.fans.enumerated()), id: \.offset) { index, fan in
                     fanRowModule(fan: fan, index: index)
                 }
 
