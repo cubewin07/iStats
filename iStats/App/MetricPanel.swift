@@ -71,10 +71,10 @@ public final class MetricPanel: NSPanel {
 
         if event.keyCode == 53 { // Escape
             if isPinned {
-                onUnpinRequested?()
-            } else {
-                onCloseRequested?()
+                // Esc is a deliberate no-op on pinned HUD panels so desktop workflows aren't interrupted
+                return
             }
+            onCloseRequested?()
             NotificationCenter.default.post(name: .panelCommandReceived, object: PanelCommand.close)
             onCommand?(.close)
             return
@@ -82,6 +82,10 @@ public final class MetricPanel: NSPanel {
 
         if isCmd {
             switch event.charactersIgnoringModifiers?.lowercased() {
+            case "c":
+                if CopyHoverCoordinator.shared.copyActiveText() {
+                    return
+                }
             case "1":
                 NotificationCenter.default.post(name: .panelCommandReceived, object: PanelCommand.selectPage(1))
                 onCommand?(.selectPage(1))
@@ -172,12 +176,18 @@ final class PanelBackgroundView: NSView {
         layer?.cornerRadius = Instrument.Radius.panel
         layer?.cornerCurve = .continuous
         layer?.masksToBounds = true
+        layer?.borderWidth = 0.5
+        layer?.borderColor = NSColor.white.withAlphaComponent(0.18).cgColor
 
         if #available(macOS 26.0, *) {
             let glassView = NSGlassEffectView()
             glassView.style = .regular
             glassView.cornerRadius = Instrument.Radius.panel
             glassView.translatesAutoresizingMaskIntoConstraints = false
+            glassView.wantsLayer = true
+            glassView.layer?.cornerRadius = Instrument.Radius.panel
+            glassView.layer?.cornerCurve = .continuous
+            glassView.layer?.masksToBounds = true
             addSubview(glassView, positioned: .below, relativeTo: nil)
 
             NSLayoutConstraint.activate([

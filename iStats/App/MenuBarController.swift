@@ -69,6 +69,12 @@ public final class MenuBarController: NSObject {
         super.init()
 
         PanelController.shared.configure(preferences: preferences)
+        PanelController.shared.onTransientPanelClosed = { [weak self] in
+            MainActor.assumeIsolated {
+                self?.stopScrubbingMonitor()
+                self?.currentlyShownButton = nil
+            }
+        }
 
         syncStatusItems()
         setupSubscriptions()
@@ -442,7 +448,7 @@ public final class MenuBarController: NSObject {
 
         let category = categoryForConfigId(rawId) ?? .cpu
         currentlyShownButton = button
-        PanelController.shared.toggle(category: category, relativeTo: button) {
+        PanelController.shared.toggle(category: category, itemID: rawId, relativeTo: button) {
             self.makePanelContentView(forConfigId: rawId)
         }
         if PanelController.shared.isPanelOpen(for: category) {
@@ -508,7 +514,7 @@ public final class MenuBarController: NSObject {
     public func showPanel(for category: MetricCategory, relativeTo button: NSStatusBarButton) {
         let rawId = button.identifier?.rawValue ?? category.rawValue
         currentlyShownButton = button
-        PanelController.shared.show(category: category, relativeTo: button) {
+        PanelController.shared.show(category: category, itemID: rawId, relativeTo: button) {
             self.makePanelContentView(forConfigId: rawId)
         }
         startScrubbingMonitor()
@@ -548,7 +554,7 @@ public final class MenuBarController: NSObject {
             if hitRect.contains(mouseLocation) {
                 let category = categoryForConfigId(id) ?? .cpu
                 currentlyShownButton = button
-                PanelController.shared.handleStatusItemHover(category: category, button: button) {
+                PanelController.shared.handleStatusItemHover(category: category, itemID: id, button: button) {
                     self.makePanelContentView(forConfigId: id)
                 }
                 break
