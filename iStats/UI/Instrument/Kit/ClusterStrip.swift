@@ -8,8 +8,8 @@ public struct ClusterBarData: Identifiable, Sendable {
     public let color: Color
     public let label: String?
 
-    public init(id: String = UUID().uuidString, index: Int, utilization: Double, color: Color, label: String? = nil) {
-        self.id = id
+    public init(id: String? = nil, index: Int, utilization: Double, color: Color, label: String? = nil) {
+        self.id = id ?? "\(index)"
         self.index = index
         self.utilization = max(0.0, min(1.0, utilization))
         self.color = color
@@ -60,9 +60,10 @@ public struct ClusterStrip: View {
                                 .frame(width: barWidth, height: barHeight)
 
                             // Fill
+                            let fillH = bar.utilization <= 0.005 ? 0.0 : max(barWidth, barHeight * CGFloat(bar.utilization))
                             Capsule()
                                 .fill(bar.color)
-                                .frame(width: barWidth, height: max(barWidth, barHeight * CGFloat(bar.utilization)))
+                                .frame(width: barWidth, height: fillH)
                                 .easedProgress(bar.utilization, interval: 1.0)
                         }
                         .scaleEffect(isHovered ? 1.1 : 1.0)

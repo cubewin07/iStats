@@ -37,6 +37,7 @@ public struct Meter: View {
             let totalWidth = proxy.size.width
             let h = height.rawValue
             let fillWidth = totalWidth * CGFloat(progress)
+            let activeFillWidth = progress <= 0.005 ? 0.0 : max(h, fillWidth)
 
             ZStack(alignment: .leading) {
                 // Background Track
@@ -53,7 +54,8 @@ public struct Meter: View {
                             endPoint: .trailing
                         )
                     )
-                    .frame(width: max(h, fillWidth), height: h)
+                    .frame(width: activeFillWidth, height: h)
+                    .opacity(progress <= 0.005 ? 0.0 : 1.0)
                     .easedProgress(progress, interval: interval)
 
                 // Optional Threshold Tick Marker

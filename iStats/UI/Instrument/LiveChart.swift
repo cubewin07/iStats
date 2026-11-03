@@ -62,6 +62,15 @@ public enum LiveChartMode: Sendable {
         case .banded(_, let bands, _): return bands.first?.color ?? .accentColor
         }
     }
+
+    public var fixedMax: Double? {
+        switch self {
+        case .single(_, _, _, let m): return m
+        case .stacked(_, _, _, _, let m): return m
+        case .mirrored(_, _, _, _, _, _, let m): return m
+        case .banded(_, _, let m): return m
+        }
+    }
 }
 
 /// Full-bleed, gliding, interactive hero chart for Instrument panels (ADR 0009 / Task 8.4).
@@ -76,6 +85,7 @@ public struct LiveChart: View {
     public var showAverageLine: Bool
     public var showPeakMarker: Bool
     public var showAxisTicks: Bool
+    public var showLiveHead: Bool
     public var valueFormatter: ((Double) -> String)?
     public var isolatedChannel: Int?
     public var scrubIndex: Int?
@@ -95,6 +105,7 @@ public struct LiveChart: View {
         showAverageLine: Bool = false,
         showPeakMarker: Bool = false,
         showAxisTicks: Bool = false,
+        showLiveHead: Bool = true,
         valueFormatter: ((Double) -> String)? = nil,
         isolatedChannel: Int? = nil,
         scrubIndex: Int? = nil,
@@ -107,6 +118,7 @@ public struct LiveChart: View {
         self.showAverageLine = showAverageLine
         self.showPeakMarker = showPeakMarker
         self.showAxisTicks = showAxisTicks
+        self.showLiveHead = showLiveHead
         self.valueFormatter = valueFormatter
         self.isolatedChannel = isolatedChannel
         self.scrubIndex = scrubIndex
@@ -123,6 +135,9 @@ public struct LiveChart: View {
             default:
                 return mode.primaryValues
             }
+        }
+        if case .stacked(let p, let s, _, _, _) = mode {
+            return zip(p, s).map(+)
         }
         return mode.primaryValues
     }
@@ -299,12 +314,14 @@ public struct LiveChart: View {
         guard values.count >= 2, maxBound > 0 else { return }
 
         let n = values.count
-        let dx = width / CGFloat(max(1, n - 1))
+        let headInset: CGFloat = showLiveHead ? 4.0 : 0.0
+        let plotWidth = max(1.0, width - headInset)
+        let dx = plotWidth / CGFloat(max(1, n - 1))
         let glideShift = (motionPolicy == .full ? CGFloat(glide) * dx : 0.0)
 
         // Convert values to screen points
         let points: [LiveChartMath.Point2D] = values.enumerated().map { i, v in
-            let x = CGFloat(i) * dx + glideShift
+            let x = CGFloat(i) * dx - glideShift
             let yFraction = CGFloat(max(0.0, min(maxBound, v)) / maxBound)
             let y = height * (1.0 - yFraction)
             return LiveChartMath.Point2D(x: Double(x), y: Double(y))
@@ -401,14 +418,25 @@ public struct LiveChart: View {
             )
         }
 
-        // 5. Live Head Dot (5 pt with pulse ring)
-        if let lastPoint = points.last {
-            let dotRect = CGRect(x: lastPoint.x - 2.5, y: lastPoint.y - 2.5, width: 5, height: 5)
-            context.fill(Path(ellipseIn: dotRect), with: .color(color))
+        // 5. Live Head Dot (5 pt with animated pulse ring)
+        if showLiveHead, let lastPoint = points.last {
+            let now = Date()
+            let pulsePhase = CGFloat(now.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 2.0) / 2.0)
+            let pulseRadius = 2.5 + pulsePhase * 4.5
+            let pulseAlpha = max(0.0, 0.45 * (1.0 - pulsePhase))
 
             // Outer pulse ring
-            let ringRect = CGRect(x: lastPoint.x - 5.5, y: lastPoint.y - 5.5, width: 11, height: 11)
-            context.stroke(Path(ellipseIn: ringRect), with: .color(color.opacity(0.3)), lineWidth: 1.0)
+            let ringRect = CGRect(
+                x: CGFloat(lastPoint.x) - pulseRadius,
+                y: CGFloat(lastPoint.y) - pulseRadius,
+                width: pulseRadius * 2.0,
+                height: pulseRadius * 2.0
+            )
+            context.stroke(Path(ellipseIn: ringRect), with: .color(color.opacity(pulseAlpha)), lineWidth: 1.0)
+
+            // Solid core dot
+            let dotRect = CGRect(x: CGFloat(lastPoint.x) - 2.5, y: CGFloat(lastPoint.y) - 2.5, width: 5, height: 5)
+            context.fill(Path(ellipseIn: dotRect), with: .color(color))
         }
     }
 
@@ -426,19 +454,21 @@ public struct LiveChart: View {
         let n = min(primary.count, secondary.count)
         guard n >= 2, maxBound > 0 else { return }
 
-        let dx = width / CGFloat(max(1, n - 1))
+        let headInset: CGFloat = showLiveHead ? 4.0 : 0.0
+        let plotWidth = max(1.0, width - headInset)
+        let dx = plotWidth / CGFloat(max(1, n - 1))
         let glideShift = (motionPolicy == .full ? CGFloat(glide) * dx : 0.0)
 
         let totals = zip(primary, secondary).map(+)
         let totalPoints: [LiveChartMath.Point2D] = totals.enumerated().map { i, v in
-            let x = CGFloat(i) * dx + glideShift
+            let x = CGFloat(i) * dx - glideShift
             let yFraction = CGFloat(max(0.0, min(maxBound, v)) / maxBound)
             let y = height * (1.0 - yFraction)
             return LiveChartMath.Point2D(x: Double(x), y: Double(y))
         }
 
         let primaryPoints: [LiveChartMath.Point2D] = primary.enumerated().map { i, v in
-            let x = CGFloat(i) * dx + glideShift
+            let x = CGFloat(i) * dx - glideShift
             let yFraction = CGFloat(max(0.0, min(maxBound, v)) / maxBound)
             let y = height * (1.0 - yFraction)
             return LiveChartMath.Point2D(x: Double(x), y: Double(y))
@@ -547,6 +577,25 @@ public struct LiveChart: View {
                 )
             }
         }
+
+        // Live Head Dot for stacked total
+        if showLiveHead, let lastPoint = totalPoints.last {
+            let now = Date()
+            let pulsePhase = CGFloat(now.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 2.0) / 2.0)
+            let pulseRadius = 2.5 + pulsePhase * 4.5
+            let pulseAlpha = max(0.0, 0.45 * (1.0 - pulsePhase))
+
+            let ringRect = CGRect(
+                x: CGFloat(lastPoint.x) - pulseRadius,
+                y: CGFloat(lastPoint.y) - pulseRadius,
+                width: pulseRadius * 2.0,
+                height: pulseRadius * 2.0
+            )
+            context.stroke(Path(ellipseIn: ringRect), with: .color(primaryColor.opacity(pulseAlpha)), lineWidth: 1.0)
+
+            let dotRect = CGRect(x: CGFloat(lastPoint.x) - 2.5, y: CGFloat(lastPoint.y) - 2.5, width: 5, height: 5)
+            context.fill(Path(ellipseIn: dotRect), with: .color(primaryColor))
+        }
     }
 
     private func drawMirroredSeries(
@@ -565,12 +614,14 @@ public struct LiveChart: View {
 
         let midY = height / 2.0
         let halfHeight = height / 2.0
-        let dx = width / CGFloat(max(1, n - 1))
+        let headInset: CGFloat = showLiveHead ? 4.0 : 0.0
+        let plotWidth = max(1.0, width - headInset)
+        let dx = plotWidth / CGFloat(max(1, n - 1))
         let glideShift = (motionPolicy == .full ? CGFloat(glide) * dx : 0.0)
 
         // Top points (grow upwards from midY)
         let topPoints: [LiveChartMath.Point2D] = top.enumerated().map { i, v in
-            let x = CGFloat(i) * dx + glideShift
+            let x = CGFloat(i) * dx - glideShift
             let yFraction = CGFloat(max(0.0, min(maxBound, v)) / maxBound)
             let y = midY - (halfHeight * yFraction)
             return LiveChartMath.Point2D(x: Double(x), y: Double(y))
@@ -578,7 +629,7 @@ public struct LiveChart: View {
 
         // Bottom points (grow downwards from midY)
         let bottomPoints: [LiveChartMath.Point2D] = bottom.enumerated().map { i, v in
-            let x = CGFloat(i) * dx + glideShift
+            let x = CGFloat(i) * dx - glideShift
             let yFraction = CGFloat(max(0.0, min(maxBound, v)) / maxBound)
             let y = midY + (halfHeight * yFraction)
             return LiveChartMath.Point2D(x: Double(x), y: Double(y))
@@ -701,6 +752,28 @@ public struct LiveChart: View {
                 )
             }
         }
+
+        // Live Head Dots for mirrored series
+        if showLiveHead {
+            let now = Date()
+            let pulsePhase = CGFloat(now.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 2.0) / 2.0)
+            let pulseRadius = 2.5 + pulsePhase * 4.5
+            let pulseAlpha = max(0.0, 0.45 * (1.0 - pulsePhase))
+
+            if let topLast = topPoints.last {
+                let ringRect = CGRect(x: CGFloat(topLast.x) - pulseRadius, y: CGFloat(topLast.y) - pulseRadius, width: pulseRadius * 2.0, height: pulseRadius * 2.0)
+                context.stroke(Path(ellipseIn: ringRect), with: .color(topColor.opacity(pulseAlpha * topOpacity)), lineWidth: 1.0)
+                let dotRect = CGRect(x: CGFloat(topLast.x) - 2.5, y: CGFloat(topLast.y) - 2.5, width: 5, height: 5)
+                context.fill(Path(ellipseIn: dotRect), with: .color(topColor.opacity(topOpacity)))
+            }
+
+            if let botLast = bottomPoints.last {
+                let ringRect = CGRect(x: CGFloat(botLast.x) - pulseRadius, y: CGFloat(botLast.y) - pulseRadius, width: pulseRadius * 2.0, height: pulseRadius * 2.0)
+                context.stroke(Path(ellipseIn: ringRect), with: .color(bottomColor.opacity(pulseAlpha * bottomOpacity)), lineWidth: 1.0)
+                let dotRect = CGRect(x: CGFloat(botLast.x) - 2.5, y: CGFloat(botLast.y) - 2.5, width: 5, height: 5)
+                context.fill(Path(ellipseIn: dotRect), with: .color(bottomColor.opacity(bottomOpacity)))
+            }
+        }
     }
 
     private func drawBandedSeries(
@@ -724,7 +797,10 @@ public struct LiveChart: View {
             context.stroke(line, with: .color(band.color.opacity(0.2)), style: StrokeStyle(lineWidth: 0.5, dash: [2, 2]))
         }
 
-        let primaryColor = bands.last?.color ?? .accentColor
+        let currentVal = values.last ?? 0.0
+        let sortedBands = bands.sorted(by: { $0.threshold < $1.threshold })
+        let activeBand = sortedBands.last(where: { currentVal >= $0.threshold })
+        let primaryColor = activeBand?.color ?? CategoryPalette.tint(for: category)
         drawSingleSeries(
             context: &context,
             values: values,
@@ -773,43 +849,63 @@ public struct LiveChart: View {
 
     @ViewBuilder
     private func crosshairOverlay(x: CGFloat, index: Int, width: CGFloat, height: CGFloat) -> some View {
-        let values = resolvedPrimaryValues
-        if index < values.count {
-            let val = values[index]
-            let maxBound = LiveChartMath.computeMaxBound(values: values)
-            let yFrac = CGFloat(max(0.0, min(maxBound, val)) / max(maxBound, 0.001))
-            let pointY = height * (1.0 - yFrac)
-            let color = resolvedPrimaryColor
+        let secondsAgo = Double(max(0, resolvedPrimaryValues.count - 1 - index)) * sampleIntervalSeconds
+        let timeStr = formatRelativeTime(secondsAgo)
 
-            let secondsAgo = Double(values.count - 1 - index) * sampleIntervalSeconds
-            let timeStr = formatRelativeTime(secondsAgo)
-            let valStr = valueFormatter?(val) ?? String(format: "%.1f", val)
+        switch mode {
+        case .mirrored(let top, let bot, let topCol, let botCol, let topLbl, let botLbl, let fixedMax):
+            let maxBound = LiveChartMath.computeMaxBound(values: zip(top, bot).map(+), fixedMax: fixedMax)
+            let midY = height / 2.0
+            let halfH = midY
+            let topVal = index < top.count ? top[index] : 0.0
+            let botVal = index < bot.count ? bot[index] : 0.0
+
+            let topY = midY - (halfH * CGFloat(max(0.0, min(maxBound, topVal)) / max(maxBound, 0.001)))
+            let botY = midY + (halfH * CGFloat(max(0.0, min(maxBound, botVal)) / max(maxBound, 0.001)))
+
+            let topStr = valueFormatter?(topVal) ?? String(format: "%.1f", topVal)
+            let botStr = valueFormatter?(botVal) ?? String(format: "%.1f", botVal)
 
             ZStack(alignment: .topLeading) {
                 // Vertical crosshair hair line
                 Rectangle()
                     .fill(Color.primary.opacity(0.3))
                     .frame(width: 1, height: height)
-                    .position(x: x, y: height / 2.0)
+                    .position(x: x, y: midY)
 
-                // Snapped Dot on Curve
+                // Snapped dot on top curve
                 Circle()
-                    .fill(color)
+                    .fill(topCol)
                     .frame(width: 7, height: 7)
-                    .overlay(
-                        Circle()
-                            .stroke(Color.white, lineWidth: 1.5)
-                    )
-                    .position(x: x, y: pointY)
+                    .overlay(Circle().stroke(Color.white, lineWidth: 1.5))
+                    .position(x: x, y: topY)
 
-                // Relative time lens readout
-                HStack(spacing: 3) {
+                // Snapped dot on bottom curve
+                Circle()
+                    .fill(botCol)
+                    .frame(width: 7, height: 7)
+                    .overlay(Circle().stroke(Color.white, lineWidth: 1.5))
+                    .position(x: x, y: botY)
+
+                // Dual callout readout
+                HStack(spacing: 5) {
                     Text(timeStr)
                         .foregroundColor(.secondary)
                     Text("·")
                         .foregroundColor(.secondary.opacity(0.6))
-                    Text(valStr)
-                        .foregroundColor(.primary)
+                    HStack(spacing: 2) {
+                        Text(topLbl)
+                            .foregroundColor(topCol)
+                        Text(topStr)
+                            .foregroundColor(.primary)
+                    }
+                    Text(" ")
+                    HStack(spacing: 2) {
+                        Text(botLbl)
+                            .foregroundColor(botCol)
+                        Text(botStr)
+                            .foregroundColor(.primary)
+                    }
                 }
                 .font(Instrument.Typography.micro)
                 .padding(.horizontal, 6)
@@ -819,7 +915,55 @@ public struct LiveChart: View {
                         .fill(Color(nsColor: .windowBackgroundColor).opacity(0.92))
                         .shadow(color: .black.opacity(0.2), radius: 2, y: 1)
                 )
-                .position(x: min(max(x, 48), width - 48), y: max(12, pointY - 16))
+                .position(x: min(max(x, 60), width - 60), y: max(12, min(topY, midY) - 16))
+            }
+
+        default:
+            let values = resolvedPrimaryValues
+            if index < values.count {
+                let val = values[index]
+                let maxBound = LiveChartMath.computeMaxBound(values: values, fixedMax: mode.fixedMax)
+                let yFrac = CGFloat(max(0.0, min(maxBound, val)) / max(maxBound, 0.001))
+                let pointY = height * (1.0 - yFrac)
+                let color = resolvedPrimaryColor
+                let valStr = valueFormatter?(val) ?? String(format: "%.1f", val)
+
+                ZStack(alignment: .topLeading) {
+                    // Vertical crosshair hair line
+                    Rectangle()
+                        .fill(Color.primary.opacity(0.3))
+                        .frame(width: 1, height: height)
+                        .position(x: x, y: height / 2.0)
+
+                    // Snapped Dot on Curve
+                    Circle()
+                        .fill(color)
+                        .frame(width: 7, height: 7)
+                        .overlay(
+                            Circle()
+                                .stroke(Color.white, lineWidth: 1.5)
+                        )
+                        .position(x: x, y: pointY)
+
+                    // Relative time lens readout
+                    HStack(spacing: 3) {
+                        Text(timeStr)
+                            .foregroundColor(.secondary)
+                        Text("·")
+                            .foregroundColor(.secondary.opacity(0.6))
+                        Text(valStr)
+                            .foregroundColor(.primary)
+                    }
+                    .font(Instrument.Typography.micro)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2.5)
+                    .background(
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(Color(nsColor: .windowBackgroundColor).opacity(0.92))
+                            .shadow(color: .black.opacity(0.2), radius: 2, y: 1)
+                    )
+                    .position(x: min(max(x, 48), width - 48), y: max(12, pointY - 16))
+                }
             }
         }
     }

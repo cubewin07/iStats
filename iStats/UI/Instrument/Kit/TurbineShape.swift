@@ -71,6 +71,24 @@ public struct TurbineShape: Shape {
     }
 }
 
+private final class TurbineDriver {
+    var degrees: Double = 0
+    var lastTime: TimeInterval?
+
+    func step(to time: TimeInterval, speed: Double) -> Double {
+        if let last = lastTime {
+            let dt = max(0.0, time - last)
+            degrees = FanMath.stepRotationDegrees(currentDegrees: degrees, dt: dt, speedRPS: speed)
+        }
+        lastTime = time
+        return degrees
+    }
+
+    func reset() {
+        lastTime = nil
+    }
+}
+
 /// Rotating instrument turbine widget driven by pure `FanMath` visual speed curves.
 public struct TurbineView: View {
     public let rpm: Int
@@ -80,6 +98,7 @@ public struct TurbineView: View {
     public var isPaused: Bool
 
     @Environment(\.motionPolicy) private var motionPolicy
+    @State private var driver = TurbineDriver()
 
     public init(
         rpm: Int,
@@ -108,9 +127,9 @@ public struct TurbineView: View {
             // Turbine Blades
             if shouldSpin {
                 TimelineView(.animation(minimumInterval: 1.0 / 60.0, paused: false)) { context in
-                    let degrees = FanMath.rotationDegrees(
-                        time: context.date.timeIntervalSinceReferenceDate,
-                        speedRPS: speed
+                    let degrees = driver.step(
+                        to: context.date.timeIntervalSinceReferenceDate,
+                        speed: speed
                     )
                     TurbineShape()
                         .fill(CategoryPalette.tint(for: .fan))
@@ -121,6 +140,9 @@ public struct TurbineView: View {
                 TurbineShape()
                     .fill(CategoryPalette.tint(for: .fan))
                     .frame(width: size - 8, height: size - 8)
+                    .onAppear {
+                        driver.reset()
+                    }
             }
         }
         .frame(width: size, height: size)

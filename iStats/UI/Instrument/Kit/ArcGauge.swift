@@ -48,31 +48,32 @@ public struct ArcGauge: View {
     }
 
     public var body: some View {
-        ZStack {
-            let clamped = max(range.lowerBound, min(range.upperBound, value))
-            let fraction = (clamped - range.lowerBound) / max(0.001, (range.upperBound - range.lowerBound))
-            let currentAngle = GaugeMath.angle(value: value, range: range, sweep: sweep, startAngle: startAngle)
+        let clamped = max(range.lowerBound, min(range.upperBound, value))
+        let fraction = (clamped - range.lowerBound) / max(0.001, (range.upperBound - range.lowerBound))
+        let strokeWidth: CGFloat = size >= 100 ? 8 : 6
 
+        ZStack {
             // Background Track Arc
-            arcPath(from: startAngle, to: startAngle + sweep)
+            ArcShape(startAngle: startAngle, sweep: sweep, size: size)
                 .stroke(
                     Instrument.Surface.inset,
-                    style: StrokeStyle(lineWidth: size >= 100 ? 8 : 6, lineCap: .round)
+                    style: StrokeStyle(lineWidth: strokeWidth, lineCap: .round)
                 )
 
             // Active Value Arc
-            arcPath(from: startAngle, to: currentAngle)
+            ArcShape(startAngle: startAngle, sweep: sweep, size: size)
+                .trim(from: 0.0, to: CGFloat(fraction))
                 .stroke(
                     activeColor(for: fraction),
-                    style: StrokeStyle(lineWidth: size >= 100 ? 8 : 6, lineCap: .round)
+                    style: StrokeStyle(lineWidth: strokeWidth, lineCap: .round)
                 )
-                .animation(motionPolicy == .full ? Motion.smooth : nil, value: value)
+                .animation(motionPolicy == .full ? Motion.smooth : nil, value: fraction)
 
             // Center Readout
             VStack(spacing: 0) {
                 if let title = centerTitle {
                     Text(title)
-                        .font(size >= 100 ? Instrument.Typography.title : Instrument.Typography.displayCompact)
+                        .font(size >= 100 ? Instrument.Typography.displayCompact : Instrument.Typography.title)
                         .foregroundColor(.primary)
                 }
                 if let sub = centerSubtitle {
@@ -82,24 +83,30 @@ public struct ArcGauge: View {
                 }
             }
         }
-        .frame(width: size, height: size)
+        .frame(width: size, height: size * 0.82)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(centerSubtitle ?? "Gauge")
         .accessibilityValue(centerTitle ?? "\(Int(value))")
     }
 
-    private func arcPath(from: Double, to: Double) -> Path {
-        let center = CGPoint(x: size / 2.0, y: size / 2.0)
-        let radius = (size / 2.0) - (size >= 100 ? 10 : 8)
-        return Path { path in
-            guard to > from else { return }
+    private struct ArcShape: Shape {
+        let startAngle: Double
+        let sweep: Double
+        let size: CGFloat
+
+        func path(in rect: CGRect) -> Path {
+            let dim = min(rect.width, size)
+            let center = CGPoint(x: rect.midX, y: dim / 2.0)
+            let radius = (dim / 2.0) - (size >= 100 ? 10 : 8)
+            var path = Path()
             path.addArc(
                 center: center,
                 radius: radius,
-                startAngle: .degrees(from),
-                endAngle: .degrees(to),
+                startAngle: .degrees(startAngle),
+                endAngle: .degrees(startAngle + sweep),
                 clockwise: false
             )
+            return path
         }
     }
 

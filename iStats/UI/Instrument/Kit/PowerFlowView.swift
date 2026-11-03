@@ -28,32 +28,32 @@ public struct PowerFlowView: View {
     }
 
     public var body: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: motionPolicy == .reduced)) { timeline in
+        TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: motionPolicy != .full)) { timeline in
             let elapsed = timeline.date.timeIntervalSinceReferenceDate
 
             VStack(spacing: 8) {
-                // Topology Canvas: 300×84 pt
+                // Topology Canvas: height 92 pt
                 Canvas { context, size in
-                    let adapterPos = CGPoint(x: 45, y: 55)
-                    let macPos = CGPoint(x: size.width / 2.0, y: 22)
-                    let batteryPos = CGPoint(x: size.width - 45, y: 55)
+                    let adapterPos = CGPoint(x: 45, y: 54)
+                    let macPos = CGPoint(x: size.width / 2.0, y: 18)
+                    let batteryPos = CGPoint(x: size.width - 45, y: 54)
 
                     // Path 1: Adapter -> Mac
                     var pathAdapterToMac = Path()
-                    pathAdapterToMac.move(to: CGPoint(x: adapterPos.x + 18, y: adapterPos.y - 10))
-                    pathAdapterToMac.addLine(to: CGPoint(x: macPos.x - 22, y: macPos.y + 10))
+                    pathAdapterToMac.move(to: CGPoint(x: adapterPos.x + 14, y: adapterPos.y - 8))
+                    pathAdapterToMac.addLine(to: CGPoint(x: macPos.x - 14, y: macPos.y + 10))
 
                     // Path 2: Battery -> Mac
                     var pathBatteryToMac = Path()
-                    pathBatteryToMac.move(to: CGPoint(x: batteryPos.x - 18, y: batteryPos.y - 10))
-                    pathBatteryToMac.addLine(to: CGPoint(x: macPos.x + 22, y: macPos.y + 10))
+                    pathBatteryToMac.move(to: CGPoint(x: batteryPos.x - 14, y: batteryPos.y - 8))
+                    pathBatteryToMac.addLine(to: CGPoint(x: macPos.x + 14, y: macPos.y + 10))
 
                     // Path 3: Adapter -> Battery (Curved along bottom)
                     var pathAdapterToBattery = Path()
-                    pathAdapterToBattery.move(to: CGPoint(x: adapterPos.x + 18, y: adapterPos.y + 6))
+                    pathAdapterToBattery.move(to: CGPoint(x: adapterPos.x, y: adapterPos.y + 16))
                     pathAdapterToBattery.addQuadCurve(
-                        to: CGPoint(x: batteryPos.x - 18, y: batteryPos.y + 6),
-                        control: CGPoint(x: size.width / 2.0, y: 76)
+                        to: CGPoint(x: batteryPos.x, y: batteryPos.y + 16),
+                        control: CGPoint(x: size.width / 2.0, y: 88)
                     )
 
                     // Draw baseline tracks
@@ -105,7 +105,7 @@ public struct PowerFlowView: View {
                         }
                     }
                 }
-                .frame(height: 84)
+                .frame(height: 92)
                 .overlay(
                     // Interactive Node Views
                     HStack(alignment: .top) {
@@ -117,7 +117,7 @@ public struct PowerFlowView: View {
                             watts: adapterW > 0 ? adapterW : nil,
                             isActive: adapterW > 0
                         )
-                        .padding(.top, 24)
+                        .padding(.top, 36)
 
                         Spacer()
 
@@ -141,7 +141,7 @@ public struct PowerFlowView: View {
                             wattsPrefix: flow.adapterToBattery != nil ? "+" : (flow.batteryToMac != nil ? "-" : nil),
                             isActive: battW != nil && battW! > 0
                         )
-                        .padding(.top, 24)
+                        .padding(.top, 36)
                     }
                     .padding(.horizontal, 10)
                 )
@@ -181,11 +181,11 @@ public struct PowerFlowView: View {
             if let w = watts, w > 0 {
                 let prefix = wattsPrefix ?? ""
                 Text("\(prefix)\(String(format: "%.1f", w)) W")
-                    .font(Instrument.Typography.mono)
+                    .font(Instrument.Typography.mono.monospacedDigit())
                     .foregroundColor(isActive ? .primary : .secondary)
             } else {
                 Text("—")
-                    .font(Instrument.Typography.mono)
+                    .font(Instrument.Typography.mono.monospacedDigit())
                     .foregroundColor(.secondary.opacity(0.5))
             }
         }
@@ -219,27 +219,36 @@ public struct PowerFlowView: View {
 
     private func pointAlong(path: Path, fraction: CGFloat) -> CGPoint? {
         guard fraction >= 0 && fraction <= 1.0 else { return nil }
-        var currentLen: CGFloat = 0
-        var targetLen: CGFloat = 0
         var totalLen: CGFloat = 0
+        var start = CGPoint.zero
 
         path.forEach { element in
             switch element {
-            case .move(to: _):
-                break
+            case .move(to: let p):
+                start = p
             case .line(to: let p):
-                totalLen += p.x // Approximation sufficient for UI particles
-            case .quadCurve(to: let p, control: _):
-                totalLen += p.x
+                totalLen += hypot(p.x - start.x, p.y - start.y)
+                start = p
+            case .quadCurve(to: let p, control: let c):
+                var prev = start
+                for step in 1...10 {
+                    let t = CGFloat(step) / 10.0
+                    let pt = quadBezierPoint(p0: start, c: c, p1: p, t: t)
+                    totalLen += hypot(pt.x - prev.x, pt.y - prev.y)
+                    prev = pt
+                }
+                start = p
             default:
                 break
             }
         }
 
-        targetLen = totalLen * fraction
+        guard totalLen > 0 else { return nil }
+        let targetLen = totalLen * fraction
+        var currentLen: CGFloat = 0
         var resultPoint: CGPoint? = nil
 
-        var start = CGPoint.zero
+        start = CGPoint.zero
         path.forEach { element in
             switch element {
             case .move(to: let p):
@@ -256,14 +265,21 @@ public struct PowerFlowView: View {
                 currentLen += segLen
                 start = p
             case .quadCurve(to: let p, control: let c):
-                let segLen = hypot(p.x - start.x, p.y - start.y)
-                if currentLen + segLen >= targetLen && resultPoint == nil {
-                    let t = segLen > 0 ? (targetLen - currentLen) / segLen : 0
-                    let x = (1-t)*(1-t)*start.x + 2*(1-t)*t*c.x + t*t*p.x
-                    let y = (1-t)*(1-t)*start.y + 2*(1-t)*t*c.y + t*t*p.y
-                    resultPoint = CGPoint(x: x, y: y)
+                var prev = start
+                for step in 1...10 {
+                    let t = CGFloat(step) / 10.0
+                    let pt = quadBezierPoint(p0: start, c: c, p1: p, t: t)
+                    let subLen = hypot(pt.x - prev.x, pt.y - prev.y)
+                    if currentLen + subLen >= targetLen && resultPoint == nil {
+                        let subFrac = subLen > 0 ? (targetLen - currentLen) / subLen : 0
+                        resultPoint = CGPoint(
+                            x: prev.x + (pt.x - prev.x) * subFrac,
+                            y: prev.y + (pt.y - prev.y) * subFrac
+                        )
+                    }
+                    currentLen += subLen
+                    prev = pt
                 }
-                currentLen += segLen
                 start = p
             default:
                 break
@@ -271,6 +287,13 @@ public struct PowerFlowView: View {
         }
 
         return resultPoint ?? start
+    }
+
+    private func quadBezierPoint(p0: CGPoint, c: CGPoint, p1: CGPoint, t: CGFloat) -> CGPoint {
+        let invT = 1.0 - t
+        let x = invT * invT * p0.x + 2.0 * invT * t * c.x + t * t * p1.x
+        let y = invT * invT * p0.y + 2.0 * invT * t * c.y + t * t * p1.y
+        return CGPoint(x: x, y: y)
     }
 }
 

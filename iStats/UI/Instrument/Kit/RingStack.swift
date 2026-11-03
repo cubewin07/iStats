@@ -7,8 +7,8 @@ public struct RingData: Identifiable, Sendable {
     public let color: Color
     public let label: String
 
-    public init(id: String = UUID().uuidString, fraction: Double, color: Color, label: String) {
-        self.id = id
+    public init(id: String? = nil, fraction: Double, color: Color, label: String) {
+        self.id = id ?? label
         self.fraction = max(0.0, min(1.0, fraction))
         self.color = color
         self.label = label

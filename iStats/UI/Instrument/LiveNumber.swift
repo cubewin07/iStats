@@ -48,25 +48,40 @@ public struct LiveNumber: View {
             if motionPolicy == .full {
                 Text(text)
                     .font(font)
+                    .tracking(opticalTracking)
                     .contentTransition(.numericText(value: value))
                     .animation(Motion.value(), value: value)
             } else if motionPolicy == .reduced {
                 Text(text)
                     .font(font)
+                    .tracking(opticalTracking)
                     .animation(.easeInOut(duration: 0.15), value: text)
             } else {
                 Text(text)
                     .font(font)
+                    .tracking(opticalTracking)
             }
         } else {
             if motionPolicy.allowsEasing {
                 Text(text)
                     .font(font)
+                    .tracking(opticalTracking)
                     .animation(.easeInOut(duration: 0.15), value: text)
             } else {
                 Text(text)
                     .font(font)
+                    .tracking(opticalTracking)
             }
+        }
+    }
+
+    private var opticalTracking: CGFloat {
+        if font == Instrument.Typography.display {
+            return -1.2
+        } else if font == Instrument.Typography.displayCompact {
+            return -0.6
+        } else {
+            return 0.0
         }
     }
 

@@ -13,7 +13,6 @@ public struct Module<Content: View, Trailing: View>: View {
     public let trailing: Trailing
     public let content: Content
 
-    @State private var isHovered: Bool = false
     @Environment(\.colorSchemeContrast) private var colorSchemeContrast
 
     public init(
@@ -41,21 +40,17 @@ public struct Module<Content: View, Trailing: View>: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
                 RoundedRectangle(cornerRadius: Instrument.Radius.module, style: .continuous)
-                    .fill(isHovered ? Instrument.Surface.moduleHover : Instrument.Surface.module)
+                    .fill(Instrument.Surface.module)
             )
             .overlay(
-                Group {
-                    if colorSchemeContrast == .increased {
-                        RoundedRectangle(cornerRadius: Instrument.Radius.module, style: .continuous)
-                            .stroke(Color.primary.opacity(0.25), lineWidth: 1)
-                    }
-                }
+                RoundedRectangle(cornerRadius: Instrument.Radius.module, style: .continuous)
+                    .stroke(
+                        colorSchemeContrast == .increased
+                            ? Color.primary.opacity(0.35)
+                            : Color.white.opacity(0.12),
+                        lineWidth: colorSchemeContrast == .increased ? 1.0 : 0.5
+                    )
             )
-            .onHover { hovering in
-                withAnimation(Motion.snappy) {
-                    isHovered = hovering
-                }
-            }
         }
     }
 }

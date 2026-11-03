@@ -6,12 +6,14 @@ public struct CapsuleSegment: Identifiable, Sendable {
     public let value: Double
     public let color: Color
     public let label: String
+    public let formattedValue: String?
 
-    public init(id: String = UUID().uuidString, value: Double, color: Color, label: String) {
-        self.id = id
+    public init(id: String? = nil, value: Double, color: Color, label: String, formattedValue: String? = nil) {
+        self.id = id ?? label
         self.value = value
         self.color = color
         self.label = label
+        self.formattedValue = formattedValue
     }
 }
 
@@ -21,6 +23,7 @@ public struct SplitCapsule: View {
     public var height: CGFloat
     public var minVisibleWidth: CGFloat
     public var gap: CGFloat
+    public var onHoverSegment: ((CapsuleSegment?) -> Void)? = nil
 
     @State private var hoveredSegmentId: String?
 
@@ -28,12 +31,14 @@ public struct SplitCapsule: View {
         segments: [CapsuleSegment],
         height: CGFloat = 8,
         minVisibleWidth: CGFloat = 4,
-        gap: CGFloat = 1
+        gap: CGFloat = 1,
+        onHoverSegment: ((CapsuleSegment?) -> Void)? = nil
     ) {
         self.segments = segments
         self.height = height
         self.minVisibleWidth = minVisibleWidth
         self.gap = gap
+        self.onHoverSegment = onHoverSegment
     }
 
     public var body: some View {
@@ -57,10 +62,11 @@ public struct SplitCapsule: View {
                             .frame(width: w, height: height)
                             .scaleEffect(isHovered ? 1.05 : 1.0)
                             .offset(y: isHovered ? -1.0 : 0.0)
-                            .help("\(segment.label): \(String(format: "%.1f", segment.value))")
+                            .help(segment.formattedValue ?? "\(segment.label): \(String(format: "%.1f", segment.value))")
                             .onHover { hovering in
                                 withAnimation(Motion.snappy) {
                                     hoveredSegmentId = hovering ? segment.id : nil
+                                    onHoverSegment?(hovering ? segment : nil)
                                 }
                             }
                     }
