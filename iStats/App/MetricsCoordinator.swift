@@ -1,5 +1,6 @@
 import Foundation
 import Combine
+import AppKit
 import IOKit.ps
 import iStatsCore
 
@@ -510,12 +511,37 @@ public final class MetricsCoordinator: ObservableObject {
         processSamplingTask?.cancel()
         processSamplingTask = Task.detached(priority: .utility) { [weak self, processSampler] in
             while !Task.isCancelled {
-                let sample = processSampler.sample()
+                // Check pause/low-power state and snapshot GUI apps on MainActor
+                let loopContext = await MainActor.run { [weak self] () -> (isPaused: Bool, isLowPower: Bool, appMap: [pid_t: (name: String, bundleID: String?)])? in
+                    guard let self = self else { return nil }
+                    let runningApps = NSWorkspace.shared.runningApplications
+                    var map: [pid_t: (name: String, bundleID: String?)] = [:]
+                    for app in runningApps {
+                        if let name = app.localizedName {
+                            map[app.processIdentifier] = (name, app.bundleIdentifier)
+                        }
+                    }
+                    return (self.preferencesStore.isSamplingPaused, self.isLowPowerModeActive, map)
+                }
+
+                guard let context = loopContext else { break }
+
+                if context.isPaused || context.isLowPower {
+                    do {
+                        try await Task.sleep(nanoseconds: 2_000_000_000)
+                    } catch {
+                        break
+                    }
+                    continue
+                }
+
+                let sample = processSampler.sample(appMap: context.appMap)
                 await MainActor.run { [weak self] in
                     guard let self = self else { return }
                     self.latestProcesses = Sample(value: sample)
 
                     // Track rolling 30-sample history for top processes
+                    let currentTopPIDs = Set(sample.topCPU.map(\.pid))
                     for item in sample.topCPU {
                         var history = self.processCPUHistory[item.pid] ?? []
                         history.append(item.cpuPercent)
@@ -523,6 +549,11 @@ public final class MetricsCoordinator: ObservableObject {
                             history.removeFirst(history.count - 30)
                         }
                         self.processCPUHistory[item.pid] = history
+                    }
+
+                    // Prune old PIDs if dictionary exceeds 32 items to bound memory
+                    if self.processCPUHistory.count > 32 {
+                        self.processCPUHistory = self.processCPUHistory.filter { currentTopPIDs.contains($0.key) }
                     }
                 }
                 do {

@@ -109,5 +109,44 @@ final class InsightEngineTests: XCTestCase {
     func testEmptySeriesReturnsNil() {
         XCTAssertNil(InsightEngine.best(series: [], interval: 1.0, unit: .percent))
     }
+
+    // MARK: - 7. Category Specific Threshold Profiles
+
+    func testThroughputThresholdsDoNotTriggerBusyOnIdleBackgroundTraffic() {
+        // Idle traffic of 60 B/s (0.06 KB/s) for 100 seconds
+        let series = Array(repeating: 60.0, count: 100)
+        let insights = InsightEngine.insights(
+            series: series,
+            interval: 1.0,
+            unit: .bytesPerSecond,
+            thresholds: .throughputBytesPerSec()
+        )
+        // Should NOT trigger sustained busy (elevated is 10 MB/s)
+        XCTAssertFalse(insights.contains(where: { $0.kind == .sustained }))
+    }
+
+    func testFanRPMThresholdsDoNotTriggerBusyOnQuietIdleRPM() {
+        // Idle fan at 1250 RPM for 100 seconds
+        let series = Array(repeating: 1250.0, count: 100)
+        let insights = InsightEngine.insights(
+            series: series,
+            interval: 1.0,
+            unit: .rpm,
+            thresholds: .fanRPM(minRPM: 1200, maxRPM: 6000)
+        )
+        XCTAssertFalse(insights.contains(where: { $0.kind == .sustained }))
+    }
+
+    func testThermalThresholdsDoNotTriggerBusyAtNormalTemps() {
+        // Normal 50°C temp for 100 seconds
+        let series = Array(repeating: 50.0, count: 100)
+        let insights = InsightEngine.insights(
+            series: series,
+            interval: 1.0,
+            unit: .celsius,
+            thresholds: .thermalCelsius()
+        )
+        XCTAssertFalse(insights.contains(where: { $0.kind == .sustained }))
+    }
 }
 

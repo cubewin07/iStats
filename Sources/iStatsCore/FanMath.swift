@@ -47,5 +47,13 @@ public enum FanMath {
     public static func rotationDegrees(time: TimeInterval, speedRPS: Double) -> Double {
         (time * speedRPS * 360.0).truncatingRemainder(dividingBy: 360.0)
     }
+
+    /// Steps rotation angle incrementally based on elapsed time dt (in seconds) and rotation speed in rps.
+    /// This avoids phase jumps when speedRPS changes between sampling intervals.
+    public static func stepRotationDegrees(currentDegrees: Double, dt: TimeInterval, speedRPS: Double) -> Double {
+        guard speedRPS > 0, dt > 0 else { return currentDegrees }
+        let clampedDt = min(0.1, dt) // Bound dt to 100ms to prevent huge jumps on unpause
+        return (currentDegrees + (clampedDt * speedRPS * 360.0)).truncatingRemainder(dividingBy: 360.0)
+    }
 }
 

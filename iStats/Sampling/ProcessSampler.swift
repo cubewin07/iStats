@@ -9,10 +9,18 @@ public final class ProcessSampler: @unchecked Sendable {
     private var previousRecords: [Int32: ProcessCPURecord] = [:]
     private let lock = NSLock()
 
+    private static let timebaseInfo: mach_timebase_info_data_t = {
+        var info = mach_timebase_info_data_t()
+        mach_timebase_info(&info)
+        return info
+    }()
+
     public init() {}
 
     /// Samples current process CPU and memory utilization. Runs off the main thread.
-    public func sample() -> ProcessSample {
+    /// An optional pre-fetched app map can be provided from the main actor to avoid
+    /// accessing NSWorkspace off-main-thread.
+    public func sample(appMap: [pid_t: (name: String, bundleID: String?)]? = nil) -> ProcessSample {
         lock.lock()
         defer { lock.unlock() }
 
@@ -28,13 +36,18 @@ public final class ProcessSampler: @unchecked Sendable {
         let now = Date()
 
         // Lookup map of running GUI applications to get bundleIDs and friendly display names
-        let runningApps = NSWorkspace.shared.runningApplications
-        var appMap: [pid_t: (name: String, bundleID: String?)] = [:]
-        for app in runningApps {
-            if let name = app.localizedName {
-                appMap[app.processIdentifier] = (name, app.bundleIdentifier)
+        var effectiveAppMap: [pid_t: (name: String, bundleID: String?)] = appMap ?? [:]
+        if appMap == nil && Thread.isMainThread {
+            let runningApps = NSWorkspace.shared.runningApplications
+            for app in runningApps {
+                if let name = app.localizedName {
+                    effectiveAppMap[app.processIdentifier] = (name, app.bundleIdentifier)
+                }
             }
         }
+
+        let numer = UInt64(Self.timebaseInfo.numer)
+        let denom = UInt64(Self.timebaseInfo.denom)
 
         for i in 0..<count {
             let pid = pids[i]
@@ -51,21 +64,38 @@ public final class ProcessSampler: @unchecked Sendable {
                 let name: String
                 let bundleID: String?
 
-                if let appInfo = appMap[pid] {
+                if let appInfo = effectiveAppMap[pid] {
                     name = appInfo.name
                     bundleID = appInfo.bundleID
                 } else {
                     var nameBuf = [CChar](repeating: 0, count: 256)
                     let nameLen = proc_name(pid, &nameBuf, UInt32(nameBuf.count))
+                    var resolvedName = ""
                     if nameLen > 0 {
-                        name = String(cString: nameBuf).trimmingCharacters(in: .whitespacesAndNewlines)
-                    } else {
-                        name = "Process \(pid)"
+                        resolvedName = String(cString: nameBuf).trimmingCharacters(in: .whitespacesAndNewlines)
                     }
+
+                    // If proc_name was empty or truncated at MAXCOMLEN (15 characters),
+                    // retrieve the full binary name via proc_pidpath
+                    if resolvedName.isEmpty || resolvedName.count >= 15 {
+                        var pathBuf = [CChar](repeating: 0, count: 4096)
+                        let pathLen = proc_pidpath(pid, &pathBuf, UInt32(pathBuf.count))
+                        if pathLen > 0 {
+                            let fullPath = String(cString: pathBuf)
+                            let baseName = (fullPath as NSString).lastPathComponent
+                            if !baseName.isEmpty {
+                                resolvedName = baseName
+                            }
+                        }
+                    }
+
+                    name = resolvedName.isEmpty ? "Process \(pid)" : resolvedName
                     bundleID = nil
                 }
 
-                let totalCpuNs = rusage.ri_user_time + rusage.ri_system_time
+                let totalTicks = rusage.ri_user_time &+ rusage.ri_system_time
+                // Convert 24 MHz Mach ticks to nanoseconds via mach_timebase_info
+                let totalCpuNs = (denom > 0) ? (totalTicks &* numer) / denom : totalTicks
                 let memBytes = rusage.ri_phys_footprint
 
                 snapshots.append(

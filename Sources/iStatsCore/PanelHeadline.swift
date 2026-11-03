@@ -34,7 +34,7 @@ public enum PanelHeadline {
     }
 
     // MARK: - Memory
-    public static func memory(sample: MemorySample?) -> String {
+    public static func memory(sample: MemorySample?, standard: Units.ByteUnitStandard = .si) -> String {
         guard let s = sample else { return "Memory telemetry unavailable" }
         var parts: [String] = []
 
@@ -48,11 +48,11 @@ public enum PanelHeadline {
         }
 
         if s.compressed > 0 {
-            parts.append("\(Units.formatBytesSI(Int64(s.compressed))) compressed")
+            parts.append("\(Units.formatBytes(UInt64(s.compressed), standard: standard, fractionDigits: 1)) compressed")
         }
 
         if s.swapUsed > 0 {
-            parts.append("\(Units.formatBytesSI(Int64(s.swapUsed))) swap")
+            parts.append("\(Units.formatBytes(UInt64(s.swapUsed), standard: standard, fractionDigits: 1)) swap")
         }
 
         return parts.joined(separator: " · ")
@@ -82,7 +82,7 @@ public enum PanelHeadline {
     }
 
     // MARK: - Thermal
-    public static func thermal(sample: ThermalSample?, cpuTemp: Double? = nil, gpuTemp: Double? = nil) -> String {
+    public static func thermal(sample: ThermalSample?, cpuTemp: Double? = nil, gpuTemp: Double? = nil, unit: Units.TemperatureUnit = .celsius) -> String {
         guard let s = sample else { return "Thermal telemetry unavailable" }
         var parts: [String] = []
 
@@ -103,10 +103,12 @@ public enum PanelHeadline {
 
         var sensorTemps: [String] = []
         if let cpu = cpuTemp, cpu > 0 {
-            sensorTemps.append("CPU \(Int(round(cpu)))°")
+            let displayCpu = (unit == .fahrenheit) ? Units.celsiusToFahrenheit(cpu) : cpu
+            sensorTemps.append("CPU \(Int(round(displayCpu)))°")
         }
         if let gpu = gpuTemp, gpu > 0 {
-            sensorTemps.append("GPU \(Int(round(gpu)))°")
+            let displayGpu = (unit == .fahrenheit) ? Units.celsiusToFahrenheit(gpu) : gpu
+            sensorTemps.append("GPU \(Int(round(displayGpu)))°")
         }
 
         if !sensorTemps.isEmpty {
@@ -147,7 +149,7 @@ public enum PanelHeadline {
     }
 
     // MARK: - Network
-    public static func network(sample: NetworkSample?) -> String {
+    public static func network(sample: NetworkSample?, standard: Units.ByteUnitStandard = .si) -> String {
         guard let s = sample else { return "Network telemetry unavailable" }
         var parts: [String] = []
 
@@ -161,8 +163,8 @@ public enum PanelHeadline {
             parts.append("Idle")
         }
 
-        parts.append("↓ \(Units.formatBytesSI(Int64(down)))/s")
-        parts.append("↑ \(Units.formatBytesSI(Int64(up)))/s")
+        parts.append("↓ \(Units.formatBytes(UInt64(max(0, down)), standard: standard, fractionDigits: 1))/s")
+        parts.append("↑ \(Units.formatBytes(UInt64(max(0, up)), standard: standard, fractionDigits: 1))/s")
 
         if let ip = s.localIPv4 {
             parts.append(ip)
@@ -172,7 +174,7 @@ public enum PanelHeadline {
     }
 
     // MARK: - Disk
-    public static func disk(sample: DiskSample?, freeBytes: Int64? = nil) -> String {
+    public static func disk(sample: DiskSample?, freeBytes: Int64? = nil, standard: Units.ByteUnitStandard = .si) -> String {
         guard let s = sample else { return "Disk telemetry unavailable" }
         var parts: [String] = []
 
@@ -182,14 +184,14 @@ public enum PanelHeadline {
 
         if totalRate > 5_000_000 { // > 5 MB/s
             parts.append("Active")
-            parts.append("\(Units.formatBytesSI(Int64(totalRate)))/s")
+            parts.append("\(Units.formatBytes(UInt64(max(0, totalRate)), standard: standard, fractionDigits: 1))/s")
         } else {
             parts.append("Idle")
         }
 
         let free = freeBytes ?? s.volumes.first.map { Int64($0.free) }
         if let free = free, free > 0 {
-            parts.append("\(Units.formatBytesSI(free)) free")
+            parts.append("\(Units.formatBytes(UInt64(free), standard: standard, fractionDigits: 1)) free")
         }
 
         return parts.joined(separator: " · ")

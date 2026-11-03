@@ -46,5 +46,19 @@ final class FanMathTests: XCTestCase {
         let fullRev = FanMath.rotationDegrees(time: 1.0, speedRPS: 1.0)
         XCTAssertEqual(fullRev, 0.0, accuracy: 0.001)
     }
+
+    func testStepRotationDegreesIncremental() {
+        // At 1.0 rps, a 16.67ms step (60fps) advances by 6 degrees
+        let next = FanMath.stepRotationDegrees(currentDegrees: 45.0, dt: 1.0 / 60.0, speedRPS: 1.0)
+        XCTAssertEqual(next, 51.0, accuracy: 0.01)
+
+        // Wraps cleanly at 360 degrees
+        let wrapped = FanMath.stepRotationDegrees(currentDegrees: 358.0, dt: 1.0 / 60.0, speedRPS: 1.0)
+        XCTAssertEqual(wrapped, 4.0, accuracy: 0.01)
+
+        // Clamps dt to prevent huge jump
+        let clamped = FanMath.stepRotationDegrees(currentDegrees: 0.0, dt: 10.0, speedRPS: 1.0)
+        XCTAssertEqual(clamped, 36.0, accuracy: 0.01) // 0.1 * 1.0 * 360 = 36 deg
+    }
 }
 
