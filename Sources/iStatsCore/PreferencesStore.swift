@@ -728,32 +728,13 @@ public final class PreferencesStore: ObservableObject, @unchecked Sendable {
         isSamplingPaused.toggle()
     }
 
-    /// Reorders active menu bar items using IndexSet move offsets.
-    public func moveActiveMenuBarItem(from source: IndexSet, to destination: Int) {
+    /// Applies a full left-to-right order to the active items. Ignored unless `ids` is exactly the active set.
+    public func setActiveMenuBarOrder(_ ids: [String]) {
         let active = menuBarItems.filter { isCategoryEnabled($0.category) }
-        guard destination >= 0 && destination <= active.count else { return }
-        var result = active
-        let toMove = source.sorted().compactMap { $0 < active.count ? active[$0] : nil }
-        for index in source.sorted(by: >) {
-            if index < result.count {
-                result.remove(at: index)
-            }
-        }
-        let adjustedDestination = destination - source.filter { $0 < destination }.count
-        result.insert(contentsOf: toMove, at: max(0, min(adjustedDestination, result.count)))
+        let byId = Dictionary(active.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        guard ids.count == active.count, Set(ids) == Set(byId.keys), ids != active.map(\.id) else { return }
         let disabled = menuBarItems.filter { !isCategoryEnabled($0.category) }
-        self.menuBarItems = result + disabled
-    }
-
-    /// Moves a specific active menu bar item left (-1) or right (+1) in the active order.
-    public func moveActiveMenuBarItem(id: String, direction: Int) {
-        var active = menuBarItems.filter { isCategoryEnabled($0.category) }
-        guard let index = active.firstIndex(where: { $0.id == id }) else { return }
-        let newIndex = index + direction
-        guard newIndex >= 0 && newIndex < active.count else { return }
-        active.swapAt(index, newIndex)
-        let disabled = menuBarItems.filter { !isCategoryEnabled($0.category) }
-        self.menuBarItems = active + disabled
+        menuBarItems = ids.compactMap { byId[$0] } + disabled
     }
 
     /// Returns all enabled items for a specific category.

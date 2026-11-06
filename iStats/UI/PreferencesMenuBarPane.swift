@@ -3,7 +3,7 @@ import AppKit
 import iStatsCore
 
 /// Modern, intuitive Menu Bar studio pane.
-/// Features a live interactive menu bar preview strip with reordering,
+/// Features a live interactive menu bar preview strip,
 /// category-specific widget cards with live icons, layout/source options,
 /// fanless Mac support, and a unified Popover Stage.
 public struct PreferencesMenuBarPane: View {
@@ -112,7 +112,7 @@ public struct PreferencesMenuBarPane: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Live Menu Bar Preview")
                         .font(.system(size: 13, weight: .semibold))
-                    Text("Click an item to configure it, or use the arrows to reorder items in your menu bar.")
+                    Text("Click an item to configure it. Hold ⌘ and drag icons in the menu bar to rearrange.")
                         .font(.system(size: 11))
                         .foregroundColor(.secondary)
                 }
@@ -176,8 +176,8 @@ public struct PreferencesMenuBarPane: View {
                 } else {
                     // Active Widgets Rendered Live in Order
                     HStack(spacing: 6) {
-                        ForEach(Array(store.activeMenuBarItems.enumerated()), id: \.element.id) { index, item in
-                            menuBarChip(item: item, index: index)
+                        ForEach(store.activeMenuBarItems, id: \.id) { item in
+                            menuBarChip(item: item)
                         }
                     }
                 }
@@ -195,15 +195,13 @@ public struct PreferencesMenuBarPane: View {
         }
     }
 
-    private func menuBarChip(item: MenuBarItemConfig, index: Int) -> some View {
+    private func menuBarChip(item: MenuBarItemConfig) -> some View {
         let isSelected = (selectedCategory == item.category && selectedWidgetStyle == item.style && (item.category != .thermal || item.source == selectedThermalSource))
         let renderResult = MenuBarIconRenderer.render(
             config: item,
             coordinator: coordinator,
             preferences: store
         )
-        let canMoveLeft = index > 0
-        let canMoveRight = index < store.activeMenuBarItems.count - 1
 
         return HStack(spacing: 4) {
             // Live Visual Output
@@ -216,31 +214,9 @@ public struct PreferencesMenuBarPane: View {
                     .font(.system(size: 10, weight: .semibold, design: .monospaced))
             }
 
-            // Selection Controls (Reorder & Remove)
+            // Selection Controls (Remove)
             if isSelected {
                 HStack(spacing: 2) {
-                    Button(action: {
-                        store.moveActiveMenuBarItem(id: item.id, direction: -1)
-                    }) {
-                        Image(systemName: "chevron.left")
-                            .font(.system(size: 8, weight: .bold))
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(!canMoveLeft)
-                    .opacity(canMoveLeft ? 0.9 : 0.3)
-                    .help("Move widget left")
-
-                    Button(action: {
-                        store.moveActiveMenuBarItem(id: item.id, direction: 1)
-                    }) {
-                        Image(systemName: "chevron.right")
-                            .font(.system(size: 8, weight: .bold))
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(!canMoveRight)
-                    .opacity(canMoveRight ? 0.9 : 0.3)
-                    .help("Move widget right")
-
                     Button(action: {
                         store.setItemEnabled(
                             category: item.category,
