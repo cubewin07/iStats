@@ -1,6 +1,6 @@
 # ADR 0007 — Per-Category Menu Bar Items, Decoupled Popovers, and Interactive Preview
 
-**Status:** Accepted
+**Status:** Accepted (Partially superseded by [ADR 0008](0008-purpose-driven-widgets-and-tabbed-popovers.md) for `PopoverStyle` 33-style sprawl; multi-item controller and studio architecture preserved)
 
 ## Context
 In the initial Phase 1 foundation, `MenuBarController` managed a single `NSStatusItem` that rendered either a single metric text/icon or an all-in-one menu bar label, opening a monolithic `DetailPopoverView` containing all metric categories in a single long scrollable list.

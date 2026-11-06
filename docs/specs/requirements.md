@@ -180,6 +180,24 @@ This is a learning project. The owner is an experienced full-stack developer (Sp
 4. WHEN the project is planned THEN iStats SHALL include a dedicated prerequisites/"what I need to learn" document covering relevant OS concepts and macOS frameworks (sysctl, Mach host stats, IOKit, SMC, IOReport/powermetrics concepts, SwiftUI/AppKit menu bar patterns) and how to validate each category of metric against a known-good reference (Activity Monitor, `top`, `powermetrics`, etc.).
 5. WHERE a metric is implemented THEN the documentation SHALL describe how to verify its correctness against a reference tool.
 
+### Requirement 15: Instrument Design Language & Glass Panels (Phase 8)
+
+**User Story:** As a user, I want each iStats panel to feel like a well-crafted native instrument: calm when my Mac is healthy, alive while open, and precise when I look closer.
+
+#### Acceptance Criteria
+
+1. WHEN a menu bar item is clicked THEN iStats SHALL open a borderless, arrowless panel anchored 6 pt below the item, horizontally centred on it and clamped to the screen's `visibleFrame` with 8 pt margins.
+2. The panel SHALL use Liquid Glass on macOS 26+ and a vibrant `NSVisualEffectView` material on macOS 13–15, with 16 pt continuous corners and a system shadow.
+3. The panel SHALL close on outside click, `Esc`, app deactivation, or clicking the same item again, unless it is pinned.
+4. WHILE a panel is open, hovering another iStats item SHALL swap to that item's panel without a full close/open cycle.
+5. WHEN the user pins a panel THEN it SHALL become a movable floating window that survives outside clicks until it is un-pinned or closed.
+6. The panel SHALL be 352 pt wide, size its height to content with animation, and cap at 560 pt. The Overview page SHALL NOT scroll.
+7. All panel UI SHALL use the Phase 8 tokens (`Instrument.Type`, `Space`, `Radius`, `Surface`, `Motion`) and SHALL NOT use stock SwiftUI colour literals for identity or series.
+8. Status colour SHALL appear only at `.elevated` or higher. No "Fine" badge is rendered. Numerals SHALL use SF Pro tabular digits.
+9. Numeric values SHALL animate digit transitions on macOS 14+ and crossfade on macOS 13. Live charts SHALL glide between samples and stop animation when hidden.
+10. Each category SHALL provide a signature instrument (ArcGauge, SplitCapsule, Turbine, PowerFlow, etc.) and at most one insight line derived from in-memory history by `InsightEngine`.
+11. Accessibility: Panels SHALL support keyboard navigation (`⌘1–3`, `←/→`, `Esc`, `⌘C`, `⌘P`, `Space`), VoiceOver descriptions and chart summaries, and remain legible with High Contrast and Reduce Transparency.
+
 ---
 
 ## Non-Functional Requirements

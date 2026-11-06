@@ -244,4 +244,85 @@ final class MetricsStoreTests: XCTestCase {
         store2.recordUnavailable(category: .memory, reason: "error", timestamp: t)
         XCTAssertNotEqual(store1, store2)
     }
+
+    // MARK: - Extended In-Memory Scalar Trends (Task 7.6)
+
+    func testScalarSeriesRetention900Samples() {
+        var store = MetricsStore()
+        let baseTime = Date(timeIntervalSince1970: 10_000)
+
+        // Append 1,000 samples
+        for i in 0..<1000 {
+            let t = baseTime.addingTimeInterval(Double(i))
+            let cpu = MetricReading.cpu(Sample(
+                value: CPUSample(totalUsage: Double(i % 100), perCore: [Double(i % 100)], user: Double(i % 50), system: Double(i % 50), idle: 0),
+                timestamp: t
+            ))
+            store.append(cpu)
+        }
+
+        // Full-struct buffer stays capped at 60 (zero bloat)
+        XCTAssertEqual(store.count(for: .cpu), 60)
+        XCTAssertEqual(store.cpuHistory().count, 60)
+
+        // Scalar buffer retains 900 samples (15m window)
+        XCTAssertEqual(store.scalarCount(for: .cpuUser), 900)
+        XCTAssertEqual(store.scalarCount(for: .cpuSystem), 900)
+
+        // Oldest evicted; first stored sample timestamp is baseTime + 100s
+        let points = store.scalarPoints(for: .cpuUser)
+        XCTAssertEqual(points.count, 900)
+        XCTAssertEqual(points.first?.timestamp, baseTime.addingTimeInterval(100))
+        XCTAssertEqual(points.last?.timestamp, baseTime.addingTimeInterval(999))
+    }
+
+    func testSpikePreservingDownsampler() {
+        // Create 900 flat points (5.0) with an isolated acute spike (99.0) at index 450
+        var rawValues = [Double](repeating: 5.0, count: 900)
+        rawValues[450] = 99.0
+
+        let downsampled = Downsampler.downsampleSpikePreserving(rawValues, targetCount: 120)
+
+        XCTAssertEqual(downsampled.count, 120)
+        XCTAssertTrue(downsampled.contains(99.0), "Downsampler must preserve acute spike of 99.0")
+        XCTAssertEqual(downsampled.max(), 99.0)
+    }
+
+    func testScalarHistoryDurationFilterAndDownsample() {
+        var store = MetricsStore()
+        let baseTime = Date(timeIntervalSince1970: 20_000)
+
+        // Append 600 seconds of data (10 minutes)
+        for i in 0..<600 {
+            let t = baseTime.addingTimeInterval(Double(i))
+            let mem = MetricReading.memory(Sample(
+                value: MemorySample(total: 1000, used: UInt64(i), free: 1000 - UInt64(i), wired: 100, compressed: 50, cached: 50, swapUsed: 0, pressure: .normal),
+                timestamp: t
+            ))
+            store.append(mem)
+        }
+
+        // 1m duration -> returns 60 points (no downsampling needed as 60 <= 120)
+        let oneMinute = store.scalarHistory(for: .memoryUsedPercent, duration: 60, maxPoints: 120)
+        XCTAssertEqual(oneMinute.count, 60)
+
+        // 5m duration (300s) -> downsampled to 120 points
+        let fiveMinutes = store.scalarHistory(for: .memoryUsedPercent, duration: 300, maxPoints: 120)
+        XCTAssertEqual(fiveMinutes.count, 120)
+
+        // 15m duration (900s) with 600s stored -> downsampled to 120 points
+        let fifteenMinutes = store.scalarHistory(for: .memoryUsedPercent, duration: 900, maxPoints: 120)
+        XCTAssertEqual(fifteenMinutes.count, 120)
+    }
+
+    func testScalarMemoryFootprintWithinBudget() {
+        let pointStride = MemoryLayout<ScalarPoint>.stride
+        let seriesCount = ScalarSeriesKey.allCases.count
+        let totalPoints = 900 * seriesCount
+        let rawDataBytes = totalPoints * pointStride
+
+        // 16 bytes per point * 900 * 11 series = 158,400 bytes (~154 KB)
+        XCTAssertEqual(pointStride, 16, "ScalarPoint (Date + Double) stride must be exactly 16 bytes")
+        XCTAssertLessThanOrEqual(rawDataBytes, 160_000, "11 series of 900 points must fit within 160 KB")
+    }
 }

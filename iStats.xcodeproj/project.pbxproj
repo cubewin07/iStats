@@ -12,44 +12,74 @@
 		110000000000000000000015 /* DockIconManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000014 /* DockIconManager.swift */; };
 		110000000000000000000017 /* iStatsCore in Frameworks */ = {isa = PBXBuildFile; productRef = 110000000000000000000005 /* iStatsCore */; };
 		110000000000000000000019 /* MenuBarController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000018 /* MenuBarController.swift */; };
-		11000000000000000000001B /* DetailPopoverView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11000000000000000000001A /* DetailPopoverView.swift */; };
 		11000000000000000000001D /* PreferencesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11000000000000000000001C /* PreferencesView.swift */; };
 		110000000000000000000141 /* PreferencesComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000140 /* PreferencesComponents.swift */; };
 		110000000000000000000143 /* PreferencesMenuBarPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000142 /* PreferencesMenuBarPane.swift */; };
 		110000000000000000000145 /* PreferencesGeneralPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000144 /* PreferencesGeneralPane.swift */; };
 		110000000000000000000147 /* PreferencesAlertsPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000146 /* PreferencesAlertsPane.swift */; };
 		110000000000000000000149 /* PreferencesAboutPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000148 /* PreferencesAboutPane.swift */; };
+		110000000000000000000151 /* Tokens.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000150 /* Tokens.swift */; };
+		110000000000000000000153 /* CategoryPalette.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000152 /* CategoryPalette.swift */; };
+		110000000000000000000191 /* InstrumentTokens.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000190 /* InstrumentTokens.swift */; };
+		110000000000000000000195 /* Motion.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000194 /* Motion.swift */; };
+		110000000000000000000197 /* LiveNumber.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000196 /* LiveNumber.swift */; };
+		110000000000000000000199 /* MetricPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000198 /* MetricPanel.swift */; };
+		11000000000000000000019B /* PanelController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11000000000000000000019A /* PanelController.swift */; };
+		11000000000000000000019D /* LiveChart.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11000000000000000000019C /* LiveChart.swift */; };
+		1100000000000000000001A1 /* Module.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000001A0 /* Module.swift */; };
+		1100000000000000000001A3 /* SectionEyebrow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000001A2 /* SectionEyebrow.swift */; };
+		1100000000000000000001A5 /* MetricRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000001A4 /* MetricRow.swift */; };
+		1100000000000000000001A7 /* Meter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000001A6 /* Meter.swift */; };
+		1100000000000000000001A9 /* SplitCapsule.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000001A8 /* SplitCapsule.swift */; };
+		1100000000000000000001AB /* ArcGauge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000001AA /* ArcGauge.swift */; };
+		1100000000000000000001AD /* RingStack.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000001AC /* RingStack.swift */; };
+		1100000000000000000001AF /* ClusterStrip.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000001AE /* ClusterStrip.swift */; };
+		1100000000000000000001B1 /* Copyable.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000001B0 /* Copyable.swift */; };
+		1100000000000000000001B3 /* InsetEmptyState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000001B2 /* InsetEmptyState.swift */; };
+		1100000000000000000001B5 /* PageSwitcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000001B4 /* PageSwitcher.swift */; };
+		1100000000000000000001B7 /* StatusRibbon.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000001B6 /* StatusRibbon.swift */; };
+		1100000000000000000001B9 /* PanelScaffold.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000001B8 /* PanelScaffold.swift */; };
+		1100000000000000000001BB /* PanelFactory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000001BA /* PanelFactory.swift */; };
+		1100000000000000000001BF /* CPUPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000001BE /* CPUPanel.swift */; };
+		1100000000000000000001C1 /* MemoryPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000001C0 /* MemoryPanel.swift */; };
+		1100000000000000000001C3 /* GPUPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000001C2 /* GPUPanel.swift */; };
+		1100000000000000000001C5 /* TemperaturePanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000001C4 /* TemperaturePanel.swift */; };
+		1100000000000000000001C7 /* TurbineShape.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000001C6 /* TurbineShape.swift */; };
+		1100000000000000000001C9 /* FanPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000001C8 /* FanPanel.swift */; };
+		1100000000000000000001CB /* SignalBarsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000001CA /* SignalBarsView.swift */; };
+		1100000000000000000001CD /* NetworkPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000001CC /* NetworkPanel.swift */; };
+		1100000000000000000001CF /* DiskPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000001CE /* DiskPanel.swift */; };
+		1100000000000000000001D1 /* BatteryGlyph.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000001D0 /* BatteryGlyph.swift */; };
+		1100000000000000000001D3 /* PowerFlowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000001D2 /* PowerFlowView.swift */; };
+		1100000000000000000001D5 /* PowerPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000001D4 /* PowerPanel.swift */; };
+		1100000000000000000001D7 /* ProcessSampler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000001D6 /* ProcessSampler.swift */; };
+		1100000000000000000001D9 /* TopConsumersModule.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000001D8 /* TopConsumersModule.swift */; };
+		1100000000000000000001DB /* ProcessSamplerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000001DA /* ProcessSamplerTests.swift */; };
+		1100000000000000000001DD /* HistoryPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000001DC /* HistoryPage.swift */; };
+		1100000000000000000001DF /* AccessibilityAppearanceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000001DE /* AccessibilityAppearanceTests.swift */; };
+		110000000000000000000193 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000192 /* Assets.xcassets */; };
 		11000000000000000000001F /* PreferencesWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11000000000000000000001E /* PreferencesWindowController.swift */; };
 		110000000000000000000031 /* CPUSampler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000030 /* CPUSampler.swift */; };
 		110000000000000000000033 /* MemorySampler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000032 /* MemorySampler.swift */; };
 		110000000000000000000035 /* MemoryPressureMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000034 /* MemoryPressureMonitor.swift */; };
-		110000000000000000000037 /* MemoryPressureView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000036 /* MemoryPressureView.swift */; };
 		110000000000000000000044 /* CPUSamplerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000043 /* CPUSamplerTests.swift */; };
 		11000000000000000000004A /* MemorySamplerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000049 /* MemorySamplerTests.swift */; };
 		11000000000000000000004E /* MemoryPressureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11000000000000000000004D /* MemoryPressureTests.swift */; };
 		110000000000000000000061 /* MetricsCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000060 /* MetricsCoordinator.swift */; };
-		110000000000000000000063 /* RollingGraphView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000062 /* RollingGraphView.swift */; };
-		110000000000000000000065 /* CPUSummaryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000064 /* CPUSummaryView.swift */; };
 		110000000000000000000067 /* DetailViewGraphsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000066 /* DetailViewGraphsTests.swift */; };
 		110000000000000000000071 /* NetworkSampler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000070 /* NetworkSampler.swift */; };
 		110000000000000000000073 /* NetworkSamplerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000072 /* NetworkSamplerTests.swift */; };
 		110000000000000000000081 /* DiskSampler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000080 /* DiskSampler.swift */; };
 		110000000000000000000083 /* DiskSamplerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000082 /* DiskSamplerTests.swift */; };
-		110000000000000000000075 /* NetworkSummaryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000074 /* NetworkSummaryView.swift */; };
-		110000000000000000000085 /* DiskSummaryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000084 /* DiskSummaryView.swift */; };
 		110000000000000000000087 /* Phase3ValidationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000086 /* Phase3ValidationTests.swift */; };
 		110000000000000000000091 /* PowerSampler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000090 /* PowerSampler.swift */; };
 		110000000000000000000093 /* PowerSamplerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000092 /* PowerSamplerTests.swift */; };
-		110000000000000000000095 /* PowerSummaryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000094 /* PowerSummaryView.swift */; };
 		110000000000000000000097 /* Phase4ValidationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000096 /* Phase4ValidationTests.swift */; };
 		1100000000000000000000A1 /* ThermalSampler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000000A0 /* ThermalSampler.swift */; };
-		1100000000000000000000A3 /* ThermalSummaryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000000A2 /* ThermalSummaryView.swift */; };
 		1100000000000000000000A5 /* ThermalSamplerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000000A4 /* ThermalSamplerTests.swift */; };
 		1100000000000000000000B1 /* FanSampler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000000B0 /* FanSampler.swift */; };
-		1100000000000000000000B3 /* FanSummaryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000000B2 /* FanSummaryView.swift */; };
 		1100000000000000000000B5 /* FanSamplerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000000B4 /* FanSamplerTests.swift */; };
 		1100000000000000000000C1 /* GPUSampler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000000C0 /* GPUSampler.swift */; };
-		1100000000000000000000C3 /* GPUSummaryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000000C2 /* GPUSummaryView.swift */; };
 		1100000000000000000000C5 /* GPUSamplerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000000C4 /* GPUSamplerTests.swift */; };
 		1100000000000000000000D5 /* SandboxDegradationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000000D4 /* SandboxDegradationTests.swift */; };
 		1100000000000000000000D7 /* Phase5ValidationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000000D6 /* Phase5ValidationTests.swift */; };
@@ -58,19 +88,7 @@
 		1100000000000000000000E5 /* SystemIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000000E4 /* SystemIntegrationTests.swift */; };
 		1100000000000000000000E7 /* PerformancePassTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000000E6 /* PerformancePassTests.swift */; };
 		1100000000000000000000F1 /* MenuBarIconRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000000F0 /* MenuBarIconRenderer.swift */; };
-		1100000000000000000000F3 /* CategoryDetailPopoverView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000000F2 /* CategoryDetailPopoverView.swift */; };
 		110000000000000000000045 /* iStatsCore in Frameworks */ = {isa = PBXBuildFile; productRef = 110000000000000000000005 /* iStatsCore */; };
-		110000000000000000000101 /* MetricVerdict.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000100 /* MetricVerdict.swift */; };
-		110000000000000000000103 /* PopoverCommonComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000102 /* PopoverCommonComponents.swift */; };
-		110000000000000000000105 /* CPUDieIllustrationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000104 /* CPUDieIllustrationView.swift */; };
-		110000000000000000000107 /* MemoryStickIllustrationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000106 /* MemoryStickIllustrationView.swift */; };
-		110000000000000000000109 /* ThermalHeatMapIllustrationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000108 /* ThermalHeatMapIllustrationView.swift */; };
-		11000000000000000000010B /* FanBladesIllustrationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11000000000000000000010A /* FanBladesIllustrationView.swift */; };
-		11000000000000000000010D /* GPUDieIllustrationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11000000000000000000010C /* GPUDieIllustrationView.swift */; };
-		11000000000000000000010F /* NetworkPipesIllustrationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11000000000000000000010E /* NetworkPipesIllustrationView.swift */; };
-		110000000000000000000111 /* DiskStorageTankIllustrationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000110 /* DiskStorageTankIllustrationView.swift */; };
-		110000000000000000000113 /* PowerBudgetIllustrationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000112 /* PowerBudgetIllustrationView.swift */; };
-		110000000000000000000115 /* PopoverVerdictTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000114 /* PopoverVerdictTests.swift */; };
 		110000000000000000000117 /* NotificationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000116 /* NotificationManager.swift */; };
 		110000000000000000000119 /* NotificationManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000118 /* NotificationManagerTests.swift */; };
 		110000000000000000000121 /* AlertCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000120 /* AlertCoordinator.swift */; };
@@ -83,6 +101,7 @@
 		110000000000000000000133 /* PersistentSMCAndHardwareCachingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000132 /* PersistentSMCAndHardwareCachingTests.swift */; };
 		110000000000000000000135 /* MenuBarDirtyCheckingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000134 /* MenuBarDirtyCheckingTests.swift */; };
 		110000000000000000000137 /* CoordinatorBatchingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000136 /* CoordinatorBatchingTests.swift */; };
+		1100000000000000000001BD /* PanelScaffoldTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000001BC /* PanelScaffoldTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -102,45 +121,75 @@
 		110000000000000000000014 /* DockIconManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DockIconManager.swift; sourceTree = "<group>"; };
 		110000000000000000000016 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		110000000000000000000018 /* MenuBarController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarController.swift; sourceTree = "<group>"; };
-		11000000000000000000001A /* DetailPopoverView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DetailPopoverView.swift; sourceTree = "<group>"; };
 		11000000000000000000001C /* PreferencesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferencesView.swift; sourceTree = "<group>"; };
 		110000000000000000000140 /* PreferencesComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferencesComponents.swift; sourceTree = "<group>"; };
 		110000000000000000000142 /* PreferencesMenuBarPane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferencesMenuBarPane.swift; sourceTree = "<group>"; };
 		110000000000000000000144 /* PreferencesGeneralPane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferencesGeneralPane.swift; sourceTree = "<group>"; };
 		110000000000000000000146 /* PreferencesAlertsPane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferencesAlertsPane.swift; sourceTree = "<group>"; };
 		110000000000000000000148 /* PreferencesAboutPane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferencesAboutPane.swift; sourceTree = "<group>"; };
+		110000000000000000000150 /* Tokens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Design/Tokens.swift; sourceTree = "<group>"; };
+		110000000000000000000152 /* CategoryPalette.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Design/CategoryPalette.swift; sourceTree = "<group>"; };
+		110000000000000000000190 /* InstrumentTokens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Instrument/InstrumentTokens.swift; sourceTree = "<group>"; };
+		110000000000000000000194 /* Motion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Instrument/Motion.swift; sourceTree = "<group>"; };
+		110000000000000000000196 /* LiveNumber.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Instrument/LiveNumber.swift; sourceTree = "<group>"; };
+		110000000000000000000198 /* MetricPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetricPanel.swift; sourceTree = "<group>"; };
+		11000000000000000000019A /* PanelController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PanelController.swift; sourceTree = "<group>"; };
+		11000000000000000000019C /* LiveChart.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Instrument/LiveChart.swift; sourceTree = "<group>"; };
+		1100000000000000000001A0 /* Module.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Instrument/Kit/Module.swift; sourceTree = "<group>"; };
+		1100000000000000000001A2 /* SectionEyebrow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Instrument/Kit/SectionEyebrow.swift; sourceTree = "<group>"; };
+		1100000000000000000001A4 /* MetricRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Instrument/Kit/MetricRow.swift; sourceTree = "<group>"; };
+		1100000000000000000001A6 /* Meter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Instrument/Kit/Meter.swift; sourceTree = "<group>"; };
+		1100000000000000000001A8 /* SplitCapsule.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Instrument/Kit/SplitCapsule.swift; sourceTree = "<group>"; };
+		1100000000000000000001AA /* ArcGauge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Instrument/Kit/ArcGauge.swift; sourceTree = "<group>"; };
+		1100000000000000000001AC /* RingStack.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Instrument/Kit/RingStack.swift; sourceTree = "<group>"; };
+		1100000000000000000001AE /* ClusterStrip.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Instrument/Kit/ClusterStrip.swift; sourceTree = "<group>"; };
+		1100000000000000000001B0 /* Copyable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Instrument/Kit/Copyable.swift; sourceTree = "<group>"; };
+		1100000000000000000001B2 /* InsetEmptyState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Instrument/Kit/InsetEmptyState.swift; sourceTree = "<group>"; };
+		1100000000000000000001B4 /* PageSwitcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Panels/PageSwitcher.swift; sourceTree = "<group>"; };
+		1100000000000000000001B6 /* StatusRibbon.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Panels/StatusRibbon.swift; sourceTree = "<group>"; };
+		1100000000000000000001B8 /* PanelScaffold.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Panels/PanelScaffold.swift; sourceTree = "<group>"; };
+		1100000000000000000001BA /* PanelFactory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Panels/PanelFactory.swift; sourceTree = "<group>"; };
+		1100000000000000000001BE /* CPUPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Panels/CPUPanel.swift; sourceTree = "<group>"; };
+		1100000000000000000001C0 /* MemoryPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Panels/MemoryPanel.swift; sourceTree = "<group>"; };
+		1100000000000000000001C2 /* GPUPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Panels/GPUPanel.swift; sourceTree = "<group>"; };
+		1100000000000000000001C4 /* TemperaturePanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Panels/TemperaturePanel.swift; sourceTree = "<group>"; };
+		1100000000000000000001C6 /* TurbineShape.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Instrument/Kit/TurbineShape.swift; sourceTree = "<group>"; };
+		1100000000000000000001C8 /* FanPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Panels/FanPanel.swift; sourceTree = "<group>"; };
+		1100000000000000000001CA /* SignalBarsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Instrument/Kit/SignalBarsView.swift; sourceTree = "<group>"; };
+		1100000000000000000001CC /* NetworkPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Panels/NetworkPanel.swift; sourceTree = "<group>"; };
+		1100000000000000000001CE /* DiskPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Panels/DiskPanel.swift; sourceTree = "<group>"; };
+		1100000000000000000001D0 /* BatteryGlyph.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Instrument/Kit/BatteryGlyph.swift; sourceTree = "<group>"; };
+		1100000000000000000001D2 /* PowerFlowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Instrument/Kit/PowerFlowView.swift; sourceTree = "<group>"; };
+		1100000000000000000001D4 /* PowerPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Panels/PowerPanel.swift; sourceTree = "<group>"; };
+		1100000000000000000001D6 /* ProcessSampler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcessSampler.swift; sourceTree = "<group>"; };
+		1100000000000000000001D8 /* TopConsumersModule.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Instrument/Kit/TopConsumersModule.swift; sourceTree = "<group>"; };
+		1100000000000000000001DA /* ProcessSamplerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcessSamplerTests.swift; sourceTree = "<group>"; };
+		1100000000000000000001DC /* HistoryPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Panels/HistoryPage.swift; sourceTree = "<group>"; };
+		1100000000000000000001DE /* AccessibilityAppearanceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccessibilityAppearanceTests.swift; sourceTree = "<group>"; };
+		110000000000000000000192 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		11000000000000000000001E /* PreferencesWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferencesWindowController.swift; sourceTree = "<group>"; };
 		110000000000000000000030 /* CPUSampler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CPUSampler.swift; sourceTree = "<group>"; };
 		110000000000000000000032 /* MemorySampler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemorySampler.swift; sourceTree = "<group>"; };
 		110000000000000000000034 /* MemoryPressureMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryPressureMonitor.swift; sourceTree = "<group>"; };
-		110000000000000000000036 /* MemoryPressureView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryPressureView.swift; sourceTree = "<group>"; };
 		110000000000000000000041 /* iStatsTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = iStatsTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		110000000000000000000043 /* CPUSamplerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CPUSamplerTests.swift; sourceTree = "<group>"; };
 		110000000000000000000049 /* MemorySamplerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemorySamplerTests.swift; sourceTree = "<group>"; };
 		11000000000000000000004D /* MemoryPressureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryPressureTests.swift; sourceTree = "<group>"; };
 		110000000000000000000060 /* MetricsCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetricsCoordinator.swift; sourceTree = "<group>"; };
-		110000000000000000000062 /* RollingGraphView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RollingGraphView.swift; sourceTree = "<group>"; };
-		110000000000000000000064 /* CPUSummaryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CPUSummaryView.swift; sourceTree = "<group>"; };
 		110000000000000000000066 /* DetailViewGraphsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DetailViewGraphsTests.swift; sourceTree = "<group>"; };
 		110000000000000000000070 /* NetworkSampler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkSampler.swift; sourceTree = "<group>"; };
 		110000000000000000000072 /* NetworkSamplerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkSamplerTests.swift; sourceTree = "<group>"; };
 		110000000000000000000080 /* DiskSampler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiskSampler.swift; sourceTree = "<group>"; };
 		110000000000000000000082 /* DiskSamplerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiskSamplerTests.swift; sourceTree = "<group>"; };
-		110000000000000000000074 /* NetworkSummaryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkSummaryView.swift; sourceTree = "<group>"; };
-		110000000000000000000084 /* DiskSummaryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiskSummaryView.swift; sourceTree = "<group>"; };
 		110000000000000000000086 /* Phase3ValidationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Phase3ValidationTests.swift; sourceTree = "<group>"; };
 		110000000000000000000090 /* PowerSampler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PowerSampler.swift; sourceTree = "<group>"; };
 		110000000000000000000092 /* PowerSamplerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PowerSamplerTests.swift; sourceTree = "<group>"; };
-		110000000000000000000094 /* PowerSummaryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PowerSummaryView.swift; sourceTree = "<group>"; };
 		110000000000000000000096 /* Phase4ValidationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Phase4ValidationTests.swift; sourceTree = "<group>"; };
 		1100000000000000000000A0 /* ThermalSampler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThermalSampler.swift; sourceTree = "<group>"; };
-		1100000000000000000000A2 /* ThermalSummaryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThermalSummaryView.swift; sourceTree = "<group>"; };
 		1100000000000000000000A4 /* ThermalSamplerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThermalSamplerTests.swift; sourceTree = "<group>"; };
 		1100000000000000000000B0 /* FanSampler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FanSampler.swift; sourceTree = "<group>"; };
-		1100000000000000000000B2 /* FanSummaryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FanSummaryView.swift; sourceTree = "<group>"; };
 		1100000000000000000000B4 /* FanSamplerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FanSamplerTests.swift; sourceTree = "<group>"; };
 		1100000000000000000000C0 /* GPUSampler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GPUSampler.swift; sourceTree = "<group>"; };
-		1100000000000000000000C2 /* GPUSummaryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GPUSummaryView.swift; sourceTree = "<group>"; };
 		1100000000000000000000C4 /* GPUSamplerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GPUSamplerTests.swift; sourceTree = "<group>"; };
 		1100000000000000000000D4 /* SandboxDegradationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SandboxDegradationTests.swift; sourceTree = "<group>"; };
 		1100000000000000000000D6 /* Phase5ValidationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Phase5ValidationTests.swift; sourceTree = "<group>"; };
@@ -149,18 +198,6 @@
 		1100000000000000000000E4 /* SystemIntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemIntegrationTests.swift; sourceTree = "<group>"; };
 		1100000000000000000000E6 /* PerformancePassTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PerformancePassTests.swift; sourceTree = "<group>"; };
 		1100000000000000000000F0 /* MenuBarIconRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarIconRenderer.swift; sourceTree = "<group>"; };
-		1100000000000000000000F2 /* CategoryDetailPopoverView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CategoryDetailPopoverView.swift; sourceTree = "<group>"; };
-		110000000000000000000100 /* MetricVerdict.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetricVerdict.swift; sourceTree = "<group>"; };
-		110000000000000000000102 /* PopoverCommonComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PopoverCommonComponents.swift; sourceTree = "<group>"; };
-		110000000000000000000104 /* CPUDieIllustrationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CPUDieIllustrationView.swift; sourceTree = "<group>"; };
-		110000000000000000000106 /* MemoryStickIllustrationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryStickIllustrationView.swift; sourceTree = "<group>"; };
-		110000000000000000000108 /* ThermalHeatMapIllustrationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThermalHeatMapIllustrationView.swift; sourceTree = "<group>"; };
-		11000000000000000000010A /* FanBladesIllustrationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FanBladesIllustrationView.swift; sourceTree = "<group>"; };
-		11000000000000000000010C /* GPUDieIllustrationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GPUDieIllustrationView.swift; sourceTree = "<group>"; };
-		11000000000000000000010E /* NetworkPipesIllustrationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkPipesIllustrationView.swift; sourceTree = "<group>"; };
-		110000000000000000000110 /* DiskStorageTankIllustrationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiskStorageTankIllustrationView.swift; sourceTree = "<group>"; };
-		110000000000000000000112 /* PowerBudgetIllustrationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PowerBudgetIllustrationView.swift; sourceTree = "<group>"; };
-		110000000000000000000114 /* PopoverVerdictTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PopoverVerdictTests.swift; sourceTree = "<group>"; };
 		110000000000000000000116 /* NotificationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationManager.swift; sourceTree = "<group>"; };
 		110000000000000000000118 /* NotificationManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationManagerTests.swift; sourceTree = "<group>"; };
 		110000000000000000000120 /* AlertCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlertCoordinator.swift; sourceTree = "<group>"; };
@@ -173,6 +210,7 @@
 		110000000000000000000132 /* PersistentSMCAndHardwareCachingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersistentSMCAndHardwareCachingTests.swift; sourceTree = "<group>"; };
 		110000000000000000000134 /* MenuBarDirtyCheckingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarDirtyCheckingTests.swift; sourceTree = "<group>"; };
 		110000000000000000000136 /* CoordinatorBatchingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoordinatorBatchingTests.swift; sourceTree = "<group>"; };
+		1100000000000000000001BC /* PanelScaffoldTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PanelScaffoldTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -211,6 +249,7 @@
 				11000000000000000000000F /* Sampling */,
 				11000000000000000000000E /* UI */,
 				11000000000000000000000C /* Resources */,
+				110000000000000000000192 /* Assets.xcassets */,
 			);
 			path = iStats;
 			sourceTree = "<group>";
@@ -227,6 +266,8 @@
 				110000000000000000000116 /* NotificationManager.swift */,
 				110000000000000000000120 /* AlertCoordinator.swift */,
 				11000000000000000000001E /* PreferencesWindowController.swift */,
+				110000000000000000000198 /* MetricPanel.swift */,
+				11000000000000000000019A /* PanelController.swift */,
 			);
 			path = App;
 			sourceTree = "<group>";
@@ -243,6 +284,7 @@
 				1100000000000000000000A0 /* ThermalSampler.swift */,
 				1100000000000000000000B0 /* FanSampler.swift */,
 				1100000000000000000000C0 /* GPUSampler.swift */,
+				1100000000000000000001D6 /* ProcessSampler.swift */,
 				110000000000000000000130 /* AppleSMCClient.swift */,
 			);
 			path = Sampling;
@@ -251,34 +293,47 @@
 		11000000000000000000000E /* UI */ = {
 			isa = PBXGroup;
 			children = (
-				11000000000000000000001A /* DetailPopoverView.swift */,
 				11000000000000000000001C /* PreferencesView.swift */,
 				110000000000000000000140 /* PreferencesComponents.swift */,
 				110000000000000000000142 /* PreferencesMenuBarPane.swift */,
 				110000000000000000000144 /* PreferencesGeneralPane.swift */,
 				110000000000000000000146 /* PreferencesAlertsPane.swift */,
 				110000000000000000000148 /* PreferencesAboutPane.swift */,
-				110000000000000000000036 /* MemoryPressureView.swift */,
-				110000000000000000000062 /* RollingGraphView.swift */,
-				110000000000000000000064 /* CPUSummaryView.swift */,
-				110000000000000000000074 /* NetworkSummaryView.swift */,
-				110000000000000000000084 /* DiskSummaryView.swift */,
-				110000000000000000000094 /* PowerSummaryView.swift */,
-				1100000000000000000000A2 /* ThermalSummaryView.swift */,
-				1100000000000000000000B2 /* FanSummaryView.swift */,
-				1100000000000000000000C2 /* GPUSummaryView.swift */,
+				110000000000000000000150 /* Tokens.swift */,
+				110000000000000000000152 /* CategoryPalette.swift */,
+				110000000000000000000190 /* InstrumentTokens.swift */,
+				110000000000000000000194 /* Motion.swift */,
+				110000000000000000000196 /* LiveNumber.swift */,
+				11000000000000000000019C /* LiveChart.swift */,
+				1100000000000000000001A0 /* Module.swift */,
+				1100000000000000000001A2 /* SectionEyebrow.swift */,
+				1100000000000000000001A4 /* MetricRow.swift */,
+				1100000000000000000001A6 /* Meter.swift */,
+				1100000000000000000001A8 /* SplitCapsule.swift */,
+				1100000000000000000001AA /* ArcGauge.swift */,
+				1100000000000000000001AC /* RingStack.swift */,
+				1100000000000000000001AE /* ClusterStrip.swift */,
+				1100000000000000000001B0 /* Copyable.swift */,
+				1100000000000000000001B2 /* InsetEmptyState.swift */,
+				1100000000000000000001B4 /* PageSwitcher.swift */,
+				1100000000000000000001B6 /* StatusRibbon.swift */,
+				1100000000000000000001B8 /* PanelScaffold.swift */,
+				1100000000000000000001BA /* PanelFactory.swift */,
+				1100000000000000000001BE /* CPUPanel.swift */,
+				1100000000000000000001C0 /* MemoryPanel.swift */,
+				1100000000000000000001C2 /* GPUPanel.swift */,
+				1100000000000000000001C4 /* TemperaturePanel.swift */,
+				1100000000000000000001C6 /* TurbineShape.swift */,
+				1100000000000000000001C8 /* FanPanel.swift */,
+				1100000000000000000001CA /* SignalBarsView.swift */,
+				1100000000000000000001CC /* NetworkPanel.swift */,
+				1100000000000000000001CE /* DiskPanel.swift */,
+				1100000000000000000001D0 /* BatteryGlyph.swift */,
+				1100000000000000000001D2 /* PowerFlowView.swift */,
+				1100000000000000000001D4 /* PowerPanel.swift */,
+				1100000000000000000001DC /* HistoryPage.swift */,
+				1100000000000000000001D8 /* TopConsumersModule.swift */,
 				1100000000000000000000F0 /* MenuBarIconRenderer.swift */,
-				1100000000000000000000F2 /* CategoryDetailPopoverView.swift */,
-				110000000000000000000100 /* MetricVerdict.swift */,
-				110000000000000000000102 /* PopoverCommonComponents.swift */,
-				110000000000000000000104 /* CPUDieIllustrationView.swift */,
-				110000000000000000000106 /* MemoryStickIllustrationView.swift */,
-				110000000000000000000108 /* ThermalHeatMapIllustrationView.swift */,
-				11000000000000000000010A /* FanBladesIllustrationView.swift */,
-				11000000000000000000010C /* GPUDieIllustrationView.swift */,
-				11000000000000000000010E /* NetworkPipesIllustrationView.swift */,
-				110000000000000000000110 /* DiskStorageTankIllustrationView.swift */,
-				110000000000000000000112 /* PowerBudgetIllustrationView.swift */,
 			);
 			path = UI;
 			sourceTree = "<group>";
@@ -319,7 +374,6 @@
 				1100000000000000000000E0 /* MenuBarDisplayTests.swift */,
 				1100000000000000000000E4 /* SystemIntegrationTests.swift */,
 				1100000000000000000000E6 /* PerformancePassTests.swift */,
-				110000000000000000000114 /* PopoverVerdictTests.swift */,
 				110000000000000000000118 /* NotificationManagerTests.swift */,
 				110000000000000000000122 /* AlertCoordinatorTests.swift */,
 				110000000000000000000124 /* MenuBarItemMatrixTests.swift */,
@@ -329,6 +383,9 @@
 				110000000000000000000132 /* PersistentSMCAndHardwareCachingTests.swift */,
 				110000000000000000000134 /* MenuBarDirtyCheckingTests.swift */,
 				110000000000000000000136 /* CoordinatorBatchingTests.swift */,
+				1100000000000000000001BC /* PanelScaffoldTests.swift */,
+				1100000000000000000001DA /* ProcessSamplerTests.swift */,
+				1100000000000000000001DE /* AccessibilityAppearanceTests.swift */,
 			);
 			path = iStatsTests;
 			sourceTree = "<group>";
@@ -427,6 +484,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				110000000000000000000193 /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -449,45 +507,61 @@
 				110000000000000000000015 /* DockIconManager.swift in Sources */,
 				1100000000000000000000E3 /* LaunchAtLoginManager.swift in Sources */,
 				110000000000000000000019 /* MenuBarController.swift in Sources */,
-				11000000000000000000001B /* DetailPopoverView.swift in Sources */,
 				11000000000000000000001D /* PreferencesView.swift in Sources */,
 				110000000000000000000141 /* PreferencesComponents.swift in Sources */,
 				110000000000000000000143 /* PreferencesMenuBarPane.swift in Sources */,
 				110000000000000000000145 /* PreferencesGeneralPane.swift in Sources */,
 				110000000000000000000147 /* PreferencesAlertsPane.swift in Sources */,
 				110000000000000000000149 /* PreferencesAboutPane.swift in Sources */,
+				110000000000000000000151 /* Tokens.swift in Sources */,
+				110000000000000000000153 /* CategoryPalette.swift in Sources */,
+				110000000000000000000191 /* InstrumentTokens.swift in Sources */,
+				110000000000000000000195 /* Motion.swift in Sources */,
+				110000000000000000000197 /* LiveNumber.swift in Sources */,
+				110000000000000000000199 /* MetricPanel.swift in Sources */,
+				11000000000000000000019B /* PanelController.swift in Sources */,
+				11000000000000000000019D /* LiveChart.swift in Sources */,
+				1100000000000000000001A1 /* Module.swift in Sources */,
+				1100000000000000000001A3 /* SectionEyebrow.swift in Sources */,
+				1100000000000000000001A5 /* MetricRow.swift in Sources */,
+				1100000000000000000001A7 /* Meter.swift in Sources */,
+				1100000000000000000001A9 /* SplitCapsule.swift in Sources */,
+				1100000000000000000001AB /* ArcGauge.swift in Sources */,
+				1100000000000000000001AD /* RingStack.swift in Sources */,
+				1100000000000000000001AF /* ClusterStrip.swift in Sources */,
+				1100000000000000000001B1 /* Copyable.swift in Sources */,
+				1100000000000000000001B3 /* InsetEmptyState.swift in Sources */,
+				1100000000000000000001B5 /* PageSwitcher.swift in Sources */,
+				1100000000000000000001B7 /* StatusRibbon.swift in Sources */,
+				1100000000000000000001B9 /* PanelScaffold.swift in Sources */,
+				1100000000000000000001BB /* PanelFactory.swift in Sources */,
+				1100000000000000000001BF /* CPUPanel.swift in Sources */,
+				1100000000000000000001C1 /* MemoryPanel.swift in Sources */,
+				1100000000000000000001C3 /* GPUPanel.swift in Sources */,
+				1100000000000000000001C5 /* TemperaturePanel.swift in Sources */,
+				1100000000000000000001C7 /* TurbineShape.swift in Sources */,
+				1100000000000000000001C9 /* FanPanel.swift in Sources */,
+				1100000000000000000001CB /* SignalBarsView.swift in Sources */,
+				1100000000000000000001CD /* NetworkPanel.swift in Sources */,
+				1100000000000000000001CF /* DiskPanel.swift in Sources */,
+				1100000000000000000001D1 /* BatteryGlyph.swift in Sources */,
+				1100000000000000000001D3 /* PowerFlowView.swift in Sources */,
+				1100000000000000000001D5 /* PowerPanel.swift in Sources */,
+				1100000000000000000001D7 /* ProcessSampler.swift in Sources */,
+				1100000000000000000001D9 /* TopConsumersModule.swift in Sources */,
+				1100000000000000000001DD /* HistoryPage.swift in Sources */,
 				11000000000000000000001F /* PreferencesWindowController.swift in Sources */,
 				110000000000000000000031 /* CPUSampler.swift in Sources */,
 				110000000000000000000033 /* MemorySampler.swift in Sources */,
 				110000000000000000000035 /* MemoryPressureMonitor.swift in Sources */,
-				110000000000000000000037 /* MemoryPressureView.swift in Sources */,
 				110000000000000000000061 /* MetricsCoordinator.swift in Sources */,
-				110000000000000000000063 /* RollingGraphView.swift in Sources */,
-				110000000000000000000065 /* CPUSummaryView.swift in Sources */,
 				110000000000000000000071 /* NetworkSampler.swift in Sources */,
 				110000000000000000000081 /* DiskSampler.swift in Sources */,
-				110000000000000000000075 /* NetworkSummaryView.swift in Sources */,
-				110000000000000000000085 /* DiskSummaryView.swift in Sources */,
 				110000000000000000000091 /* PowerSampler.swift in Sources */,
-				110000000000000000000095 /* PowerSummaryView.swift in Sources */,
 				1100000000000000000000A1 /* ThermalSampler.swift in Sources */,
-				1100000000000000000000A3 /* ThermalSummaryView.swift in Sources */,
 				1100000000000000000000B1 /* FanSampler.swift in Sources */,
-				1100000000000000000000B3 /* FanSummaryView.swift in Sources */,
 				1100000000000000000000C1 /* GPUSampler.swift in Sources */,
-				1100000000000000000000C3 /* GPUSummaryView.swift in Sources */,
 				1100000000000000000000F1 /* MenuBarIconRenderer.swift in Sources */,
-				1100000000000000000000F3 /* CategoryDetailPopoverView.swift in Sources */,
-				110000000000000000000101 /* MetricVerdict.swift in Sources */,
-				110000000000000000000103 /* PopoverCommonComponents.swift in Sources */,
-				110000000000000000000105 /* CPUDieIllustrationView.swift in Sources */,
-				110000000000000000000107 /* MemoryStickIllustrationView.swift in Sources */,
-				110000000000000000000109 /* ThermalHeatMapIllustrationView.swift in Sources */,
-				11000000000000000000010B /* FanBladesIllustrationView.swift in Sources */,
-				11000000000000000000010D /* GPUDieIllustrationView.swift in Sources */,
-				11000000000000000000010F /* NetworkPipesIllustrationView.swift in Sources */,
-				110000000000000000000111 /* DiskStorageTankIllustrationView.swift in Sources */,
-				110000000000000000000113 /* PowerBudgetIllustrationView.swift in Sources */,
 				110000000000000000000117 /* NotificationManager.swift in Sources */,
 				110000000000000000000121 /* AlertCoordinator.swift in Sources */,
 				110000000000000000000131 /* AppleSMCClient.swift in Sources */,
@@ -515,7 +589,6 @@
 				1100000000000000000000E1 /* MenuBarDisplayTests.swift in Sources */,
 				1100000000000000000000E5 /* SystemIntegrationTests.swift in Sources */,
 				1100000000000000000000E7 /* PerformancePassTests.swift in Sources */,
-				110000000000000000000115 /* PopoverVerdictTests.swift in Sources */,
 				110000000000000000000119 /* NotificationManagerTests.swift in Sources */,
 				110000000000000000000123 /* AlertCoordinatorTests.swift in Sources */,
 				110000000000000000000125 /* MenuBarItemMatrixTests.swift in Sources */,
@@ -525,6 +598,9 @@
 				110000000000000000000133 /* PersistentSMCAndHardwareCachingTests.swift in Sources */,
 				110000000000000000000135 /* MenuBarDirtyCheckingTests.swift in Sources */,
 				110000000000000000000137 /* CoordinatorBatchingTests.swift in Sources */,
+				1100000000000000000001BD /* PanelScaffoldTests.swift in Sources */,
+				1100000000000000000001DB /* ProcessSamplerTests.swift in Sources */,
+				1100000000000000000001DF /* AccessibilityAppearanceTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

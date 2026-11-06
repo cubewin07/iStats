@@ -1,0 +1,403 @@
+import AppKit
+import SwiftUI
+import iStatsCore
+
+/// Coordinates presentation, placement, dismissal, tracking, and pinning of the Glass Panel (ADR 0009 / Task 8.3).
+@MainActor
+public final class PanelController: NSObject {
+    public static let shared = PanelController()
+
+    public private(set) var transientPanel: MetricPanel?
+    public private(set) var pinnedPanels: [MetricCategory: MetricPanel] = [:]
+    public private(set) var currentCategory: MetricCategory?
+    public private(set) var currentItemID: String?
+    public private(set) var currentButton: NSStatusBarButton?
+
+    public var onTransientPanelClosed: (() -> Void)?
+
+    public var activePanel: MetricPanel? {
+        transientPanel ?? (currentCategory.flatMap { pinnedPanels[$0] })
+    }
+
+    private var globalMouseMonitor: Any?
+    private var localMouseMonitor: Any?
+    private var spaceChangeObserver: Any?
+    private var resignActiveObserver: Any?
+    private var pinnedMoveObservers: [MetricCategory: Any] = [:]
+
+    private var preferencesStore: PreferencesStore?
+
+    public override init() {
+        super.init()
+    }
+
+    public func configure(preferences: PreferencesStore) {
+        self.preferencesStore = preferences
+    }
+
+    // MARK: - Presentation & Toggling
+
+    public func toggle<V: View>(
+        category: MetricCategory,
+        itemID: String? = nil,
+        relativeTo button: NSStatusBarButton,
+        content: () -> V
+    ) {
+        if isPanelOpen(for: category) {
+            close()
+        } else {
+            show(category: category, itemID: itemID, relativeTo: button, content: content)
+        }
+    }
+
+    public func show<V: View>(
+        category: MetricCategory,
+        itemID: String? = nil,
+        relativeTo button: NSStatusBarButton,
+        content: () -> V
+    ) {
+        let isSwitching = transientPanel != nil && currentCategory != category
+
+        let panel: MetricPanel
+        if let existing = transientPanel {
+            panel = existing
+        } else {
+            panel = MetricPanel()
+            panel.onCloseRequested = { [weak self] in
+                self?.close()
+            }
+            panel.onUnpinRequested = { [weak self] in
+                self?.togglePin()
+            }
+            transientPanel = panel
+        }
+
+        currentCategory = category
+        currentItemID = itemID
+        currentButton = button
+
+        panel.isPinned = false
+
+        // Inject content
+        panel.setSwiftUIContent(content())
+
+        // Compute layout and placement
+        reposition(panel: panel, relativeTo: button, animated: isSwitching)
+
+        if !panel.isVisible {
+            panel.alphaValue = 0.0
+            panel.makeKeyAndOrderFront(nil)
+            let isRunningInTest = (NSClassFromString("XCTestCase") != nil)
+            if isRunningInTest || NSAnimationContext.current.duration == 0 {
+                panel.alphaValue = 1.0
+            } else {
+                NSAnimationContext.runAnimationGroup { context in
+                    context.duration = 0.16
+                    context.timingFunction = CAMediaTimingFunction(name: .easeOut)
+                    panel.animator().alphaValue = 1.0
+                }
+            }
+        }
+
+        installDismissalMonitorsIfNeeded()
+    }
+
+    public func close(immediately: Bool = false) {
+        guard let panel = transientPanel else { return }
+
+        removeDismissalMonitors()
+        currentCategory = nil
+        currentItemID = nil
+        currentButton = nil
+
+        let teardown = { [weak self] in
+            MainActor.assumeIsolated {
+                guard let self = self else { return }
+                panel.orderOut(nil)
+                if self.currentCategory == nil {
+                    self.transientPanel = nil
+                }
+                self.onTransientPanelClosed?()
+            }
+        }
+
+        let isRunningInTest = (NSClassFromString("XCTestCase") != nil)
+        if immediately || isRunningInTest || NSAnimationContext.current.duration == 0 {
+            panel.alphaValue = 0.0
+            teardown()
+            return
+        }
+
+        NSAnimationContext.runAnimationGroup({ context in
+            context.duration = 0.12
+            context.timingFunction = CAMediaTimingFunction(name: .easeIn)
+            panel.animator().alphaValue = 0.0
+        }, completionHandler: teardown)
+    }
+
+    public func isPanelOpen(for category: MetricCategory) -> Bool {
+        (transientPanel?.isVisible == true && currentCategory == category) ||
+        (pinnedPanels[category]?.isVisible == true)
+    }
+
+    /// Swaps the active open panel to a different category (e.g. from Fanless state to Temperature).
+    public func swapToCategory(_ category: MetricCategory) {
+        guard let button = currentButton else { return }
+        show(category: category, relativeTo: button) {
+            PanelFactory.makeCategoryPanelView(category: category)
+        }
+    }
+
+    // MARK: - Menu Tracking (F2)
+
+    /// Instantly switches panels when the user hovers over another status item while a panel is open.
+    public func handleStatusItemHover<V: View>(
+        category: MetricCategory,
+        itemID: String? = nil,
+        button: NSStatusBarButton,
+        content: () -> V
+    ) {
+        guard let panel = transientPanel, panel.isVisible, !panel.isPinned else { return }
+        guard currentCategory != category || (itemID != nil && currentItemID != itemID) else { return }
+
+        // Switch category with swift crossfade
+        show(category: category, itemID: itemID, relativeTo: button, content: content)
+    }
+
+    // MARK: - Pinning & Detaching (F3)
+
+    public func togglePin() {
+        guard let category = currentCategory else { return }
+
+        if let panel = transientPanel {
+            // Pinning the currently open transient panel into independent floating HUD!
+            panel.isPinned = true
+            removeDismissalMonitors()
+            onTransientPanelClosed?()
+
+            pinnedPanels[category] = panel
+            transientPanel = nil
+
+            preferencesStore?.setPinnedOrigin(panel.frame.origin, for: category)
+
+            let observer = NotificationCenter.default.addObserver(
+                forName: NSWindow.didMoveNotification,
+                object: panel,
+                queue: .main
+            ) { [weak self, weak panel] _ in
+                MainActor.assumeIsolated {
+                    guard let self = self, let panel = panel else { return }
+                    self.preferencesStore?.setPinnedOrigin(panel.frame.origin, for: category)
+                }
+            }
+            pinnedMoveObservers[category] = observer
+
+            panel.onUnpinRequested = { [weak self] in
+                self?.unpin(category: category)
+            }
+            panel.onCloseRequested = { [weak self] in
+                self?.unpin(category: category)
+            }
+        } else if pinnedPanels[category] != nil {
+            unpin(category: category)
+        }
+    }
+
+    public func unpin(category: MetricCategory) {
+        guard let panel = pinnedPanels[category] else { return }
+
+        if let obs = pinnedMoveObservers[category] {
+            NotificationCenter.default.removeObserver(obs)
+            pinnedMoveObservers.removeValue(forKey: category)
+        }
+        pinnedPanels.removeValue(forKey: category)
+        preferencesStore?.setPinnedOrigin(nil, for: category)
+
+        panel.orderOut(nil)
+    }
+
+    // MARK: - Placement & Dynamic Morphing
+
+    public func updateFittingHeight(animated: Bool = true) {
+        guard let panel = activePanel, panel.isVisible else { return }
+
+        let newFittingHeight = panel.contentView?.fittingSize.height ?? panel.frame.height
+        let targetHeight = min(max(newFittingHeight, 160.0), Instrument.Size.maxHeight)
+
+        var targetFrame = panel.frame
+        if abs(targetFrame.height - targetHeight) < 1.0 { return }
+
+        // Top-anchored: keep targetFrame.maxY stationary!
+        let delta = targetHeight - targetFrame.height
+        targetFrame.size.height = targetHeight
+        targetFrame.origin.y -= delta
+
+        if let screen = panel.screen ?? NSScreen.main {
+            let minY = screen.visibleFrame.minY + 8.0
+            if targetFrame.minY < minY {
+                targetFrame.origin.y = minY
+                targetFrame.size.height = panel.frame.maxY - minY
+            }
+        }
+
+        if animated {
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = 0.16
+                context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+                panel.animator().setFrame(targetFrame, display: true)
+            }
+        } else {
+            panel.setFrame(targetFrame, display: true)
+        }
+    }
+
+    private func reposition(panel: MetricPanel, relativeTo button: NSStatusBarButton, animated: Bool) {
+        guard let window = button.window, let screen = window.screen ?? NSScreen.main else { return }
+
+        let buttonRectInWindow = button.convert(button.bounds, to: nil)
+        let buttonRectOnScreen = window.convertToScreen(buttonRectInWindow)
+
+        // If pinned and has a stored origin, use the pinned origin clamped to screens
+        if panel.isPinned, let category = currentCategory, let savedOrigin = preferencesStore?.pinnedOrigin(for: category) {
+            var frame = panel.frame
+            frame.origin = clampedPinnedOrigin(savedOrigin, for: frame.size)
+            panel.setFrame(frame, display: true, animate: animated)
+            return
+        }
+
+        // Measure content
+        let targetSize = CGSize(
+            width: Instrument.Size.panelWidth,
+            height: min(max(panel.contentView?.fittingSize.height ?? 400, 160), Instrument.Size.maxHeight)
+        )
+
+        let targetFrame = PanelPlacement.frame(
+            for: buttonRectOnScreen,
+            panelSize: targetSize,
+            visibleFrame: screen.visibleFrame,
+            gap: 6.0,
+            margin: 8.0
+        )
+
+        if animated {
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = 0.08
+                context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+                panel.animator().setFrame(targetFrame, display: true)
+            }
+        } else {
+            panel.setFrame(targetFrame, display: true)
+        }
+    }
+
+    private func clampedPinnedOrigin(_ origin: CGPoint, for size: CGSize) -> CGPoint {
+        let screens = NSScreen.screens
+        guard !screens.isEmpty else { return origin }
+
+        let targetRect = CGRect(origin: origin, size: size)
+        for screen in screens {
+            if screen.visibleFrame.intersects(targetRect) {
+                return origin
+            }
+        }
+
+        if let main = NSScreen.main {
+            return CGPoint(
+                x: main.visibleFrame.midX - size.width / 2.0,
+                y: main.visibleFrame.midY - size.height / 2.0
+            )
+        }
+        return origin
+    }
+
+    // MARK: - Dismissal Monitors
+
+    private func installDismissalMonitorsIfNeeded() {
+        guard globalMouseMonitor == nil, let panel = transientPanel, !panel.isPinned else { return }
+
+        globalMouseMonitor = NSEvent.addGlobalMonitorForEvents(
+            matching: [.leftMouseDown, .rightMouseDown]
+        ) { [weak self] event in
+            MainActor.assumeIsolated {
+                guard let self = self, let activePanel = self.transientPanel, !activePanel.isPinned else { return }
+
+                let clickLocation = NSEvent.mouseLocation
+                let buttonRect = self.currentButton.flatMap { btn in
+                    btn.window.map { $0.convertToScreen(btn.convert(btn.bounds, to: nil)) }
+                } ?? .zero
+
+                if !activePanel.frame.contains(clickLocation) && !buttonRect.contains(clickLocation) {
+                    self.close()
+                }
+            }
+        }
+
+        localMouseMonitor = NSEvent.addLocalMonitorForEvents(
+            matching: [.leftMouseDown, .rightMouseDown]
+        ) { [weak self] event in
+            MainActor.assumeIsolated {
+                guard let self = self, let activePanel = self.transientPanel, !activePanel.isPinned else { return }
+
+                if let eventWindow = event.window, eventWindow != activePanel {
+                    let clickLocation = NSEvent.mouseLocation
+                    let buttonRect = self.currentButton.flatMap { btn in
+                        btn.window.map { $0.convertToScreen(btn.convert(btn.bounds, to: nil)) }
+                    } ?? .zero
+
+                    if !activePanel.frame.contains(clickLocation) && !buttonRect.contains(clickLocation) {
+                        self.close()
+                    }
+                }
+            }
+            return event
+        }
+
+        spaceChangeObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.activeSpaceDidChangeNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self = self, let panel = self.transientPanel, !panel.isPinned else { return }
+                self.close()
+            }
+        }
+
+        resignActiveObserver = NotificationCenter.default.addObserver(
+            forName: NSApplication.didResignActiveNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self = self, let panel = self.transientPanel, !panel.isPinned else { return }
+                self.close()
+            }
+        }
+    }
+
+    private func removeDismissalMonitors() {
+        if let monitor = globalMouseMonitor {
+            NSEvent.removeMonitor(monitor)
+            globalMouseMonitor = nil
+        }
+        if let monitor = localMouseMonitor {
+            NSEvent.removeMonitor(monitor)
+            localMouseMonitor = nil
+        }
+        if let observer = spaceChangeObserver {
+            NSWorkspace.shared.notificationCenter.removeObserver(observer)
+            spaceChangeObserver = nil
+        }
+        if let observer = resignActiveObserver {
+            NotificationCenter.default.removeObserver(observer)
+            resignActiveObserver = nil
+        }
+    }
+
+    isolated deinit {
+        removeDismissalMonitors()
+        for (_, obs) in pinnedMoveObservers {
+            NotificationCenter.default.removeObserver(obs)
+        }
+    }
+}

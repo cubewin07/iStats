@@ -33,6 +33,30 @@ final class MetricCategoryTests: XCTestCase {
         }
     }
 
+    func testCategorySymbolNames() {
+        XCTAssertEqual(MetricCategory.cpu.symbolName, "cpu")
+        XCTAssertEqual(MetricCategory.memory.symbolName, "memorychip")
+        XCTAssertEqual(MetricCategory.thermal.symbolName, "thermometer.medium")
+        XCTAssertEqual(MetricCategory.fan.symbolName, "fan")
+        XCTAssertEqual(MetricCategory.gpu.symbolName, "square.3.layers.3d")
+        XCTAssertEqual(MetricCategory.network.symbolName, "arrow.up.arrow.down")
+        XCTAssertEqual(MetricCategory.disk.symbolName, "internaldrive")
+        XCTAssertEqual(MetricCategory.power.symbolName(hasBattery: true), "battery.100percent.bolt")
+        XCTAssertEqual(MetricCategory.power.symbolName(hasBattery: false), "powerplug.fill")
+    }
+
+    func testCategoryShortLabels() {
+        XCTAssertEqual(MetricCategory.cpu.shortLabel, "CPU")
+        XCTAssertEqual(MetricCategory.memory.shortLabel, "MEM")
+        XCTAssertEqual(MetricCategory.thermal.shortLabel, "TMP")
+        XCTAssertEqual(MetricCategory.fan.shortLabel, "FAN")
+        XCTAssertEqual(MetricCategory.gpu.shortLabel, "GPU")
+        XCTAssertEqual(MetricCategory.network.shortLabel, "NET")
+        XCTAssertEqual(MetricCategory.disk.shortLabel, "SSD")
+        XCTAssertEqual(MetricCategory.power.shortLabel(hasBattery: true), "BAT")
+        XCTAssertEqual(MetricCategory.power.shortLabel(hasBattery: false), "PWR")
+    }
+
     func testCategoryCodable() throws {
         let encoder = JSONEncoder()
         let decoder = JSONDecoder()

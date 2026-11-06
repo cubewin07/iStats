@@ -43,3 +43,8 @@ Plain-language definitions of every term used in the project. Aimed at a develop
 | **TCC** | Transparency, Consent & Control — the system that gates sensitive permissions. |
 | **SMAppService** | Modern API to register an app to launch at login. |
 | **ADR** | Architecture Decision Record — a short document capturing one significant decision. |
+| **Panel** | Borderless, arrowless floating HUD window (`MetricPanel : NSPanel`) anchored below the clicked status item, with 16 pt continuous corners, vibrant glass material, and optional pinnable utility mode. |
+| **Glance** | The top hero section of an Instrument panel combining a large display numeral (44 pt tabular SF Pro), units on baseline, headline summary, live gliding chart, and contextual insight. |
+| **Ribbon** | A severity-tinted status bar (`StatusRibbon`) displayed between Glance and Page Body only when a metric reaches `.elevated`, `.warning`, or `.critical`. |
+| **Signature Instrument** | A bespoke visual data presentation custom-crafted for each metric category (e.g. CPU Core Topology Matrix, Memory Composition SplitCapsule, GPU Utilization Dial, Fan Turbine Shape, Network Dual Interface Card, Power Flow Diagram). |
+| **Insight** | A single terse, pure diagnostic observation generated from in-memory history by `InsightEngine` without network or disk telemetry. |
