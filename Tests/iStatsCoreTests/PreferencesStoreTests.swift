@@ -234,4 +234,20 @@ final class PreferencesStoreTests: XCTestCase {
         XCTAssertFalse(store3.isAutoPausedByLowPowerMode)
         XCTAssertTrue(store3.autoPauseOnLowPowerMode)
     }
+
+    func testSetActiveMenuBarOrderKeepsDisabledItemsAndRejectsMismatchedSets() {
+        let store = PreferencesStore(userDefaults: testDefaults)
+        let cpu = MenuBarItemConfig(category: .cpu, style: .gauge)
+        let mem = MenuBarItemConfig(category: .memory, style: .bar)
+        let net = MenuBarItemConfig(category: .network, style: .throughput)
+        store.menuBarItems = [cpu, net, mem]
+        store.setCategory(.network, isEnabled: false)
+
+        store.setActiveMenuBarOrder([mem.id, cpu.id])
+        XCTAssertEqual(store.menuBarItems.map(\.id), [mem.id, cpu.id, net.id])
+
+        store.setActiveMenuBarOrder([cpu.id])
+        store.setActiveMenuBarOrder([cpu.id, net.id])
+        XCTAssertEqual(store.menuBarItems.map(\.id), [mem.id, cpu.id, net.id])
+    }
 }

@@ -142,7 +142,7 @@ public struct DetailPopoverView: View {
                             title: "Memory",
                             verdict: VerdictEvaluator.evaluateMemory(currentMemorySample, standard: preferences.byteUnitStandard)
                         ) {
-                            MemorySummaryView(sample: currentMemorySample, history: currentMemoryHistory, byteStandard: preferences.byteUnitStandard)
+                            MemorySummaryView(sample: currentMemorySample, history: currentMemoryHistory, byteStandard: preferences.byteUnitStandard, refreshInterval: preferences.refreshInterval)
                         }
                     }
 
@@ -152,7 +152,7 @@ public struct DetailPopoverView: View {
                             title: "GPU",
                             verdict: VerdictEvaluator.evaluateGPU(currentGPUSample)
                         ) {
-                            GPUSummaryView(sample: currentGPUSample, history: currentGPUHistory, temperatureUnit: preferences.temperatureUnit, byteStandard: preferences.byteUnitStandard)
+                            GPUSummaryView(sample: currentGPUSample, history: currentGPUHistory, temperatureUnit: preferences.temperatureUnit, byteStandard: preferences.byteUnitStandard, refreshInterval: preferences.refreshInterval)
                         }
                     }
 
@@ -162,7 +162,7 @@ public struct DetailPopoverView: View {
                             title: "Heat",
                             verdict: VerdictEvaluator.evaluateThermal(currentThermalSample, unit: preferences.temperatureUnit)
                         ) {
-                            ThermalSummaryView(sample: currentThermalSample, history: currentThermalHistory, temperatureUnit: preferences.temperatureUnit)
+                            ThermalSummaryView(sample: currentThermalSample, history: currentThermalHistory, temperatureUnit: preferences.temperatureUnit, refreshInterval: preferences.refreshInterval)
                         }
                     }
 
@@ -172,7 +172,7 @@ public struct DetailPopoverView: View {
                             title: "Fans",
                             verdict: VerdictEvaluator.evaluateFan(currentFanSample)
                         ) {
-                            FanSummaryView(sample: currentFanSample, history: currentFanHistory)
+                            FanSummaryView(sample: currentFanSample, history: currentFanHistory, refreshInterval: preferences.refreshInterval)
                         }
                     }
 
@@ -182,7 +182,7 @@ public struct DetailPopoverView: View {
                             title: "Net",
                             verdict: VerdictEvaluator.evaluateNetwork(currentNetworkSample, unit: preferences.networkUnit, standard: preferences.byteUnitStandard)
                         ) {
-                            NetworkSummaryView(sample: currentNetworkSample, history: currentNetworkHistory, networkUnit: preferences.networkUnit, byteStandard: preferences.byteUnitStandard)
+                            NetworkSummaryView(sample: currentNetworkSample, history: currentNetworkHistory, networkUnit: preferences.networkUnit, byteStandard: preferences.byteUnitStandard, refreshInterval: preferences.refreshInterval)
                         }
                     }
 
@@ -192,7 +192,7 @@ public struct DetailPopoverView: View {
                             title: "Disk",
                             verdict: VerdictEvaluator.evaluateDisk(currentDiskSample, standard: preferences.byteUnitStandard)
                         ) {
-                            DiskSummaryView(sample: currentDiskSample, history: currentDiskHistory, byteStandard: preferences.byteUnitStandard)
+                            DiskSummaryView(sample: currentDiskSample, history: currentDiskHistory, byteStandard: preferences.byteUnitStandard, refreshInterval: preferences.refreshInterval)
                         }
                     }
 
@@ -202,7 +202,7 @@ public struct DetailPopoverView: View {
                             title: "Power",
                             verdict: VerdictEvaluator.evaluatePower(currentPowerSample)
                         ) {
-                            PowerSummaryView(sample: currentPowerSample, history: currentPowerHistory)
+                            PowerSummaryView(sample: currentPowerSample, history: currentPowerHistory, refreshInterval: preferences.refreshInterval)
                         }
                     }
                 }

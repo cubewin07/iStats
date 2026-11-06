@@ -12,37 +12,36 @@ public struct NetworkSummaryView: View {
     public let history: [Sample<NetworkSample>]
     public let networkUnit: Units.NetworkUnit
     public let byteStandard: Units.ByteUnitStandard
+    public let refreshInterval: TimeInterval
 
     @State private var isInterfacesExpanded: Bool = false
+    @State private var copiedLabel: String? = nil
+    @State private var copyToken: Int = 0
 
     public init(
         sample: NetworkSample? = nil,
         history: [Sample<NetworkSample>] = [],
         networkUnit: Units.NetworkUnit = .bytesPerSecond,
-        byteStandard: Units.ByteUnitStandard = .iec
+        byteStandard: Units.ByteUnitStandard = .iec,
+        refreshInterval: TimeInterval = 2.0
     ) {
         self.sample = sample
         self.history = history
         self.networkUnit = networkUnit
         self.byteStandard = byteStandard
+        self.refreshInterval = refreshInterval
     }
 
     private var verdict: MetricVerdict {
         VerdictEvaluator.evaluateNetwork(sample, unit: networkUnit, standard: byteStandard)
     }
 
-    private var historyInRates: [Double] {
-        history.map { s in
-            let bytes = s.value.totalBytesInPerSec
-            return networkUnit == .bitsPerSecond ? Units.bytesPerSecToBitsPerSec(bytes) : bytes
-        }
+    private var historyInBytes: [Double] {
+        history.map { $0.value.totalBytesInPerSec }
     }
 
-    private var historyOutRates: [Double] {
-        history.map { s in
-            let bytes = s.value.totalBytesOutPerSec
-            return networkUnit == .bitsPerSecond ? Units.bytesPerSecToBitsPerSec(bytes) : bytes
-        }
+    private var historyOutBytes: [Double] {
+        history.map { $0.value.totalBytesOutPerSec }
     }
 
     public var body: some View {
@@ -142,8 +141,8 @@ public struct NetworkSummaryView: View {
             // MARK: - Dual-Trace Rolling Sparkline (Down in Teal, Up in Blue)
             VStack(alignment: .leading, spacing: 4) {
                 DualTraceRollingGraphView(
-                    primaryValues: historyInRates,
-                    secondaryValues: historyOutRates,
+                    primaryValues: historyInBytes,
+                    secondaryValues: historyOutBytes,
                     primaryColor: .teal,
                     secondaryColor: .blue,
                     primaryLabel: "In",
@@ -166,20 +165,23 @@ public struct NetworkSummaryView: View {
                                 .font(.system(size: 8.5, weight: .medium))
                                 .foregroundColor(.secondary)
                         }
+                        Text("· last \(Units.formatHistoryDuration(sampleCount: 60, interval: refreshInterval))")
+                            .font(.system(size: 8.5, weight: .medium))
+                            .foregroundColor(.secondary)
                     }
 
                     Spacer()
 
-                    let peakIn = historyInRates.max() ?? 0
-                    let peakOut = historyOutRates.max() ?? 0
+                    let peakInBytes = historyInBytes.max() ?? 0
+                    let peakOutBytes = historyOutBytes.max() ?? 0
                     HStack(spacing: 5) {
                         Text("Peak:")
                             .font(.system(size: 8.5, weight: .medium))
                             .foregroundColor(.secondary)
-                        Text("↓" + Units.formatNetworkRate(peakIn, unit: networkUnit, standard: byteStandard, fractionDigits: 0))
+                        Text("↓" + Units.formatNetworkRate(peakInBytes, unit: networkUnit, standard: byteStandard, fractionDigits: 0))
                             .font(.system(size: 8.5, weight: .bold, design: .monospaced))
                             .foregroundColor(.teal)
-                        Text("↑" + Units.formatNetworkRate(peakOut, unit: networkUnit, standard: byteStandard, fractionDigits: 0))
+                        Text("↑" + Units.formatNetworkRate(peakOutBytes, unit: networkUnit, standard: byteStandard, fractionDigits: 0))
                             .font(.system(size: 8.5, weight: .bold, design: .monospaced))
                             .foregroundColor(.blue)
                     }
@@ -189,7 +191,9 @@ public struct NetworkSummaryView: View {
 
             // MARK: - Collapsible Diagnostics (Enriched Interface List)
             if let sample = sample, !sample.interfaces.isEmpty {
-                let activeInterfaces = sample.interfaces.filter { $0.bytesInPerSec > 0 || $0.bytesOutPerSec > 0 || $0.totalBytesIn > 0 }
+                let activeInterfaces = sample.interfaces.filter {
+                    $0.bytesInPerSec > 0 || $0.bytesOutPerSec > 0 || $0.totalBytesIn > 0 || $0.totalBytesOut > 0 || $0.interfaceName == sample.primaryInterface
+                }
                 CollapsibleSection(
                     title: "Interfaces",
                     count: activeInterfaces.count,
@@ -272,25 +276,50 @@ public struct NetworkSummaryView: View {
     }
 
     private func detailTile(label: String, value: String, icon: String, color: Color) -> some View {
-        HStack(spacing: 5) {
-            Image(systemName: icon)
-                .font(.system(size: 8.5))
-                .foregroundColor(color)
-                .frame(width: 12)
-            VStack(alignment: .leading, spacing: 0.5) {
-                Text(label)
-                    .font(.system(size: 7.5, weight: .medium))
-                    .foregroundColor(.secondary)
-                    .lineLimit(1)
-                Text(value)
-                    .font(.system(size: 9, weight: .bold, design: .monospaced))
-                    .foregroundColor(.primary)
-                    .lineLimit(1)
+        let isCopied = copiedLabel == label
+        return Button(action: {
+            guard value != "—", !value.isEmpty else { return }
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(value, forType: .string)
+            copiedLabel = label
+            copyToken += 1
+            let currentToken = copyToken
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                if copyToken == currentToken {
+                    copiedLabel = nil
+                }
             }
-            Spacer(minLength: 0)
+        }) {
+            HStack(spacing: 6) {
+                Image(systemName: isCopied ? "checkmark" : icon)
+                    .font(.system(size: 9))
+                    .foregroundColor(isCopied ? .green : color)
+                    .frame(width: 14)
+                VStack(alignment: .leading, spacing: 1) {
+                    HStack(spacing: 4) {
+                        Text(label)
+                            .font(.system(size: 7.5, weight: .medium))
+                            .foregroundColor(.secondary)
+                            .lineLimit(1)
+                        if isCopied {
+                            Text("COPIED")
+                                .font(.system(size: 6.5, weight: .bold))
+                                .foregroundColor(.green)
+                        }
+                    }
+                    Text(value)
+                        .font(.system(size: 9.5, weight: .bold, design: .monospaced))
+                        .foregroundColor(.primary)
+                        .lineLimit(1)
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(6)
+            .background(RoundedRectangle(cornerRadius: 6).fill(Color.secondary.opacity(0.06)))
+            .contentShape(Rectangle())
         }
-        .padding(5)
-        .background(RoundedRectangle(cornerRadius: 6).fill(Color.secondary.opacity(0.05)))
+        .buttonStyle(.plain)
+        .help(value != "—" ? "Click to copy \(label) to clipboard" : "")
     }
 
     private func wifiLinkLabel(_ wifi: WiFiLinkTelemetry) -> String {
@@ -330,54 +359,57 @@ public struct NetworkSummaryView: View {
 
     @ViewBuilder
     private func interfacesList(interfaces: [InterfaceThroughput]) -> some View {
-        VStack(spacing: 3) {
-            ForEach(interfaces, id: \.interfaceName) { iface in
-                HStack {
-                    HStack(spacing: 4.5) {
-                        Image(systemName: iface.type.iconName)
-                            .font(.system(size: 8.5, weight: .semibold))
-                            .foregroundColor(iface.type == .wifi ? .teal : (iface.type == .ethernet ? .blue : .secondary))
-                            .frame(width: 11)
+        ScrollView(.vertical, showsIndicators: interfaces.count > 5) {
+            VStack(spacing: 3) {
+                ForEach(interfaces, id: \.interfaceName) { iface in
+                    HStack {
+                        HStack(spacing: 4.5) {
+                            Image(systemName: iface.type.iconName)
+                                .font(.system(size: 8.5, weight: .semibold))
+                                .foregroundColor(iface.type == .wifi ? .teal : (iface.type == .ethernet ? .blue : .secondary))
+                                .frame(width: 11)
 
-                        Text(friendlyInterfaceName(iface))
-                            .font(.system(size: 9, weight: .medium))
-                            .foregroundColor(.primary)
+                            Text(friendlyInterfaceName(iface))
+                                .font(.system(size: 9, weight: .medium))
+                                .foregroundColor(.primary)
 
-                        Text("(\(iface.interfaceName))")
-                            .font(.system(size: 8, weight: .regular, design: .monospaced))
-                            .foregroundColor(.secondary)
-
-                        if let ip = iface.ipv4Address {
-                            Text(ip)
-                                .font(.system(size: 7.5, weight: .regular, design: .monospaced))
+                            Text("(\(iface.interfaceName))")
+                                .font(.system(size: 8, weight: .regular, design: .monospaced))
                                 .foregroundColor(.secondary)
-                                .padding(.horizontal, 3.5)
-                                .padding(.vertical, 0.5)
-                                .background(RoundedRectangle(cornerRadius: 3).fill(Color.secondary.opacity(0.08)))
+
+                            if let ip = iface.ipv4Address {
+                                Text(ip)
+                                    .font(.system(size: 7.5, weight: .regular, design: .monospaced))
+                                    .foregroundColor(.secondary)
+                                    .padding(.horizontal, 3.5)
+                                    .padding(.vertical, 0.5)
+                                    .background(RoundedRectangle(cornerRadius: 3).fill(Color.secondary.opacity(0.08)))
+                            }
+                        }
+
+                        Spacer(minLength: 4)
+
+                        HStack(spacing: 6) {
+                            Text("↓ " + Units.formatNetworkRate(iface.bytesInPerSec, unit: networkUnit, standard: byteStandard, fractionDigits: 0))
+                                .font(.system(size: 8.5, weight: .semibold, design: .monospaced))
+                                .foregroundColor(.teal)
+
+                            Text("↑ " + Units.formatNetworkRate(iface.bytesOutPerSec, unit: networkUnit, standard: byteStandard, fractionDigits: 0))
+                                .font(.system(size: 8.5, weight: .semibold, design: .monospaced))
+                                .foregroundColor(.blue)
                         }
                     }
-
-                    Spacer(minLength: 4)
-
-                    HStack(spacing: 6) {
-                        Text("↓ " + Units.formatNetworkRate(iface.bytesInPerSec, unit: networkUnit, standard: byteStandard, fractionDigits: 0))
-                            .font(.system(size: 8.5, weight: .semibold, design: .monospaced))
-                            .foregroundColor(.teal)
-
-                        Text("↑ " + Units.formatNetworkRate(iface.bytesOutPerSec, unit: networkUnit, standard: byteStandard, fractionDigits: 0))
-                            .font(.system(size: 8.5, weight: .semibold, design: .monospaced))
-                            .foregroundColor(.blue)
-                    }
+                    .padding(.vertical, 2)
+                    .padding(.horizontal, 6)
+                    .background(
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(Color.secondary.opacity(0.04))
+                    )
                 }
-                .padding(.vertical, 2)
-                .padding(.horizontal, 6)
-                .background(
-                    RoundedRectangle(cornerRadius: 4)
-                        .fill(Color.secondary.opacity(0.04))
-                )
             }
+            .padding(.top, 4)
         }
-        .padding(.top, 4)
+        .frame(maxHeight: min(CGFloat(interfaces.count) * 28 + 8, 180))
     }
 
     private func friendlyInterfaceName(_ iface: InterfaceThroughput) -> String {

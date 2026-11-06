@@ -14,6 +14,11 @@
 		110000000000000000000019 /* MenuBarController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000018 /* MenuBarController.swift */; };
 		11000000000000000000001B /* DetailPopoverView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11000000000000000000001A /* DetailPopoverView.swift */; };
 		11000000000000000000001D /* PreferencesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11000000000000000000001C /* PreferencesView.swift */; };
+		110000000000000000000141 /* PreferencesComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000140 /* PreferencesComponents.swift */; };
+		110000000000000000000143 /* PreferencesMenuBarPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000142 /* PreferencesMenuBarPane.swift */; };
+		110000000000000000000145 /* PreferencesGeneralPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000144 /* PreferencesGeneralPane.swift */; };
+		110000000000000000000147 /* PreferencesAlertsPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000146 /* PreferencesAlertsPane.swift */; };
+		110000000000000000000149 /* PreferencesAboutPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000148 /* PreferencesAboutPane.swift */; };
 		11000000000000000000001F /* PreferencesWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11000000000000000000001E /* PreferencesWindowController.swift */; };
 		110000000000000000000031 /* CPUSampler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000030 /* CPUSampler.swift */; };
 		110000000000000000000033 /* MemorySampler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000032 /* MemorySampler.swift */; };
@@ -99,6 +104,11 @@
 		110000000000000000000018 /* MenuBarController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarController.swift; sourceTree = "<group>"; };
 		11000000000000000000001A /* DetailPopoverView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DetailPopoverView.swift; sourceTree = "<group>"; };
 		11000000000000000000001C /* PreferencesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferencesView.swift; sourceTree = "<group>"; };
+		110000000000000000000140 /* PreferencesComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferencesComponents.swift; sourceTree = "<group>"; };
+		110000000000000000000142 /* PreferencesMenuBarPane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferencesMenuBarPane.swift; sourceTree = "<group>"; };
+		110000000000000000000144 /* PreferencesGeneralPane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferencesGeneralPane.swift; sourceTree = "<group>"; };
+		110000000000000000000146 /* PreferencesAlertsPane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferencesAlertsPane.swift; sourceTree = "<group>"; };
+		110000000000000000000148 /* PreferencesAboutPane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferencesAboutPane.swift; sourceTree = "<group>"; };
 		11000000000000000000001E /* PreferencesWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferencesWindowController.swift; sourceTree = "<group>"; };
 		110000000000000000000030 /* CPUSampler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CPUSampler.swift; sourceTree = "<group>"; };
 		110000000000000000000032 /* MemorySampler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemorySampler.swift; sourceTree = "<group>"; };
@@ -243,6 +253,11 @@
 			children = (
 				11000000000000000000001A /* DetailPopoverView.swift */,
 				11000000000000000000001C /* PreferencesView.swift */,
+				110000000000000000000140 /* PreferencesComponents.swift */,
+				110000000000000000000142 /* PreferencesMenuBarPane.swift */,
+				110000000000000000000144 /* PreferencesGeneralPane.swift */,
+				110000000000000000000146 /* PreferencesAlertsPane.swift */,
+				110000000000000000000148 /* PreferencesAboutPane.swift */,
 				110000000000000000000036 /* MemoryPressureView.swift */,
 				110000000000000000000062 /* RollingGraphView.swift */,
 				110000000000000000000064 /* CPUSummaryView.swift */,
@@ -436,6 +451,11 @@
 				110000000000000000000019 /* MenuBarController.swift in Sources */,
 				11000000000000000000001B /* DetailPopoverView.swift in Sources */,
 				11000000000000000000001D /* PreferencesView.swift in Sources */,
+				110000000000000000000141 /* PreferencesComponents.swift in Sources */,
+				110000000000000000000143 /* PreferencesMenuBarPane.swift in Sources */,
+				110000000000000000000145 /* PreferencesGeneralPane.swift in Sources */,
+				110000000000000000000147 /* PreferencesAlertsPane.swift in Sources */,
+				110000000000000000000149 /* PreferencesAboutPane.swift in Sources */,
 				11000000000000000000001F /* PreferencesWindowController.swift in Sources */,
 				110000000000000000000031 /* CPUSampler.swift in Sources */,
 				110000000000000000000033 /* MemorySampler.swift in Sources */,

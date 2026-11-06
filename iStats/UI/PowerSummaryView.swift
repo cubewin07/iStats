@@ -8,15 +8,18 @@ import iStatsCore
 public struct PowerSummaryView: View {
     public let sample: PowerSample?
     public let history: [Sample<PowerSample>]
+    public let refreshInterval: TimeInterval
 
     @State private var isHealthExpanded: Bool = false
 
     public init(
         sample: PowerSample? = nil,
-        history: [Sample<PowerSample>] = []
+        history: [Sample<PowerSample>] = [],
+        refreshInterval: TimeInterval = 2.0
     ) {
         self.sample = sample
         self.history = history
+        self.refreshInterval = refreshInterval
     }
 
     private var verdict: MetricVerdict {
@@ -229,7 +232,19 @@ public struct PowerSummaryView: View {
                                 }
 
                                 if let timeRemaining = sample.timeRemaining, timeRemaining > 0 {
-                                    Text("\(formatDuration(timeRemaining)) remaining")
+                                    if let draw = sample.powerDrawWatts {
+                                        Text(String(format: "%@ remaining · %.1fW", formatDuration(timeRemaining), draw))
+                                            .font(.system(size: 11, weight: .medium, design: .rounded))
+                                            .foregroundColor(.secondary)
+                                            .lineLimit(1)
+                                    } else {
+                                        Text("\(formatDuration(timeRemaining)) remaining")
+                                            .font(.system(size: 11, weight: .medium, design: .rounded))
+                                            .foregroundColor(.secondary)
+                                            .lineLimit(1)
+                                    }
+                                } else if let draw = sample.powerDrawWatts {
+                                    Text(String(format: "%.1fW Draw · Connect power adapter", draw))
                                         .font(.system(size: 11, weight: .medium, design: .rounded))
                                         .foregroundColor(.secondary)
                                         .lineLimit(1)
@@ -259,7 +274,17 @@ public struct PowerSummaryView: View {
                                     }
                                 }
 
-                                if let voltage = sample.voltageVolts {
+                                if let draw = sample.powerDrawWatts, let voltage = sample.voltageVolts {
+                                    Text(String(format: "%.1fW Draw · %.1fV", draw, voltage))
+                                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                                        .foregroundColor(.secondary)
+                                        .lineLimit(1)
+                                } else if let draw = sample.powerDrawWatts {
+                                    Text(String(format: "%.1fW Power Draw", draw))
+                                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                                        .foregroundColor(.secondary)
+                                        .lineLimit(1)
+                                } else if let voltage = sample.voltageVolts {
                                     Text(String(format: "Battery Power · %.1fV", voltage))
                                         .font(.system(size: 11, weight: .medium, design: .rounded))
                                         .foregroundColor(.secondary)
@@ -457,7 +482,7 @@ public struct PowerSummaryView: View {
             )
 
             HStack {
-                Text("last 2 min (draw)")
+                Text("last \(Units.formatHistoryDuration(sampleCount: 60, interval: refreshInterval)) (draw)")
                     .font(.system(size: 9, weight: .medium))
                     .foregroundColor(.secondary)
 

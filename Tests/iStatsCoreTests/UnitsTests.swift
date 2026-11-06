@@ -131,6 +131,18 @@ final class UnitsTests: XCTestCase {
         XCTAssertEqual(Units.formatUptime(-100), "0m")
         XCTAssertEqual(Units.formatUptime(.nan), "0m")
     }
+
+    func testFormatHistoryDuration() {
+        XCTAssertEqual(Units.formatHistoryDuration(sampleCount: 60, interval: 2.0), "2 min")
+        XCTAssertEqual(Units.formatHistoryDuration(sampleCount: 60, interval: 1.0), "1 min")
+        XCTAssertEqual(Units.formatHistoryDuration(sampleCount: 60, interval: 0.5), "30s")
+        XCTAssertEqual(Units.formatHistoryDuration(sampleCount: 60, interval: 5.0), "5 min")
+        XCTAssertEqual(Units.formatHistoryDuration(sampleCount: 60, interval: 10.0), "10 min")
+        XCTAssertEqual(Units.formatHistoryDuration(sampleCount: 60, interval: 30.0), "30 min")
+        XCTAssertEqual(Units.formatHistoryDuration(sampleCount: 60, interval: 0.75), "45s")
+        XCTAssertEqual(Units.formatHistoryDuration(sampleCount: 90, interval: 1.0), "1m 30s")
+        XCTAssertEqual(Units.formatHistoryDuration(sampleCount: 60, interval: -1.0), "2 min")
+    }
 }
 
 
