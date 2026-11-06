@@ -706,33 +706,61 @@ final class MenuBarControllerInteractionTests: XCTestCase {
         XCTAssertNil(controller.popovers[cpuItem.id]?.contentViewController)
     }
 
-    func testReorderingActiveItemsWhilePopoverIsOpenReanchorsButton() {
+    // MARK: - Screen Order (macOS owns positions; the store follows the bar)
+
+    func testInitialItemsAreCreatedLastToFirstSoFirstItemStartsLeftmost() {
         let (defaults, prefs, _, controller, suiteName) = makeContext()
         defer { cleanup(defaults: defaults, controller: controller, suiteName: suiteName) }
 
-        let cpuItem = MenuBarItemConfig(category: .cpu, style: .gauge)
-        let memItem = MenuBarItemConfig(category: .memory, style: .bar)
-        prefs.menuBarItems = [cpuItem, memItem]
+        let cpu = MenuBarItemConfig(category: .cpu, style: .gauge)
+        let mem = MenuBarItemConfig(category: .memory, style: .bar)
+        let net = MenuBarItemConfig(category: .network, style: .throughput)
+        prefs.menuBarItems = []
         controller.syncStatusItems()
 
-        guard let cpuButton = controller.statusItems[cpuItem.id]?.button else {
-            XCTFail("CPU status button must exist")
-            return
-        }
+        prefs.menuBarItems = [cpu, mem, net]
+        controller.syncStatusItems()
+        XCTAssertEqual(controller.lastStatusItemCreationOrder, [net.id, mem.id, cpu.id])
+    }
 
-        // Open CPU popover
+    func testChangingStoredOrderNeverRecreatesItemsOrMovesOpenPopover() {
+        let (defaults, prefs, _, controller, suiteName) = makeContext()
+        defer { cleanup(defaults: defaults, controller: controller, suiteName: suiteName) }
+
+        let cpu = MenuBarItemConfig(category: .cpu, style: .gauge)
+        let mem = MenuBarItemConfig(category: .memory, style: .bar)
+        prefs.menuBarItems = [cpu, mem]
+        controller.syncStatusItems()
+        guard let cpuButton = controller.statusItems[cpu.id]?.button else {
+            return XCTFail("CPU status button must exist")
+        }
         controller.statusItemClicked(cpuButton)
-        XCTAssertTrue(controller.currentlyShownButton === cpuButton)
 
-        // Swap order: [memItem, cpuItem]
-        prefs.menuBarItems = [memItem, cpuItem]
+        prefs.setActiveMenuBarOrder([mem.id, cpu.id])
         controller.syncStatusItems()
 
-        // Popover stays open and currentlyShownButton is re-anchored to the new CPU button instance
-        guard let newCpuButton = controller.statusItems[cpuItem.id]?.button else {
-            XCTFail("New CPU button must exist after reorder")
-            return
-        }
-        XCTAssertTrue(controller.currentlyShownButton === newCpuButton, "currentlyShownButton must be re-anchored to the rebuilt button")
+        XCTAssertEqual(controller.lastStatusItemCreationOrder, [])
+        XCTAssertTrue(controller.statusItems[cpu.id]?.button === cpuButton)
+        XCTAssertTrue(controller.currentlyShownButton === cpuButton)
+    }
+
+    func testReEnablingCategoryOnlyCreatesThatItem() {
+        let (defaults, prefs, _, controller, suiteName) = makeContext()
+        defer { cleanup(defaults: defaults, controller: controller, suiteName: suiteName) }
+
+        let cpu = MenuBarItemConfig(category: .cpu, style: .gauge)
+        let mem = MenuBarItemConfig(category: .memory, style: .bar)
+        let net = MenuBarItemConfig(category: .network, style: .throughput)
+        prefs.menuBarItems = [cpu, mem, net]
+        controller.syncStatusItems()
+        let cpuButton = controller.statusItems[cpu.id]?.button
+
+        prefs.setCategory(.memory, isEnabled: false)
+        controller.syncStatusItems()
+        prefs.setCategory(.memory, isEnabled: true)
+        controller.syncStatusItems()
+
+        XCTAssertEqual(controller.lastStatusItemCreationOrder, [mem.id])
+        XCTAssertTrue(controller.statusItems[cpu.id]?.button === cpuButton)
     }
 }

@@ -53,7 +53,7 @@ public struct PreferencesView: View {
             }
             .background(Color(nsColor: .windowBackgroundColor))
         }
-        .frame(minWidth: 880, minHeight: 580)
+        .frame(minWidth: 960, minHeight: 580)
         // Hidden keyboard shortcuts for Cmd+1 ... Cmd+4
         .background(
             ZStack {

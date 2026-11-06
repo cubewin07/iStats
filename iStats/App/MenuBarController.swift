@@ -1,6 +1,7 @@
 import AppKit
 import SwiftUI
 import Combine
+import OSLog
 import iStatsCore
 
 @MainActor
@@ -21,7 +22,11 @@ public final class MenuBarController: NSObject {
     private var isCategoryUpdateScheduled = false
     public private(set) var currentlyShownButton: NSStatusBarButton?
     private var lastConfiguredPopoverStyles: [String: PopoverStyle] = [:]
-    private var lastActiveItemOrder: [String] = []
+    /// IDs created by the most recent sync, in creation order. Exposed so tests can verify screen ordering.
+    private(set) var lastStatusItemCreationOrder: [String] = []
+    private let orderLogger = Logger(subsystem: "com.istats.app", category: "MenuBarOrder")
+    private var statusWindowMoveObserver: NSObjectProtocol?
+    private var isOrderCheckPending = false
     private var globalMouseMonitor: Any?
     private var localMouseMonitor: Any?
 
@@ -184,10 +189,8 @@ public final class MenuBarController: NSObject {
     public func syncStatusItems() {
         let activeConfigs = preferences.activeMenuBarItems
         let activeIds = Set(activeConfigs.map(\.id))
-        let currentOrder = activeConfigs.map(\.id)
 
         if activeConfigs.isEmpty {
-            lastActiveItemOrder = []
             // If a popover was shown on a category item, close it cleanly first
             if let current = currentlyShownButton, current.identifier?.rawValue != Self.fallbackStatusItemId {
                 hidePopover()
@@ -256,20 +259,6 @@ public final class MenuBarController: NSObject {
             }
         }
 
-        // If the exact same items were reordered, rebuild status items in the new order so NSStatusBar positions them accordingly
-        var reanchoredId: String? = nil
-        if activeIds == Set(lastActiveItemOrder) && currentOrder != lastActiveItemOrder {
-            if let current = currentlyShownButton, let rawId = current.identifier?.rawValue {
-                reanchoredId = rawId
-            }
-            for (_, item) in statusItems {
-                NSStatusBar.system.removeStatusItem(item)
-            }
-            statusItems.removeAll()
-            previousRenderStates.removeAll()
-        }
-        lastActiveItemOrder = currentOrder
-
         // 1. Remove status items and popovers for items/categories that have been disabled or deleted
         for (id, item) in statusItems where !activeIds.contains(id) {
             if let current = currentlyShownButton, current.identifier?.rawValue == id {
@@ -288,7 +277,11 @@ public final class MenuBarController: NSObject {
         }
 
         // 2. Create and configure status items and dedicated popovers for newly active items
-        for config in activeConfigs where statusItems[config.id] == nil {
+        // Created last-to-first because the first item created ends up rightmost in the menu bar.
+        // Existing items are never recreated: macOS owns their position, and only Cmd-drag can change it.
+        lastStatusItemCreationOrder = []
+        for config in activeConfigs.reversed() where statusItems[config.id] == nil {
+            lastStatusItemCreationOrder.append(config.id)
             let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
             if let button = item.button {
                 button.target = self
@@ -300,16 +293,6 @@ public final class MenuBarController: NSObject {
             if popovers[config.id] == nil {
                 popovers[config.id] = createPopover(for: config)
             }
-        }
-
-        // Re-anchor active popover to the newly rebuilt button if items were reordered
-        if let openId = reanchoredId, let newButton = statusItems[openId]?.button {
-            currentlyShownButton = newButton
-            if let p = popovers[openId] {
-                p.show(relativeTo: newButton.bounds, of: newButton, preferredEdge: .minY)
-            }
-        } else if reanchoredId != nil {
-            hidePopover()
         }
 
         // 3. Invalidate or swap cached popover content if custom popover style was updated
@@ -329,6 +312,62 @@ public final class MenuBarController: NSObject {
 
         // 4. Re-render all active status items
         updateAllStatusItems()
+
+        // A new item lands wherever macOS puts it, so let the stored order catch up.
+        if statusWindowMoveObserver != nil {
+            scheduleOrderCheck(after: Self.orderCheckDelay)
+        }
+    }
+
+    // MARK: - Cmd-Drag Detection
+
+    private static let orderCheckDelay: TimeInterval = 0.6
+
+    /// Keeps the stored order in step with Cmd-drags in the real menu bar, which AppKit doesn't report directly.
+    public func startTrackingManualReorder() {
+        guard statusWindowMoveObserver == nil else { return }
+        statusWindowMoveObserver = NotificationCenter.default.addObserver(
+            forName: NSWindow.didMoveNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            let movedWindowId = (notification.object as? NSWindow).map(ObjectIdentifier.init)
+            MainActor.assumeIsolated {
+                guard let self, let movedWindowId,
+                      self.statusItems.values.contains(where: {
+                          $0.button?.window.map(ObjectIdentifier.init) == movedWindowId
+                      }) else { return }
+                self.scheduleOrderCheck(after: Self.orderCheckDelay)
+            }
+        }
+        scheduleOrderCheck(after: Self.orderCheckDelay)
+    }
+
+    private func scheduleOrderCheck(after delay: TimeInterval) {
+        guard !isOrderCheckPending else { return }
+        isOrderCheckPending = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+            MainActor.assumeIsolated {
+                self?.isOrderCheckPending = false
+                self?.checkOnScreenOrder()
+            }
+        }
+    }
+
+    private func checkOnScreenOrder() {
+        let frames: [(id: String, frame: CGRect)] = preferences.activeMenuBarItems.compactMap { config in
+            guard let window = statusItems[config.id]?.button?.window else { return nil }
+            return (id: config.id, frame: window.frame)
+        }
+        guard frames.count == preferences.activeMenuBarItems.count,
+              let observed = MenuBarOrdering.observedOrder(frames: frames) else {
+            orderLogger.notice("Layout unusable: \(frames.map { "\($0.id)@\(Int($0.frame.minX))" }.joined(separator: " "), privacy: .public)")
+            return
+        }
+        let stored = preferences.activeMenuBarItems.map(\.id)
+        guard observed != stored else { return }
+        orderLogger.notice("Adopting bar order \(observed.joined(separator: " "), privacy: .public) over \(stored.joined(separator: " "), privacy: .public)")
+        preferences.setActiveMenuBarOrder(observed)
     }
 
     // MARK: - Subscriptions
