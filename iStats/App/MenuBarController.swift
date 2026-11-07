@@ -487,7 +487,7 @@ public final class MenuBarController: NSObject {
         PanelController.shared.toggle(category: category, itemID: rawId, relativeTo: button) {
             self.makePanelContentView(forConfigId: rawId)
         }
-        if PanelController.shared.isPanelOpen(for: category) {
+        if PanelController.shared.isTransientPanelOpen(for: category) {
             startScrubbingMonitor()
         } else {
             stopScrubbingMonitor()

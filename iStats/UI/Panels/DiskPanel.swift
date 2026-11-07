@@ -63,9 +63,9 @@ public struct DiskPanel: View {
                 coordinator.toggleSamplingPaused()
             },
             onPinToggle: {
-                PanelController.shared.togglePin()
+                PanelController.shared.togglePin(for: .disk)
             },
-            isPinned: PanelController.shared.activePanel?.isPinned ?? false
+            isPinned: PanelController.shared.isPinned(for: .disk)
         ) { tab in
             switch tab {
             case .overview:

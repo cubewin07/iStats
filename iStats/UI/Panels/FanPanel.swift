@@ -59,9 +59,9 @@ public struct FanPanel: View {
                 coordinator.toggleSamplingPaused()
             },
             onPinToggle: {
-                PanelController.shared.togglePin()
+                PanelController.shared.togglePin(for: .fan)
             },
-            isPinned: PanelController.shared.activePanel?.isPinned ?? false
+            isPinned: PanelController.shared.isPinned(for: .fan)
         ) { tab in
             switch tab {
             case .overview:

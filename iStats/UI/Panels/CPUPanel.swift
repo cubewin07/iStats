@@ -54,9 +54,9 @@ public struct CPUPanel: View {
                 coordinator.toggleSamplingPaused()
             },
             onPinToggle: {
-                PanelController.shared.togglePin()
+                PanelController.shared.togglePin(for: .cpu)
             },
-            isPinned: PanelController.shared.activePanel?.isPinned ?? false
+            isPinned: PanelController.shared.isPinned(for: .cpu)
         ) { tab in
             switch tab {
             case .overview:

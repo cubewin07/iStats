@@ -4,11 +4,13 @@ import iStatsCore
 
 /// Coordinates presentation, placement, dismissal, tracking, and pinning of the Glass Panel (ADR 0009 / Task 8.3).
 @MainActor
-public final class PanelController: NSObject {
+public final class PanelController: NSObject, ObservableObject {
     public static let shared = PanelController()
 
     public private(set) var transientPanel: MetricPanel?
     public private(set) var pinnedPanels: [MetricCategory: MetricPanel] = [:]
+    @Published public private(set) var pinnedCategories: Set<MetricCategory> = []
+    @Published public private(set) var isTransientVisible: Bool = false
     public private(set) var currentCategory: MetricCategory?
     public private(set) var currentItemID: String?
     public private(set) var currentButton: NSStatusBarButton?
@@ -43,7 +45,13 @@ public final class PanelController: NSObject {
         relativeTo button: NSStatusBarButton,
         content: () -> V
     ) {
-        if isPanelOpen(for: category) {
+        if let pinned = pinnedPanels[category], pinned.isVisible {
+            close()
+            pinned.makeKeyAndOrderFront(nil)
+            return
+        }
+
+        if isTransientPanelOpen(for: category) && (itemID == nil || currentItemID == itemID) {
             close()
         } else {
             show(category: category, itemID: itemID, relativeTo: button, content: content)
@@ -76,6 +84,7 @@ public final class PanelController: NSObject {
         currentItemID = itemID
         currentButton = button
 
+        panel.category = category
         panel.isPinned = false
 
         // Inject content
@@ -98,6 +107,7 @@ public final class PanelController: NSObject {
                 }
             }
         }
+        isTransientVisible = true
 
         installDismissalMonitorsIfNeeded()
     }
@@ -109,11 +119,12 @@ public final class PanelController: NSObject {
         currentCategory = nil
         currentItemID = nil
         currentButton = nil
+        isTransientVisible = false
 
-        let teardown = { [weak self] in
+        let teardown: @Sendable () -> Void = { [weak self, weak panel] in
             MainActor.assumeIsolated {
                 guard let self = self else { return }
-                panel.orderOut(nil)
+                panel?.orderOut(nil)
                 if self.currentCategory == nil {
                     self.transientPanel = nil
                 }
@@ -135,9 +146,20 @@ public final class PanelController: NSObject {
         }, completionHandler: teardown)
     }
 
+    public func isTransientPanelOpen(for category: MetricCategory? = nil) -> Bool {
+        guard let panel = transientPanel, panel.isVisible else { return false }
+        if let cat = category {
+            return currentCategory == cat
+        }
+        return true
+    }
+
+    public func isPinned(for category: MetricCategory) -> Bool {
+        pinnedCategories.contains(category) && (pinnedPanels[category]?.isVisible == true)
+    }
+
     public func isPanelOpen(for category: MetricCategory) -> Bool {
-        (transientPanel?.isVisible == true && currentCategory == category) ||
-        (pinnedPanels[category]?.isVisible == true)
+        isTransientPanelOpen(for: category) || isPinned(for: category)
     }
 
     /// Swaps the active open panel to a different category (e.g. from Fanless state to Temperature).
@@ -168,38 +190,56 @@ public final class PanelController: NSObject {
 
     public func togglePin() {
         guard let category = currentCategory else { return }
+        togglePin(for: category)
+    }
 
-        if let panel = transientPanel {
-            // Pinning the currently open transient panel into independent floating HUD!
-            panel.isPinned = true
-            removeDismissalMonitors()
-            onTransientPanelClosed?()
-
-            pinnedPanels[category] = panel
-            transientPanel = nil
-
-            preferencesStore?.setPinnedOrigin(panel.frame.origin, for: category)
-
-            let observer = NotificationCenter.default.addObserver(
-                forName: NSWindow.didMoveNotification,
-                object: panel,
-                queue: .main
-            ) { [weak self, weak panel] _ in
-                MainActor.assumeIsolated {
-                    guard let self = self, let panel = panel else { return }
-                    self.preferencesStore?.setPinnedOrigin(panel.frame.origin, for: category)
-                }
-            }
-            pinnedMoveObservers[category] = observer
-
-            panel.onUnpinRequested = { [weak self] in
-                self?.unpin(category: category)
-            }
-            panel.onCloseRequested = { [weak self] in
-                self?.unpin(category: category)
-            }
-        } else if pinnedPanels[category] != nil {
+    public func togglePin(for category: MetricCategory) {
+        if pinnedPanels[category] != nil {
             unpin(category: category)
+            return
+        }
+
+        guard let panel = transientPanel, currentCategory == category else { return }
+
+        // Pinning the currently open transient panel into an independent floating HUD
+        panel.category = category
+        panel.isPinned = true
+        removeDismissalMonitors()
+        onTransientPanelClosed?()
+
+        pinnedPanels[category] = panel
+        pinnedCategories.insert(category)
+        transientPanel = nil
+        currentCategory = nil
+        currentItemID = nil
+        currentButton = nil
+        isTransientVisible = false
+
+        if let savedOrigin = preferencesStore?.pinnedOrigin(for: category) {
+            var frame = panel.frame
+            frame.origin = clampedPinnedOrigin(savedOrigin, for: frame.size)
+            panel.setFrame(frame, display: true, animate: false)
+        } else {
+            preferencesStore?.setPinnedOrigin(panel.frame.origin, for: category)
+        }
+
+        let observer = NotificationCenter.default.addObserver(
+            forName: NSWindow.didMoveNotification,
+            object: panel,
+            queue: .main
+        ) { [weak self, weak panel] _ in
+            MainActor.assumeIsolated {
+                guard let self = self, let panel = panel else { return }
+                self.preferencesStore?.setPinnedOrigin(panel.frame.origin, for: category)
+            }
+        }
+        pinnedMoveObservers[category] = observer
+
+        panel.onUnpinRequested = { [weak self] in
+            self?.unpin(category: category)
+        }
+        panel.onCloseRequested = { [weak self] in
+            self?.unpin(category: category)
         }
     }
 
@@ -211,16 +251,34 @@ public final class PanelController: NSObject {
             pinnedMoveObservers.removeValue(forKey: category)
         }
         pinnedPanels.removeValue(forKey: category)
-        preferencesStore?.setPinnedOrigin(nil, for: category)
+        pinnedCategories.remove(category)
 
         panel.orderOut(nil)
     }
 
+    public func unpinAll() {
+        for category in Array(pinnedPanels.keys) {
+            unpin(category: category)
+        }
+    }
+
     // MARK: - Placement & Dynamic Morphing
 
-    public func updateFittingHeight(animated: Bool = true) {
-        guard let panel = activePanel, panel.isVisible else { return }
+    public func updateFittingHeight(for category: MetricCategory? = nil, animated: Bool = true) {
+        let targetPanel: MetricPanel?
+        if let cat = category {
+            if currentCategory == cat, let transient = transientPanel, transient.isVisible {
+                targetPanel = transient
+            } else {
+                targetPanel = pinnedPanels[cat]
+            }
+        } else {
+            targetPanel = activePanel
+        }
 
+        guard let panel = targetPanel, panel.isVisible else { return }
+
+        panel.contentView?.layoutSubtreeIfNeeded()
         let newFittingHeight = panel.contentView?.fittingSize.height ?? panel.frame.height
         let targetHeight = min(max(newFittingHeight, 160.0), Instrument.Size.maxHeight)
 
@@ -256,14 +314,6 @@ public final class PanelController: NSObject {
 
         let buttonRectInWindow = button.convert(button.bounds, to: nil)
         let buttonRectOnScreen = window.convertToScreen(buttonRectInWindow)
-
-        // If pinned and has a stored origin, use the pinned origin clamped to screens
-        if panel.isPinned, let category = currentCategory, let savedOrigin = preferencesStore?.pinnedOrigin(for: category) {
-            var frame = panel.frame
-            frame.origin = clampedPinnedOrigin(savedOrigin, for: frame.size)
-            panel.setFrame(frame, display: true, animate: animated)
-            return
-        }
 
         // Measure content
         let targetSize = CGSize(

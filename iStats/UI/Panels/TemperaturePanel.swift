@@ -63,9 +63,9 @@ public struct TemperaturePanel: View {
                 coordinator.toggleSamplingPaused()
             },
             onPinToggle: {
-                PanelController.shared.togglePin()
+                PanelController.shared.togglePin(for: .thermal)
             },
-            isPinned: PanelController.shared.activePanel?.isPinned ?? false
+            isPinned: PanelController.shared.isPinned(for: .thermal)
         ) { tab in
             switch tab {
             case .overview:

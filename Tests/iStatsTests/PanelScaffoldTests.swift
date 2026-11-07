@@ -118,6 +118,46 @@ final class PanelScaffoldTests: XCTestCase {
         XCTAssertEqual(receivedCommand, .nextPage)
     }
 
+    func testMultiCategoryPinningAndScopedUnpinning() {
+        let (defaults, prefs, _, suiteName) = makeContext()
+        defer {
+            PanelController.shared.unpinAll()
+            PanelController.shared.close(immediately: true)
+            cleanup(defaults: defaults, suiteName: suiteName)
+        }
+
+        PanelController.shared.configure(preferences: prefs)
+        let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        defer { NSStatusBar.system.removeStatusItem(statusItem) }
+        guard let button = statusItem.button else {
+            XCTFail("Expected status bar button")
+            return
+        }
+
+        // 1. Show CPU transient panel and pin it
+        PanelController.shared.show(category: .cpu, relativeTo: button) {
+            Text("CPU")
+        }
+        XCTAssertTrue(PanelController.shared.isTransientPanelOpen(for: .cpu))
+        XCTAssertFalse(PanelController.shared.isPinned(for: .cpu))
+
+        PanelController.shared.togglePin(for: .cpu)
+        XCTAssertTrue(PanelController.shared.isPinned(for: .cpu))
+        XCTAssertFalse(PanelController.shared.isTransientPanelOpen(for: .cpu))
+
+        // 2. Open Memory transient panel while CPU remains pinned
+        PanelController.shared.show(category: .memory, relativeTo: button) {
+            Text("Memory")
+        }
+        XCTAssertTrue(PanelController.shared.isPinned(for: .cpu), "Pinned CPU HUD must stay pinned when Memory transient panel opens")
+        XCTAssertTrue(PanelController.shared.isTransientPanelOpen(for: .memory))
+
+        // 3. Unpinning CPU specifically must not unpin or close Memory transient panel
+        PanelController.shared.togglePin(for: .cpu)
+        XCTAssertFalse(PanelController.shared.isPinned(for: .cpu))
+        XCTAssertTrue(PanelController.shared.isTransientPanelOpen(for: .memory))
+    }
+
     func testMemoryPanelCompositionSumsToTotalViaSegmentLayout() {
         // Real fixture: 16 GB unified memory
         let total: UInt64 = 16 * 1024 * 1024 * 1024

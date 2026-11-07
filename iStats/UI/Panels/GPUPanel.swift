@@ -58,9 +58,9 @@ public struct GPUPanel: View {
                 coordinator.toggleSamplingPaused()
             },
             onPinToggle: {
-                PanelController.shared.togglePin()
+                PanelController.shared.togglePin(for: .gpu)
             },
-            isPinned: PanelController.shared.activePanel?.isPinned ?? false
+            isPinned: PanelController.shared.isPinned(for: .gpu)
         ) { tab in
             switch tab {
             case .overview:

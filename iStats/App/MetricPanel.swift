@@ -20,6 +20,8 @@ extension Notification.Name {
 /// A custom borderless glass panel hosting SwiftUI instrument views (ADR 0009 / Task 8.3).
 public final class MetricPanel: NSPanel {
 
+    public var category: MetricCategory?
+
     public var isPinned: Bool = false {
         didSet {
             updatePinState()
@@ -66,6 +68,12 @@ public final class MetricPanel: NSPanel {
         }
     }
 
+    private func postCommand(_ command: PanelCommand) {
+        let info: [AnyHashable: Any]? = category.map { ["category": $0] }
+        NotificationCenter.default.post(name: .panelCommandReceived, object: command, userInfo: info)
+        onCommand?(command)
+    }
+
     public override func keyDown(with event: NSEvent) {
         let isCmd = event.modifierFlags.contains(.command)
 
@@ -75,8 +83,7 @@ public final class MetricPanel: NSPanel {
                 return
             }
             onCloseRequested?()
-            NotificationCenter.default.post(name: .panelCommandReceived, object: PanelCommand.close)
-            onCommand?(.close)
+            postCommand(.close)
             return
         }
 
@@ -87,33 +94,27 @@ public final class MetricPanel: NSPanel {
                     return
                 }
             case "1":
-                NotificationCenter.default.post(name: .panelCommandReceived, object: PanelCommand.selectPage(1))
-                onCommand?(.selectPage(1))
+                postCommand(.selectPage(1))
                 return
             case "2":
-                NotificationCenter.default.post(name: .panelCommandReceived, object: PanelCommand.selectPage(2))
-                onCommand?(.selectPage(2))
+                postCommand(.selectPage(2))
                 return
             case "3":
-                NotificationCenter.default.post(name: .panelCommandReceived, object: PanelCommand.selectPage(3))
-                onCommand?(.selectPage(3))
+                postCommand(.selectPage(3))
                 return
             case "p":
-                NotificationCenter.default.post(name: .panelCommandReceived, object: PanelCommand.togglePin)
-                onCommand?(.togglePin)
+                postCommand(.togglePin)
                 return
             case ",":
-                NotificationCenter.default.post(name: .panelCommandReceived, object: PanelCommand.openPreferences)
-                onCommand?(.openPreferences)
+                postCommand(.openPreferences)
                 return
             case "w":
                 if isPinned {
                     onUnpinRequested?()
                 } else {
                     onCloseRequested?()
+                    postCommand(.close)
                 }
-                NotificationCenter.default.post(name: .panelCommandReceived, object: PanelCommand.close)
-                onCommand?(.close)
                 return
             default:
                 break
@@ -121,16 +122,13 @@ public final class MetricPanel: NSPanel {
         } else {
             switch event.keyCode {
             case 123: // Left Arrow
-                NotificationCenter.default.post(name: .panelCommandReceived, object: PanelCommand.previousPage)
-                onCommand?(.previousPage)
+                postCommand(.previousPage)
                 return
             case 124: // Right Arrow
-                NotificationCenter.default.post(name: .panelCommandReceived, object: PanelCommand.nextPage)
-                onCommand?(.nextPage)
+                postCommand(.nextPage)
                 return
             case 49: // Space
-                NotificationCenter.default.post(name: .panelCommandReceived, object: PanelCommand.togglePause)
-                onCommand?(.togglePause)
+                postCommand(.togglePause)
                 return
             default:
                 break
@@ -171,13 +169,39 @@ final class PanelBackgroundView: NSView {
         setupBackground()
     }
 
+    override var wantsUpdateLayer: Bool {
+        true
+    }
+
+    override func updateLayer() {
+        super.updateLayer()
+        updateBorderAppearance()
+    }
+
+    private func updateBorderAppearance() {
+        let match = effectiveAppearance.bestMatch(from: [
+            .accessibilityHighContrastDarkAqua,
+            .darkAqua,
+            .accessibilityHighContrastAqua,
+            .aqua
+        ])
+        let isDark = (match == .darkAqua || match == .accessibilityHighContrastDarkAqua)
+        let isHighContrast = (match == .accessibilityHighContrastDarkAqua || match == .accessibilityHighContrastAqua)
+
+        if isDark {
+            layer?.borderColor = NSColor.white.withAlphaComponent(isHighContrast ? 0.35 : 0.18).cgColor
+        } else {
+            layer?.borderColor = NSColor.black.withAlphaComponent(isHighContrast ? 0.28 : 0.12).cgColor
+        }
+    }
+
     private func setupBackground() {
         wantsLayer = true
         layer?.cornerRadius = Instrument.Radius.panel
         layer?.cornerCurve = .continuous
         layer?.masksToBounds = true
         layer?.borderWidth = 0.5
-        layer?.borderColor = NSColor.white.withAlphaComponent(0.18).cgColor
+        updateBorderAppearance()
 
         if #available(macOS 26.0, *) {
             let glassView = NSGlassEffectView()

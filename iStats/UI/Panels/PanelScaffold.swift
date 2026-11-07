@@ -63,6 +63,15 @@ public struct PanelScaffold<Content: View>: View {
     @Namespace private var chartNamespace
     @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
     @ObservedObject private var coordinator = MetricsCoordinator.shared
+    @ObservedObject private var panelController = PanelController.shared
+
+    private var effectiveIsPinned: Bool {
+        isPinned || panelController.isPinned(for: category)
+    }
+
+    private var isWindowVisible: Bool {
+        panelController.isPanelOpen(for: category) || (!panelController.isTransientVisible && panelController.pinnedCategories.isEmpty)
+    }
 
     public init(
         category: MetricCategory,
@@ -103,7 +112,7 @@ public struct PanelScaffold<Content: View>: View {
             reduceMotion: accessibilityReduceMotion,
             lowPower: coordinator.isLowPowerModeActive,
             paused: isPaused,
-            visible: true
+            visible: isWindowVisible
         )
 
         VStack(alignment: .leading, spacing: 0) {
@@ -154,6 +163,10 @@ public struct PanelScaffold<Content: View>: View {
         .environment(\.chartNamespace, chartNamespace)
         .motionPolicy(resolvedPolicy)
         .onReceive(NotificationCenter.default.publisher(for: .panelCommandReceived)) { notification in
+            if let targetCategory = notification.userInfo?["category"] as? MetricCategory,
+               targetCategory != category {
+                return
+            }
             if let cmd = notification.object as? PanelCommand {
                 handleCommand(cmd)
             }
@@ -217,17 +230,32 @@ public struct PanelScaffold<Content: View>: View {
                 if let pinAction = onPinToggle {
                     pinAction()
                 } else {
-                    PanelController.shared.togglePin()
+                    panelController.togglePin(for: category)
                 }
             } label: {
-                Image(systemName: isPinned ? "pin.fill" : "pin")
-                    .font(.system(size: 11, weight: isPinned ? .semibold : .regular))
-                    .foregroundColor(isPinned ? CategoryPalette.tint(for: category) : .secondary)
+                Image(systemName: effectiveIsPinned ? "pin.fill" : "pin")
+                    .font(.system(size: 11, weight: effectiveIsPinned ? .semibold : .regular))
+                    .foregroundColor(effectiveIsPinned ? CategoryPalette.tint(for: category) : .secondary)
                     .frame(width: 20, height: 20)
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .help(isPinned ? "Unpin Window" : "Pin Window")
+            .help(effectiveIsPinned ? "Unpin Window" : "Pin Window")
+
+            // Explicit Close Button on Pinned HUDs
+            if effectiveIsPinned {
+                Button {
+                    panelController.unpin(category: category)
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundColor(.secondary)
+                        .frame(width: 20, height: 20)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .help("Close Pinned Window")
+            }
         }
     }
 
@@ -392,28 +420,39 @@ public struct PanelScaffold<Content: View>: View {
                 if selection == .overview {
                     content(selection)
                 } else {
-                    ScrollView(.vertical, showsIndicators: false) {
+                    ViewThatFits(in: .vertical) {
                         content(selection)
                             .padding(.vertical, 2)
-                    }
-                    .frame(maxHeight: 380)
-                    .mask(
-                        VStack(spacing: 0) {
-                            LinearGradient(colors: [.clear, .black], startPoint: .top, endPoint: .bottom)
-                                .frame(height: 6)
-                            Rectangle().fill(Color.black)
-                            LinearGradient(colors: [.black, .clear], startPoint: .top, endPoint: .bottom)
-                                .frame(height: 8)
+
+                        ScrollView(.vertical, showsIndicators: false) {
+                            content(selection)
+                                .padding(.vertical, 2)
                         }
-                    )
+                        .frame(maxHeight: 380)
+                        .mask(
+                            VStack(spacing: 0) {
+                                LinearGradient(colors: [.clear, .black], startPoint: .top, endPoint: .bottom)
+                                    .frame(height: 6)
+                                Rectangle().fill(Color.black)
+                                LinearGradient(colors: [.black, .clear], startPoint: .top, endPoint: .bottom)
+                                    .frame(height: 8)
+                            }
+                        )
+                    }
                 }
             }
             .padding(.top, 8)
             .onAppear {
-                PanelController.shared.updateFittingHeight(animated: false)
+                let cat = category
+                DispatchQueue.main.async {
+                    PanelController.shared.updateFittingHeight(for: cat, animated: false)
+                }
             }
             .onChange(of: selection) { _ in
-                PanelController.shared.updateFittingHeight(animated: true)
+                let cat = category
+                DispatchQueue.main.async {
+                    PanelController.shared.updateFittingHeight(for: cat, animated: true)
+                }
             }
         }
     }
@@ -445,14 +484,18 @@ public struct PanelScaffold<Content: View>: View {
             if let pinAction = onPinToggle {
                 pinAction()
             } else {
-                PanelController.shared.togglePin()
+                panelController.togglePin(for: category)
             }
         case .togglePause:
             onTogglePause?()
         case .openPreferences:
             PreferencesWindowController.shared.showPreferences()
         case .close:
-            PanelController.shared.close()
+            if effectiveIsPinned {
+                panelController.unpin(category: category)
+            } else {
+                panelController.close()
+            }
         }
     }
 
