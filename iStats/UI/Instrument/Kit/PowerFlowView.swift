@@ -181,11 +181,11 @@ public struct PowerFlowView: View {
             if let w = watts, w > 0 {
                 let prefix = wattsPrefix ?? ""
                 Text("\(prefix)\(String(format: "%.1f", w)) W")
-                    .font(Instrument.Typography.mono.monospacedDigit())
+                    .font(Instrument.Typography.micro.monospacedDigit())
                     .foregroundColor(isActive ? .primary : .secondary)
             } else {
                 Text("—")
-                    .font(Instrument.Typography.mono.monospacedDigit())
+                    .font(Instrument.Typography.micro.monospacedDigit())
                     .foregroundColor(.secondary.opacity(0.5))
             }
         }

@@ -113,7 +113,7 @@ public struct NetworkPanel: View {
         let downParts = Units.rateComponents(downBytes, unit: unit, standard: std)
         let upParts = Units.rateComponents(upBytes, unit: unit, standard: std)
 
-        let headline = PanelHeadline.network(sample: sample)
+        let headline = PanelHeadline.network(sample: sample, standard: std)
 
         let inHistory = coordinator.networkHistory.map { $0.value.totalBytesInPerSec }
         let outHistory = coordinator.networkHistory.map { $0.value.totalBytesOutPerSec }
@@ -121,7 +121,8 @@ public struct NetworkPanel: View {
         let insight = InsightEngine.best(
             series: inHistory,
             interval: preferences.refreshInterval,
-            unit: .bytesPerSecond
+            unit: .bytesPerSecond(standard: std),
+            thresholds: .throughputBytesPerSec()
         )?.text
 
         let chartMode = LiveChartMode.mirrored(
@@ -330,11 +331,11 @@ public struct NetworkPanel: View {
 
                                 HStack(spacing: 8) {
                                     Text("↓ \(Units.formatCompactRate(iface.bytesInPerSec, unit: unit, standard: std))")
-                                        .font(Instrument.Typography.mono)
+                                        .font(Instrument.Typography.value)
                                         .foregroundColor(CategoryPalette.color(for: .network))
 
                                     Text("↑ \(Units.formatCompactRate(iface.bytesOutPerSec, unit: unit, standard: std))")
-                                        .font(Instrument.Typography.mono)
+                                        .font(Instrument.Typography.value)
                                         .foregroundColor(CategoryPalette.Series.networkUpload)
                                 }
                             }

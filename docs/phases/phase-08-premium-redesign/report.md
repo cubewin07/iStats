@@ -25,7 +25,7 @@ Following a comprehensive critical review across all 8 panels, AppKit window con
    - Replaced stock `NSPopover` with custom AppKit `MetricPanel : NSPanel` managed by `PanelController.shared`.
    - Eliminated popover arrow chrome, fixed clipping bugs, and enabled smooth pointer hover-scrubbing between menu bar items.
    - Implemented independent multi-category pinning (`pinnedPanels: [MetricCategory: MetricPanel]`), surviving outside clicks as movable desktop HUDs with position persistence and multi-display clamping.
-   - Standardized on a 352 pt width grid (320 pt content) and dynamic top-anchored height up to 520 pt.
+   - Standardized on a 352 pt width grid (320 pt content) and dynamic top-anchored height up to 560 pt (`Instrument.Size.maxHeight`).
 
 2. **Instrument Design System (`iStats/UI/Instrument/`):**
    - `InstrumentTokens.swift`: Canonical constants for spacing (8 pt scale), corner radii (`panel: 16`, `module: 12`), surfaces (`panel`, `module`), and typography (SF Pro tabular digits, SF Mono identifiers).
@@ -61,7 +61,7 @@ Following a comprehensive critical review across all 8 panels, AppKit window con
 6. **8 Purpose-Built Signature Category Panels (`iStats/UI/Panels/`):**
    - **CPUPanel:** E-Core / P-Core cluster matrix with deterministic IDs, load average in detail page, clock speed, top CPU processes, stacked user/system chart, and history. Zero-scroll Overview ($\le 480$ pt).
    - **MemoryPanel:** SplitCapsule composition with dynamic hover tooltips, memory pressure arc gauge, swap activity folded into footer, top Memory processes, and history. Zero-scroll Overview ($\le 485$ pt).
-   - **GPUPanel:** Engine ring stack, VRAM working set meter with status coloring, thermal metrics, top GPU processes, and history.
+   - **GPUPanel:** Engine ring stack, VRAM working set meter with status coloring, thermal and power metrics, and history.
    - **TemperaturePanel:** Peak temperature glance, thermal spectrum bar with dynamically fitted width, classified thermal sensor hierarchy with collapsible groups, quick swap to Fan panel, and history.
    - **FanPanel:** Vector turbine visualization spinning via `FanMath.stepRotationDegrees`, fanless Mac detection displaying `"Passive"`, acoustics safety banner, and history.
    - **NetworkPanel:** Mirrored download/upload live charts, active interface IP, gateway, DNS, Wi-Fi SSID/RSSI/TxRate with non-fabricated band display, and history.
@@ -81,9 +81,10 @@ Both the SwiftPM CLI and Xcode test suites pass with 100% success and 0 failures
 
 | Test Suite | Command | Tests Run | Result | Duration |
 |------------|---------|-----------|--------|----------|
-| `iStatsCoreTests` (Domain) | `swift test --scratch-path /tmp/istats-build --filter iStatsCoreTests` | 253 | **Passed** | 1.31s |
-| `iStatsTests` (App CLI) | `swift test --scratch-path /tmp/istats-build` | 333 | **Passed** | 6.42s |
-| **Total Test Runs** | — | **586 tests** | **0 Failures** | **~7.7s** |
+| `iStatsCoreTests` (Domain) | `swift test --scratch-path /tmp/istats-build --filter iStatsCoreTests` | 257 | **Passed** | 1.50s |
+| `iStatsTests` (App CLI) | `swift test --scratch-path /tmp/istats-build --filter iStatsTests` | 329 | **Passed** | 6.66s |
+| `iStatsTests` (Xcode App) | `xcodebuild test -scheme iStatsApp -destination 'platform=macOS'` | 321 | **Passed** | 6.76s |
+| **Total SwiftPM Test Runs** | `swift test --scratch-path /tmp/istats-build` | **586 tests** | **0 Failures** | **~8.2s** |
 
 ### Key Test Suites Validated
 - `PaletteContrastTests`: Validates WCAG AA contrast ratio $\ge 4.5:1$ across all category tints, dual series, and status levels in Light and Dark mode.
@@ -105,7 +106,7 @@ Both the SwiftPM CLI and Xcode test suites pass with 100% success and 0 failures
 
 2. **Panel Geometry & Layout Invariants:**
    - Width is strictly fixed to **352 pt** across all 8 panels (`Instrument.Size.panelWidth`).
-   - Height is dynamically top-anchored (`frame.maxY` stationary) up to **520 pt** (`Instrument.Size.maxHeight`).
+   - Height is dynamically top-anchored (`frame.maxY` stationary) up to **560 pt** (`Instrument.Size.maxHeight`).
    - The *Overview* (*Now*) page never scrolls; only the secondary *Details* or *History* pages scroll when necessary.
 
 3. **Memory Footprint:**

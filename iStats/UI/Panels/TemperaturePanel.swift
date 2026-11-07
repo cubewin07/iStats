@@ -92,11 +92,17 @@ public struct TemperaturePanel: View {
 
         let cpuPeak = sample.flatMap { ThermalSensorClassifier.peakCelsius(in: $0, for: .cpu) }
         let gpuPeak = sample.flatMap { ThermalSensorClassifier.peakCelsius(in: $0, for: .gpu) }
-        let headline = PanelHeadline.thermal(sample: sample, cpuTemp: cpuPeak, gpuTemp: gpuPeak)
+        let headline = PanelHeadline.thermal(sample: sample, cpuTemp: cpuPeak, gpuTemp: gpuPeak, unit: unit)
 
         let peakHistoryC = coordinator.scalarHistory(for: .thermalPeakCelsius, duration: 60)
         let peakHistory = peakHistoryC.map { unit == .fahrenheit ? Units.celsiusToFahrenheit($0) : $0 }
-        let insight = InsightEngine.insights(series: peakHistoryC, interval: 1.0, unit: .celsius, thresholds: .thermalCelsius()).first?.text
+        let insightUnit: InsightEngine.InsightUnit = unit == .fahrenheit ? .fahrenheit : .celsius
+        let insight = InsightEngine.insights(
+            series: peakHistory,
+            interval: 1.0,
+            unit: insightUnit,
+            thresholds: .thermal(unit: unit)
+        ).first?.text
 
         let chartMode = LiveChartMode.single(
             values: peakHistory,
@@ -155,9 +161,11 @@ public struct TemperaturePanel: View {
     private func spectrumBarModule(sample: ThermalSample) -> some View {
         let markers = buildMarkers(sample: sample)
         let barWidth: Double = Double(Instrument.Size.panelWidth - 2 * Instrument.Space.xl - 2 * Instrument.Space.modulePadding)
-        let placed = SpectrumLayout.place(markers: markers, width: barWidth, minSpacing: 16.0)
+        let placed = SpectrumLayout.place(markers: markers, width: barWidth, minSpacing: 36.0)
         let maxTier = placed.map(\.tier).max() ?? 0
-        let topPadding = CGFloat(maxTier) * 16.0
+        let tierSpacing: CGFloat = 18.0
+        let topPadding = CGFloat(maxTier) * tierSpacing + 14.0
+        let barCenterY = topPadding + 11.0
 
         Module(eyebrow: "Thermal Spectrum (30°–110°C)") {
             VStack(alignment: .leading, spacing: 8) {
@@ -167,31 +175,40 @@ public struct TemperaturePanel: View {
                     Capsule()
                         .fill(ThermalRamp.linearGradient)
                         .frame(width: CGFloat(barWidth), height: 10)
-                        .padding(.top, topPadding + 6)
+                        .position(x: CGFloat(barWidth) / 2.0, y: barCenterY)
 
-                    // Placed Marker Dots and Labels
+                    // Placed Marker Dots, Leader Stems, and Clamped Labels
                     ForEach(placed) { marker in
                         let dotX = CGFloat(marker.x)
-                        let dotY = topPadding + 11 - CGFloat(marker.tier) * 16.0
+                        let dotCenterY = barCenterY - CGFloat(marker.tier) * tierSpacing
+                        let labelX = min(max(dotX, 18.0), CGFloat(barWidth) - 18.0)
                         let dotColor = ThermalRamp.color(celsius: marker.value)
 
-                        VStack(spacing: 2) {
-                            Text(marker.label)
-                                .font(Instrument.Typography.micro)
-                                .foregroundColor(Color.primary)
-
-                            Circle()
-                                .fill(dotColor)
-                                .frame(width: 8, height: 8)
-                                .overlay(
-                                    Circle()
-                                        .stroke(Color.black.opacity(0.4), lineWidth: 1)
-                                )
+                        if marker.tier > 0 {
+                            let stemHeight = CGFloat(marker.tier) * tierSpacing
+                            Rectangle()
+                                .fill(dotColor.opacity(0.65))
+                                .frame(width: 1, height: stemHeight)
+                                .position(x: dotX, y: (dotCenterY + barCenterY) / 2.0)
                         }
-                        .offset(x: dotX - 12, y: dotY - 20)
+
+                        Circle()
+                            .fill(dotColor)
+                            .frame(width: 8, height: 8)
+                            .overlay(
+                                Circle()
+                                    .stroke(Color.black.opacity(0.4), lineWidth: 1)
+                            )
+                            .position(x: dotX, y: dotCenterY)
+
+                        Text(marker.label)
+                            .font(Instrument.Typography.micro)
+                            .foregroundColor(Color.primary)
+                            .fixedSize()
+                            .position(x: labelX, y: dotCenterY - 11.0)
                     }
                 }
-                .frame(width: CGFloat(barWidth), height: topPadding + 28)
+                .frame(width: CGFloat(barWidth), height: topPadding + 20.0)
 
                 // Range Bounds Footnotes
                 HStack {

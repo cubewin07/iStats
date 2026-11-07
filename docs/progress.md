@@ -31,7 +31,7 @@ The only status file. Agent specs (`AGENTS.md`, `CLAUDE.md`) and phase plans do 
 | 5 | Thermal, fan, GPU | **done** | ThermalSampler, FanSampler, GPUSampler, ADR 0003, ADR 0004, ADR 0005, and Phase 5 report complete. Live AppleSMC & IOKit accelerator telemetry validated on Apple Silicon. |
 | 6 | Polish & preferences | **done** | Full preferences (General, Categories, Units), 8 menu bar modes, SMAppService launch-at-login, Dock icon toggle, ADR 0006 zero-telemetry persistence, performance benchmark pass, docs/ADRs finalized, and `report.md` complete. |
 | 7 | Widget & popover redesign | **done** | ADR 0008, 32 high-signal widgets, 8 purpose-driven popovers (23 tabs), in-memory scalar history with spike-preserving downsampling (Task 7.6, 154 KB), design tokens & primitives, 20 legacy files deleted, report complete. 480 tests passing. |
-| 8 | Premium panel redesign ("Instrument") | **done** | ADR 0009, Instrument design language, glass `MetricPanel : NSPanel`, `PanelController` with top-anchored morphing and multi-pinned HUDs, 8 signature instruments, `LiveChart` with 4 modes and active band detection, `InsightEngine` presets, top consumers (`ProcessSampler` Mach timebase fix), History v2, 25 legacy files deleted, accessibility matrix passed, report complete. 586 tests passing green (253 `iStatsCoreTests`, 333 `iStatsTests` CLI, 318 Xcode app). |
+| 8 | Premium panel redesign ("Instrument") | **done** | ADR 0009, Instrument design language, glass `MetricPanel : NSPanel`, `PanelController` with top-anchored morphing and multi-pinned HUDs, 8 signature instruments, `LiveChart` with 4 modes and active band detection, `InsightEngine` presets, top consumers (`ProcessSampler` Mach timebase fix), History v2, 25 legacy files deleted, accessibility matrix passed, report complete. 586 tests passing green (257 `iStatsCoreTests`, 329 `iStatsTests` CLI, 321 Xcode app). |
 
 Status values: `not started` · `in progress` · `docs on disk, not closed` · `done` · `blocked`.
 
@@ -111,7 +111,7 @@ Copy a row from [`docs/specs/tasks.md`](./specs/tasks.md) when you start it. Lea
 | 8.9 | Top consumers (`ProcessSampler`, background `libproc`) | **done** | [`docs/handoffs/08-8.9-summary.md`](./handoffs/08-8.9-summary.md), `swift test` (247 passed), `xcodebuild test` (318 passed; 565 total) |
 | 8.10 | History v2: range control, annotations, scrub, channel isolation | **done** | [`docs/handoffs/08-8.10-summary.md`](./handoffs/08-8.10-summary.md), `swift test` (247 passed), `xcodebuild test` (321 passed; 568 total) |
 | 8.11 | Accessibility & appearance matrix | **done** | [`docs/handoffs/08-8.11-summary.md`](./handoffs/08-8.11-summary.md), `swift test` (247 passed), `xcodebuild test` (327 passed; 574 total) |
-| 8.12 | Performance budget, legacy deletion, docs sync, report | **done** | [`docs/handoffs/08-8.12-summary.md`](./handoffs/08-8.12-summary.md), [`docs/phases/phase-08-premium-redesign/report.md`](./phases/phase-08-premium-redesign/report.md), `swift test` (574 passed), `xcodebuild test` (318 passed) |
+| 8.12 | Performance budget, legacy deletion, docs sync, report | **done** | [`docs/handoffs/08-8.12-summary.md`](./handoffs/08-8.12-summary.md), [`docs/phases/phase-08-premium-redesign/report.md`](./phases/phase-08-premium-redesign/report.md), `swift test` (586 passed: 257 core + 329 app), `xcodebuild test` (321 passed) |
 
 When a task is done, set Status to `done` and put the handoff summary path (or test command) in Evidence.
 

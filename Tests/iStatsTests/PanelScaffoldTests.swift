@@ -101,7 +101,7 @@ final class PanelScaffoldTests: XCTestCase {
 
     func testPanelCommandNotificationBroadcasting() {
         let expectation = expectation(description: "Command received")
-        var receivedCommand: PanelCommand?
+        nonisolated(unsafe) var receivedCommand: PanelCommand?
 
         let cancellable = NotificationCenter.default.addObserver(
             forName: .panelCommandReceived,
@@ -597,7 +597,7 @@ final class PanelScaffoldTests: XCTestCase {
         defer { cleanup(defaults: defaults, suiteName: suiteName) }
 
         // Only 3 samples
-        for i in 0..<3 {
+        for _ in 0..<3 {
             coord.handleReading(.cpu(Sample(value: CPUSample(totalUsage: 25.0, perCore: [25.0], user: 15.0, system: 10.0, idle: 75.0))))
         }
 

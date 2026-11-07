@@ -98,7 +98,8 @@ public struct DiskPanel: View {
         let insight = InsightEngine.best(
             series: readHistory,
             interval: preferences.refreshInterval,
-            unit: .bytesPerSecond
+            unit: .bytesPerSecond(standard: std),
+            thresholds: .throughputBytesPerSec()
         )?.text
 
         let chartMode = LiveChartMode.mirrored(
@@ -218,12 +219,14 @@ public struct DiskPanel: View {
                         CapsuleSegment(
                             value: Double(volume.used),
                             color: CategoryPalette.color(for: .disk),
-                            label: "Used"
+                            label: "Used",
+                            formattedValue: "Used: \(Units.formatBytes(volume.used, standard: std))"
                         ),
                         CapsuleSegment(
                             value: Double(volume.free),
                             color: Color.secondary.opacity(0.18),
-                            label: "Free"
+                            label: "Free",
+                            formattedValue: "Free: \(Units.formatBytes(volume.free, standard: std))"
                         )
                     ],
                     height: 14,
@@ -323,12 +326,14 @@ public struct DiskPanel: View {
                     CapsuleSegment(
                         value: Double(vol.used),
                         color: CategoryPalette.color(for: .disk),
-                        label: "Used"
+                        label: "Used",
+                        formattedValue: "Used: \(Units.formatBytes(vol.used, standard: std))"
                     ),
                     CapsuleSegment(
                         value: Double(vol.free),
                         color: Color.secondary.opacity(0.18),
-                        label: "Free"
+                        label: "Free",
+                        formattedValue: "Free: \(Units.formatBytes(vol.free, standard: std))"
                     )
                 ],
                 height: 6,

@@ -85,7 +85,7 @@ public struct MemoryPanel: View {
     private func deriveGlance(sample: MemorySample?) -> PanelGlance {
         let usedGB = sample.map { Double($0.used) / 1_073_741_824.0 } ?? 0.0
         let totalFormatted = sample.map { Units.formatBytes(UInt64($0.total), standard: preferences.byteUnitStandard) } ?? "16 GB"
-        let headline = PanelHeadline.memory(sample: sample)
+        let headline = PanelHeadline.memory(sample: sample, standard: preferences.byteUnitStandard)
         let usedHistory = coordinator.scalarHistory(for: .memoryUsedPercent, duration: 60)
         let insight = InsightEngine.insights(series: usedHistory, interval: 1.0, unit: .percent).first?.text
         let chartMode = LiveChartMode.single(

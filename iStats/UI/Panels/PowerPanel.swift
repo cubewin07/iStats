@@ -95,11 +95,13 @@ public struct PowerPanel: View {
             let charge = sample?.charge ?? 0.0
             let history = coordinator.powerHistory.compactMap { $0.value.charge }
             let series = history.isEmpty ? [charge] : history
+            let wattsHistory = coordinator.powerHistory.compactMap { $0.value.powerDrawWatts }
 
             let insight = InsightEngine.best(
-                series: series,
+                series: wattsHistory,
                 interval: preferences.refreshInterval,
-                unit: .percent
+                unit: .watts,
+                thresholds: .powerWatts
             )?.text
 
             let chartMode = LiveChartMode.single(
@@ -127,7 +129,8 @@ public struct PowerPanel: View {
             let insight = InsightEngine.best(
                 series: series,
                 interval: preferences.refreshInterval,
-                unit: .watts
+                unit: .watts,
+                thresholds: .powerWatts
             )?.text
 
             let chartMode = LiveChartMode.single(

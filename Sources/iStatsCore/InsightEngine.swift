@@ -99,6 +99,18 @@ public enum InsightEngine {
             )
         }
 
+        public static func thermal(unit: Units.TemperatureUnit) -> ThresholdBand {
+            guard unit == .fahrenheit else { return thermalCelsius() }
+            return ThresholdBand(
+                quietFloor: Units.celsiusToFahrenheit(45.0),
+                elevated: Units.celsiusToFahrenheit(65.0),
+                warning: Units.celsiusToFahrenheit(85.0),
+                spikeDelta: 8.0 * 1.8,
+                trendDelta: 5.0 * 1.8,
+                peakMargin: 6.0 * 1.8
+            )
+        }
+
         public static func throughputBytesPerSec() -> ThresholdBand {
             ThresholdBand(
                 quietFloor: 50_000.0,     // 50 KB/s

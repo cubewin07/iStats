@@ -86,7 +86,16 @@ public struct FanPanel: View {
         let headline = PanelHeadline.fan(sample: sample)
 
         let rpmHistory = coordinator.scalarHistory(for: .fanMaxRPM, duration: 60)
-        let insight = isFanless ? "Passive silent cooling" : InsightEngine.insights(series: rpmHistory, interval: 1.0, unit: .rpm, thresholds: .fanRPM()).first?.text
+        let minRPM = Double(sample?.fans.compactMap(\.minRPM).min() ?? 1200)
+        let maxSpecRPM = Double(sample?.fans.compactMap(\.maxRPM).max() ?? 6000)
+        let insight = isFanless
+            ? "Passive silent cooling"
+            : InsightEngine.insights(
+                series: rpmHistory,
+                interval: 1.0,
+                unit: .rpm,
+                thresholds: .fanRPM(minRPM: minRPM, maxRPM: maxSpecRPM)
+            ).first?.text
 
         let chartMode: LiveChartMode? = isFanless ? nil : .single(
             values: rpmHistory,

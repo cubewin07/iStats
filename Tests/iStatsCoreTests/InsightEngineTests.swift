@@ -148,5 +148,42 @@ final class InsightEngineTests: XCTestCase {
         )
         XCTAssertFalse(insights.contains(where: { $0.kind == .sustained }))
     }
+
+    func testThermalFahrenheitThresholdsAndFormatting() {
+        // Normal 122°F (50°C) for 100 seconds should not trigger sustained busy
+        let normalSeriesF = Array(repeating: 122.0, count: 100)
+        let normalInsights = InsightEngine.insights(
+            series: normalSeriesF,
+            interval: 1.0,
+            unit: .fahrenheit,
+            thresholds: .thermal(unit: .fahrenheit)
+        )
+        XCTAssertFalse(normalInsights.contains(where: { $0.kind == .sustained }))
+
+        // Spike from 122°F (50°C) to 194°F (90°C) 10s ago should format with °F
+        var spikeSeriesF = Array(repeating: 122.0, count: 50)
+        spikeSeriesF[40] = 194.0
+        let spikeInsights = InsightEngine.insights(
+            series: spikeSeriesF,
+            interval: 1.0,
+            unit: .fahrenheit,
+            thresholds: .thermal(unit: .fahrenheit)
+        )
+        let spike = spikeInsights.first(where: { $0.kind == .recentSpike })
+        XCTAssertNotNil(spike)
+        XCTAssertTrue(spike?.text.contains("194°F") ?? false)
+    }
+
+    func testPowerWattsThresholdsDoNotTriggerBusyOnNormalBatteryChargeOrIdleDraw() {
+        // 15 W normal laptop draw for 100s (below 25 W elevated threshold)
+        let series = Array(repeating: 15.0, count: 100)
+        let insights = InsightEngine.insights(
+            series: series,
+            interval: 1.0,
+            unit: .watts,
+            thresholds: .powerWatts
+        )
+        XCTAssertFalse(insights.contains(where: { $0.kind == .sustained }))
+    }
 }
 

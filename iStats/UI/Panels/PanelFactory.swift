@@ -102,15 +102,6 @@ public enum PanelFactory {
                 coordinator: coordinator,
                 preferences: preferences
             )
-        default:
-            PanelHostView(
-                category: category,
-                initialTab: initialTab,
-                rememberLastTab: rememberLastTab,
-                focusSource: focusSource,
-                coordinator: coordinator,
-                preferences: preferences
-            )
         }
     }
 }
@@ -212,8 +203,8 @@ public struct PanelHostView: View {
         case .memory:
             let sample = coordinator.latestMemory?.value
             let usedGB = sample.map { Double($0.used) / 1_073_741_824.0 } ?? 0.0
-            let totalFormatted = sample.map { Units.formatBytesIEC(Int64($0.total), fractionDigits: 0) } ?? "16 GB"
-            let headline = PanelHeadline.memory(sample: sample)
+            let totalFormatted = sample.map { Units.formatBytes($0.total, standard: preferences.byteUnitStandard) } ?? "16 GB"
+            let headline = PanelHeadline.memory(sample: sample, standard: preferences.byteUnitStandard)
             let usedHistory = coordinator.scalarHistory(for: .memoryUsedPercent, duration: 60)
             let insight = InsightEngine.insights(series: usedHistory, interval: 1.0, unit: .percent).first?.text
             let chartMode = LiveChartMode.single(
@@ -254,10 +245,18 @@ public struct PanelHostView: View {
 
         case .thermal:
             let sample = coordinator.latestThermal?.value
-            let peak = sample?.peakTemperatureCelsius ?? 0.0
-            let headline = PanelHeadline.thermal(sample: sample)
+            let unit = preferences.temperatureUnit
+            let peakC = sample?.peakTemperatureCelsius ?? 0.0
+            let peak = unit == .fahrenheit ? Units.celsiusToFahrenheit(peakC) : peakC
+            let headline = PanelHeadline.thermal(sample: sample, unit: unit)
             let thermalHistory = coordinator.scalarHistory(for: .thermalPeakCelsius, duration: 60)
-            let insight = InsightEngine.insights(series: thermalHistory, interval: 1.0, unit: .celsius).first?.text
+                .map { unit == .fahrenheit ? Units.celsiusToFahrenheit($0) : $0 }
+            let insight = InsightEngine.insights(
+                series: thermalHistory,
+                interval: 1.0,
+                unit: unit == .fahrenheit ? .fahrenheit : .celsius,
+                thresholds: .thermal(unit: unit)
+            ).first?.text
             let chartMode = LiveChartMode.single(
                 values: thermalHistory,
                 color: CategoryPalette.tint(for: .thermal),
@@ -266,7 +265,7 @@ public struct PanelHostView: View {
             return PanelGlance(
                 value: peak,
                 format: "%.0f",
-                unit: "°C",
+                unit: unit.symbol,
                 headline: headline,
                 insight: insight,
                 chartMode: chartMode
@@ -277,7 +276,14 @@ public struct PanelHostView: View {
             let maxRPM = Double(sample?.fans.map(\.rpm).max() ?? 0)
             let headline = PanelHeadline.fan(sample: sample)
             let fanHistory = coordinator.scalarHistory(for: .fanMaxRPM, duration: 60)
-            let insight = InsightEngine.insights(series: fanHistory, interval: 1.0, unit: .rpm).first?.text
+            let minRPM = Double(sample?.fans.compactMap(\.minRPM).min() ?? 1200)
+            let maxSpecRPM = Double(sample?.fans.compactMap(\.maxRPM).max() ?? 6000)
+            let insight = InsightEngine.insights(
+                series: fanHistory,
+                interval: 1.0,
+                unit: .rpm,
+                thresholds: .fanRPM(minRPM: minRPM, maxRPM: maxSpecRPM)
+            ).first?.text
             let chartMode = LiveChartMode.single(
                 values: fanHistory,
                 color: CategoryPalette.tint(for: .fan),
@@ -294,12 +300,18 @@ public struct PanelHostView: View {
 
         case .network:
             let sample = coordinator.latestNetwork?.value
+            let std = preferences.byteUnitStandard
             let downMB = sample.map { Double($0.totalBytesInPerSec) / 1_000_000.0 } ?? 0.0
             let upMB = sample.map { Double($0.totalBytesOutPerSec) / 1_000_000.0 } ?? 0.0
-            let headline = PanelHeadline.network(sample: sample)
+            let headline = PanelHeadline.network(sample: sample, standard: std)
             let downHistory = coordinator.scalarHistory(for: .networkInBytesPerSec, duration: 60).map { $0 / 1_000_000.0 }
             let upHistory = coordinator.scalarHistory(for: .networkOutBytesPerSec, duration: 60).map { $0 / 1_000_000.0 }
-            let insight = InsightEngine.insights(series: downHistory.map { $0 * 1_000_000.0 }, interval: 1.0, unit: .bytesPerSecond).first?.text
+            let insight = InsightEngine.insights(
+                series: downHistory.map { $0 * 1_000_000.0 },
+                interval: 1.0,
+                unit: .bytesPerSecond(standard: std),
+                thresholds: .throughputBytesPerSec()
+            ).first?.text
             let chartMode = LiveChartMode.mirrored(
                 top: downHistory,
                 bottom: upHistory,
@@ -320,11 +332,17 @@ public struct PanelHostView: View {
 
         case .disk:
             let sample = coordinator.latestDisk?.value
+            let std = preferences.byteUnitStandard
             let freeGB = sample?.volumes.first.map { Double($0.free) / 1_000_000_000.0 } ?? 0.0
-            let headline = PanelHeadline.disk(sample: sample)
+            let headline = PanelHeadline.disk(sample: sample, standard: std)
             let readHistory = coordinator.scalarHistory(for: .diskReadBytesPerSec, duration: 60).map { $0 / 1_000_000.0 }
             let writeHistory = coordinator.scalarHistory(for: .diskWriteBytesPerSec, duration: 60).map { $0 / 1_000_000.0 }
-            let insight = InsightEngine.insights(series: readHistory.map { $0 * 1_000_000.0 }, interval: 1.0, unit: .bytesPerSecond).first?.text
+            let insight = InsightEngine.insights(
+                series: readHistory.map { $0 * 1_000_000.0 },
+                interval: 1.0,
+                unit: .bytesPerSecond(standard: std),
+                thresholds: .throughputBytesPerSec()
+            ).first?.text
             let chartMode = LiveChartMode.mirrored(
                 top: readHistory,
                 bottom: writeHistory,
@@ -348,7 +366,12 @@ public struct PanelHostView: View {
             let unit = (sample?.hasBattery == true) ? "%" : "W"
             let headline = PanelHeadline.power(sample: sample)
             let powerHistory = coordinator.scalarHistory(for: .powerWatts, duration: 60)
-            let insight = InsightEngine.insights(series: powerHistory, interval: 1.0, unit: (sample?.hasBattery == true) ? .percent : .watts).first?.text
+            let insight = InsightEngine.insights(
+                series: powerHistory,
+                interval: 1.0,
+                unit: .watts,
+                thresholds: .powerWatts
+            ).first?.text
             let chartMode = LiveChartMode.single(
                 values: powerHistory,
                 color: CategoryPalette.tint(for: .power),
