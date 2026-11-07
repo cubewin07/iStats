@@ -93,7 +93,7 @@ public struct CPUPanel: View {
             primary: userHistory,
             secondary: sysHistory,
             primaryColor: CategoryPalette.tint(for: .cpu),
-            secondaryColor: Color(red: 1.0, green: 0.42, blue: 0.37),
+            secondaryColor: CategoryPalette.Series.cpuSystem,
             fixedMax: 100.0
         )
         return PanelGlance(
@@ -224,7 +224,7 @@ public struct CPUPanel: View {
                                 id: "e-\(i)",
                                 index: i + 1,
                                 utilization: val,
-                                color: Color(red: 0.1, green: 0.65, blue: 0.75), // Glacier tint
+                                color: CategoryPalette.color(for: .fan), // Glacier tint
                                 label: "Core \(i + 1) (E): \(Int(val * 100))%"
                             )
                         }
@@ -318,7 +318,7 @@ public struct CPUPanel: View {
                         SplitCapsule(
                             segments: [
                                 CapsuleSegment(value: s.user, color: CategoryPalette.tint(for: .cpu), label: "User"),
-                                CapsuleSegment(value: s.system, color: Color(red: 1.0, green: 0.42, blue: 0.37), label: "System"),
+                                CapsuleSegment(value: s.system, color: CategoryPalette.Series.cpuSystem, label: "System"),
                                 CapsuleSegment(value: s.idle, color: Instrument.Surface.inset, label: "Idle")
                             ],
                             height: 10
@@ -331,7 +331,7 @@ public struct CPUPanel: View {
                             Spacer()
                             Text("System \(Int(round(s.system)))%")
                                 .font(Instrument.Typography.micro)
-                                .foregroundColor(Color(red: 1.0, green: 0.42, blue: 0.37))
+                                .foregroundColor(CategoryPalette.Series.cpuSystem)
                             Spacer()
                             Text("Idle \(Int(round(s.idle)))%")
                                 .font(Instrument.Typography.micro)

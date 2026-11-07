@@ -55,24 +55,8 @@ public enum CategoryPalette {
     }
 
     public static func nsColor(for category: MetricCategory) -> NSColor {
-        switch category {
-        case .cpu:
-            return dynamicNSColor(lightHex: "#0058D6", darkHex: "#5C8DFF")
-        case .memory:
-            return dynamicNSColor(lightHex: "#006E80", darkHex: "#33D1A6")
-        case .gpu:
-            return dynamicNSColor(lightHex: "#6D28D9", darkHex: "#A386FF")
-        case .thermal:
-            return dynamicNSColor(lightHex: "#B54308", darkHex: "#FF8A4C")
-        case .fan:
-            return dynamicNSColor(lightHex: "#0B6E66", darkHex: "#3CC6E8")
-        case .network:
-            return dynamicNSColor(lightHex: "#087054", darkHex: "#8389FF")
-        case .disk:
-            return dynamicNSColor(lightHex: "#364FC7", darkHex: "#FF6E9C")
-        case .power:
-            return dynamicNSColor(lightHex: "#147530", darkHex: "#4ADE80")
-        }
+        let hex = PaletteContrast.Hex.categoryTint(for: category)
+        return dynamicNSColor(lightHex: hex.light, darkHex: hex.dark)
     }
 
     // MARK: - Category Deep Colors (~12° hue shift, darker, for gradient terminals)
@@ -86,24 +70,8 @@ public enum CategoryPalette {
     }
 
     public static func nsDeep(for category: MetricCategory) -> NSColor {
-        switch category {
-        case .cpu:
-            return dynamicNSColor(lightHex: "#003E99", darkHex: "#3B5BDB")
-        case .memory:
-            return dynamicNSColor(lightHex: "#004D5A", darkHex: "#13997A")
-        case .gpu:
-            return dynamicNSColor(lightHex: "#4C1D95", darkHex: "#6E4BD8")
-        case .thermal:
-            return dynamicNSColor(lightHex: "#7C2D12", darkHex: "#E0532A")
-        case .fan:
-            return dynamicNSColor(lightHex: "#044E46", darkHex: "#1A8FB5")
-        case .network:
-            return dynamicNSColor(lightHex: "#064E3B", darkHex: "#5A5FE0")
-        case .disk:
-            return dynamicNSColor(lightHex: "#25368A", darkHex: "#D8467A")
-        case .power:
-            return dynamicNSColor(lightHex: "#0E4B20", darkHex: "#22A355")
-        }
+        let hex = PaletteContrast.Hex.categoryDeep(for: category)
+        return dynamicNSColor(lightHex: hex.light, darkHex: hex.dark)
     }
 
     // MARK: - Gradients
@@ -135,18 +103,30 @@ public enum CategoryPalette {
     public enum Series {
         // Network
         public static let networkDownload = CategoryPalette.color(for: .network)
-        public static let networkUpload = CategoryPalette.dynamicColor(lightHex: "#6D28D9", darkHex: "#A78BFA")
+        public static let networkUpload = CategoryPalette.dynamicColor(
+            lightHex: PaletteContrast.Hex.networkUpload.light,
+            darkHex: PaletteContrast.Hex.networkUpload.dark
+        )
 
         // Disk
         public static let diskRead = CategoryPalette.color(for: .disk)
-        public static let diskWrite = CategoryPalette.dynamicColor(lightHex: "#B8470B", darkHex: "#FF8A4C")
+        public static let diskWrite = CategoryPalette.dynamicColor(
+            lightHex: PaletteContrast.Hex.diskWrite.light,
+            darkHex: PaletteContrast.Hex.diskWrite.dark
+        )
 
         // CPU
         public static let cpuUser = CategoryPalette.color(for: .cpu)
-        public static let cpuSystem = CategoryPalette.dynamicColor(lightHex: "#C23B1E", darkHex: "#FF7A59")
+        public static let cpuSystem = CategoryPalette.dynamicColor(
+            lightHex: PaletteContrast.Hex.cpuSystem.light,
+            darkHex: PaletteContrast.Hex.cpuSystem.dark
+        )
 
         // Memory composition
-        public static let memoryApp = CategoryPalette.dynamicColor(lightHex: "#005EB8", darkHex: "#38BDF8")
+        public static let memoryApp = CategoryPalette.dynamicColor(
+            lightHex: PaletteContrast.Hex.memoryApp.light,
+            darkHex: PaletteContrast.Hex.memoryApp.dark
+        )
         public static let memoryWired = CategoryPalette.deep(for: .memory)
         public static let memoryCompressed = CategoryPalette.color(for: .memory).opacity(0.55)
         public static let memoryCached = CategoryPalette.color(for: .memory).opacity(0.28)
@@ -158,16 +138,8 @@ public enum CategoryPalette {
     }
 
     public static func statusNSColor(for level: StatusLevel) -> NSColor {
-        switch level {
-        case .fine:
-            return dynamicNSColor(lightHex: "#147530", darkHex: "#4ADE80")
-        case .elevated:
-            return dynamicNSColor(lightHex: "#9E5800", darkHex: "#FFC53D")
-        case .warning:
-            return dynamicNSColor(lightHex: "#B83E00", darkHex: "#FF9F45")
-        case .critical:
-            return dynamicNSColor(lightHex: "#C42014", darkHex: "#FF5C5C")
-        }
+        let hex = PaletteContrast.Hex.status(for: level)
+        return dynamicNSColor(lightHex: hex.light, darkHex: hex.dark)
     }
 }
 

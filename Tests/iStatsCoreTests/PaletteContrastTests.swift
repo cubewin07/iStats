@@ -52,18 +52,8 @@ final class PaletteContrastTests: XCTestCase {
         // All 8 category dark tints on dark surface (#1C1C1E) must satisfy WCAG AA (≥ 4.5:1)
         let darkBackground = PaletteContrast.darkBackground
 
-        let darkPalette: [(String, String)] = [
-            ("CPU", "#5C8DFF"),
-            ("Memory", "#33D1A6"),
-            ("GPU", "#A386FF"),
-            ("Thermal", "#FF8A4C"),
-            ("Fan", "#3CC6E8"),
-            ("Network", "#8389FF"),
-            ("Disk", "#FF6E9C"),
-            ("Power", "#4ADE80")
-        ]
-
-        for (category, hex) in darkPalette {
+        for category in MetricCategory.allCases {
+            let hex = PaletteContrast.Hex.categoryTint(for: category).dark
             guard let color = RGBColor(hex: hex) else {
                 XCTFail("Failed to parse hex \(hex) for \(category)")
                 continue
@@ -80,13 +70,8 @@ final class PaletteContrastTests: XCTestCase {
     func testStatusColorsContrastOnDarkBackground() {
         let darkBackground = PaletteContrast.darkBackground
 
-        let statusColors: [(String, String)] = [
-            ("Elevated", "#FFC53D"),
-            ("Warning", "#FF9F45"),
-            ("Critical", "#FF5C5C")
-        ]
-
-        for (status, hex) in statusColors {
+        for status in StatusLevel.allCases {
+            let hex = PaletteContrast.Hex.status(for: status).dark
             guard let color = RGBColor(hex: hex) else {
                 XCTFail("Failed to parse hex \(hex) for status \(status)")
                 continue
@@ -102,20 +87,10 @@ final class PaletteContrastTests: XCTestCase {
 
     func testLightCategoryTintsContrastOnLightSurfaces() {
         let whiteBg = PaletteContrast.lightBackground
-        let glassBg = RGBColor(hex: "#F2F2F7")!
+        let glassBg = PaletteContrast.lightGlassBackground
 
-        let lightPalette: [(String, String)] = [
-            ("CPU", "#0058D6"),
-            ("Memory", "#006E80"),
-            ("GPU", "#6D28D9"),
-            ("Thermal", "#B54308"),
-            ("Fan", "#0B6E66"),
-            ("Network", "#087054"),
-            ("Disk", "#364FC7"),
-            ("Power", "#147530")
-        ]
-
-        for (category, hex) in lightPalette {
+        for category in MetricCategory.allCases {
+            let hex = PaletteContrast.Hex.categoryTint(for: category).light
             guard let color = RGBColor(hex: hex) else {
                 XCTFail("Failed to parse hex \(hex) for \(category)")
                 continue
@@ -138,17 +113,17 @@ final class PaletteContrastTests: XCTestCase {
 
     func testLightStatusAndSeriesColorsContrastOnLightSurfaces() {
         let whiteBg = PaletteContrast.lightBackground
-        let glassBg = RGBColor(hex: "#F2F2F7")!
+        let glassBg = PaletteContrast.lightGlassBackground
 
-        let colors: [(String, String)] = [
-            ("Elevated", "#9E5800"),
-            ("Warning", "#B83E00"),
-            ("Critical", "#C42014"),
-            ("CPUSystem", "#C23B1E"),
-            ("NetUpload", "#6D28D9"),
-            ("DiskWrite", "#B8470B"),
-            ("MemoryApp", "#005EB8")
-        ]
+        var colors: [(String, String)] = StatusLevel.allCases.map {
+            ("\($0)", PaletteContrast.Hex.status(for: $0).light)
+        }
+        colors.append(contentsOf: [
+            ("CPUSystem", PaletteContrast.Hex.cpuSystem.light),
+            ("NetUpload", PaletteContrast.Hex.networkUpload.light),
+            ("DiskWrite", PaletteContrast.Hex.diskWrite.light),
+            ("MemoryApp", PaletteContrast.Hex.memoryApp.light)
+        ])
 
         for (name, hex) in colors {
             guard let color = RGBColor(hex: hex) else {

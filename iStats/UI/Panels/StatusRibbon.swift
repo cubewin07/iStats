@@ -80,12 +80,8 @@ public struct StatusRibbon: View {
         switch status {
         case .fine:
             return .secondary
-        case .elevated:
-            return Color(red: 0.85, green: 0.65, blue: 0.1) // Amber
-        case .warning:
-            return Color(red: 0.95, green: 0.5, blue: 0.15) // Orange
-        case .critical:
-            return Color(red: 0.9, green: 0.25, blue: 0.25) // Red
+        case .elevated, .warning, .critical:
+            return CategoryPalette.statusColor(for: status)
         }
     }
 }

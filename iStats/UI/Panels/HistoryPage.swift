@@ -374,7 +374,7 @@ public struct HistoryPage: View {
                     primary: user,
                     secondary: system,
                     primaryColor: CategoryPalette.tint(for: .cpu),
-                    secondaryColor: Color(red: 1.0, green: 0.42, blue: 0.37),
+                    secondaryColor: CategoryPalette.Series.cpuSystem,
                     fixedMax: 100.0
                 ),
                 activeValues: active,
@@ -385,7 +385,7 @@ public struct HistoryPage: View {
                 channelA: "User",
                 channelB: "System",
                 channelAColor: CategoryPalette.tint(for: .cpu),
-                channelBColor: Color(red: 1.0, green: 0.42, blue: 0.37)
+                channelBColor: CategoryPalette.Series.cpuSystem
             )
 
         case .memory:
@@ -519,7 +519,7 @@ public struct HistoryPage: View {
                     top: inRates,
                     bottom: outRates,
                     topColor: CategoryPalette.tint(for: .network),
-                    bottomColor: Color(red: 1.0, green: 0.54, blue: 0.36),
+                    bottomColor: CategoryPalette.Series.networkUpload,
                     topLabel: "↓",
                     bottomLabel: "↑"
                 ),
@@ -531,7 +531,7 @@ public struct HistoryPage: View {
                 channelA: "Download ↓",
                 channelB: "Upload ↑",
                 channelAColor: CategoryPalette.tint(for: .network),
-                channelBColor: Color(red: 1.0, green: 0.54, blue: 0.36)
+                channelBColor: CategoryPalette.Series.networkUpload
             )
 
         case .disk:
@@ -559,7 +559,7 @@ public struct HistoryPage: View {
                     top: readRates,
                     bottom: writeRates,
                     topColor: CategoryPalette.tint(for: .disk),
-                    bottomColor: Color(red: 0.96, green: 0.72, blue: 0.24),
+                    bottomColor: CategoryPalette.Series.diskWrite,
                     topLabel: "R",
                     bottomLabel: "W"
                 ),
@@ -571,7 +571,7 @@ public struct HistoryPage: View {
                 channelA: "Read",
                 channelB: "Write",
                 channelAColor: CategoryPalette.tint(for: .disk),
-                channelBColor: Color(red: 0.96, green: 0.72, blue: 0.24)
+                channelBColor: CategoryPalette.Series.diskWrite
             )
 
         case .power:

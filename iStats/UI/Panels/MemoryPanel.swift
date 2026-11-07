@@ -175,17 +175,17 @@ public struct MemoryPanel: View {
         case .warning:
             pressureVal = 65.0
             pressureText = "Warning"
-            pressureColor = Color(red: 0.95, green: 0.5, blue: 0.15) // Amber
+            pressureColor = CategoryPalette.statusColor(for: .warning)
         case .critical:
             pressureVal = 95.0
             pressureText = "Critical"
-            pressureColor = Color(red: 0.9, green: 0.25, blue: 0.25) // Red
+            pressureColor = CategoryPalette.statusColor(for: .critical)
         }
 
         let zones = [
             GaugeZone(upToFraction: 0.50, color: CategoryPalette.tint(for: .memory)),
-            GaugeZone(upToFraction: 0.80, color: Color(red: 0.95, green: 0.5, blue: 0.15)),
-            GaugeZone(upToFraction: 1.00, color: Color(red: 0.9, green: 0.25, blue: 0.25))
+            GaugeZone(upToFraction: 0.80, color: CategoryPalette.statusColor(for: .warning)),
+            GaugeZone(upToFraction: 1.00, color: CategoryPalette.statusColor(for: .critical))
         ]
 
         return Module(eyebrow: "Pressure & Memory Metrics") {
@@ -329,8 +329,8 @@ public struct MemoryPanel: View {
                 Module(eyebrow: "Pressure History (Banded)") {
                     let history = coordinator.scalarHistory(for: .memoryUsedPercent, duration: 60)
                     let bands = [
-                        ChartBand(threshold: 60.0, color: Color(red: 0.95, green: 0.5, blue: 0.15), label: "Warning"),
-                        ChartBand(threshold: 80.0, color: Color(red: 0.9, green: 0.25, blue: 0.25), label: "Critical")
+                        ChartBand(threshold: 60.0, color: CategoryPalette.statusColor(for: .warning), label: "Warning"),
+                        ChartBand(threshold: 80.0, color: CategoryPalette.statusColor(for: .critical), label: "Critical")
                     ]
                     LiveChart(
                         category: .memory,
@@ -350,7 +350,7 @@ public struct MemoryPanel: View {
                                 progress: swapFraction,
                                 height: .medium,
                                 tint: CategoryPalette.tint(for: .memory),
-                                deepTint: Color(red: 0.95, green: 0.5, blue: 0.15)
+                                deepTint: CategoryPalette.statusColor(for: .warning)
                             )
 
                             HStack {

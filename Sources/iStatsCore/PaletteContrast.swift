@@ -75,6 +75,50 @@ public enum PaletteContrast {
     public static let black = RGBColor(red: 0.0, green: 0.0, blue: 0.0)
     public static let darkBackground = RGBColor(hex: "#1C1C1E")!
     public static let lightBackground = RGBColor(hex: "#FFFFFF")!
+    public static let lightGlassBackground = RGBColor(hex: "#F2F2F7")!
+
+    /// Canonical hex definitions shared between `CategoryPalette` and `PaletteContrastTests`.
+    public enum Hex {
+        public static func categoryTint(for category: MetricCategory) -> (light: String, dark: String) {
+            switch category {
+            case .cpu:     return ("#0058D6", "#5C8DFF")
+            case .memory:  return ("#006E80", "#33D1A6")
+            case .gpu:     return ("#6D28D9", "#A386FF")
+            case .thermal: return ("#B54308", "#FF8A4C")
+            case .fan:     return ("#0B6E66", "#3CC6E8")
+            case .network: return ("#087054", "#8389FF")
+            case .disk:    return ("#364FC7", "#FF6E9C")
+            case .power:   return ("#147530", "#4ADE80")
+            }
+        }
+
+        public static func categoryDeep(for category: MetricCategory) -> (light: String, dark: String) {
+            switch category {
+            case .cpu:     return ("#003E99", "#3B5BDB")
+            case .memory:  return ("#004D5A", "#13997A")
+            case .gpu:     return ("#4C1D95", "#6E4BD8")
+            case .thermal: return ("#7C2D12", "#E0532A")
+            case .fan:     return ("#044E46", "#1A8FB5")
+            case .network: return ("#064E3B", "#5A5FE0")
+            case .disk:    return ("#25368A", "#D8467A")
+            case .power:   return ("#0E4B20", "#22A355")
+            }
+        }
+
+        public static func status(for level: StatusLevel) -> (light: String, dark: String) {
+            switch level {
+            case .fine:     return ("#147530", "#4ADE80")
+            case .elevated: return ("#9E5800", "#FFC53D")
+            case .warning:  return ("#B83E00", "#FF9F45")
+            case .critical: return ("#C42014", "#FF5C5C")
+            }
+        }
+
+        public static let cpuSystem     = (light: "#C23B1E", dark: "#FF7A59")
+        public static let networkUpload = (light: "#6D28D9", dark: "#A78BFA")
+        public static let diskWrite     = (light: "#B8470B", dark: "#FF8A4C")
+        public static let memoryApp     = (light: "#005EB8", dark: "#38BDF8")
+    }
 
     /// Check if contrast meets WCAG AA normal text requirement (≥ 4.5:1).
     public static func meetsWcagAA(text: RGBColor, background: RGBColor) -> Bool {

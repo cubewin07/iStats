@@ -15,9 +15,9 @@ public struct PowerFlowView: View {
 
     private var activeColor: Color {
         if variant == .powerDeficit {
-            return Color(red: 1.0, green: 0.35, blue: 0.25) // Deficit warning coral
+            return CategoryPalette.statusColor(for: .warning)
         } else if variant == .onHold {
-            return Color.orange
+            return CategoryPalette.statusColor(for: .elevated)
         } else {
             return CategoryPalette.color(for: .power)
         }
@@ -78,7 +78,7 @@ public struct PowerFlowView: View {
 
                     // Edge 2: Battery -> Mac
                     if let w = flow.batteryToMac, w > 0 {
-                        let col = (variant == .powerDeficit) ? Color(red: 1.0, green: 0.35, blue: 0.25) : activeColor
+                        let col = (variant == .powerDeficit) ? CategoryPalette.statusColor(for: .warning) : activeColor
                         context.stroke(pathBatteryToMac, with: .color(col), style: trackStroke)
                         if motionPolicy == .full {
                             drawParticles(

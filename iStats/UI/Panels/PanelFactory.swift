@@ -197,7 +197,7 @@ public struct PanelHostView: View {
                 primary: userHistory,
                 secondary: sysHistory,
                 primaryColor: CategoryPalette.tint(for: .cpu),
-                secondaryColor: Color(red: 1.0, green: 0.42, blue: 0.37),
+                secondaryColor: CategoryPalette.Series.cpuSystem,
                 fixedMax: 100.0
             )
             return PanelGlance(
@@ -304,7 +304,7 @@ public struct PanelHostView: View {
                 top: downHistory,
                 bottom: upHistory,
                 topColor: CategoryPalette.tint(for: .network),
-                bottomColor: Color(red: 1.0, green: 0.54, blue: 0.36),
+                bottomColor: CategoryPalette.Series.networkUpload,
                 topLabel: "↓",
                 bottomLabel: "↑"
             )
@@ -312,7 +312,7 @@ public struct PanelHostView: View {
                 value: downMB,
                 format: "%.1f",
                 unit: "MB/s",
-                secondaryGlance: (value: upMB, unit: "MB/s", color: Color(red: 1.0, green: 0.54, blue: 0.36)),
+                secondaryGlance: (value: upMB, unit: "MB/s", color: CategoryPalette.Series.networkUpload),
                 headline: headline,
                 insight: insight,
                 chartMode: chartMode
@@ -329,7 +329,7 @@ public struct PanelHostView: View {
                 top: readHistory,
                 bottom: writeHistory,
                 topColor: CategoryPalette.tint(for: .disk),
-                bottomColor: Color(red: 0.96, green: 0.72, blue: 0.24),
+                bottomColor: CategoryPalette.Series.diskWrite,
                 topLabel: "R",
                 bottomLabel: "W"
             )
