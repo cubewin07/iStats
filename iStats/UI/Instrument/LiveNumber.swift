@@ -8,6 +8,7 @@ public struct LiveNumber: View {
     public let font: Font
     public let unit: String?
     public let unitFont: Font
+    public let interval: Double
 
     @Environment(\.motionPolicy) private var motionPolicy
 
@@ -16,13 +17,15 @@ public struct LiveNumber: View {
         format: @escaping (Double) -> String = { String(format: "%.0f", $0) },
         font: Font = Instrument.Typography.display,
         unit: String? = nil,
-        unitFont: Font = Instrument.Typography.unit
+        unitFont: Font = Instrument.Typography.unit,
+        interval: Double = 1.0
     ) {
         self.value = value
         self.format = format
         self.font = font
         self.unit = unit
         self.unitFont = unitFont
+        self.interval = interval
     }
 
     public var body: some View {
@@ -50,11 +53,12 @@ public struct LiveNumber: View {
                     .font(font)
                     .tracking(opticalTracking)
                     .contentTransition(.numericText(value: value))
-                    .animation(Motion.value(), value: value)
+                    .animation(Motion.value(interval: interval), value: value)
             } else if motionPolicy == .reduced {
                 Text(text)
                     .font(font)
                     .tracking(opticalTracking)
+                    .contentTransition(.opacity)
                     .animation(.easeInOut(duration: 0.15), value: text)
             } else {
                 Text(text)
@@ -66,6 +70,8 @@ public struct LiveNumber: View {
                 Text(text)
                     .font(font)
                     .tracking(opticalTracking)
+                    .id(text)
+                    .transition(.opacity)
                     .animation(.easeInOut(duration: 0.15), value: text)
             } else {
                 Text(text)

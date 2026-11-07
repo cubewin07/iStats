@@ -23,7 +23,6 @@ public struct HistoryPage: View {
 
     @Environment(\.motionPolicy) private var motionPolicy
     @Environment(\.chartNamespace) private var chartNamespace
-    @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
 
     public init(
         category: MetricCategory,
@@ -49,12 +48,6 @@ public struct HistoryPage: View {
 
     public var body: some View {
         let seriesData = buildSeriesData()
-        let resolvedPolicy = MotionPolicy.resolve(
-            reduceMotion: accessibilityReduceMotion,
-            lowPower: coordinator.isLowPowerModeActive,
-            paused: preferences.isSamplingPaused,
-            visible: true
-        )
 
         VStack(spacing: Instrument.Space.l) {
             // Top Controls Bar (Channel Isolation / Source Chips + Glass Range Segment)
@@ -100,7 +93,6 @@ public struct HistoryPage: View {
             }
         }
         .padding(.vertical, 2)
-        .motionPolicy(resolvedPolicy)
         .onAppear {
             selectedRange = preferences.historyRange(for: category)
         }

@@ -160,11 +160,18 @@ public struct LiveChart: View {
         GeometryReader { proxy in
             let width = proxy.size.width
             let chartHeight = proxy.size.height
+            let activeIndex = hoveredIndex ?? scrubIndex
+            let isScrubbing = (activeIndex != nil)
+            let headInset: CGFloat = showLiveHead ? 4.0 : 0.0
+            let plotWidth = max(1.0, width - headInset)
 
             ZStack(alignment: .topLeading) {
-                if motionPolicy == .full {
+                if motionPolicy == .full && !isScrubbing {
                     TimelineView(.animation(minimumInterval: 1.0 / 60.0)) { timeline in
-                        let elapsed = timeline.date.timeIntervalSince(lastSampleTimestamp)
+                        let rawElapsed = max(0.0, timeline.date.timeIntervalSince(lastSampleTimestamp))
+                        let elapsed = sampleIntervalSeconds > 0
+                            ? rawElapsed.truncatingRemainder(dividingBy: max(0.1, sampleIntervalSeconds))
+                            : 0.0
                         let offsetFraction = LiveChartMath.glideOffset(elapsed: elapsed, interval: sampleIntervalSeconds)
                         canvasContent(width: width, height: chartHeight, glideFraction: offsetFraction)
                     }
@@ -173,12 +180,11 @@ public struct LiveChart: View {
                 }
 
                 // Interactive Crosshair & Scrub Lens
-                let activeIndex = hoveredIndex ?? scrubIndex
                 if let index = activeIndex {
                     let values = resolvedPrimaryValues
                     if index < values.count {
-                        let dx = width / CGFloat(max(1, values.count - 1))
-                        let x = hoverLocation?.x ?? (CGFloat(index) * dx)
+                        let dx = plotWidth / CGFloat(max(1, values.count - 1))
+                        let x = CGFloat(index) * dx
                         crosshairOverlay(x: x, index: index, width: width, height: chartHeight)
                     }
                 }
@@ -215,7 +221,7 @@ public struct LiveChart: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(category.rawValue.capitalized) chart")
         .accessibilityValue(accessibilitySummary)
-        .onChange(of: mode.primaryValues) { _ in
+        .onChange(of: mode.valuesForStats) { _ in
             lastSampleTimestamp = Date()
         }
     }
@@ -316,15 +322,23 @@ public struct LiveChart: View {
         let n = values.count
         let headInset: CGFloat = showLiveHead ? 4.0 : 0.0
         let plotWidth = max(1.0, width - headInset)
-        let dx = plotWidth / CGFloat(max(1, n - 1))
-        let glideShift = (motionPolicy == .full ? CGFloat(glide) * dx : 0.0)
+        let isGliding = (motionPolicy == .full && glide > 0 && n >= 3)
+        let dx = plotWidth / CGFloat(max(1, isGliding ? (n - 2) : (n - 1)))
+        let glideShift = (isGliding ? CGFloat(glide) * dx : 0.0)
 
-        // Convert values to screen points
+        // Convert values to screen points; when gliding, pin last point at plotWidth with interpolated Y
         let points: [LiveChartMath.Point2D] = values.enumerated().map { i, v in
-            let x = CGFloat(i) * dx - glideShift
             let yFraction = CGFloat(max(0.0, min(maxBound, v)) / maxBound)
-            let y = height * (1.0 - yFraction)
-            return LiveChartMath.Point2D(x: Double(x), y: Double(y))
+            let rawY = height * (1.0 - yFraction)
+            if isGliding && i == n - 1 {
+                let prevVal = values[n - 2]
+                let prevFrac = CGFloat(max(0.0, min(maxBound, prevVal)) / maxBound)
+                let prevY = height * (1.0 - prevFrac)
+                let interpY = prevY + CGFloat(glide) * (rawY - prevY)
+                return LiveChartMath.Point2D(x: Double(plotWidth), y: Double(interpY))
+            }
+            let x = CGFloat(i) * dx - glideShift
+            return LiveChartMath.Point2D(x: Double(x), y: Double(rawY))
         }
 
         let segments = LiveChartMath.smoothSegments(points: points)
@@ -418,21 +432,23 @@ public struct LiveChart: View {
             )
         }
 
-        // 5. Live Head Dot (5 pt with animated pulse ring)
+        // 5. Live Head Dot (5 pt with animated pulse ring under .full motion)
         if showLiveHead, let lastPoint = points.last {
-            let now = Date()
-            let pulsePhase = CGFloat(now.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 2.0) / 2.0)
-            let pulseRadius = 2.5 + pulsePhase * 4.5
-            let pulseAlpha = max(0.0, 0.45 * (1.0 - pulsePhase))
+            if motionPolicy == .full {
+                let now = Date()
+                let pulsePhase = CGFloat(now.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 2.0) / 2.0)
+                let pulseRadius = 2.5 + pulsePhase * 4.5
+                let pulseAlpha = max(0.0, 0.45 * (1.0 - pulsePhase))
 
-            // Outer pulse ring
-            let ringRect = CGRect(
-                x: CGFloat(lastPoint.x) - pulseRadius,
-                y: CGFloat(lastPoint.y) - pulseRadius,
-                width: pulseRadius * 2.0,
-                height: pulseRadius * 2.0
-            )
-            context.stroke(Path(ellipseIn: ringRect), with: .color(color.opacity(pulseAlpha)), lineWidth: 1.0)
+                // Outer pulse ring
+                let ringRect = CGRect(
+                    x: CGFloat(lastPoint.x) - pulseRadius,
+                    y: CGFloat(lastPoint.y) - pulseRadius,
+                    width: pulseRadius * 2.0,
+                    height: pulseRadius * 2.0
+                )
+                context.stroke(Path(ellipseIn: ringRect), with: .color(color.opacity(pulseAlpha)), lineWidth: 1.0)
+            }
 
             // Solid core dot
             let dotRect = CGRect(x: CGFloat(lastPoint.x) - 2.5, y: CGFloat(lastPoint.y) - 2.5, width: 5, height: 5)
@@ -456,22 +472,37 @@ public struct LiveChart: View {
 
         let headInset: CGFloat = showLiveHead ? 4.0 : 0.0
         let plotWidth = max(1.0, width - headInset)
-        let dx = plotWidth / CGFloat(max(1, n - 1))
-        let glideShift = (motionPolicy == .full ? CGFloat(glide) * dx : 0.0)
+        let isGliding = (motionPolicy == .full && glide > 0 && n >= 3)
+        let dx = plotWidth / CGFloat(max(1, isGliding ? (n - 2) : (n - 1)))
+        let glideShift = (isGliding ? CGFloat(glide) * dx : 0.0)
 
         let totals = zip(primary, secondary).map(+)
         let totalPoints: [LiveChartMath.Point2D] = totals.enumerated().map { i, v in
-            let x = CGFloat(i) * dx - glideShift
             let yFraction = CGFloat(max(0.0, min(maxBound, v)) / maxBound)
-            let y = height * (1.0 - yFraction)
-            return LiveChartMath.Point2D(x: Double(x), y: Double(y))
+            let rawY = height * (1.0 - yFraction)
+            if isGliding && i == n - 1 {
+                let prevVal = totals[n - 2]
+                let prevFrac = CGFloat(max(0.0, min(maxBound, prevVal)) / maxBound)
+                let prevY = height * (1.0 - prevFrac)
+                let interpY = prevY + CGFloat(glide) * (rawY - prevY)
+                return LiveChartMath.Point2D(x: Double(plotWidth), y: Double(interpY))
+            }
+            let x = CGFloat(i) * dx - glideShift
+            return LiveChartMath.Point2D(x: Double(x), y: Double(rawY))
         }
 
-        let primaryPoints: [LiveChartMath.Point2D] = primary.enumerated().map { i, v in
-            let x = CGFloat(i) * dx - glideShift
+        let primaryPoints: [LiveChartMath.Point2D] = primary.prefix(n).enumerated().map { i, v in
             let yFraction = CGFloat(max(0.0, min(maxBound, v)) / maxBound)
-            let y = height * (1.0 - yFraction)
-            return LiveChartMath.Point2D(x: Double(x), y: Double(y))
+            let rawY = height * (1.0 - yFraction)
+            if isGliding && i == n - 1 {
+                let prevVal = primary[n - 2]
+                let prevFrac = CGFloat(max(0.0, min(maxBound, prevVal)) / maxBound)
+                let prevY = height * (1.0 - prevFrac)
+                let interpY = prevY + CGFloat(glide) * (rawY - prevY)
+                return LiveChartMath.Point2D(x: Double(plotWidth), y: Double(interpY))
+            }
+            let x = CGFloat(i) * dx - glideShift
+            return LiveChartMath.Point2D(x: Double(x), y: Double(rawY))
         }
 
         let totalSegments = LiveChartMath.smoothSegments(points: totalPoints)
@@ -580,18 +611,20 @@ public struct LiveChart: View {
 
         // Live Head Dot for stacked total
         if showLiveHead, let lastPoint = totalPoints.last {
-            let now = Date()
-            let pulsePhase = CGFloat(now.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 2.0) / 2.0)
-            let pulseRadius = 2.5 + pulsePhase * 4.5
-            let pulseAlpha = max(0.0, 0.45 * (1.0 - pulsePhase))
+            if motionPolicy == .full {
+                let now = Date()
+                let pulsePhase = CGFloat(now.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 2.0) / 2.0)
+                let pulseRadius = 2.5 + pulsePhase * 4.5
+                let pulseAlpha = max(0.0, 0.45 * (1.0 - pulsePhase))
 
-            let ringRect = CGRect(
-                x: CGFloat(lastPoint.x) - pulseRadius,
-                y: CGFloat(lastPoint.y) - pulseRadius,
-                width: pulseRadius * 2.0,
-                height: pulseRadius * 2.0
-            )
-            context.stroke(Path(ellipseIn: ringRect), with: .color(primaryColor.opacity(pulseAlpha)), lineWidth: 1.0)
+                let ringRect = CGRect(
+                    x: CGFloat(lastPoint.x) - pulseRadius,
+                    y: CGFloat(lastPoint.y) - pulseRadius,
+                    width: pulseRadius * 2.0,
+                    height: pulseRadius * 2.0
+                )
+                context.stroke(Path(ellipseIn: ringRect), with: .color(primaryColor.opacity(pulseAlpha)), lineWidth: 1.0)
+            }
 
             let dotRect = CGRect(x: CGFloat(lastPoint.x) - 2.5, y: CGFloat(lastPoint.y) - 2.5, width: 5, height: 5)
             context.fill(Path(ellipseIn: dotRect), with: .color(primaryColor))
@@ -616,23 +649,38 @@ public struct LiveChart: View {
         let halfHeight = height / 2.0
         let headInset: CGFloat = showLiveHead ? 4.0 : 0.0
         let plotWidth = max(1.0, width - headInset)
-        let dx = plotWidth / CGFloat(max(1, n - 1))
-        let glideShift = (motionPolicy == .full ? CGFloat(glide) * dx : 0.0)
+        let isGliding = (motionPolicy == .full && glide > 0 && n >= 3)
+        let dx = plotWidth / CGFloat(max(1, isGliding ? (n - 2) : (n - 1)))
+        let glideShift = (isGliding ? CGFloat(glide) * dx : 0.0)
 
         // Top points (grow upwards from midY)
-        let topPoints: [LiveChartMath.Point2D] = top.enumerated().map { i, v in
-            let x = CGFloat(i) * dx - glideShift
+        let topPoints: [LiveChartMath.Point2D] = top.prefix(n).enumerated().map { i, v in
             let yFraction = CGFloat(max(0.0, min(maxBound, v)) / maxBound)
-            let y = midY - (halfHeight * yFraction)
-            return LiveChartMath.Point2D(x: Double(x), y: Double(y))
+            let rawY = midY - (halfHeight * yFraction)
+            if isGliding && i == n - 1 {
+                let prevVal = top[n - 2]
+                let prevFrac = CGFloat(max(0.0, min(maxBound, prevVal)) / maxBound)
+                let prevY = midY - (halfHeight * prevFrac)
+                let interpY = prevY + CGFloat(glide) * (rawY - prevY)
+                return LiveChartMath.Point2D(x: Double(plotWidth), y: Double(interpY))
+            }
+            let x = CGFloat(i) * dx - glideShift
+            return LiveChartMath.Point2D(x: Double(x), y: Double(rawY))
         }
 
         // Bottom points (grow downwards from midY)
-        let bottomPoints: [LiveChartMath.Point2D] = bottom.enumerated().map { i, v in
-            let x = CGFloat(i) * dx - glideShift
+        let bottomPoints: [LiveChartMath.Point2D] = bottom.prefix(n).enumerated().map { i, v in
             let yFraction = CGFloat(max(0.0, min(maxBound, v)) / maxBound)
-            let y = midY + (halfHeight * yFraction)
-            return LiveChartMath.Point2D(x: Double(x), y: Double(y))
+            let rawY = midY + (halfHeight * yFraction)
+            if isGliding && i == n - 1 {
+                let prevVal = bottom[n - 2]
+                let prevFrac = CGFloat(max(0.0, min(maxBound, prevVal)) / maxBound)
+                let prevY = midY + (halfHeight * prevFrac)
+                let interpY = prevY + CGFloat(glide) * (rawY - prevY)
+                return LiveChartMath.Point2D(x: Double(plotWidth), y: Double(interpY))
+            }
+            let x = CGFloat(i) * dx - glideShift
+            return LiveChartMath.Point2D(x: Double(x), y: Double(rawY))
         }
 
         let topSegments = LiveChartMath.smoothSegments(points: topPoints)
@@ -761,15 +809,19 @@ public struct LiveChart: View {
             let pulseAlpha = max(0.0, 0.45 * (1.0 - pulsePhase))
 
             if let topLast = topPoints.last {
-                let ringRect = CGRect(x: CGFloat(topLast.x) - pulseRadius, y: CGFloat(topLast.y) - pulseRadius, width: pulseRadius * 2.0, height: pulseRadius * 2.0)
-                context.stroke(Path(ellipseIn: ringRect), with: .color(topColor.opacity(pulseAlpha * topOpacity)), lineWidth: 1.0)
+                if motionPolicy == .full {
+                    let ringRect = CGRect(x: CGFloat(topLast.x) - pulseRadius, y: CGFloat(topLast.y) - pulseRadius, width: pulseRadius * 2.0, height: pulseRadius * 2.0)
+                    context.stroke(Path(ellipseIn: ringRect), with: .color(topColor.opacity(pulseAlpha * topOpacity)), lineWidth: 1.0)
+                }
                 let dotRect = CGRect(x: CGFloat(topLast.x) - 2.5, y: CGFloat(topLast.y) - 2.5, width: 5, height: 5)
                 context.fill(Path(ellipseIn: dotRect), with: .color(topColor.opacity(topOpacity)))
             }
 
             if let botLast = bottomPoints.last {
-                let ringRect = CGRect(x: CGFloat(botLast.x) - pulseRadius, y: CGFloat(botLast.y) - pulseRadius, width: pulseRadius * 2.0, height: pulseRadius * 2.0)
-                context.stroke(Path(ellipseIn: ringRect), with: .color(bottomColor.opacity(pulseAlpha * bottomOpacity)), lineWidth: 1.0)
+                if motionPolicy == .full {
+                    let ringRect = CGRect(x: CGFloat(botLast.x) - pulseRadius, y: CGFloat(botLast.y) - pulseRadius, width: pulseRadius * 2.0, height: pulseRadius * 2.0)
+                    context.stroke(Path(ellipseIn: ringRect), with: .color(bottomColor.opacity(pulseAlpha * bottomOpacity)), lineWidth: 1.0)
+                }
                 let dotRect = CGRect(x: CGFloat(botLast.x) - 2.5, y: CGFloat(botLast.y) - 2.5, width: 5, height: 5)
                 context.fill(Path(ellipseIn: dotRect), with: .color(bottomColor.opacity(bottomOpacity)))
             }
@@ -854,7 +906,8 @@ public struct LiveChart: View {
 
         switch mode {
         case .mirrored(let top, let bot, let topCol, let botCol, let topLbl, let botLbl, let fixedMax):
-            let maxBound = LiveChartMath.computeMaxBound(values: zip(top, bot).map(+), fixedMax: fixedMax)
+            let combinedMax = max(top.max() ?? 0.0, bot.max() ?? 0.0)
+            let maxBound = LiveChartMath.computeMaxBound(values: [combinedMax], fixedMax: fixedMax)
             let midY = height / 2.0
             let halfH = midY
             let topVal = index < top.count ? top[index] : 0.0
@@ -987,13 +1040,19 @@ public struct LiveChart: View {
             hoverLocation = loc
             let values = resolvedPrimaryValues
             guard !values.isEmpty else { return }
-            let idx = LiveChartMath.hoverIndex(for: Double(loc.x), totalWidth: Double(width), count: values.count)
+            let headInset: CGFloat = showLiveHead ? 4.0 : 0.0
+            let plotWidth = max(1.0, width - headInset)
+            let clampedX = min(Double(plotWidth), max(0.0, Double(loc.x)))
+            let idx = LiveChartMath.hoverIndex(for: clampedX, totalWidth: Double(plotWidth), count: values.count)
             hoveredIndex = idx
 
             if let idx = idx, idx < values.count {
                 let val = values[idx]
                 let secondsAgo = Double(values.count - 1 - idx) * sampleIntervalSeconds
                 onScrub?(idx, val, secondsAgo)
+
+                let formatted = valueFormatter?(val) ?? String(format: "%.1f", val)
+                CopyHoverCoordinator.shared.setHoveredText(formatted)
 
                 // Haptic feedback on peak
                 let peak = LiveChartMath.peakIndex(values: values)
@@ -1009,6 +1068,7 @@ public struct LiveChart: View {
             hoverLocation = nil
             hoveredIndex = nil
             lastHapticPeakFiredIndex = nil
+            CopyHoverCoordinator.shared.setHoveredText(nil)
             onScrub?(nil, nil, nil)
         }
     }

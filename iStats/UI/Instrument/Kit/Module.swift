@@ -42,15 +42,22 @@ public struct Module<Content: View, Trailing: View>: View {
                 RoundedRectangle(cornerRadius: Instrument.Radius.module, style: .continuous)
                     .fill(Instrument.Surface.module)
             )
-            .overlay(
-                RoundedRectangle(cornerRadius: Instrument.Radius.module, style: .continuous)
-                    .stroke(
-                        colorSchemeContrast == .increased
-                            ? Color.primary.opacity(0.35)
-                            : Color.white.opacity(0.12),
-                        lineWidth: colorSchemeContrast == .increased ? 1.0 : 0.5
-                    )
-            )
+            .overlay {
+                if colorSchemeContrast == .increased {
+                    RoundedRectangle(cornerRadius: Instrument.Radius.module, style: .continuous)
+                        .stroke(Color.primary.opacity(0.35), lineWidth: 1.0)
+                } else {
+                    RoundedRectangle(cornerRadius: Instrument.Radius.module, style: .continuous)
+                        .strokeBorder(
+                            LinearGradient(
+                                colors: [Instrument.Surface.edgeHighlight, .clear],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            ),
+                            lineWidth: 0.5
+                        )
+                }
+            }
         }
     }
 }
