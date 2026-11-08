@@ -30,6 +30,7 @@ Each phase folder is a self-contained module containing:
 | **6** | [`phase-06-polish-prefs`](./phase-06-polish-prefs/) | Polish & Preferences | SwiftUI, SMAppService | Low–Med | All prefs persist; footprint measured; docs finalized |
 | **7** | [`phase-07-widget-popover-redesign`](./phase-07-widget-popover-redesign/) | Widget & Popover Redesign | SwiftUI, AppKit | Med | 32 unified widgets, 8 tabbed popovers, downsampling, legacy deletion |
 | **8** | [`phase-08-premium-redesign`](./phase-08-premium-redesign/) | Premium Panel Redesign ("Instrument") | NSPanel, SwiftUI Canvas, Liquid Glass, libproc | Med–High | Glass panel shell, 8 bespoke signature instruments, perf budget met, zero NSPopover debt |
+| **8.5** | [`phase-08.5-instrument-polish`](./phase-08.5-instrument-polish/) | Instrument 2 Polish: Time-Domain Chart Engine & Synchronized Motion | SwiftUI Canvas, NSPanel, CoreAnimation | Med | Time-domain `LiveChart` v3, time-aligned history envelopes, synchronized window morphing, 8-panel polish pass |
 
 ---
 
@@ -54,6 +55,9 @@ Phase 0 (docs) ──► Phase 1 (foundation) ──► Phase 2 (CPU/Mem)
                                               │
                                               ▼
                                    Phase 8 (Instrument Premium Redesign)
+                                              │
+                                              ▼
+                                   Phase 8.5 (Instrument 2 Polish)
 ```
 
 Phases 2, 3, and 4 are largely independent after Phase 1 and could be reordered; the recommended order builds from most-documented to least.

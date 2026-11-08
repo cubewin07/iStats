@@ -114,6 +114,28 @@ Each phase ends with a runnable app (from Phase 1 on) and a written `report.md`.
 - [ ] 6.5 Finalize docs/ADRs + Phase 6 report and README
   - Detail: [`tasks/6.5-finalize-docs-readme.md`](../phases/phase-06-polish-prefs/tasks/6.5-finalize-docs-readme.md)
 
+### Phase 8.5 — Instrument 2 Polish: Time-Domain Chart Engine & Synchronized Motion ([folder](../phases/phase-08.5-instrument-polish/))
+- [ ] 8.5.0 ADR 0010 time-domain chart engine v3, synchronized panel motion, and Phase 8.5 specification package
+  - Detail: [`tasks/8.5.0-adr-0010.md`](../phases/phase-08.5-instrument-polish/tasks/8.5.0-adr-0010.md)
+- [ ] 8.5.1 Pure chart math v3: `ChartTimeline` delayed-edge follower, `ChartScale` nice ladder & hysteresis, domain floors, `Downsampler.alignedBuckets` (min/max/mean)
+  - Detail: [`tasks/8.5.1-chart-math-v3.md`](../phases/phase-08.5-instrument-polish/tasks/8.5.1-chart-math-v3.md)
+- [ ] 8.5.2 Timestamped telemetry series (`ChartPoint`, `ChartSeries`, `BucketPoint`) in `MetricsStore` and `MetricsCoordinator`
+  - Detail: [`tasks/8.5.2-timestamped-series.md`](../phases/phase-08.5-instrument-polish/tasks/8.5.2-timestamped-series.md)
+- [ ] 8.5.3 `LiveChart` v3: time-domain coordinate projection, independent mirrored half-scales, dark-mode underlay bloom, left gutter axis, calm head bead
+  - Detail: [`tasks/8.5.3-live-chart-v3.md`](../phases/phase-08.5-instrument-polish/tasks/8.5.3-live-chart-v3.md)
+- [ ] 8.5.4 Stocks-style Glance header scrub readout (`ChartScrubState`) & spring-filtered crosshair v2
+  - Detail: [`tasks/8.5.4-header-scrub-and-crosshair.md`](../phases/phase-08.5-instrument-polish/tasks/8.5.4-header-scrub-and-crosshair.md)
+- [ ] 8.5.5 `HistoryPage` v3: time-aligned min–max envelope band + mean trace, bottom time axis, hover-revealed AVG/MAX annotations, scrub-aware stats strip
+  - Detail: [`tasks/8.5.5-history-v3-envelope.md`](../phases/phase-08.5-instrument-polish/tasks/8.5.5-history-v3-envelope.md)
+- [ ] 8.5.6 Synchronized shell motion & header v2: persistent `NSHostingView` category switch, `PreferenceKey` top-anchored window resize matched to `Motion.snappy`, tinted category badge, text `PageSwitcher`, inline status pill
+  - Detail: [`tasks/8.5.6-shell-motion-and-header.md`](../phases/phase-08.5-instrument-polish/tasks/8.5.6-shell-motion-and-header.md)
+- [ ] 8.5.7 Instrument Kit v2: integrated `Section` card, hairline table `MetricRow`, unified `SegmentedControl` & `FilterChip`, `LiveNumber` decimal cadence throttle, animated `TopConsumersModule` reordering, secondary series hues in `PaletteContrast`
+  - Detail: [`tasks/8.5.7-instrument-kit-v2.md`](../phases/phase-08.5-instrument-polish/tasks/8.5.7-instrument-kit-v2.md)
+- [ ] 8.5.8a–h Per-panel Instrument 2 polish (CPU, Memory, GPU, Thermal, Fan, Network, Disk, Power)
+  - Detail: [`tasks/8.5.8a-cpu-panel-polish.md`](../phases/phase-08.5-instrument-polish/tasks/8.5.8a-cpu-panel-polish.md) … [`tasks/8.5.8h-power-panel-polish.md`](../phases/phase-08.5-instrument-polish/tasks/8.5.8h-power-panel-polish.md)
+- [ ] 8.5.9 `InstrumentGalleryPreview` (synthetic 1 Hz stream), CPU/energy budget verification, accessibility pass, and `report.md`
+  - Detail: [`tasks/8.5.9-gallery-and-verification.md`](../phases/phase-08.5-instrument-polish/tasks/8.5.9-gallery-and-verification.md)
+
 ## Task Dependency Graph
 
 Phases are largely sequential: Phase 0 sets up docs/structure, Phase 1 builds the
