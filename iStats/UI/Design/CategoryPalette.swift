@@ -121,15 +121,28 @@ public enum CategoryPalette {
             lightHex: PaletteContrast.Hex.cpuSystem.light,
             darkHex: PaletteContrast.Hex.cpuSystem.dark
         )
+        public static let cpuEfficiency = CategoryPalette.dynamicColor(
+            lightHex: PaletteContrast.Hex.cpuEfficiency.light,
+            darkHex: PaletteContrast.Hex.cpuEfficiency.dark
+        )
 
         // Memory composition
         public static let memoryApp = CategoryPalette.dynamicColor(
             lightHex: PaletteContrast.Hex.memoryApp.light,
             darkHex: PaletteContrast.Hex.memoryApp.dark
         )
-        public static let memoryWired = CategoryPalette.deep(for: .memory)
-        public static let memoryCompressed = CategoryPalette.color(for: .memory).opacity(0.55)
-        public static let memoryCached = CategoryPalette.color(for: .memory).opacity(0.28)
+        public static let memoryWired = CategoryPalette.dynamicColor(
+            lightHex: PaletteContrast.Hex.memoryWired.light,
+            darkHex: PaletteContrast.Hex.memoryWired.dark
+        )
+        public static let memoryCompressed = CategoryPalette.dynamicColor(
+            lightHex: PaletteContrast.Hex.memoryCompressed.light,
+            darkHex: PaletteContrast.Hex.memoryCompressed.dark
+        )
+        public static let memoryCached = CategoryPalette.dynamicColor(
+            lightHex: PaletteContrast.Hex.memoryCached.light,
+            darkHex: PaletteContrast.Hex.memoryCached.dark
+        )
     }
 
     // MARK: - Semantic Status Severity Colors

@@ -57,6 +57,10 @@ public enum Instrument {
         public static let value = Font.system(size: 12, weight: .medium).monospacedDigit()
         /// Insights and helper captions (11 pt, regular)
         public static let caption = Font.system(size: 11, weight: .regular)
+        /// Integrated card section headers (11.5 pt, semibold, sentence-case)
+        public static let sectionTitle = Font.system(size: 11.5, weight: .semibold)
+        /// Compact chip and segmented control labels (11 pt, regular/semibold)
+        public static let control = Font.system(size: 11, weight: .regular)
         /// Section headers and category labels (10 pt, semibold, uppercase)
         public static let eyebrow = Font.system(size: 10, weight: .semibold)
         /// Axis ticks and core matrix indices (9 pt, medium, monospaced digits)
@@ -100,6 +104,9 @@ public enum Instrument {
         public static var edgeHighlight: Color {
             Color.white.opacity(0.08)
         }
+
+        /// Table row divider hairline (0.5 pt, 6% primary)
+        public static let hairline = Color.primary.opacity(0.06)
     }
 }
 

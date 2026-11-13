@@ -120,9 +120,13 @@ final class PaletteContrastTests: XCTestCase {
         }
         colors.append(contentsOf: [
             ("CPUSystem", PaletteContrast.Hex.cpuSystem.light),
+            ("CPUEfficiency", PaletteContrast.Hex.cpuEfficiency.light),
             ("NetUpload", PaletteContrast.Hex.networkUpload.light),
             ("DiskWrite", PaletteContrast.Hex.diskWrite.light),
-            ("MemoryApp", PaletteContrast.Hex.memoryApp.light)
+            ("MemoryApp", PaletteContrast.Hex.memoryApp.light),
+            ("MemoryWired", PaletteContrast.Hex.memoryWired.light),
+            ("MemoryCompressed", PaletteContrast.Hex.memoryCompressed.light),
+            ("MemoryCached", PaletteContrast.Hex.memoryCached.light)
         ])
 
         for (name, hex) in colors {
@@ -142,6 +146,33 @@ final class PaletteContrastTests: XCTestCase {
                 glassRatio,
                 4.5,
                 "\(name) light color (\(hex)) contrast ratio \(glassRatio) is below 4.5:1 on light glass background"
+            )
+        }
+    }
+
+    func testDarkSeriesColorsContrastOnDarkBackground() {
+        let darkBackground = PaletteContrast.darkBackground
+        let colors: [(String, String)] = [
+            ("CPUSystem", PaletteContrast.Hex.cpuSystem.dark),
+            ("CPUEfficiency", PaletteContrast.Hex.cpuEfficiency.dark),
+            ("NetUpload", PaletteContrast.Hex.networkUpload.dark),
+            ("DiskWrite", PaletteContrast.Hex.diskWrite.dark),
+            ("MemoryApp", PaletteContrast.Hex.memoryApp.dark),
+            ("MemoryWired", PaletteContrast.Hex.memoryWired.dark),
+            ("MemoryCompressed", PaletteContrast.Hex.memoryCompressed.dark),
+            ("MemoryCached", PaletteContrast.Hex.memoryCached.dark)
+        ]
+
+        for (name, hex) in colors {
+            guard let color = RGBColor(hex: hex) else {
+                XCTFail("Failed to parse hex \(hex) for \(name)")
+                continue
+            }
+            let ratio = color.contrastRatio(with: darkBackground)
+            XCTAssertGreaterThanOrEqual(
+                ratio,
+                4.5,
+                "\(name) dark color (\(hex)) contrast ratio \(ratio) is below 4.5:1 on dark background"
             )
         }
     }

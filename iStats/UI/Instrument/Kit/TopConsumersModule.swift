@@ -2,24 +2,67 @@ import SwiftUI
 import AppKit
 import iStatsCore
 
-/// Cached icon loader for process rows (Task 8.9 / ADR 0009).
+/// Cached icon loader for process rows (Task 8.9 / Task 8.5.7 / fixes B12).
+/// Caches both resolved icons and misses (non-app processes) so repeated renders never re-query AppKit on the main thread.
 @MainActor
 public final class ProcessIconCache {
-    public static let shared = ProcessIconCache()
-    private var cache: [String: NSImage] = [:]
+    private enum CacheEntry {
+        case icon(NSImage)
+        case miss
+    }
 
-    private init() {}
+    public static let shared = ProcessIconCache()
+    private var cache: [String: CacheEntry] = [:]
+    private let maxEntries: Int
+    private let resolver: (Int32) -> NSImage?
+
+    internal init(
+        maxEntries: Int = 512,
+        resolver: @escaping (Int32) -> NSImage? = { pid in
+            NSRunningApplication(processIdentifier: pid)?.icon
+        }
+    ) {
+        self.maxEntries = maxEntries
+        self.resolver = resolver
+    }
 
     public func icon(for pid: Int32, bundleID: String?) -> NSImage? {
-        let key = bundleID ?? "\(pid)"
-        if let cached = cache[key] {
-            return cached
+        let key = Self.cacheKey(pid: pid, bundleID: bundleID)
+        if let entry = cache[key] {
+            switch entry {
+            case .icon(let image):
+                return image
+            case .miss:
+                return nil
+            }
         }
-        if let app = NSRunningApplication(processIdentifier: pid), let icon = app.icon {
-            cache[key] = icon
+
+        if cache.count >= maxEntries {
+            cache.removeAll(keepingCapacity: true)
+        }
+
+        if let icon = resolver(pid) {
+            cache[key] = .icon(icon)
             return icon
+        } else {
+            cache[key] = .miss
+            return nil
         }
-        return nil
+    }
+
+    internal func hasCachedEntry(for pid: Int32, bundleID: String?) -> Bool {
+        cache[Self.cacheKey(pid: pid, bundleID: bundleID)] != nil
+    }
+
+    internal var cachedEntryCount: Int {
+        cache.count
+    }
+
+    private static func cacheKey(pid: Int32, bundleID: String?) -> String {
+        if let bundleID, !bundleID.isEmpty {
+            return "bundle:\(bundleID)"
+        }
+        return "pid:\(pid)"
     }
 }
 
@@ -57,6 +100,8 @@ public struct TopConsumersModule: View {
     public let sparklines: [Int32: [Double]]
     public let standard: Units.ByteUnitStandard
 
+    @Environment(\.motionPolicy) private var motionPolicy
+
     public init(
         criterion: ProcessSortCriterion,
         processes: [ProcessInfoItem],
@@ -76,8 +121,8 @@ public struct TopConsumersModule: View {
     }
 
     public var body: some View {
-        Module(
-            eyebrow: sectionTitle,
+        Section(
+            sectionTitle,
             trailing: {
                 Button {
                     if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.ActivityMonitor") {
@@ -120,20 +165,22 @@ public struct TopConsumersModule: View {
                                     .frame(width: 40, height: 12)
                             }
 
-                            // Value display
+                            // Value display (tabular SF Pro digits, A13)
                             if criterion == .cpu {
                                 Text(String(format: "%.1f%%", item.cpuPercent))
-                                    .font(Instrument.Typography.mono)
+                                    .font(Instrument.Typography.value)
                                     .foregroundColor(.primary)
                             } else {
                                 Text(Units.formatBytes(item.memoryBytes, standard: standard))
-                                    .font(Instrument.Typography.mono)
+                                    .font(Instrument.Typography.value)
                                     .foregroundColor(.primary)
                             }
                         }
                         .frame(height: 20)
+                        .transition(.opacity)
                     }
                 }
+                .animation(motionPolicy == .frozen ? nil : Motion.smooth, value: processes.map(\.pid))
             }
         }
     }

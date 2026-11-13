@@ -104,6 +104,9 @@
 		1100000000000000000001BD /* PanelScaffoldTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000001BC /* PanelScaffoldTests.swift */; };
 		110000000000000000000201 /* PanelControllerLifecycleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000200 /* PanelControllerLifecycleTests.swift */; };
 		110000000000000000000203 /* PanelPlacementTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000202 /* PanelPlacementTests.swift */; };
+		110000000000000000000221 /* SegmentedControl.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000220 /* SegmentedControl.swift */; };
+		110000000000000000000223 /* FilterChip.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000222 /* FilterChip.swift */; };
+		110000000000000000000225 /* InstrumentKitTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000224 /* InstrumentKitTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -215,6 +218,9 @@
 		1100000000000000000001BC /* PanelScaffoldTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PanelScaffoldTests.swift; sourceTree = "<group>"; };
 		110000000000000000000200 /* PanelControllerLifecycleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PanelControllerLifecycleTests.swift; sourceTree = "<group>"; };
 		110000000000000000000202 /* PanelPlacementTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PanelPlacementTests.swift; sourceTree = "<group>"; };
+		110000000000000000000220 /* SegmentedControl.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Instrument/Kit/SegmentedControl.swift; sourceTree = "<group>"; };
+		110000000000000000000222 /* FilterChip.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Instrument/Kit/FilterChip.swift; sourceTree = "<group>"; };
+		110000000000000000000224 /* InstrumentKitTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstrumentKitTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -337,6 +343,8 @@
 				1100000000000000000001D4 /* PowerPanel.swift */,
 				1100000000000000000001DC /* HistoryPage.swift */,
 				1100000000000000000001D8 /* TopConsumersModule.swift */,
+				110000000000000000000220 /* SegmentedControl.swift */,
+				110000000000000000000222 /* FilterChip.swift */,
 				1100000000000000000000F0 /* MenuBarIconRenderer.swift */,
 			);
 			path = UI;
@@ -392,6 +400,7 @@
 				110000000000000000000202 /* PanelPlacementTests.swift */,
 				1100000000000000000001DA /* ProcessSamplerTests.swift */,
 				1100000000000000000001DE /* AccessibilityAppearanceTests.swift */,
+				110000000000000000000224 /* InstrumentKitTests.swift */,
 			);
 			path = iStatsTests;
 			sourceTree = "<group>";
@@ -555,6 +564,8 @@
 				1100000000000000000001D5 /* PowerPanel.swift in Sources */,
 				1100000000000000000001D7 /* ProcessSampler.swift in Sources */,
 				1100000000000000000001D9 /* TopConsumersModule.swift in Sources */,
+				110000000000000000000221 /* SegmentedControl.swift in Sources */,
+				110000000000000000000223 /* FilterChip.swift in Sources */,
 				1100000000000000000001DD /* HistoryPage.swift in Sources */,
 				11000000000000000000001F /* PreferencesWindowController.swift in Sources */,
 				110000000000000000000031 /* CPUSampler.swift in Sources */,
@@ -609,6 +620,7 @@
 				110000000000000000000203 /* PanelPlacementTests.swift in Sources */,
 				1100000000000000000001DB /* ProcessSamplerTests.swift in Sources */,
 				1100000000000000000001DF /* AccessibilityAppearanceTests.swift in Sources */,
+				110000000000000000000225 /* InstrumentKitTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -1,6 +1,53 @@
 import SwiftUI
 import iStatsCore
 
+/// Cadence gate for `LiveNumber` (Task 8.5.7 / A12).
+/// - Integer formatted strings update on every sample (preserving smooth `.numericText` rolling).
+/// - Fractional formatted strings (containing `.`) enforce a `2.0 s` minimum cadence gate unless
+///   `abs(newValue - displayedValue) >= 1.0`.
+public struct LiveNumberCadenceGate: Equatable, Sendable {
+    public private(set) var displayedValue: Double
+    public private(set) var lastCommittedAt: TimeInterval
+    public let minimumInterval: TimeInterval
+    public let bypassDelta: Double
+
+    public init(
+        initialValue: Double,
+        now: TimeInterval = 0,
+        minimumInterval: TimeInterval = 2.0,
+        bypassDelta: Double = 1.0
+    ) {
+        self.displayedValue = initialValue
+        self.lastCommittedAt = now
+        self.minimumInterval = minimumInterval
+        self.bypassDelta = bypassDelta
+    }
+
+    /// Evaluates whether `newValue` at `now` should update `displayedValue`.
+    /// - Returns: `true` if `displayedValue` was updated; `false` if gated.
+    @discardableResult
+    public mutating func evaluate(
+        newValue: Double,
+        formatted: String,
+        now: TimeInterval
+    ) -> Bool {
+        if !formatted.contains(".") {
+            displayedValue = newValue
+            lastCommittedAt = now
+            return true
+        }
+
+        let delta = abs(newValue - displayedValue)
+        let elapsed = now - lastCommittedAt
+        if delta >= bypassDelta || elapsed >= minimumInterval {
+            displayedValue = newValue
+            lastCommittedAt = now
+            return true
+        }
+        return false
+    }
+}
+
 /// An instrument-grade animated numeral with rolling tabular digits and baseline unit alignment.
 public struct LiveNumber: View {
     public let value: Double
@@ -11,6 +58,8 @@ public struct LiveNumber: View {
     public let interval: Double
 
     @Environment(\.motionPolicy) private var motionPolicy
+    @State private var gate: LiveNumberCadenceGate
+    @State private var pendingFlushItem: DispatchWorkItem?
 
     public init(
         value: Double,
@@ -26,6 +75,10 @@ public struct LiveNumber: View {
         self.unit = unit
         self.unitFont = unitFont
         self.interval = interval
+        self._gate = State(initialValue: LiveNumberCadenceGate(
+            initialValue: value,
+            now: ProcessInfo.processInfo.systemUptime
+        ))
     }
 
     public var body: some View {
@@ -41,19 +94,51 @@ public struct LiveNumber: View {
         .minimumScaleFactor(0.7)
         .accessibilityElement(children: .ignore)
         .accessibilityValue(accessibilityText)
+        .onChange(of: value) { newValue in
+            handleValueChange(newValue)
+        }
+        .onDisappear {
+            pendingFlushItem?.cancel()
+            pendingFlushItem = nil
+        }
+    }
+
+    private func handleValueChange(_ newValue: Double) {
+        pendingFlushItem?.cancel()
+        pendingFlushItem = nil
+
+        let now = ProcessInfo.processInfo.systemUptime
+        let formatted = format(newValue)
+        if gate.evaluate(newValue: newValue, formatted: formatted, now: now) {
+            return
+        }
+
+        let delay = max(0.01, gate.minimumInterval - (now - gate.lastCommittedAt))
+        let stateGate = _gate
+        let work = DispatchWorkItem {
+            let flushNow = ProcessInfo.processInfo.systemUptime
+            stateGate.wrappedValue.evaluate(
+                newValue: newValue,
+                formatted: formatted,
+                now: flushNow
+            )
+        }
+        pendingFlushItem = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
     }
 
     @ViewBuilder
     private var numberView: some View {
-        let text = format(value)
+        let shownValue = gate.displayedValue
+        let text = format(shownValue)
 
         if #available(macOS 14.0, *) {
             if motionPolicy == .full {
                 Text(text)
                     .font(font)
                     .tracking(opticalTracking)
-                    .contentTransition(.numericText(value: value))
-                    .animation(Motion.value(interval: interval), value: value)
+                    .contentTransition(.numericText(value: shownValue))
+                    .animation(Motion.value(interval: interval), value: shownValue)
             } else if motionPolicy == .reduced {
                 Text(text)
                     .font(font)
@@ -92,7 +177,7 @@ public struct LiveNumber: View {
     }
 
     private var accessibilityText: String {
-        let formatted = format(value)
+        let formatted = format(gate.displayedValue)
         if let u = unit {
             return "\(formatted) \(u)"
         }

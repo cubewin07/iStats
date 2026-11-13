@@ -114,10 +114,14 @@ public enum PaletteContrast {
             }
         }
 
-        public static let cpuSystem     = (light: "#C23B1E", dark: "#FF7A59")
-        public static let networkUpload = (light: "#6D28D9", dark: "#A78BFA")
-        public static let diskWrite     = (light: "#B8470B", dark: "#FF8A4C")
-        public static let memoryApp     = (light: "#005EB8", dark: "#38BDF8")
+        public static let cpuSystem        = (light: "#C23B1E", dark: "#FF7A59")
+        public static let cpuEfficiency    = (light: "#09749B", dark: "#38BDF8")
+        public static let networkUpload    = (light: "#6D28D9", dark: "#A78BFA")
+        public static let diskWrite        = (light: "#B8470B", dark: "#FF8A4C")
+        public static let memoryApp        = (light: "#005EB8", dark: "#38BDF8")
+        public static let memoryWired      = (light: "#0B7A5E", dark: "#20A884")
+        public static let memoryCompressed = (light: "#6D4AFF", dark: "#9B82FF")
+        public static let memoryCached     = (light: "#267394", dark: "#58B4D8")
     }
 
     /// Check if contrast meets WCAG AA normal text requirement (≥ 4.5:1).

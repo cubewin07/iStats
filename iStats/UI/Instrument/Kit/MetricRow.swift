@@ -1,8 +1,8 @@
 import SwiftUI
 import iStatsCore
 
-/// Standard metric key-value row with optional micro-sparkline and status indicator (ADR 0009 / Task 8.5).
-/// Height: 24 pt. Includes hover tint.
+/// Standard metric key-value row with optional micro-sparkline, status indicator, and bottom hairline (ADR 0009 / Task 8.5.7 Kit v2).
+/// Height: 26 pt. Hover highlight and `doc.on.doc` copy affordance appear only when `isCopyable == true` (fixes B11).
 public struct MetricRow: View {
     public let label: String
     public let valueText: String
@@ -12,9 +12,11 @@ public struct MetricRow: View {
     public var sparklineColor: Color?
     public var statusLevel: StatusLevel?
     public var isCopyable: Bool
+    public var showHairline: Bool
 
     @State private var isHovered: Bool = false
     @Environment(\.accessibilityDifferentiateWithoutColor) private var differentiateWithoutColor
+    @Environment(\.motionPolicy) private var motionPolicy
 
     public init(
         label: String,
@@ -24,7 +26,8 @@ public struct MetricRow: View {
         sparklineHistory: [Double]? = nil,
         sparklineColor: Color? = nil,
         statusLevel: StatusLevel? = nil,
-        isCopyable: Bool = true
+        isCopyable: Bool = false,
+        showHairline: Bool = false
     ) {
         self.label = label
         self.valueText = valueText
@@ -34,6 +37,7 @@ public struct MetricRow: View {
         self.sparklineColor = sparklineColor
         self.statusLevel = statusLevel
         self.isCopyable = isCopyable
+        self.showHairline = showHairline
     }
 
     public var body: some View {
@@ -63,8 +67,15 @@ public struct MetricRow: View {
                     .frame(width: 40, height: 12)
             }
 
-            // Value text / rolling number
-            Group {
+            // Value text / rolling number + subtle hover copy icon when copyable
+            HStack(spacing: 5) {
+                if isCopyable && isHovered {
+                    Image(systemName: "doc.on.doc")
+                        .font(.system(size: 9.5, weight: .medium))
+                        .foregroundStyle(.tertiary)
+                        .transition(.opacity)
+                }
+
                 if let val = valueDouble {
                     LiveNumber(value: val, font: Instrument.Typography.value, unit: unit)
                 } else {
@@ -84,15 +95,26 @@ public struct MetricRow: View {
                 view.copyable(text: "\(valueText)\(unit != nil ? " " + unit! : "")")
             }
         }
-        .frame(height: 24)
+        .frame(height: 26)
         .padding(.horizontal, 4)
-        .background(
-            RoundedRectangle(cornerRadius: 4, style: .continuous)
-                .fill(isHovered ? Instrument.Surface.moduleHover : Color.clear)
-        )
-        .onHover { hovering in
-            withAnimation(Motion.snappy) {
-                isHovered = hovering
+        .background {
+            if isCopyable {
+                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                    .fill(isHovered ? Instrument.Surface.moduleHover : Color.clear)
+            }
+        }
+        .overlay(alignment: .bottom) {
+            if showHairline {
+                Rectangle()
+                    .fill(Instrument.Surface.hairline)
+                    .frame(height: 0.5)
+            }
+        }
+        .if(isCopyable) { view in
+            view.onHover { hovering in
+                withAnimation(motionPolicy.allowsEasing ? Motion.snappy : nil) {
+                    isHovered = hovering
+                }
             }
         }
         .accessibilityElement(children: .combine)
