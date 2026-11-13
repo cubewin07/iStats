@@ -17,7 +17,7 @@ public struct ClusterBarData: Identifiable, Sendable {
     }
 }
 
-/// Row of vertical capsule bars representing a cluster or core map (ADR 0009 / Task 8.5).
+/// Row of vertical rounded columns representing a cluster or core map (ADR 0009 / Task 8.5 / Task 8.5.8a).
 public struct ClusterStrip: View {
     public let title: String?
     public let bars: [ClusterBarData]
@@ -26,12 +26,13 @@ public struct ClusterStrip: View {
     public var onHover: ((_ index: Int?, _ bar: ClusterBarData?) -> Void)?
 
     @State private var hoveredBarIndex: Int?
+    @Environment(\.motionPolicy) private var motionPolicy
 
     public init(
         title: String? = nil,
         bars: [ClusterBarData],
-        barWidth: CGFloat = 8,
-        barHeight: CGFloat = 32,
+        barWidth: CGFloat = 10,
+        barHeight: CGFloat = 36,
         onHover: ((_ index: Int?, _ bar: ClusterBarData?) -> Void)? = nil
     ) {
         self.title = title
@@ -42,50 +43,66 @@ public struct ClusterStrip: View {
     }
 
     public var body: some View {
+        let cornerRadius = min(barWidth / 2.0, 4.0)
+        let barSpacing: CGFloat = bars.count > 16 ? 3 : 4
+
         VStack(alignment: .leading, spacing: 6) {
             if let title = title {
                 Text(title)
-                    .font(Instrument.Typography.caption)
+                    .font(Instrument.Typography.caption.monospacedDigit())
                     .foregroundColor(.secondary)
             }
 
-            HStack(alignment: .bottom, spacing: 4) {
+            HStack(alignment: .bottom, spacing: barSpacing) {
                 ForEach(bars) { bar in
                     let isHovered = (hoveredBarIndex == bar.index)
+                    let isDimmed = (hoveredBarIndex != nil && !isHovered)
+                    let columnShape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+
                     VStack(spacing: 3) {
                         ZStack(alignment: .bottom) {
                             // Track
-                            Capsule()
-                                .fill(Instrument.Surface.inset)
+                            columnShape
+                                .fill(isHovered ? Color.primary.opacity(0.12) : Instrument.Surface.inset)
                                 .frame(width: barWidth, height: barHeight)
 
                             // Fill
                             let fillH = bar.utilization <= 0.005 ? 0.0 : max(barWidth, barHeight * CGFloat(bar.utilization))
-                            Capsule()
+                            columnShape
                                 .fill(bar.color)
+                                .opacity(isDimmed ? 0.45 : 1.0)
                                 .frame(width: barWidth, height: fillH)
                                 .easedProgress(bar.utilization, interval: 1.0)
                         }
-                        .scaleEffect(isHovered ? 1.1 : 1.0)
+                        .overlay {
+                            columnShape
+                                .strokeBorder(Color.primary.opacity(isHovered ? 0.55 : 0.0), lineWidth: 1.0)
+                        }
 
                         // Micro index label
                         Text("\(bar.index)")
                             .font(Instrument.Typography.micro)
                             .foregroundColor(isHovered ? .primary : .secondary)
                     }
+                    .contentShape(Rectangle())
                     .onHover { hovering in
-                        withAnimation(Motion.snappy) {
-                            hoveredBarIndex = hovering ? bar.index : nil
-                            onHover?(hovering ? bar.index : nil, hovering ? bar : nil)
+                        withAnimation(motionPolicy.allowsEasing ? Motion.snappy : nil) {
+                            if hovering {
+                                hoveredBarIndex = bar.index
+                                onHover?(bar.index, bar)
+                            } else if hoveredBarIndex == bar.index {
+                                hoveredBarIndex = nil
+                                onHover?(nil, nil)
+                            }
                         }
                     }
-                    .help(bar.label ?? "Core \(bar.index): \(Int(bar.utilization * 100))%")
+                    .help(bar.label ?? "Core \(bar.index): \(Int(round(bar.utilization * 100)))%")
                 }
             }
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(title ?? "Cluster strip")
-        .accessibilityValue(bars.map { "Core \($0.index): \(Int($0.utilization * 100))%" }.joined(separator: ", "))
+        .accessibilityValue(bars.map { "Core \($0.index): \(Int(round($0.utilization * 100)))%" }.joined(separator: ", "))
     }
 }
 
