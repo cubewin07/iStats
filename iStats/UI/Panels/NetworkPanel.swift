@@ -2,9 +2,9 @@ import SwiftUI
 import AppKit
 import iStatsCore
 
-/// Dedicated Network Instrument Panel (Task 8.8f / ADR 0009 / Blueprint §6.6).
-/// Features the signature Mirrored Waveform + Link Card, dual LiveNumber tickers,
-/// animated 4-bar signal glyph, copyable network addresses, and per-interface telemetry.
+/// Dedicated Network Instrument Panel (Task 8.5.8f / B8, B11, B14 / ADR 0010).
+/// Features an 84 pt independent-scale mirrored LiveChart, consolidated Active Link + Routing & DNS
+/// sections on Now (<= 2 sections), and ranked Network Interfaces + Wi-Fi Radio Telemetry on Details.
 public struct NetworkPanel: View {
     public let initialTab: PopoverTab
     public let rememberLastTab: Bool
@@ -15,6 +15,22 @@ public struct NetworkPanel: View {
 
     @State private var selectedTab: PopoverTab
     @State private var showAllInterfaces: Bool = false
+    @StateObject private var memoCache = MemoCache()
+
+    private final class MemoCache: ObservableObject {
+        struct Key: Equatable {
+            let timestamp: Date?
+            let sample: NetworkSample?
+            let networkUnit: Units.NetworkUnit
+            let byteUnitStandard: Units.ByteUnitStandard
+            let refreshInterval: TimeInterval
+        }
+
+        var key: Key?
+        var glance: PanelGlance?
+        var status: StatusLevel = .fine
+        var ribbon: String?
+    }
 
     public init(
         initialTab: PopoverTab = .overview,
@@ -33,46 +49,62 @@ public struct NetworkPanel: View {
         self._selectedTab = State(initialValue: resolved)
     }
 
-    private var sample: NetworkSample? {
-        coordinator.latestNetwork?.value
+    private var latestSample: Sample<NetworkSample>? {
+        coordinator.latestNetwork
     }
 
-    private var activeInterfaces: [InterfaceThroughput] {
-        guard let net = sample else { return [] }
-        let primaryName = net.primaryInterface ?? net.interfaces.first(where: { $0.bytesInPerSec > 0 || $0.bytesOutPerSec > 0 })?.interfaceName ?? net.interfaces.first?.interfaceName
-        let active = net.interfaces.filter { iface in
-            iface.bytesInPerSec > 0 || iface.bytesOutPerSec > 0 || iface.interfaceName == primaryName
-        }
+    private var sample: NetworkSample? {
+        latestSample?.value
+    }
+
+    private func primaryInterfaceName(in net: NetworkSample) -> String? {
+        net.primaryInterface
+            ?? net.interfaces.first(where: { $0.bytesInPerSec > 0 || $0.bytesOutPerSec > 0 })?.interfaceName
+            ?? net.interfaces.first?.interfaceName
+    }
+
+    private func isActiveInterface(_ iface: InterfaceThroughput, primaryName: String?) -> Bool {
+        iface.bytesInPerSec > 0 || iface.bytesOutPerSec > 0 || iface.interfaceName == primaryName
+    }
+
+    private func rankedActiveInterfaces(in net: NetworkSample) -> [InterfaceThroughput] {
+        let primaryName = primaryInterfaceName(in: net)
+        let active = net.interfaces
+            .filter { isActiveInterface($0, primaryName: primaryName) }
+            .sorted { lhs, rhs in
+                if lhs.interfaceName == primaryName, rhs.interfaceName != primaryName { return true }
+                if rhs.interfaceName == primaryName, lhs.interfaceName != primaryName { return false }
+                let lhsRate = lhs.bytesInPerSec + lhs.bytesOutPerSec
+                let rhsRate = rhs.bytesInPerSec + rhs.bytesOutPerSec
+                if lhsRate != rhsRate { return lhsRate > rhsRate }
+                return lhs.interfaceName < rhs.interfaceName
+            }
         if active.isEmpty, let first = net.interfaces.first {
             return [first]
         }
         return active
     }
 
-    private var displayedInterfaces: [InterfaceThroughput] {
-        guard let net = sample else { return [] }
-        if showAllInterfaces {
-            let active = activeInterfaces
-            let activeNames = Set(active.map(\.interfaceName))
-            let others = net.interfaces.filter { !activeNames.contains($0.interfaceName) }
-                .sorted { $0.interfaceName < $1.interfaceName }
-            return active + others
-        } else {
-            return activeInterfaces
-        }
+    private func displayedInterfaces(in net: NetworkSample) -> [InterfaceThroughput] {
+        let active = rankedActiveInterfaces(in: net)
+        guard showAllInterfaces else { return active }
+        let activeNames = Set(active.map(\.interfaceName))
+        let others = net.interfaces
+            .filter { !activeNames.contains($0.interfaceName) }
+            .sorted { $0.interfaceName < $1.interfaceName }
+        return active + others
     }
 
     public var body: some View {
-        let glance = deriveGlance(sample: sample)
-        let (status, ribbon) = deriveStatusAndRibbon(sample: sample)
+        let derived = memoizedState(for: latestSample)
         let availability = coordinator.categoryAvailability[.network]
         let isLoading = (availability == nil && !coordinator.isSamplingPaused)
 
         PanelScaffold(
             category: .network,
-            glance: glance,
-            status: status,
-            ribbon: ribbon,
+            glance: derived.glance,
+            status: derived.status,
+            ribbon: derived.ribbon,
             pages: PopoverTab.supportedTabs(for: .network),
             selection: $selectedTab,
             availability: availability,
@@ -102,33 +134,59 @@ public struct NetworkPanel: View {
         }
     }
 
-    // MARK: - Glance Derivation
+    // MARK: - Memoised Glance & Status Derivation (B8 + B14)
 
-    private func deriveGlance(sample: NetworkSample?) -> PanelGlance {
-        let downBytes = sample?.totalBytesInPerSec ?? 0.0
-        let upBytes = sample?.totalBytesOutPerSec ?? 0.0
+    private func memoizedState(for latest: Sample<NetworkSample>?) -> (glance: PanelGlance, status: StatusLevel, ribbon: String?) {
+        let key = MemoCache.Key(
+            timestamp: latest?.timestamp,
+            sample: latest?.value,
+            networkUnit: preferences.networkUnit,
+            byteUnitStandard: preferences.byteUnitStandard,
+            refreshInterval: preferences.refreshInterval
+        )
+        if memoCache.key == key, let cachedGlance = memoCache.glance {
+            return (cachedGlance, memoCache.status, memoCache.ribbon)
+        }
+
+        let glance = deriveGlance(latest: latest)
+        let (status, ribbon) = deriveStatusAndRibbon(sample: latest?.value)
+        memoCache.key = key
+        memoCache.glance = glance
+        memoCache.status = status
+        memoCache.ribbon = ribbon
+        return (glance, status, ribbon)
+    }
+
+    private func deriveGlance(latest: Sample<NetworkSample>?) -> PanelGlance {
+        let currentSample = latest?.value
+        let downBytes = currentSample?.totalBytesInPerSec ?? 0.0
+        let upBytes = currentSample?.totalBytesOutPerSec ?? 0.0
         let unit = preferences.networkUnit
         let std = preferences.byteUnitStandard
 
         let downParts = Units.rateComponents(downBytes, unit: unit, standard: std)
         let upParts = Units.rateComponents(upBytes, unit: unit, standard: std)
 
-        let headline = PanelHeadline.network(sample: sample, standard: std)
+        let headline = PanelHeadline.network(sample: currentSample, standard: std)
 
-        let inHistory = coordinator.networkHistory.map { $0.value.totalBytesInPerSec }
-        let outHistory = coordinator.networkHistory.map { $0.value.totalBytesOutPerSec }
+        let refDate = max(Date(), latest?.timestamp ?? .distantPast)
+        let dualPoints = coordinator.timedDualScalarHistory(
+            primary: .networkInBytesPerSec,
+            secondary: .networkOutBytesPerSec,
+            duration: 60,
+            referenceDate: refDate
+        )
 
         let insight = InsightEngine.best(
-            series: inHistory,
+            series: dualPoints.map(\.primary),
             interval: preferences.refreshInterval,
             unit: .bytesPerSecond(standard: std),
             thresholds: .throughputBytesPerSec()
         )?.text
 
         let chartMode = LiveChartMode.mirrored(
-            top: inHistory,
-            bottom: outHistory,
-            topColor: CategoryPalette.color(for: .network),
+            points: dualPoints,
+            topColor: CategoryPalette.tint(for: .network),
             bottomColor: CategoryPalette.Series.networkUpload,
             topLabel: "↓",
             bottomLabel: "↑"
@@ -146,7 +204,7 @@ public struct NetworkPanel: View {
             headline: headline,
             insight: insight,
             chartMode: chartMode,
-            chartHeight: 56,
+            chartHeight: 84,
             scrubFormat: { Units.formatNetworkRate($0, unit: unit, standard: std) }
         )
     }
@@ -168,49 +226,19 @@ public struct NetworkPanel: View {
         return (.fine, nil)
     }
 
-    // MARK: - Now Page (Overview)
+    // MARK: - Now Page (Max 2 Sections: Active Link + Routing & DNS)
 
     @ViewBuilder
     private func nowPage(sample: NetworkSample?) -> some View {
         if let net = sample {
             let std = preferences.byteUnitStandard
 
-            VStack(alignment: .leading, spacing: Instrument.Space.m) {
-                // Link Card Module
-                linkCardModule(net: net)
+            VStack(alignment: .leading, spacing: Instrument.Space.l) {
+                // Section 1: Active Link (interface identity, SSID + SignalBarsView, Local IPv4, Session Totals)
+                activeLinkSection(net: net, standard: std)
 
-                // Network Routing & Addresses Module
-                if net.localIPv4 != nil || net.gatewayIPv4 != nil || net.primaryDNS != nil {
-                    Module(eyebrow: "Routing & Configuration") {
-                        VStack(spacing: 6) {
-                            if let ip = net.localIPv4 {
-                                MetricRow(label: "Local IPv4", valueText: ip, isCopyable: true)
-                            }
-                            if let gw = net.gatewayIPv4 {
-                                MetricRow(label: "Gateway IPv4", valueText: gw, isCopyable: true)
-                            }
-                            if let dns = net.primaryDNS {
-                                MetricRow(label: "Primary DNS", valueText: dns, isCopyable: true)
-                            }
-                        }
-                    }
-                }
-
-                // Session Totals Module
-                Module(eyebrow: "Session Totals") {
-                    VStack(spacing: 6) {
-                        MetricRow(
-                            label: "Total Downloaded",
-                            valueText: Units.formatBytes(net.totalBytesIn, standard: std),
-                            isCopyable: true
-                        )
-                        MetricRow(
-                            label: "Total Uploaded",
-                            valueText: Units.formatBytes(net.totalBytesOut, standard: std),
-                            isCopyable: true
-                        )
-                    }
-                }
+                // Section 2: Routing & DNS
+                routingSection(net: net)
             }
         } else {
             InsetEmptyState(
@@ -221,82 +249,169 @@ public struct NetworkPanel: View {
         }
     }
 
-    // MARK: - Link Card Module
-
     @ViewBuilder
-    private func linkCardModule(net: NetworkSample) -> some View {
-        Module(eyebrow: "Link Connection") {
-            if let wifi = net.wifiDetails {
-                VStack(alignment: .leading, spacing: Instrument.Space.s) {
-                    HStack(alignment: .center, spacing: Instrument.Space.s) {
+    private func activeLinkSection(net: NetworkSample, standard: Units.ByteUnitStandard) -> some View {
+        let primaryName = primaryInterfaceName(in: net)
+        let primaryType = net.primaryType
+            ?? net.interfaces.first(where: { $0.interfaceName == primaryName })?.type
+            ?? (net.wifiDetails != nil ? .wifi : .other)
+        let displayName = primaryName.map { "\(primaryType.displayName) (\($0))" } ?? "Offline"
+
+        Section(
+            "Active Link",
+            trailing: {
+                if let wifi = net.wifiDetails {
+                    HStack(spacing: 6) {
+                        Text(wifi.ssid ?? "Wi-Fi")
+                            .font(Instrument.Typography.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
                         SignalBarsView(signalPercent: wifi.signalPercent)
+                    }
+                } else if primaryName != nil {
+                    Text(primaryType.displayName)
+                        .font(Instrument.Typography.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        ) {
+            VStack(alignment: .leading, spacing: Instrument.Space.s) {
+                // Interface identity row
+                HStack(alignment: .center, spacing: Instrument.Space.s) {
+                    Image(systemName: primaryName == nil ? "network.slash" : primaryType.iconName)
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(primaryName == nil ? .secondary : CategoryPalette.tint(for: .network))
+                        .frame(width: 18)
 
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(wifi.ssid ?? "Wi-Fi Network")
-                                .font(Instrument.Typography.headline)
-                                .foregroundColor(.primary)
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(displayName)
+                            .font(Instrument.Typography.headline)
+                            .foregroundColor(.primary)
 
-                            let bandText = wifi.band
+                        if let wifi = net.wifiDetails {
                             let channelText = wifi.channel.map { "Ch \($0)" }
-                            let detailText = [bandText, channelText].compactMap { $0 }.joined(separator: " · ")
-                            if !detailText.isEmpty {
-                                Text(detailText)
+                            let bandDetail = [wifi.band, channelText].compactMap { $0 }.joined(separator: " · ")
+                            if !bandDetail.isEmpty {
+                                Text(bandDetail)
                                     .font(Instrument.Typography.caption)
-                                    .foregroundColor(.secondary)
+                                    .foregroundStyle(.secondary)
                             }
                         }
-
-                        Spacer()
-
-                        Text(wifi.qualityRating ?? "Connected")
-                            .font(Instrument.Typography.caption)
-                            .foregroundColor(CategoryPalette.color(for: .network))
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(
-                                Capsule()
-                                    .fill(CategoryPalette.color(for: .network).opacity(0.12))
-                            )
                     }
-                }
-            } else {
-                let primaryName = net.primaryInterface ?? net.interfaces.first?.interfaceName ?? "en0"
-                let primaryType = net.primaryType ?? net.interfaces.first?.type ?? .ethernet
-
-                HStack(alignment: .center, spacing: Instrument.Space.s) {
-                    Image(systemName: primaryType.iconName)
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(CategoryPalette.color(for: .network))
-                        .frame(width: 20)
-
-                    Text(primaryName)
-                        .font(Instrument.Typography.mono)
-                        .foregroundColor(.primary)
 
                     Spacer()
 
-                    Text(primaryType.displayName)
-                        .font(Instrument.Typography.caption)
-                        .foregroundColor(.secondary)
+                    if let wifi = net.wifiDetails {
+                        Text(wifi.qualityRating ?? "Connected")
+                            .font(Instrument.Typography.caption)
+                            .foregroundColor(CategoryPalette.tint(for: .network))
+                            .padding(.horizontal, 7)
+                            .padding(.vertical, 2)
+                            .background(
+                                Capsule(style: .continuous)
+                                    .fill(CategoryPalette.tint(for: .network).opacity(0.12))
+                            )
+                    }
+                }
+
+                // Local IPv4 (copyable hairline row)
+                if let ip = net.localIPv4 {
+                    MetricRow(
+                        label: "Local IPv4",
+                        valueText: ip,
+                        isCopyable: true,
+                        showHairline: true
+                    )
+                } else {
+                    Rectangle()
+                        .fill(Instrument.Surface.hairline)
+                        .frame(height: 0.5)
+                }
+
+                // Bottom split row: Session Download (↓ Total) & Session Upload (↑ Total)
+                HStack(spacing: Instrument.Space.m) {
+                    sessionTotalCell(
+                        label: "↓ Total",
+                        bytesText: Units.formatBytes(net.totalBytesIn, standard: standard),
+                        color: CategoryPalette.tint(for: .network)
+                    )
+
+                    Rectangle()
+                        .fill(Instrument.Surface.hairline)
+                        .frame(width: 0.5, height: 28)
+
+                    sessionTotalCell(
+                        label: "↑ Total",
+                        bytesText: Units.formatBytes(net.totalBytesOut, standard: standard),
+                        color: CategoryPalette.Series.networkUpload
+                    )
+                }
+                .padding(.top, 2)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func sessionTotalCell(label: String, bytesText: String, color: Color) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(label)
+                .font(Instrument.Typography.caption)
+                .foregroundColor(color)
+
+            Text(bytesText)
+                .font(.system(size: 15, weight: .medium).monospacedDigit())
+                .foregroundColor(.primary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.85)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(label)
+        .accessibilityValue(bytesText)
+    }
+
+    @ViewBuilder
+    private func routingSection(net: NetworkSample) -> some View {
+        let bsdName = primaryInterfaceName(in: net)
+        let rows: [(label: String, value: String)] = [
+            net.gatewayIPv4.map { ("Gateway IPv4", $0) },
+            net.primaryDNS.map { ("Primary DNS", $0) },
+            bsdName.map { ("BSD Interface", $0) }
+        ].compactMap { $0 }
+
+        if !rows.isEmpty {
+            Section("Routing & DNS") {
+                VStack(spacing: 0) {
+                    ForEach(Array(rows.enumerated()), id: \.offset) { idx, row in
+                        MetricRow(
+                            label: row.label,
+                            valueText: row.value,
+                            isCopyable: true,
+                            showHairline: idx < rows.count - 1
+                        )
+                    }
                 }
             }
         }
     }
 
-    // MARK: - Connection Detail Page
+    // MARK: - Details Page (Max 2 Sections: Network Interfaces + Wi-Fi Radio Telemetry)
 
     @ViewBuilder
     private func connectionPage(sample: NetworkSample?) -> some View {
         if let net = sample {
             let unit = preferences.networkUnit
             let std = preferences.byteUnitStandard
+            let activeCount = rankedActiveInterfaces(in: net).count
+            let list = displayedInterfaces(in: net)
+            let primaryName = primaryInterfaceName(in: net)
 
-            VStack(alignment: .leading, spacing: Instrument.Space.m) {
-                // Interfaces Module
-                Module(
-                    eyebrow: "Interfaces (\(net.interfaces.count))",
+            VStack(alignment: .leading, spacing: Instrument.Space.l) {
+                // Section 1: Network Interfaces
+                Section(
+                    "Network Interfaces",
                     trailing: {
-                        if net.interfaces.count > activeInterfaces.count {
+                        if net.interfaces.count > activeCount {
                             Button {
                                 withAnimation(Motion.smooth) {
                                     showAllInterfaces.toggle()
@@ -308,66 +423,38 @@ public struct NetworkPanel: View {
                                     Image(systemName: showAllInterfaces ? "chevron.up" : "chevron.down")
                                         .font(.system(size: 8))
                                 }
-                                .foregroundColor(.secondary)
+                                .foregroundStyle(.secondary)
                             }
                             .buttonStyle(.plain)
+                        } else {
+                            Text("\(net.interfaces.count)")
+                                .font(Instrument.Typography.caption.monospacedDigit())
+                                .foregroundStyle(.secondary)
                         }
                     }
                 ) {
-                    let list = displayedInterfaces
-                    VStack(spacing: 6) {
-                        ForEach(list, id: \.interfaceName) { iface in
-                            HStack(spacing: 6) {
-                                Image(systemName: iface.type.iconName)
-                                    .font(.system(size: 11, weight: .medium))
-                                    .foregroundColor(CategoryPalette.color(for: .network))
-                                    .frame(width: 14)
-
-                                Text(iface.interfaceName)
-                                    .font(Instrument.Typography.body)
-                                    .foregroundColor(.primary)
-
-                                Spacer()
-
-                                HStack(spacing: 8) {
-                                    Text("↓ \(Units.formatCompactRate(iface.bytesInPerSec, unit: unit, standard: std))")
-                                        .font(Instrument.Typography.value)
-                                        .foregroundColor(CategoryPalette.color(for: .network))
-
-                                    Text("↑ \(Units.formatCompactRate(iface.bytesOutPerSec, unit: unit, standard: std))")
-                                        .font(Instrument.Typography.value)
-                                        .foregroundColor(CategoryPalette.Series.networkUpload)
-                                }
+                    if list.isEmpty {
+                        Text("No network interfaces detected")
+                            .font(Instrument.Typography.caption)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        VStack(spacing: 0) {
+                            ForEach(Array(list.enumerated()), id: \.element.interfaceName) { idx, iface in
+                                interfaceRow(
+                                    iface: iface,
+                                    isActive: isActiveInterface(iface, primaryName: primaryName),
+                                    unit: unit,
+                                    standard: std,
+                                    showHairline: idx < list.count - 1
+                                )
                             }
                         }
                     }
                 }
 
-                // Wi-Fi Telemetry Module
+                // Section 2: Wi-Fi Radio Telemetry
                 if let wifi = net.wifiDetails {
-                    Module(eyebrow: "Wi-Fi Telemetry") {
-                        VStack(spacing: 6) {
-                            if let ssid = wifi.ssid {
-                                MetricRow(label: "Network (SSID)", valueText: ssid, isCopyable: true)
-                            }
-                            if let p = wifi.signalPercent {
-                                let qual = wifi.qualityRating ?? "Good"
-                                MetricRow(label: "Signal Quality", valueText: "\(p)% (\(qual))", isCopyable: false)
-                            }
-                            if let rssi = wifi.rssi {
-                                MetricRow(label: "Signal (RSSI)", valueText: "\(rssi) dBm", isCopyable: false)
-                            }
-                            if let noise = wifi.noise {
-                                MetricRow(label: "Noise Floor", valueText: "\(noise) dBm", isCopyable: false)
-                            }
-                            if let snr = wifi.snr {
-                                MetricRow(label: "Signal-to-Noise (SNR)", valueText: "\(snr) dB", isCopyable: false)
-                            }
-                            if let tx = wifi.txRate {
-                                MetricRow(label: "Transmit Rate", valueText: String(format: "%.0f Mbps", tx), isCopyable: false)
-                            }
-                        }
-                    }
+                    wifiTelemetrySection(wifi: wifi)
                 }
             }
         } else {
@@ -376,6 +463,86 @@ public struct NetworkPanel: View {
                 title: "No Connection Details",
                 reason: "No interface details available."
             )
+        }
+    }
+
+    @ViewBuilder
+    private func interfaceRow(
+        iface: InterfaceThroughput,
+        isActive: Bool,
+        unit: Units.NetworkUnit,
+        standard: Units.ByteUnitStandard,
+        showHairline: Bool
+    ) -> some View {
+        HStack(spacing: 7) {
+            Circle()
+                .fill(isActive ? CategoryPalette.tint(for: .network) : Color.secondary.opacity(0.35))
+                .frame(width: 6, height: 6)
+
+            Image(systemName: iface.type.iconName)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundColor(isActive ? CategoryPalette.tint(for: .network) : .secondary)
+                .frame(width: 14)
+
+            Text(iface.interfaceName)
+                .font(Instrument.Typography.mono)
+                .foregroundColor(.primary)
+                .padding(.horizontal, 5)
+                .padding(.vertical, 1.5)
+                .background(
+                    Capsule(style: .continuous)
+                        .fill(Instrument.Surface.inset)
+                )
+
+            Spacer()
+
+            HStack(spacing: 8) {
+                Text("↓ \(Units.formatCompactRate(iface.bytesInPerSec, unit: unit, standard: standard))")
+                    .font(Instrument.Typography.value)
+                    .foregroundColor(CategoryPalette.tint(for: .network))
+
+                Text("↑ \(Units.formatCompactRate(iface.bytesOutPerSec, unit: unit, standard: standard))")
+                    .font(Instrument.Typography.value)
+                    .foregroundColor(CategoryPalette.Series.networkUpload)
+            }
+        }
+        .frame(height: 26)
+        .overlay(alignment: .bottom) {
+            if showHairline {
+                Rectangle()
+                    .fill(Instrument.Surface.hairline)
+                    .frame(height: 0.5)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func wifiTelemetrySection(wifi: WiFiLinkTelemetry) -> some View {
+        let rows: [(label: String, value: String, copyable: Bool)] = [
+            wifi.ssid.map { ("SSID", $0, true) },
+            wifi.signalPercent.map { pct in
+                let qual = wifi.qualityRating ?? "Good"
+                return ("Signal Quality", "\(pct)% (\(qual))", false)
+            },
+            wifi.rssi.map { ("RSSI", "\($0) dBm", false) },
+            wifi.noise.map { ("Noise Floor", "\($0) dBm", false) },
+            wifi.snr.map { ("SNR", "\($0) dB", false) },
+            wifi.txRate.map { ("Transmit Rate", String(format: "%.0f Mbps", $0), false) }
+        ].compactMap { $0 }
+
+        if !rows.isEmpty {
+            Section("Wi-Fi Radio Telemetry") {
+                VStack(spacing: 0) {
+                    ForEach(Array(rows.enumerated()), id: \.offset) { idx, row in
+                        MetricRow(
+                            label: row.label,
+                            valueText: row.value,
+                            isCopyable: row.copyable,
+                            showHairline: idx < rows.count - 1
+                        )
+                    }
+                }
+            }
         }
     }
 }
