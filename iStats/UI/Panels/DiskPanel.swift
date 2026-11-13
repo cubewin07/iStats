@@ -2,9 +2,10 @@ import SwiftUI
 import AppKit
 import iStatsCore
 
-/// Dedicated Disk Instrument Panel (Task 8.8g / ADR 0009 / Blueprint §6.7).
-/// Features the signature Storage Bar + I/O Waveform, boot volume free display,
-/// 14 pt SplitCapsule storage breakdown, live IOPS counters, and mounted volumes inspector.
+/// Dedicated Disk Instrument Panel (Task 8.5.8g / ADR 0009 / ADR 0010).
+/// Features an independent-scale mirrored Read/Write hero chart from timestamped scalar buffers,
+/// 14 pt SplitCapsule boot volume storage with 2-column legend, hairline throughput & IOPS table,
+/// and compact capacity meters per mounted volume.
 public struct DiskPanel: View {
     public let initialTab: PopoverTab
     public let rememberLastTab: Bool
@@ -15,6 +16,7 @@ public struct DiskPanel: View {
 
     @State private var selectedTab: PopoverTab
     @State private var hoveredVolumePoint: String? = nil
+    @State private var derivedCache = DerivedCache()
 
     public init(
         initialTab: PopoverTab = .overview,
@@ -33,27 +35,28 @@ public struct DiskPanel: View {
         self._selectedTab = State(initialValue: resolved)
     }
 
+    private var sampleWrapper: Sample<DiskSample>? {
+        coordinator.latestDisk
+    }
+
     private var sample: DiskSample? {
-        coordinator.latestDisk?.value
+        sampleWrapper?.value
     }
 
     private var bootVolume: VolumeCapacity? {
-        guard let s = sample else { return nil }
-        return s.volumes.first(where: { $0.mountPoint == "/" })
-            ?? s.volumes.max(by: { $0.total < $1.total })
+        Self.resolveBootVolume(in: sample)
     }
 
     public var body: some View {
-        let glance = deriveGlance(sample: sample)
-        let (status, ribbon) = deriveStatusAndRibbon(sample: sample)
+        let derived = memoizedDerivedState()
         let availability = coordinator.categoryAvailability[.disk]
         let isLoading = (availability == nil && !coordinator.isSamplingPaused)
 
         PanelScaffold(
             category: .disk,
-            glance: glance,
-            status: status,
-            ribbon: ribbon,
+            glance: derived.glance,
+            status: derived.status,
+            ribbon: derived.ribbon,
             pages: PopoverTab.supportedTabs(for: .disk),
             selection: $selectedTab,
             availability: availability,
@@ -69,7 +72,7 @@ public struct DiskPanel: View {
         ) { tab in
             switch tab {
             case .overview:
-                nowPage(sample: sample)
+                nowPage(sample: sample, derived: derived)
             case .detail:
                 volumesPage(sample: sample)
             case .history:
@@ -83,44 +86,105 @@ public struct DiskPanel: View {
         }
     }
 
-    // MARK: - Glance Derivation
+    // MARK: - Memoised Derived State (B8 + B14)
 
-    private func deriveGlance(sample: DiskSample?) -> PanelGlance {
+    private struct CacheKey: Equatable {
+        let timestamp: Date?
+        let sample: DiskSample?
+        let byteUnitStandard: Units.ByteUnitStandard
+        let refreshInterval: TimeInterval
+    }
+
+    private struct DerivedState {
+        let glance: PanelGlance
+        let status: StatusLevel
+        let ribbon: String?
+        let readSeries: [Double]
+        let writeSeries: [Double]
+    }
+
+    private final class DerivedCache {
+        var key: CacheKey?
+        var value: DerivedState?
+    }
+
+    private func memoizedDerivedState() -> DerivedState {
+        let key = CacheKey(
+            timestamp: sampleWrapper?.timestamp,
+            sample: sample,
+            byteUnitStandard: preferences.byteUnitStandard,
+            refreshInterval: preferences.refreshInterval
+        )
+        if let cachedKey = derivedCache.key, cachedKey == key, let cached = derivedCache.value {
+            return cached
+        }
+
+        let computed = computeDerivedState(sampleWrapper: sampleWrapper)
+        derivedCache.key = key
+        derivedCache.value = computed
+        return computed
+    }
+
+    private func computeDerivedState(sampleWrapper: Sample<DiskSample>?) -> DerivedState {
+        let currentSample = sampleWrapper?.value
         let std = preferences.byteUnitStandard
-        let boot = bootVolume
+        let boot = Self.resolveBootVolume(in: currentSample)
 
         let (displayVal, displayUnit, formatStr) = formatFreeSpace(boot?.free ?? 0, standard: std)
         let headline = deriveHeadline(boot: boot, std: std)
 
-        let readHistory = coordinator.diskHistory.map { $0.value.io?.bytesReadPerSec ?? 0.0 }
-        let writeHistory = coordinator.diskHistory.map { $0.value.io?.bytesWrittenPerSec ?? 0.0 }
+        // B8: Read exclusively from timestamped scalar buffers (never mix diskHistory).
+        let refDate = sampleWrapper?.timestamp ?? Date()
+        let dualPoints = coordinator.timedDualScalarHistory(
+            primary: .diskReadBytesPerSec,
+            secondary: .diskWriteBytesPerSec,
+            duration: 60.0,
+            referenceDate: refDate
+        )
+        let readSeries = dualPoints.map(\.primary)
+        let writeSeries = dualPoints.map(\.secondary)
 
         let insight = InsightEngine.best(
-            series: readHistory,
+            series: readSeries,
             interval: preferences.refreshInterval,
             unit: .bytesPerSecond(standard: std),
             thresholds: .throughputBytesPerSec()
         )?.text
 
         let chartMode = LiveChartMode.mirrored(
-            top: readHistory,
-            bottom: writeHistory,
-            topColor: CategoryPalette.color(for: .disk),
+            points: dualPoints,
+            topColor: CategoryPalette.Series.diskRead,
             bottomColor: CategoryPalette.Series.diskWrite,
             topLabel: "R",
             bottomLabel: "W"
         )
 
-        return PanelGlance(
+        let glance = PanelGlance(
             value: displayVal,
             format: formatStr,
             unit: displayUnit,
             headline: headline,
             insight: insight,
             chartMode: chartMode,
-            chartHeight: 56,
-            scrubFormat: { Units.formatDiskRate($0, standard: std) }
+            chartHeight: 84,
+            scrubFormat: { Units.formatCompactRate($0, standard: std) }
         )
+
+        let (status, ribbon) = deriveStatusAndRibbon(boot: boot)
+
+        return DerivedState(
+            glance: glance,
+            status: status,
+            ribbon: ribbon,
+            readSeries: readSeries,
+            writeSeries: writeSeries
+        )
+    }
+
+    private static func resolveBootVolume(in sample: DiskSample?) -> VolumeCapacity? {
+        guard let s = sample else { return nil }
+        return s.volumes.first(where: { $0.mountPoint == "/" })
+            ?? s.volumes.max(by: { $0.total < $1.total })
     }
 
     private func formatFreeSpace(_ bytes: UInt64, standard: Units.ByteUnitStandard) -> (Double, String, String) {
@@ -137,14 +201,14 @@ public struct DiskPanel: View {
     }
 
     private func deriveHeadline(boot: VolumeCapacity?, std: Units.ByteUnitStandard) -> String {
-        guard let boot = boot, boot.total > 0 else { return "No volume information" }
+        guard let boot, boot.total > 0 else { return "No volume information" }
         let totalStr = Units.formatBytes(boot.total, standard: std)
         let usedPct = Int(round(Double(boot.used) / Double(boot.total) * 100.0))
         return "of \(totalStr) · \(usedPct)% used"
     }
 
-    private func deriveStatusAndRibbon(sample: DiskSample?) -> (StatusLevel, String?) {
-        guard let boot = bootVolume, boot.total > 0 else { return (.fine, nil) }
+    private func deriveStatusAndRibbon(boot: VolumeCapacity?) -> (StatusLevel, String?) {
+        guard let boot, boot.total > 0 else { return (.fine, nil) }
         let usedPct = Double(boot.used) / Double(boot.total) * 100.0
         let level = StatusThresholds.disk(usedPercent: usedPct)
 
@@ -160,41 +224,19 @@ public struct DiskPanel: View {
         }
     }
 
-    // MARK: - Now Page (Overview)
+    // MARK: - Now Page (Max 2 Sections)
 
     @ViewBuilder
-    private func nowPage(sample: DiskSample?) -> some View {
+    private func nowPage(sample: DiskSample?, derived: DerivedState) -> some View {
         if let s = sample, let boot = bootVolume {
             let std = preferences.byteUnitStandard
 
             VStack(alignment: .leading, spacing: Instrument.Space.m) {
-                // Storage Bar Module
-                storageBarModule(volume: boot, std: std)
+                // Section 1: Boot Volume Storage
+                bootStorageSection(volume: boot, status: derived.status, std: std)
 
-                // I/O Throughput & Activity Module
-                if let io = s.io {
-                    Module(eyebrow: "Live Throughput & IOPS") {
-                        VStack(spacing: 6) {
-                            let readRate = Units.formatCompactRate(io.bytesReadPerSec, standard: std)
-                            let readIOPS = Int(round(io.readOpsPerSec))
-                            MetricRow(
-                                label: "Disk Read",
-                                valueText: "\(readRate)  ·  \(readIOPS) IOPS",
-                                sparklineColor: CategoryPalette.color(for: .disk),
-                                isCopyable: true
-                            )
-
-                            let writeRate = Units.formatCompactRate(io.bytesWrittenPerSec, standard: std)
-                            let writeIOPS = Int(round(io.writeOpsPerSec))
-                            MetricRow(
-                                label: "Disk Write",
-                                valueText: "\(writeRate)  ·  \(writeIOPS) IOPS",
-                                sparklineColor: CategoryPalette.Series.diskWrite,
-                                isCopyable: true
-                            )
-                        }
-                    }
-                }
+                // Section 2: Live Throughput & IOPS
+                throughputSection(io: s.io, derived: derived, std: std)
             }
         } else {
             InsetEmptyState(
@@ -205,85 +247,254 @@ public struct DiskPanel: View {
         }
     }
 
-    // MARK: - Storage Bar Module
+    // MARK: - Section 1: Boot Volume Storage
+
+    private struct StorageLegendItem: Identifiable {
+        let id: String
+        let label: String
+        let bytes: UInt64
+        let percent: Double
+        let color: Color
+    }
+
+    private func buildStorageBreakdown(
+        volume: VolumeCapacity,
+        std: Units.ByteUnitStandard
+    ) -> (segments: [CapsuleSegment], legendItems: [StorageLegendItem]) {
+        let total = max(1.0, Double(volume.total))
+        let unallocated = volume.total > (volume.used &+ volume.free)
+            ? (volume.total - volume.used - volume.free)
+            : 0
+        let usedPct = (Double(volume.used) / total) * 100.0
+        let freePct = (Double(volume.free) / total) * 100.0
+        let otherPct = (Double(unallocated) / total) * 100.0
+
+        let freeColor = Color.secondary.opacity(0.24)
+        let otherColor = CategoryPalette.color(for: .disk).opacity(0.45)
+
+        var segments: [CapsuleSegment] = [
+            CapsuleSegment(
+                value: Double(volume.used),
+                color: CategoryPalette.color(for: .disk),
+                label: "Used",
+                formattedValue: "Used · \(Units.formatBytes(volume.used, standard: std)) · \(Int(round(usedPct)))%"
+            )
+        ]
+        var legendItems: [StorageLegendItem] = [
+            StorageLegendItem(
+                id: "used",
+                label: "Used",
+                bytes: volume.used,
+                percent: usedPct,
+                color: CategoryPalette.color(for: .disk)
+            )
+        ]
+
+        if unallocated > 0 {
+            segments.append(
+                CapsuleSegment(
+                    value: Double(unallocated),
+                    color: otherColor,
+                    label: "Purgeable",
+                    formattedValue: "Purgeable · \(Units.formatBytes(unallocated, standard: std)) · \(Int(round(otherPct)))%"
+                )
+            )
+            legendItems.append(
+                StorageLegendItem(
+                    id: "purgeable",
+                    label: "Purgeable",
+                    bytes: unallocated,
+                    percent: otherPct,
+                    color: otherColor
+                )
+            )
+        }
+
+        segments.append(
+            CapsuleSegment(
+                value: Double(volume.free),
+                color: freeColor,
+                label: "Free",
+                formattedValue: "Free · \(Units.formatBytes(volume.free, standard: std)) · \(Int(round(freePct)))%"
+            )
+        )
+        legendItems.append(
+            StorageLegendItem(
+                id: "free",
+                label: "Free",
+                bytes: volume.free,
+                percent: freePct,
+                color: freeColor
+            )
+        )
+
+        return (segments, legendItems)
+    }
 
     @ViewBuilder
-    private func storageBarModule(volume: VolumeCapacity, std: Units.ByteUnitStandard) -> some View {
-        let usedPct = volume.total > 0 ? (Double(volume.used) / Double(volume.total) * 100.0) : 0.0
+    private func bootStorageSection(
+        volume: VolumeCapacity,
+        status: StatusLevel,
+        std: Units.ByteUnitStandard
+    ) -> some View {
+        let breakdown = buildStorageBreakdown(volume: volume, std: std)
 
-        Module(eyebrow: "\(volume.name) Storage") {
+        Section("\(volume.name) Storage") {
+            storageHeaderTrailing(volume: volume, status: status, std: std)
+        } content: {
             VStack(alignment: .leading, spacing: Instrument.Space.s) {
-                // 14 pt SplitCapsule
                 SplitCapsule(
-                    segments: [
-                        CapsuleSegment(
-                            value: Double(volume.used),
-                            color: CategoryPalette.color(for: .disk),
-                            label: "Used",
-                            formattedValue: "Used: \(Units.formatBytes(volume.used, standard: std))"
-                        ),
-                        CapsuleSegment(
-                            value: Double(volume.free),
-                            color: Color.secondary.opacity(0.18),
-                            label: "Free",
-                            formattedValue: "Free: \(Units.formatBytes(volume.free, standard: std))"
-                        )
-                    ],
+                    segments: breakdown.segments,
                     height: 14,
                     minVisibleWidth: 4,
                     gap: 1
                 )
 
-                // Tick labels: 0% / 50% / 100%
-                HStack {
-                    Text("0%")
-                        .font(Instrument.Typography.micro)
-                        .foregroundColor(.secondary)
-                    Spacer()
-                    Text("50%")
-                        .font(Instrument.Typography.micro)
-                        .foregroundColor(.secondary)
-                    Spacer()
-                    Text("100%")
-                        .font(Instrument.Typography.micro)
-                        .foregroundColor(.secondary)
+                // Structured 2-column legend: swatch · label · formatted bytes · %
+                LazyVGrid(
+                    columns: [
+                        GridItem(.flexible(), spacing: Instrument.Space.l),
+                        GridItem(.flexible(), spacing: Instrument.Space.l)
+                    ],
+                    alignment: .leading,
+                    spacing: 6
+                ) {
+                    ForEach(breakdown.legendItems) { item in
+                        storageLegendCell(item: item, std: std)
+                    }
                 }
-
-                // Breakdown rows
-                VStack(spacing: 6) {
-                    MetricRow(
-                        label: "Used Space",
-                        valueText: "\(Units.formatBytes(volume.used, standard: std)) (\(Int(round(usedPct)))%)",
-                        isCopyable: true
-                    )
-                    MetricRow(
-                        label: "Free Space",
-                        valueText: Units.formatBytes(volume.free, standard: std),
-                        isCopyable: true
-                    )
-                    MetricRow(
-                        label: "Total Capacity",
-                        valueText: Units.formatBytes(volume.total, standard: std),
-                        isCopyable: true
-                    )
-                }
-                .padding(.top, 4)
+                .padding(.top, 2)
             }
         }
     }
 
-    // MARK: - Volumes Detail Page
+    @ViewBuilder
+    private func storageHeaderTrailing(
+        volume: VolumeCapacity,
+        status: StatusLevel,
+        std: Units.ByteUnitStandard
+    ) -> some View {
+        HStack(spacing: 5) {
+            if !status.isQuiet {
+                Circle()
+                    .fill(status.color)
+                    .frame(width: 6, height: 6)
+            }
+            Text("\(statusHealthLabel(for: status)) · \(Units.formatBytes(volume.total, standard: std))")
+                .font(Instrument.Typography.caption.monospacedDigit())
+                .foregroundStyle(status.isQuiet ? AnyShapeStyle(.secondary) : AnyShapeStyle(status.color))
+        }
+    }
+
+    private func statusHealthLabel(for status: StatusLevel) -> String {
+        switch status {
+        case .fine: return "Healthy"
+        case .elevated: return "Running Low"
+        case .warning: return "Low Space"
+        case .critical: return "Critical"
+        }
+    }
+
+    private func storageLegendCell(item: StorageLegendItem, std: Units.ByteUnitStandard) -> some View {
+        HStack(spacing: 5) {
+            RoundedRectangle(cornerRadius: 2, style: .continuous)
+                .fill(item.color)
+                .frame(width: 7, height: 7)
+
+            Text(item.label)
+                .font(Instrument.Typography.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+
+            Spacer(minLength: 2)
+
+            Text(Units.formatBytes(item.bytes, standard: std, fractionDigits: 1))
+                .font(Instrument.Typography.caption.monospacedDigit().weight(.medium))
+                .foregroundStyle(.primary)
+                .lineLimit(1)
+
+            Text("\(Int(round(item.percent)))%")
+                .font(Instrument.Typography.micro)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+        }
+    }
+
+    // MARK: - Section 2: Live Throughput & IOPS
+
+    @ViewBuilder
+    private func throughputSection(
+        io: DiskIO?,
+        derived: DerivedState,
+        std: Units.ByteUnitStandard
+    ) -> some View {
+        Section("Live Throughput & IOPS") {
+            if let io {
+                VStack(spacing: 0) {
+                    MetricRow(
+                        label: "Read Throughput",
+                        valueText: Units.formatCompactRate(io.bytesReadPerSec, standard: std),
+                        sparklineHistory: derived.readSeries,
+                        sparklineColor: CategoryPalette.Series.diskRead,
+                        showHairline: true
+                    )
+                    MetricRow(
+                        label: "Write Throughput",
+                        valueText: Units.formatCompactRate(io.bytesWrittenPerSec, standard: std),
+                        sparklineHistory: derived.writeSeries,
+                        sparklineColor: CategoryPalette.Series.diskWrite,
+                        showHairline: true
+                    )
+                    MetricRow(
+                        label: "Read IOPS",
+                        valueText: "\(formatIOPS(io.readOpsPerSec)) ops/s",
+                        showHairline: true
+                    )
+                    MetricRow(
+                        label: "Write IOPS",
+                        valueText: "\(formatIOPS(io.writeOpsPerSec)) ops/s",
+                        showHairline: false
+                    )
+                }
+            } else {
+                MetricRow(
+                    label: "Disk I/O Counters",
+                    valueText: "Unavailable",
+                    showHairline: false
+                )
+            }
+        }
+    }
+
+    private func formatIOPS(_ value: Double) -> String {
+        let count = max(0, Int(round(value)))
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        formatter.locale = Locale(identifier: "en_US")
+        return formatter.string(from: NSNumber(value: count)) ?? "\(count)"
+    }
+
+    // MARK: - Details Page (Mounted Volumes)
 
     @ViewBuilder
     private func volumesPage(sample: DiskSample?) -> some View {
         if let s = sample, !s.volumes.isEmpty {
             let std = preferences.byteUnitStandard
 
-            VStack(alignment: .leading, spacing: Instrument.Space.m) {
-                Module(eyebrow: "Mounted Volumes (\(s.volumes.count))") {
-                    VStack(spacing: 12) {
-                        ForEach(s.volumes, id: \.mountPoint) { vol in
-                            volumeCard(vol: vol, std: std)
+            Section("Mounted Volumes") {
+                Text("\(s.volumes.count)")
+                    .font(Instrument.Typography.caption.monospacedDigit())
+                    .foregroundStyle(.secondary)
+            } content: {
+                VStack(spacing: 0) {
+                    ForEach(Array(s.volumes.enumerated()), id: \.element.mountPoint) { index, vol in
+                        volumeRow(vol: vol, std: std)
+                            .padding(.vertical, 8)
+
+                        if index < s.volumes.count - 1 {
+                            Rectangle()
+                                .fill(Instrument.Surface.hairline)
+                                .frame(height: 0.5)
                         }
                     }
                 }
@@ -298,83 +509,89 @@ public struct DiskPanel: View {
     }
 
     @ViewBuilder
-    private func volumeCard(vol: VolumeCapacity, std: Units.ByteUnitStandard) -> some View {
+    private func volumeRow(vol: VolumeCapacity, std: Units.ByteUnitStandard) -> some View {
         let isHovered = (hoveredVolumePoint == vol.mountPoint)
         let isBoot = (vol.mountPoint == "/")
+        let total = max(1.0, Double(vol.total))
+        let usedFraction = min(1.0, max(0.0, Double(vol.used) / total))
+        let usedPct = usedFraction * 100.0
+        let volStatus = StatusThresholds.disk(usedPercent: usedPct)
+        let meterTint = volStatus.isQuiet ? CategoryPalette.color(for: .disk) : volStatus.color
 
         VStack(alignment: .leading, spacing: 6) {
-            // Header Row: Volume Name + Free of Total
-            HStack {
+            // Header: icon + mount name + role badge + Finder button / % used
+            HStack(spacing: 6) {
                 Image(systemName: isBoot ? "internaldrive.fill" : "externaldrive.fill")
-                    .font(.system(size: 12, weight: .medium))
+                    .font(.system(size: 11, weight: .medium))
                     .foregroundColor(CategoryPalette.color(for: .disk))
 
                 Text(vol.name)
-                    .font(Instrument.Typography.body)
+                    .font(Instrument.Typography.body.weight(.medium))
                     .foregroundColor(.primary)
+                    .lineLimit(1)
 
-                Spacer()
-
-                Text("\(Units.formatBytes(vol.free, standard: std)) free")
-                    .font(Instrument.Typography.caption)
-                    .foregroundColor(.secondary)
-            }
-
-            // Mini 6 pt Storage Bar
-            SplitCapsule(
-                segments: [
-                    CapsuleSegment(
-                        value: Double(vol.used),
-                        color: CategoryPalette.color(for: .disk),
-                        label: "Used",
-                        formattedValue: "Used: \(Units.formatBytes(vol.used, standard: std))"
-                    ),
-                    CapsuleSegment(
-                        value: Double(vol.free),
-                        color: Color.secondary.opacity(0.18),
-                        label: "Free",
-                        formattedValue: "Free: \(Units.formatBytes(vol.free, standard: std))"
+                Text(isBoot ? "Boot" : "External")
+                    .font(Instrument.Typography.micro)
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 1.5)
+                    .background(
+                        Capsule(style: .continuous)
+                            .fill(Instrument.Surface.inset)
                     )
-                ],
-                height: 6,
-                minVisibleWidth: 3,
-                gap: 1
-            )
 
-            // Mount Point & Finder Action Row
-            HStack {
-                Text(vol.mountPoint)
-                    .font(Instrument.Typography.mono)
-                    .foregroundColor(.secondary)
+                Spacer(minLength: 4)
 
-                Spacer()
-
-                if !isBoot {
+                if !isBoot && isHovered {
                     Button {
                         let url = URL(fileURLWithPath: vol.mountPoint)
                         NSWorkspace.shared.activateFileViewerSelecting([url])
                     } label: {
-                        HStack(spacing: 4) {
-                            Text("Show in Finder")
-                                .font(Instrument.Typography.caption)
-                            Image(systemName: "arrow.up.right.square")
-                                .font(.system(size: 10))
-                        }
-                        .foregroundColor(CategoryPalette.color(for: .disk))
+                        Image(systemName: "arrow.up.right.square")
+                            .font(.system(size: 11))
+                            .foregroundColor(CategoryPalette.color(for: .disk))
                     }
                     .buttonStyle(.plain)
-                    .opacity(isHovered ? 1.0 : 0.8)
+                    .help("Show in Finder")
                 }
+
+                Text("\(Int(round(usedPct)))% used")
+                    .font(Instrument.Typography.caption.monospacedDigit())
+                    .foregroundStyle(.secondary)
+            }
+
+            // Thin 6 pt capacity Meter
+            Meter(
+                progress: usedFraction,
+                height: .small,
+                tint: meterTint
+            )
+
+            // Tabular Used / Available / Total summary
+            HStack(spacing: 8) {
+                volumeCapacityStat(label: "Used", value: Units.formatBytes(vol.used, standard: std, fractionDigits: 1))
+                Spacer(minLength: 4)
+                volumeCapacityStat(label: "Available", value: Units.formatBytes(vol.free, standard: std, fractionDigits: 1))
+                Spacer(minLength: 4)
+                volumeCapacityStat(label: "Total", value: Units.formatBytes(vol.total, standard: std, fractionDigits: 1))
             }
         }
-        .padding(8)
-        .background(
-            RoundedRectangle(cornerRadius: Instrument.Radius.control, style: .continuous)
-                .fill(Color.primary.opacity(isHovered ? 0.05 : 0.02))
-        )
+        .contentShape(Rectangle())
         .onHover { hovering in
             hoveredVolumePoint = hovering ? vol.mountPoint : nil
         }
+    }
+
+    private func volumeCapacityStat(label: String, value: String) -> some View {
+        HStack(spacing: 3) {
+            Text(label)
+                .font(Instrument.Typography.caption)
+                .foregroundStyle(.tertiary)
+            Text(value)
+                .font(Instrument.Typography.caption.monospacedDigit())
+                .foregroundStyle(.secondary)
+        }
+        .lineLimit(1)
     }
 }
 
