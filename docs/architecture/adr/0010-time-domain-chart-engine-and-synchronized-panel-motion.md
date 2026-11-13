@@ -105,5 +105,22 @@ We adopt **Instrument 2 (Phase 8.5)** to replace the chart engine, synchronize s
 - **Butter-Smooth, Deterministic Chart Motion:** Traces scroll at a constant pixel-per-second velocity with zero head wobble, zero late-sample snap-back, smooth spring/hysteresis Y scaling, and stable 5m/15m envelopes.
 - **Testable Pure Math in `iStatsCore`:** `ChartTimeline`, `ChartScale`, and `Downsampler.alignedBuckets` are pure value types in `iStatsCore` covered by deterministic unit tests.
 - **Lower CPU Overhead While Open:** Removing the perpetual 60 fps radar pulse and pre-projecting model-space points per sample keeps single-panel open CPU overhead well within the `≤ 1.5%` chart / `≤ 3%` total app budget.
-- **Incremental, Reviewable Rollout:** Phase 8.5 is structured into logical sub-phases (Foundation Math → LiveChart v3 & History v3 → Shell Motion & Kit v2 → Per-Panel Polish → Gallery & Verification) so each task commits cleanly and independently.
+- **Incremental, Reviewable Rollout:** Phase 8.5 is structured into logical sub-phases (Shell Correctness → Foundation Math → LiveChart v3 & History v3 → Header v2 & Kit v2 → Per-Panel Polish → Gallery & Verification) so each task commits cleanly and independently.
+
+---
+
+## Amendment (2026-11-13) — Shell Correctness First & B1–B14 Scope Expansion
+
+Following code inspection of the shipped Phase 8 popover path (`docs/handoffs/08.5-amendment-plan.md`), the user accepted two amendments to this ADR:
+
+1. **Scope Expansion (`B1–B14` Included):**
+   In addition to the 13 animation defects (`A1–A13`), Phase 8.5 includes 14 correctness bugs (`B1–B14`):
+   - **Shell lifecycle & sizing (`B1–B6`):** close/show fade race when switching widgets (`B1`), missing dynamic height updates outside tab switches (`B2`), non-scrolling Now page (`B3`), double-building `ViewThatFits` mid-animation (`B4`), async post-open `fittingSize` height jump (`B5`), and duplicate transient panels created when hovering onto an already-pinned category (`B6`).
+   - **Chart & History telemetry (`B7–B10`):** flat-series glide snap-back when glide only resets on value change (`B7`), 59–61 point jitter from cutting windows against the newest sample and mixing scalar vs. full-sample ring sources (`B8`), `powerWatts` storing battery percentage when wattage is missing (`B9`), and `HistoryPage` loading its saved range in `onAppear` plus index-based stat-cell scrub drift (`B10`).
+   - **Kit, Caching & Panel correctness (`B11–B14`):** default hover-highlight/copyability on non-copyable `MetricRow`s and hardcoded white crosshair rings in Light mode (`B11`), uncached non-app icon lookups on the main thread (`B12`), duplicate Fan Details page and synthetic Memory `25/65/95` gauge (`B13`), and redundant per-publish glance re-derivation with dead `PanelHostView` (`B14`).
+
+2. **Reordered Rollout (`8.5.6` Split into `8.5.6a` and `8.5.6b`; `8.5.6a` Lands First):**
+   The original rollout ordered Chart Engine (`8.5.1–8.5.5`) before Shell Motion (`8.5.6`). Because `B1–B6` have zero chart-engine dependencies and visibly break panel opening, switching, scrolling, and hover behavior today, Task `8.5.6` is split into:
+   - **`8.5.6a` (Shell Lifecycle & Sizing):** Fixes `B1–B6`, `A10`, and `A11` (`MetricPanel` persistent hosting view with `sizingOptions = []` and `EmptyView()` close teardown, single `PanelContentHeightKey` preference height channel, `NSHostingController.sizeThatFits(in:)` pre-open sizing, single `ScrollView` across all tabs, close/show transition generation guard + status-item hit-test exclusion, visible pinned-panel guard, removal of cross-view `matchedGeometryEffect`, animated pin/unpin). **Lands first before `8.5.1–8.5.5`.**
+   - **`8.5.6b` (Header v2, Text `PageSwitcher` & Inline Status Chip):** Retains its dependency on `8.5.4`, `8.5.5`, and `8.5.6a`, landing in Stage 3 alongside `8.5.7` Kit v2.
 

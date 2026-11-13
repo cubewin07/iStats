@@ -13,8 +13,8 @@ The only status file. Agent specs (`AGENTS.md`, `CLAUDE.md`) and phase plans do 
 | Field | Value |
 |-------|--------|
 | Phase | **8.5** — Instrument 2 polish (time-domain chart engine v3, synchronized motion, 8-panel polish) |
-| Next task | **8.5.1** Pure chart math v3 (`ChartTimeline`, `ChartScale`, `Downsampler.alignedBuckets`) |
-| Last closed | **8.5.0** ADR 0010 & Phase 8.5 specification package |
+| Next task | **8.5.6a** Shell lifecycle & sizing (`MetricPanel`, `PanelController`, `PanelScaffold`, `MenuBarController`; fixes B1–B6, A10, A11) |
+| Last closed | **8.5.0** ADR 0010 & Phase 8.5 specification package (amended 2026-11-13) |
 | Blocked by | — |
 
 ---
@@ -32,7 +32,7 @@ The only status file. Agent specs (`AGENTS.md`, `CLAUDE.md`) and phase plans do 
 | 6 | Polish & preferences | **done** | Full preferences (General, Categories, Units), 8 menu bar modes, SMAppService launch-at-login, Dock icon toggle, ADR 0006 zero-telemetry persistence, performance benchmark pass, docs/ADRs finalized, and `report.md` complete. |
 | 7 | Widget & popover redesign | **done** | ADR 0008, 32 high-signal widgets, 8 purpose-driven popovers (23 tabs), in-memory scalar history with spike-preserving downsampling (Task 7.6, 154 KB), design tokens & primitives, 20 legacy files deleted, report complete. 480 tests passing. |
 | 8 | Premium panel redesign ("Instrument") | **done** | ADR 0009, Instrument design language, glass `MetricPanel : NSPanel`, `PanelController` with top-anchored morphing and multi-pinned HUDs, 8 signature instruments, `LiveChart` with 4 modes and active band detection, `InsightEngine` presets, top consumers (`ProcessSampler` Mach timebase fix), History v2, 25 legacy files deleted, accessibility matrix passed, report complete. 586 tests passing green (257 `iStatsCoreTests`, 329 `iStatsTests` CLI, 321 Xcode app). |
-| 8.5 | Instrument 2 polish (Chart Engine v3, Synchronized Motion & 8-Panel Polish) | **docs on disk, not closed** | ADR 0010 accepted; full specification package on disk under [`docs/phases/phase-08.5-instrument-polish/`](./phases/phase-08.5-instrument-polish/). Ready to implement Tasks `8.5.1`–`8.5.9`. |
+| 8.5 | Instrument 2 polish (Chart Engine v3, Synchronized Motion & 8-Panel Polish) | **docs on disk, not closed** | ADR 0010 accepted (amended 2026-11-13 for B1–B14 and reordered rollout); specification package on disk under [`docs/phases/phase-08.5-instrument-polish/`](./phases/phase-08.5-instrument-polish/). Ready to implement `8.5.6a` → `8.5.1–8.5.5` → `8.5.6b` → `8.5.7–8.5.9`. |
 
 Status values: `not started` · `in progress` · `docs on disk, not closed` · `done` · `blocked`.
 
@@ -114,18 +114,19 @@ Copy a row from [`docs/specs/tasks.md`](./specs/tasks.md) when you start it. Lea
 | 8.11 | Accessibility & appearance matrix | **done** | [`docs/handoffs/08-8.11-summary.md`](./handoffs/08-8.11-summary.md), `swift test` (247 passed), `xcodebuild test` (327 passed; 574 total) |
 | 8.12 | Performance budget, legacy deletion, docs sync, report | **done** | [`docs/handoffs/08-8.12-summary.md`](./handoffs/08-8.12-summary.md), [`docs/phases/phase-08-premium-redesign/report.md`](./phases/phase-08-premium-redesign/report.md), `swift test` (586 passed: 257 core + 329 app), `xcodebuild test` (321 passed) |
 | 8.5.0 | ADR 0010 time-domain chart engine v3, synchronized panel motion & Phase 8.5 spec package | **done** | [`docs/architecture/adr/0010-time-domain-chart-engine-and-synchronized-panel-motion.md`](./architecture/adr/0010-time-domain-chart-engine-and-synchronized-panel-motion.md), [`docs/phases/phase-08.5-instrument-polish/`](./phases/phase-08.5-instrument-polish/) |
+| 8.5.6a | Shell lifecycle & sizing (persistent `NSHostingView`, `PreferenceKey` height channel, `sizeThatFits` pre-open, single `ScrollView`, close/show race, pinned guard; fixes B1–B6, A10, A11) | not started | — |
 | 8.5.1 | Pure chart math v3 (`ChartTimeline`, `ChartScale`, `Downsampler.alignedBuckets`) | not started | — |
-| 8.5.2 | Timestamped telemetry series (`ChartPoint`, `ChartSeries`, `BucketPoint`) | not started | — |
-| 8.5.3 | `LiveChart` v3 (time-domain projection, independent mirrored scales, dark-mode bloom) | not started | — |
-| 8.5.4 | Stocks-style Glance header scrub readout (`ChartScrubState`) & crosshair v2 | not started | — |
-| 8.5.5 | `HistoryPage` v3 (time-aligned min–max envelope, time axis, hover annotations) | not started | — |
-| 8.5.6 | Synchronized shell motion & header v2 (persistent hosting view, `PreferenceKey` height morph, text `PageSwitcher`) | not started | — |
-| 8.5.7 | Instrument Kit v2 (`Section`, hairline `MetricRow`, `SegmentedControl`, `FilterChip`, `LiveNumber` throttle, secondary hues) | not started | — |
+| 8.5.2 | Timestamped telemetry series (`ChartPoint`, `ChartSeries`, `BucketPoint`, fixes B8–B9) | not started | — |
+| 8.5.3 | `LiveChart` v3 (time-domain projection, timestamp-driven glide fixing B7, independent mirrored scales, dark-mode bloom) | not started | — |
+| 8.5.4 | Stocks-style Glance header scrub readout (`ChartScrubState`) & crosshair v2 (fixes B11 ring) | not started | — |
+| 8.5.5 | `HistoryPage` v3 (time-aligned min–max envelope, `init` range & timestamp scrub fixing B10, time axis, hover annotations) | not started | — |
+| 8.5.6b | Header v2, text `PageSwitcher` (`Now · Details · History`) & inline status chip | not started | — |
+| 8.5.7 | Instrument Kit v2 (`Section`, hairline `MetricRow` fixing B11, `SegmentedControl`, `FilterChip`, `LiveNumber` throttle, `ProcessIconCache` miss caching fixing B12, secondary hues, memoized glance fixing B14) | not started | — |
 | 8.5.8a | CPU panel polish (P/E cluster columns, Load Average Dot Plot, 2-col core grid) | not started | — |
 | 8.5.8b | Memory panel polish (3-step Pressure Pill, 2-col composition legend, remove fake `ArcGauge` & duplicate chart) | not started | — |
 | 8.5.8c | GPU panel polish (`RingStack` tabular legend, consolidated VRAM section, 2-col architecture spec sheet) | not started | — |
 | 8.5.8d | Temperature panel polish (unified Spectrum + Ranked Groups card, collapsible Details groups) | not started | — |
-| 8.5.8e | Fan panel polish (Min–Max RPM Range Bar + live marker, RPM-locked calm turbine) | not started | — |
+| 8.5.8e | Fan panel polish (Min–Max RPM Range Bar + live marker, RPM-locked calm turbine, real Details table fixing B13) | not started | — |
 | 8.5.8f | Network panel polish (independent-scale mirrored chart, consolidated Active Link + session totals) | not started | — |
 | 8.5.8g | Disk panel polish (independent-scale mirrored R/W chart, 2-col storage legend, compact volume bars) | not started | — |
 | 8.5.8h | Power panel polish (calm wattage-proportional `PowerFlowView`, refined health & diagnostics tables) | not started | — |
