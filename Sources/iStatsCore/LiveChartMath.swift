@@ -246,3 +246,487 @@ public enum LiveChartMath {
 
 /// Backward compatibility alias for folded TrendChartMath
 public typealias TrendChartMath = LiveChartMath
+
+// MARK: - Time-Domain Chart Types (ADR 0010 / Task 8.5.1)
+
+/// A timestamped scalar sample in wall-clock seconds (`TimeInterval` since 1970).
+public struct ChartPoint: Equatable, Sendable, Codable {
+    public let timestamp: TimeInterval
+    public let value: Double
+
+    public init(timestamp: TimeInterval, value: Double) {
+        self.timestamp = timestamp
+        self.value = value
+    }
+
+    public init(scalarPoint: ScalarPoint) {
+        self.timestamp = scalarPoint.timestamp.timeIntervalSince1970
+        self.value = scalarPoint.value
+    }
+}
+
+/// A timestamped dual-channel sample for stacked or mirrored charts.
+public struct DualChartPoint: Equatable, Sendable, Codable {
+    public let timestamp: TimeInterval
+    public let primary: Double
+    public let secondary: Double
+
+    public init(timestamp: TimeInterval, primary: Double, secondary: Double) {
+        self.timestamp = timestamp
+        self.primary = primary
+        self.secondary = secondary
+    }
+}
+
+/// Pure time-domain right-edge cursor with one-sample delay, monotonic advance,
+/// sleep-gap snap, and freeze-in-place scrub catch-up (ADR 0010 / Task 8.5.1).
+public struct ChartTimeline: Equatable, Sendable {
+    public private(set) var edge: TimeInterval
+    public private(set) var frozenEdge: TimeInterval?
+    public let sampleInterval: TimeInterval
+
+    private var hasInitialEdge: Bool
+    private var catchUpStartEdge: TimeInterval?
+    private var catchUpElapsed: TimeInterval?
+
+    /// Ease-out catch-up duration after releasing a hover scrub.
+    public static let scrubCatchUpDuration: TimeInterval = 0.25
+
+    public init(
+        edge: TimeInterval? = nil,
+        frozenEdge: TimeInterval? = nil,
+        sampleInterval: TimeInterval = 1.0
+    ) {
+        self.sampleInterval = max(1e-3, sampleInterval)
+        if let edge {
+            self.edge = edge
+            self.hasInitialEdge = true
+        } else {
+            self.edge = 0.0
+            self.hasInitialEdge = false
+        }
+        self.frozenEdge = frozenEdge
+        self.catchUpStartEdge = nil
+        self.catchUpElapsed = nil
+    }
+
+    /// Computes the delayed right-edge target trailing the latest sample by one interval.
+    public func targetEdge(now: TimeInterval, latestTimestamp: TimeInterval) -> TimeInterval {
+        min(now - sampleInterval, latestTimestamp)
+    }
+
+    /// Advances the timeline cursor by `dt` seconds.
+    /// - Freezes `edge` while `isScrubbing` is true.
+    /// - Snaps immediately if `abs(targetEdge - edge) > 3.0 * sampleInterval` (e.g., wake from sleep).
+    /// - Otherwise advances monotonically at `1.0 s/s` (with a `250 ms` ease-out catch-up after scrub release).
+    @discardableResult
+    public mutating func step(
+        now: TimeInterval,
+        latestTimestamp: TimeInterval,
+        dt: TimeInterval,
+        isScrubbing: Bool
+    ) -> TimeInterval {
+        let target = targetEdge(now: now, latestTimestamp: latestTimestamp)
+
+        if !hasInitialEdge {
+            edge = target
+            hasInitialEdge = true
+            if isScrubbing {
+                frozenEdge = edge
+            }
+            return edge
+        }
+
+        if isScrubbing {
+            if frozenEdge == nil {
+                frozenEdge = edge
+            }
+            catchUpStartEdge = nil
+            catchUpElapsed = nil
+            edge = frozenEdge ?? edge
+            return edge
+        }
+
+        let wasScrubbing = frozenEdge != nil
+        let releasedFrom = frozenEdge
+        if wasScrubbing {
+            frozenEdge = nil
+        }
+
+        if abs(target - edge) > 3.0 * sampleInterval {
+            edge = target
+            catchUpStartEdge = nil
+            catchUpElapsed = nil
+            return edge
+        }
+
+        if wasScrubbing, let startEdge = releasedFrom, target > startEdge {
+            catchUpStartEdge = startEdge
+            catchUpElapsed = 0.0
+        }
+
+        let clampedDt = max(0.0, dt)
+
+        if let startEdge = catchUpStartEdge, let elapsed = catchUpElapsed {
+            let newElapsed = elapsed + clampedDt
+            let progress = min(1.0, newElapsed / Self.scrubCatchUpDuration)
+            let eased = 1.0 - pow(1.0 - progress, 3.0)
+            let candidate = startEdge + (target - startEdge) * eased
+            edge = max(edge, min(target, candidate))
+
+            if progress >= 1.0 || edge >= target {
+                catchUpStartEdge = nil
+                catchUpElapsed = nil
+            } else {
+                catchUpElapsed = newElapsed
+            }
+            return edge
+        }
+
+        if target > edge {
+            edge = min(target, edge + clampedDt)
+        }
+        return edge
+    }
+
+    /// Maps a sample timestamp to horizontal screen coordinate within `[0, width]`.
+    public func xPosition(for timestamp: TimeInterval, width: Double, window: TimeInterval) -> Double {
+        Self.xPosition(for: timestamp, edge: edge, width: width, window: window)
+    }
+
+    /// Pure coordinate projection for a given right-edge timestamp.
+    public static func xPosition(
+        for timestamp: TimeInterval,
+        edge: TimeInterval,
+        width: Double,
+        window: TimeInterval
+    ) -> Double {
+        guard window > 0.0 else { return width }
+        return width * (1.0 - (edge - timestamp) / window)
+    }
+
+    /// Evaluates the spline-interpolated value at `edge` so the live head bead
+    /// sits directly on the Fritsch–Carlson curve at `x = plotWidth`.
+    public func valueAtEdge(points: [ChartPoint]) -> Double? {
+        value(at: edge, points: points)
+    }
+
+    /// Evaluates the Fritsch–Carlson monotone cubic spline at an arbitrary `timestamp`.
+    public func value(at timestamp: TimeInterval, points: [ChartPoint]) -> Double? {
+        Self.interpolateValue(at: timestamp, points: points)
+    }
+
+    /// Evaluates the Fritsch–Carlson monotone cubic spline at `timestamp` across `points`.
+    public static func interpolateValue(at timestamp: TimeInterval, points: [ChartPoint]) -> Double? {
+        guard !points.isEmpty else { return nil }
+        let ordered: [ChartPoint]
+        if zip(points, points.dropFirst()).contains(where: { $0.timestamp > $1.timestamp }) {
+            ordered = points.sorted { $0.timestamp < $1.timestamp }
+        } else {
+            ordered = points
+        }
+
+        guard let first = ordered.first, let last = ordered.last else { return nil }
+        if ordered.count == 1 || timestamp <= first.timestamp {
+            return first.value
+        }
+        if timestamp >= last.timestamp {
+            return last.value
+        }
+
+        let pts2D = ordered.map { LiveChartMath.Point2D(x: $0.timestamp, y: $0.value) }
+        let segments = LiveChartMath.smoothSegments(points: pts2D, tension: 1.0)
+        for seg in segments {
+            if timestamp >= seg.start.x && timestamp <= seg.end.x {
+                let dx = seg.end.x - seg.start.x
+                guard dx > 1e-9 else { return seg.end.y }
+                // Because smoothSegments(tension: 1.0) places control1.x at 1/3 and control2.x at 2/3,
+                // B_x(u) is strictly linear in u, so u = (timestamp - start.x) / dx is exact.
+                let u = max(0.0, min(1.0, (timestamp - seg.start.x) / dx))
+                let omt = 1.0 - u
+                let omt2 = omt * omt
+                let u2 = u * u
+                return (omt2 * omt * seg.start.y)
+                    + (3.0 * omt2 * u * seg.control1.y)
+                    + (3.0 * omt * u2 * seg.control2.y)
+                    + (u2 * u * seg.end.y)
+            }
+        }
+        return last.value
+    }
+}
+
+// MARK: - Adaptive Nice-Number Y-Axis Scale & Domain Floors (ADR 0010 / Task 8.5.1)
+
+/// Pure nice-number Y-axis scale utilities and per-category domain floors.
+public enum ChartScale {
+    private static let niceLadder: [Double] = [1.0, 2.0, 2.5, 5.0]
+
+    /// Computes a clean 3-interval ceiling and ticks using `{1, 2, 2.5, 5} × 10^k`.
+    public static func niceCeiling(
+        for maxVal: Double,
+        floorVal: Double = 0.0,
+        minSpan: Double = 1.0
+    ) -> (floor: Double, ceiling: Double, ticks: [Double]) {
+        let safeFloor = floorVal.isFinite ? floorVal : 0.0
+        let safeMax = maxVal.isFinite ? maxVal : safeFloor
+        let safeMinSpan = (minSpan.isFinite && minSpan > 0.0) ? minSpan : 1.0
+
+        let rawSpan = max(safeMinSpan, (safeMax - safeFloor) * 1.10)
+        let roughStep = rawSpan / 3.0
+        let exponent = floor(log10(roughStep))
+        let magnitude = pow(10.0, exponent)
+        let fraction = roughStep / magnitude
+
+        let niceFraction = niceLadder.first(where: { fraction <= $0 + 1e-9 }) ?? 10.0
+        let step = niceFraction * magnitude
+        let ceiling = safeFloor + 3.0 * step
+        let ticks = [
+            safeFloor,
+            safeFloor + step,
+            safeFloor + 2.0 * step,
+            ceiling
+        ]
+        return (floor: safeFloor, ceiling: ceiling, ticks: ticks)
+    }
+
+    /// Computes the canonical Y-axis floor for a metric category.
+    public static func domainFloor(
+        for category: MetricCategory,
+        visibleMin: Double,
+        fixedFloor: Double? = nil
+    ) -> Double {
+        if let fixedFloor, fixedFloor.isFinite {
+            return fixedFloor
+        }
+        switch category {
+        case .thermal:
+            guard visibleMin.isFinite else { return 20.0 }
+            return max(20.0, floor((visibleMin - 5.0) / 10.0) * 10.0)
+        case .fan:
+            return 0.0
+        case .cpu, .memory, .gpu, .network, .disk, .power:
+            return 0.0
+        }
+    }
+}
+
+/// Asymmetric Y-axis scale state with immediate upward spring and 3 s hold hysteresis
+/// before contracting downward (ADR 0010 / Task 8.5.1).
+public struct ChartScaleState: Equatable, Sendable {
+    public private(set) var displayedFloor: Double
+    public private(set) var displayedCeiling: Double
+    public private(set) var targetFloor: Double
+    public private(set) var targetCeiling: Double
+    public private(set) var belowThresholdDuration: TimeInterval
+    public private(set) var isContracting: Bool
+
+    public let holdDuration: TimeInterval
+    public let contractionThresholdRatio: Double
+    public let springResponse: TimeInterval
+    public let contractionDuration: TimeInterval
+
+    private var hasSeeded: Bool
+    private var ceilingVelocity: Double
+    private var floorVelocity: Double
+    private var contractionStartCeiling: Double
+    private var contractionElapsed: TimeInterval
+
+    public init(
+        initialFloor: Double = 0.0,
+        initialCeiling: Double? = nil,
+        holdDuration: TimeInterval = 3.0,
+        contractionThresholdRatio: Double = 0.70,
+        springResponse: TimeInterval = 0.35,
+        contractionDuration: TimeInterval = 0.60
+    ) {
+        self.displayedFloor = initialFloor
+        self.targetFloor = initialFloor
+        if let initialCeiling {
+            self.displayedCeiling = initialCeiling
+            self.targetCeiling = initialCeiling
+            self.hasSeeded = true
+        } else {
+            self.displayedCeiling = initialFloor + 1.0
+            self.targetCeiling = initialFloor + 1.0
+            self.hasSeeded = false
+        }
+        self.belowThresholdDuration = 0.0
+        self.isContracting = false
+        self.holdDuration = max(0.0, holdDuration)
+        self.contractionThresholdRatio = contractionThresholdRatio
+        self.springResponse = max(1e-3, springResponse)
+        self.contractionDuration = max(1e-3, contractionDuration)
+        self.ceilingVelocity = 0.0
+        self.floorVelocity = 0.0
+        self.contractionStartCeiling = self.displayedCeiling
+        self.contractionElapsed = 0.0
+    }
+
+    /// Advances `displayedCeiling` and `displayedFloor` toward the given targets by `dt`.
+    public mutating func step(
+        targetCeiling newCeiling: Double,
+        targetFloor newFloor: Double = 0.0,
+        dt: TimeInterval
+    ) {
+        let safeFloor = newFloor.isFinite ? newFloor : displayedFloor
+        let safeCeiling = max(safeFloor + 1e-6, newCeiling.isFinite ? newCeiling : displayedCeiling)
+
+        targetFloor = safeFloor
+        targetCeiling = safeCeiling
+
+        if !hasSeeded {
+            displayedFloor = safeFloor
+            displayedCeiling = safeCeiling
+            hasSeeded = true
+            belowThresholdDuration = 0.0
+            isContracting = false
+            ceilingVelocity = 0.0
+            floorVelocity = 0.0
+            return
+        }
+
+        let clampedDt = max(0.0, dt)
+        guard clampedDt > 0.0 else { return }
+
+        // Smoothly adjust domain floor via critically damped spring when needed (e.g., Thermal).
+        if abs(targetFloor - displayedFloor) > 1e-6 || abs(floorVelocity) > 1e-4 {
+            Self.stepCriticallyDampedSpring(
+                value: &displayedFloor,
+                velocity: &floorVelocity,
+                target: targetFloor,
+                response: springResponse,
+                dt: clampedDt,
+                clampOvershoot: false
+            )
+        } else {
+            displayedFloor = targetFloor
+            floorVelocity = 0.0
+        }
+
+        if targetCeiling > displayedCeiling {
+            // Immediate upward spring expansion.
+            belowThresholdDuration = 0.0
+            isContracting = false
+            contractionElapsed = 0.0
+            Self.stepCriticallyDampedSpring(
+                value: &displayedCeiling,
+                velocity: &ceilingVelocity,
+                target: targetCeiling,
+                response: springResponse,
+                dt: clampedDt,
+                clampOvershoot: true
+            )
+            return
+        }
+
+        ceilingVelocity = 0.0
+
+        if isContracting {
+            contractionElapsed += clampedDt
+            let progress = min(1.0, contractionElapsed / contractionDuration)
+            let eased = 1.0 - pow(1.0 - progress, 3.0)
+            let candidate = contractionStartCeiling + (targetCeiling - contractionStartCeiling) * eased
+            displayedCeiling = max(targetCeiling, min(displayedCeiling, candidate))
+
+            if progress >= 1.0 || abs(displayedCeiling - targetCeiling) <= 1e-6 {
+                displayedCeiling = targetCeiling
+                isContracting = false
+                belowThresholdDuration = 0.0
+                contractionElapsed = 0.0
+            }
+            return
+        }
+
+        if targetCeiling < displayedCeiling * contractionThresholdRatio {
+            belowThresholdDuration += clampedDt
+            if belowThresholdDuration >= holdDuration {
+                isContracting = true
+                contractionStartCeiling = displayedCeiling
+                contractionElapsed = belowThresholdDuration - holdDuration
+                let progress = min(1.0, contractionElapsed / contractionDuration)
+                let eased = 1.0 - pow(1.0 - progress, 3.0)
+                displayedCeiling = contractionStartCeiling + (targetCeiling - contractionStartCeiling) * eased
+                if progress >= 1.0 {
+                    displayedCeiling = targetCeiling
+                    isContracting = false
+                    belowThresholdDuration = 0.0
+                    contractionElapsed = 0.0
+                }
+            }
+        } else {
+            belowThresholdDuration = 0.0
+        }
+    }
+
+    /// Convenience helper computing category-appropriate target bounds and stepping the scale state.
+    @discardableResult
+    public mutating func update(
+        visibleMax: Double,
+        visibleMin: Double = 0.0,
+        category: MetricCategory,
+        fixedFloor: Double? = nil,
+        fixedCeiling: Double? = nil,
+        minSpan: Double = 1.0,
+        dt: TimeInterval
+    ) -> (floor: Double, ceiling: Double, ticks: [Double]) {
+        let computedFloor = ChartScale.domainFloor(
+            for: category,
+            visibleMin: visibleMin,
+            fixedFloor: fixedFloor
+        )
+        let computedCeiling: Double
+        if let fixedCeiling, fixedCeiling.isFinite {
+            computedCeiling = max(computedFloor + max(1e-6, minSpan), fixedCeiling)
+        } else if category == .cpu || category == .memory || category == .gpu {
+            computedCeiling = max(computedFloor + 1e-6, 100.0)
+        } else {
+            computedCeiling = ChartScale.niceCeiling(
+                for: visibleMax,
+                floorVal: computedFloor,
+                minSpan: minSpan
+            ).ceiling
+        }
+
+        step(targetCeiling: computedCeiling, targetFloor: computedFloor, dt: dt)
+        let stepSize = (displayedCeiling - displayedFloor) / 3.0
+        let ticks = [
+            displayedFloor,
+            displayedFloor + stepSize,
+            displayedFloor + 2.0 * stepSize,
+            displayedCeiling
+        ]
+        return (floor: displayedFloor, ceiling: displayedCeiling, ticks: ticks)
+    }
+
+    private static func stepCriticallyDampedSpring(
+        value: inout Double,
+        velocity: inout Double,
+        target: Double,
+        response: TimeInterval,
+        dt: TimeInterval,
+        clampOvershoot: Bool
+    ) {
+        let omega = 2.0 * .pi / max(1e-4, response)
+        let y0 = value - target
+        let v0 = velocity
+        let expTerm = exp(-omega * dt)
+        let c = v0 + omega * y0
+        let newY = expTerm * (y0 + c * dt)
+        let newV = expTerm * (v0 - omega * c * dt)
+
+        if clampOvershoot && y0 <= 0.0 && newY > 0.0 {
+            value = target
+            velocity = 0.0
+            return
+        }
+
+        value = target + newY
+        velocity = newV
+
+        if abs(newY) < 1e-6 * max(1.0, abs(target)) && abs(newV) < 1e-4 {
+            value = target
+            velocity = 0.0
+        }
+    }
+}
