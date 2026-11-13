@@ -1,5 +1,6 @@
 import Foundation
 import Combine
+import AppKit
 import IOKit.ps
 import iStatsCore
 
@@ -53,6 +54,19 @@ public final class MetricsCoordinator: ObservableObject {
     /// The latest available GPU sample.
     @Published public private(set) var latestGPU: Sample<GPUSample>?
 
+    /// Rolling chronological history of per-core utilization (60 samples per core, in-memory only; ADR 0006).
+    @Published public private(set) var coreHistory: [Int: [Double]] = [:]
+
+    /// The latest available top processes snapshot (demand-driven, in memory only; ADR 0006 / Task 8.9).
+    @Published public private(set) var latestProcesses: Sample<ProcessSample>?
+
+    /// Rolling chronological history of CPU percentage per process (30 samples, in-memory only; ADR 0006).
+    @Published public private(set) var processCPUHistory: [Int32: [Double]] = [:]
+
+    private let processSampler = ProcessSampler()
+    private var processDemandCount: Int = 0
+    private var processSamplingTask: Task<Void, Never>?
+
     /// Rolling chronological history of CPU samples queried on-demand from backing store.
     public var cpuHistory: [Sample<CPUSample>] { store.cpuHistory() }
 
@@ -76,6 +90,76 @@ public final class MetricsCoordinator: ObservableObject {
 
     /// Rolling chronological history of GPU samples queried on-demand from backing store.
     public var gpuHistory: [Sample<GPUSample>] { store.gpuHistory() }
+
+    /// Queries the in-memory scalar trend history for a specific series key (Task 7.6).
+    public func scalarHistory(
+        for key: ScalarSeriesKey,
+        duration: TimeInterval? = nil,
+        maxPoints: Int = 120
+    ) -> [Double] {
+        store.scalarHistory(for: key, duration: duration, maxPoints: maxPoints)
+    }
+
+    /// Elapsed time interval (in seconds) between first and last sample within window (Task 7.6).
+    public func scalarTimeSpan(for key: ScalarSeriesKey, duration: TimeInterval? = nil) -> TimeInterval {
+        store.scalarTimeSpan(for: key, duration: duration)
+    }
+
+    /// Queries raw timestamped scalar points within `duration` seconds ending at `referenceDate` (Task 8.5.2).
+    public func timedScalarHistory(
+        for key: ScalarSeriesKey,
+        duration: TimeInterval,
+        referenceDate: Date = Date()
+    ) -> [ChartPoint] {
+        store.timedScalarHistory(for: key, duration: duration, referenceDate: referenceDate)
+    }
+
+    /// Queries time-aligned `(min, max, mean)` envelope buckets within `duration` seconds ending at `referenceDate` (Task 8.5.2).
+    public func bucketedScalarHistory(
+        for key: ScalarSeriesKey,
+        duration: TimeInterval,
+        bucketWidth: TimeInterval,
+        referenceDate: Date = Date()
+    ) -> [BucketPoint] {
+        store.bucketedScalarHistory(
+            for: key,
+            duration: duration,
+            bucketWidth: bucketWidth,
+            referenceDate: referenceDate
+        )
+    }
+
+    /// Queries two scalar series at a single shared `referenceDate` and aligns points by sample timestamp (Task 8.5.2).
+    public func timedDualScalarHistory(
+        primary primaryKey: ScalarSeriesKey,
+        secondary secondaryKey: ScalarSeriesKey,
+        duration: TimeInterval,
+        referenceDate: Date = Date()
+    ) -> [DualChartPoint] {
+        store.timedDualScalarHistory(
+            primary: primaryKey,
+            secondary: secondaryKey,
+            duration: duration,
+            referenceDate: referenceDate
+        )
+    }
+
+    /// Queries two scalar series as time-aligned envelope buckets at a single shared `referenceDate` (Task 8.5.2).
+    public func bucketedDualScalarHistory(
+        primary primaryKey: ScalarSeriesKey,
+        secondary secondaryKey: ScalarSeriesKey,
+        duration: TimeInterval,
+        bucketWidth: TimeInterval,
+        referenceDate: Date = Date()
+    ) -> (primary: [BucketPoint], secondary: [BucketPoint]) {
+        store.bucketedDualScalarHistory(
+            primary: primaryKey,
+            secondary: secondaryKey,
+            duration: duration,
+            bucketWidth: bucketWidth,
+            referenceDate: referenceDate
+        )
+    }
 
     /// Live availability status per metric category.
     @Published public private(set) var categoryAvailability: [MetricCategory: Availability] = [:]
@@ -344,6 +428,16 @@ public final class MetricsCoordinator: ObservableObject {
         switch category {
         case .cpu:
             self.latestCPU = store.latestCPU()
+            if let perCore = self.latestCPU?.value.perCore {
+                for (idx, val) in perCore.enumerated() {
+                    var ring = self.coreHistory[idx] ?? []
+                    ring.append(val)
+                    if ring.count > 60 {
+                        ring.removeFirst(ring.count - 60)
+                    }
+                    self.coreHistory[idx] = ring
+                }
+            }
         case .memory:
             self.latestMemory = store.latestMemory()
         case .network:
@@ -446,6 +540,83 @@ public final class MetricsCoordinator: ObservableObject {
             guard let self = self else { return }
             if let reading = await self.scheduler.sampleOnce(category: category) {
                 self.handleReading(reading)
+            }
+        }
+    }
+
+    // MARK: - Demand-Driven Top Processes (Task 8.9)
+
+    public func startProcessDemand() {
+        processDemandCount += 1
+        guard processDemandCount == 1 else { return }
+        startProcessSamplingLoop()
+    }
+
+    public func stopProcessDemand() {
+        processDemandCount = max(0, processDemandCount - 1)
+        guard processDemandCount == 0 else { return }
+        processSamplingTask?.cancel()
+        processSamplingTask = nil
+    }
+
+    public func updateProcessesForTesting(_ sample: ProcessSample) {
+        self.latestProcesses = Sample(value: sample)
+    }
+
+    private func startProcessSamplingLoop() {
+        processSamplingTask?.cancel()
+        processSamplingTask = Task.detached(priority: .utility) { [weak self, processSampler] in
+            while !Task.isCancelled {
+                // Check pause/low-power state and snapshot GUI apps on MainActor
+                let loopContext = await MainActor.run { [weak self] () -> (isPaused: Bool, isLowPower: Bool, appMap: [pid_t: (name: String, bundleID: String?)])? in
+                    guard let self = self else { return nil }
+                    let runningApps = NSWorkspace.shared.runningApplications
+                    var map: [pid_t: (name: String, bundleID: String?)] = [:]
+                    for app in runningApps {
+                        if let name = app.localizedName {
+                            map[app.processIdentifier] = (name, app.bundleIdentifier)
+                        }
+                    }
+                    return (self.preferencesStore.isSamplingPaused, self.isLowPowerModeActive, map)
+                }
+
+                guard let context = loopContext else { break }
+
+                if context.isPaused || context.isLowPower {
+                    do {
+                        try await Task.sleep(nanoseconds: 2_000_000_000)
+                    } catch {
+                        break
+                    }
+                    continue
+                }
+
+                let sample = processSampler.sample(appMap: context.appMap)
+                await MainActor.run { [weak self] in
+                    guard let self = self else { return }
+                    self.latestProcesses = Sample(value: sample)
+
+                    // Track rolling 30-sample history for top processes
+                    let currentTopPIDs = Set(sample.topCPU.map(\.pid))
+                    for item in sample.topCPU {
+                        var history = self.processCPUHistory[item.pid] ?? []
+                        history.append(item.cpuPercent)
+                        if history.count > 30 {
+                            history.removeFirst(history.count - 30)
+                        }
+                        self.processCPUHistory[item.pid] = history
+                    }
+
+                    // Prune old PIDs if dictionary exceeds 32 items to bound memory
+                    if self.processCPUHistory.count > 32 {
+                        self.processCPUHistory = self.processCPUHistory.filter { currentTopPIDs.contains($0.key) }
+                    }
+                }
+                do {
+                    try await Task.sleep(nanoseconds: 2_000_000_000)
+                } catch {
+                    break
+                }
             }
         }
     }

@@ -112,6 +112,16 @@ public enum Units {
         return String(format: "%.\(fractionDigits)f %@", value, suffixes[index])
     }
 
+    /// Convenience SI byte formatter (1000 base).
+    public static func formatBytesSI(_ bytes: Int64, fractionDigits: Int = 1) -> String {
+        formatBytes(UInt64(max(0, bytes)), standard: .si, fractionDigits: fractionDigits)
+    }
+
+    /// Convenience IEC byte formatter (1024 base).
+    public static func formatBytesIEC(_ bytes: Int64, fractionDigits: Int = 1) -> String {
+        formatBytes(UInt64(max(0, bytes)), standard: .iec, fractionDigits: fractionDigits)
+    }
+
     /// Convert bytes-per-second to bits-per-second (network displays sometimes use bits).
     public static func bytesPerSecToBitsPerSec(_ bytesPerSec: Double) -> Double {
         bytesPerSec * 8.0
@@ -204,6 +214,28 @@ public enum Units {
         } else {
             return String(format: "%.0f %@", value, suffixes[index])
         }
+    }
+
+    /// Splits a transfer rate into numerical value, unit string, and format specifier for dynamic LiveNumber displays.
+    public static func rateComponents(
+        _ bytesPerSec: Double,
+        unit: NetworkUnit = .bytesPerSecond,
+        standard: ByteUnitStandard = .iec
+    ) -> (value: Double, unit: String, format: String) {
+        guard bytesPerSec.isFinite && !bytesPerSec.isNaN && bytesPerSec >= 0 else {
+            return (0.0, unit == .bytesPerSecond ? "B/s" : "bps", "%.0f")
+        }
+        let base: Double = (unit == .bytesPerSecond && standard == .si) || unit == .bitsPerSecond ? 1000.0 : 1024.0
+        let effectiveVal = unit == .bitsPerSecond ? bytesPerSecToBitsPerSec(bytesPerSec) : bytesPerSec
+        var value = max(0.0, effectiveVal)
+        var index = 0
+        let suffixes = unit == .bitsPerSecond ? bitPerSecSuffixes : (standard == .si ? bytePerSecSiSuffixes : bytePerSecIecSuffixes)
+        while value >= base && index < suffixes.count - 1 {
+            value /= base
+            index += 1
+        }
+        let format = (index > 0 && value < 10.0) ? "%.1f" : "%.0f"
+        return (value, suffixes[index], format)
     }
 
     // MARK: Frequency

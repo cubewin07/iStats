@@ -46,9 +46,9 @@ flowchart TD
     end
 
     subgraph UI[Presentation - SwiftUI / AppKit]
-        MENUBAR[MenuBarController -- NSStatusItem]
-        POPOVER[Detail view + graphs]
-        PREFS[Preferences]
+        MENUBAR[MenuBarController -- NSStatusItem + MenuBarIconRenderer]
+        PANELS[8 Purpose-Built Instrument Glass Panels + PanelScaffold + Kit]
+        PREFS[Preferences -- Menu Bar Studio + Alerts + General + About]
     end
 
     HW --> Sampling --> Core --> UI
@@ -135,9 +135,9 @@ protocol Sampler {
 
 ## Presentation
 
-- **MenuBarController** owns an `NSStatusItem`. Configurable: which metric(s) render in the bar (Requirement 9.4); app can run without a Dock icon via `LSUIElement` (Requirement 9.5).
-- **Detail view** (SwiftUI in an `NSPopover` or window) shows all enabled categories with live values and rolling graphs.
-- **Preferences** (SwiftUI window): toggle categories, set interval (bounded), choose units, launch-at-login (`SMAppService`).
+- **MenuBarController** owns multiple `NSStatusItem`s (one per configured metric) and dynamically positions panels under the clicked status item. Powered by `MenuBarIconRenderer` supporting 32 purposeful widget presentations across all 8 metric categories, with seamless hover scrubbing (ADR 0007 / ADR 0009).
+- **Instrument Glass Panels** (SwiftUI hosted in custom AppKit `MetricPanel : NSPanel` managed by `PanelController.shared`): Exactly 8 purpose-built category panels (`CPUPanel`, `MemoryPanel`, `GPUPanel`, `TemperaturePanel`, `FanPanel`, `NetworkPanel`, `DiskPanel`, `PowerPanel`) built on `PanelScaffold`, `PanelHeadline`, `PageSwitcher`, `StatusRibbon`, `HistoryPage`, and `LiveChart` (single, stacked, mirrored, and banded with interactive hover scrubbing, peak markers, haptic feedback, and scrub summary). Features floating glass HUD aesthetic (`.hudWindow` material with specular rim lighting), pinnable floating window support (`isPinned`), horizontal swipe navigation with interactive spring transitions, fixed 352 pt width, and zero legacy `NSPopover` debt (ADR 0009).
+- **Preferences Studio** (SwiftUI window): Menu Bar Studio with visual widget preview, drag-and-drop reordering, temperature sensor source picking, layout/label toggles, alerts configuration, and launch-at-login (`SMAppService`).
 - View models are `@MainActor` and consume an `AsyncStream`/`@Published` feed from the scheduler, keeping views off the sampling threads.
 
 ---
@@ -175,7 +175,10 @@ iStats/
 │   │   ├── 0003-thermal-fan-data-source.md
 │   │   ├── 0004-privilege-and-fan-control.md
 │   │   ├── 0005-sandbox-and-entitlements.md
-│   │   └── 0006-telemetry-privacy-no-persistence.md
+│   │   ├── 0006-telemetry-privacy-no-persistence.md
+│   │   ├── 0007-per-category-menu-bar-items-and-popovers.md
+│   │   ├── 0008-purpose-driven-widgets-and-tabbed-popovers.md
+│   │   └── 0009-instrument-design-language-and-glass-panels.md
 │   └── phases/
 │       ├── phase-plan.md                  # whole-project skeleton + phase index
 │       ├── phase-01-foundation/{tasks.md,report.md}
@@ -183,14 +186,19 @@ iStats/
 │       ├── phase-03-network-disk/{tasks.md,report.md}
 │       ├── phase-04-battery-power/{tasks.md,report.md}
 │       ├── phase-05-thermal-fan-gpu/{tasks.md,report.md}
-│       └── phase-06-polish-prefs/{tasks.md,report.md}
+│       ├── phase-06-polish-prefs/{tasks.md,report.md}
+│       ├── phase-07-widget-popover-redesign/{tasks.md,report.md}
+│       └── phase-08-premium-redesign/{tasks.md,report.md}
 ├── iStats/            # app target (Swift, SwiftUI/AppKit)
-│   ├── App/           # entry point, MenuBarController
-│   ├── Core/          # SampleScheduler, MetricsStore, models, converters (pure)
+│   ├── App/           # entry point, MenuBarController, MetricsCoordinator, MetricPanel, PanelController
+│   ├── Core/          # SampleScheduler, MetricsStore, models, Downsampler, converters
 │   ├── Sampling/      # one file per Sampler, wrapping C/IOKit APIs
-│   ├── UI/            # detail view, graphs, preferences
+│   ├── UI/            # Design tokens & components, Panels, Preferences panes
+│   │   ├── Design/    # Tokens, CategoryPalette
+│   │   ├── Instrument/# InstrumentTokens, LiveChart, Kit (ArcGauge, SplitCapsule, Turbine, etc.)
+│   │   └── Panels/    # PanelScaffold, PanelFactory, CPUPanel, MemoryPanel, HistoryPage, etc.
 │   └── Resources/
-└── iStatsTests/       # unit tests for Core (rate math, conversions, history)
+└── iStatsTests/       # unit tests for Core and App UI/Samplers
 ```
 
 ---
@@ -205,6 +213,8 @@ Each phase ends with a working, runnable app and a `report.md` capturing what wa
 4. **Phase 4 — Battery & Power:** IOPowerSources + AppleSmartBattery registry; wattage. Validate vs `pmset -g batt` / coconutBattery concepts.
 5. **Phase 5 — Thermal, Fan, GPU:** SMC reads, fan RPM (read-only first), GPU stats. *Highest risk.* Validate vs `powermetrics`/`sudo powermetrics`.
 6. **Phase 6 — Polish & Preferences:** unit options, configurable bar content, launch-at-login, history graphs, performance tuning.
+7. **Phase 7 — Widget & Popover Redesign:** 32 unified widgets, 8 purpose-driven tabbed popovers (23 tabs), in-memory scalar history with spike-preserving downsampling, shared design token system, zero legacy popover debt. Validate vs Activity Monitor and VoiceOver.
+8. **Phase 8 — Instrument Premium Redesign:** Instrument design system (ADR 0009), glass `MetricPanel : NSPanel` floating HUD, pinnable utility windowing, `LiveChart` with 4 interactive render modes and scrub feedback, 8 bespoke category signature instruments, 3-page horizontal swipe navigation (Now, Focus, History), zero legacy `NSPopover` debt. Full accessibility and appearance matrix audit.
 
 ---
 

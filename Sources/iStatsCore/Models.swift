@@ -242,6 +242,11 @@ public struct ThermalSample: Sendable, Equatable, Codable {
         self.sensors = sensors
         self.pressure = pressure
     }
+
+    /// The maximum temperature reading across all sensors in this sample, if any.
+    public var peakTemperatureCelsius: Double? {
+        sensors.map(\.celsius).max()
+    }
 }
 
 /// A single fan reading.
@@ -627,6 +632,12 @@ public struct PowerSample: Sendable, Equatable, Codable {
 
     /// Whether the Mac is operating on battery power (normal or low).
     public var isUsingBatteryPower: Bool { variant == .discharging || variant == .lowBattery }
+
+    /// Computed battery health percentage from maximum capacity vs design capacity.
+    public var healthPercentage: Double? {
+        guard let cur = currentMaxCapacity, let des = designCapacity, des > 0 else { return nil }
+        return (Double(cur) / Double(des)) * 100.0
+    }
 }
 
 /// Distinct operational and visual power state variants.
@@ -817,5 +828,65 @@ public struct GPUSample: Sendable, Equatable, Codable {
         self.metalFeatureSet = metalFeatureSet
     }
 }
+
+/// Statistics for a single running process or application bundle.
+public struct ProcessInfoItem: Sendable, Equatable, Codable, Identifiable {
+    public var id: Int32 { pid }
+    public let pid: Int32
+    public let name: String
+    public let bundleID: String?
+    public let cpuPercent: Double
+    public let memoryBytes: UInt64
+
+    public init(
+        pid: Int32,
+        name: String,
+        bundleID: String? = nil,
+        cpuPercent: Double = 0.0,
+        memoryBytes: UInt64 = 0
+    ) {
+        self.pid = pid
+        self.name = name
+        self.bundleID = bundleID
+        self.cpuPercent = cpuPercent
+        self.memoryBytes = memoryBytes
+    }
+}
+
+/// Demand-driven top process snapshot across CPU and Memory.
+public struct ProcessSample: Sendable, Equatable, Codable {
+    public let topCPU: [ProcessInfoItem]
+    public let topMemory: [ProcessInfoItem]
+    public let skippedCount: Int
+
+    public init(
+        topCPU: [ProcessInfoItem] = [],
+        topMemory: [ProcessInfoItem] = [],
+        skippedCount: Int = 0
+    ) {
+        self.topCPU = topCPU
+        self.topMemory = topMemory
+        self.skippedCount = skippedCount
+    }
+}
+
+/// Selectable time range windows for history graphs (Tasks 7.5, 7.6, 8.10).
+public enum HistoryTimeRange: String, CaseIterable, Identifiable, Sendable, Codable {
+    case oneMinute = "1m"
+    case fiveMinutes = "5m"
+    case fifteenMinutes = "15m"
+
+    public var id: String { rawValue }
+
+    public var durationSeconds: Double {
+        switch self {
+        case .oneMinute: return 60
+        case .fiveMinutes: return 300
+        case .fifteenMinutes: return 900
+        }
+    }
+}
+
+
 
 

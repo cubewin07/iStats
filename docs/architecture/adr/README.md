@@ -21,5 +21,8 @@ Each ADR uses this structure:
 | [0004](0004-privilege-and-fan-control.md) | Privilege model and fan control | Accepted |
 | [0005](0005-sandbox-and-entitlements.md) | App Sandbox and entitlements | Accepted |
 | [0006](0006-telemetry-privacy-no-persistence.md) | Telemetry privacy / no persistence | Accepted |
-| [0007](0007-per-category-menu-bar-items-and-popovers.md) | Per-category menu bar items and dedicated popovers | Proposed |
+| [0007](0007-per-category-menu-bar-items-and-popovers.md) | Per-category menu bar items and dedicated popovers | Accepted (Partially superseded by ADR 0008) |
+| [0008](0008-purpose-driven-widgets-and-tabbed-popovers.md) | Purpose-driven widgets and tabbed category popovers | Accepted (Presentation layer superseded by ADR 0009) |
+| [0009](0009-instrument-design-language-and-glass-panels.md) | "Instrument" design language and glass panels | Accepted (Chart engine, motion, and panel polish refined by ADR 0010) |
+| [0010](0010-time-domain-chart-engine-and-synchronized-panel-motion.md) | Time-domain chart engine v3, synchronized panel motion, and Instrument 2 polish | Accepted |
 

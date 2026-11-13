@@ -1,5 +1,34 @@
 import Foundation
 
+/// A lightweight timestamped scalar data point for extended history trend charts (Task 7.6).
+public struct ScalarPoint: Sendable, Equatable, Codable {
+    public let timestamp: Date
+    public let value: Double
+
+    public init(timestamp: Date = Date(), value: Double) {
+        self.timestamp = timestamp
+        self.value = value
+    }
+}
+
+/// Identifiers for chartable scalar series retained across extended time horizons (1m / 5m / 15m).
+public enum ScalarSeriesKey: String, CaseIterable, Identifiable, Sendable, Codable {
+    case cpuUser
+    case cpuSystem
+    case memoryUsedPercent
+    case gpuUtilization
+    case thermalPeakCelsius
+    case fanMaxRPM
+    case networkInBytesPerSec
+    case networkOutBytesPerSec
+    case diskReadBytesPerSec
+    case diskWriteBytesPerSec
+    case powerWatts
+    case powerChargePercent
+
+    public var id: String { rawValue }
+}
+
 /// An in-memory, fixed-capacity ring buffer store per metric category holding the
 /// last N samples for live graph rendering and telemetry inspection (Requirement 10.2).
 ///
@@ -9,25 +38,34 @@ public struct MetricsStore: Sendable, Equatable {
     /// Default number of samples retained per category (e.g., 60 samples).
     public static let defaultCapacity: Int = 60
 
+    /// Extended number of samples retained for lightweight scalar series buffers (900 samples = 15m @ 1s).
+    public static let defaultScalarCapacity: Int = 900
+
     private var buffers: [MetricCategory: RingBuffer<MetricReading>]
+    private var scalarBuffers: [ScalarSeriesKey: RingBuffer<ScalarPoint>]
     public let defaultBufferCapacity: Int
     public let categoryCapacities: [MetricCategory: Int]
+    public let scalarCapacity: Int
 
     /// Initializes a `MetricsStore` with a default capacity and optional per-category overrides.
     /// - Parameters:
     ///   - defaultCapacity: The capacity used for categories not explicitly overridden. Must be > 0.
     ///   - categoryCapacities: Optional per-category capacity overrides. All values must be > 0.
+    ///   - scalarCapacity: The capacity for extended scalar buffers (default 900). Must be > 0.
     public init(
         defaultCapacity: Int = MetricsStore.defaultCapacity,
-        categoryCapacities: [MetricCategory: Int] = [:]
+        categoryCapacities: [MetricCategory: Int] = [:],
+        scalarCapacity: Int = MetricsStore.defaultScalarCapacity
     ) {
         precondition(defaultCapacity > 0, "defaultCapacity must be > 0")
+        precondition(scalarCapacity > 0, "scalarCapacity must be > 0")
         for (category, cap) in categoryCapacities {
             precondition(cap > 0, "Capacity for \(category) must be > 0")
         }
 
         self.defaultBufferCapacity = defaultCapacity
         self.categoryCapacities = categoryCapacities
+        self.scalarCapacity = scalarCapacity
 
         var initialBuffers: [MetricCategory: RingBuffer<MetricReading>] = [:]
         for category in MetricCategory.allCases {
@@ -35,6 +73,12 @@ public struct MetricsStore: Sendable, Equatable {
             initialBuffers[category] = RingBuffer<MetricReading>(capacity: cap)
         }
         self.buffers = initialBuffers
+
+        var initialScalars: [ScalarSeriesKey: RingBuffer<ScalarPoint>] = [:]
+        for key in ScalarSeriesKey.allCases {
+            initialScalars[key] = RingBuffer<ScalarPoint>(capacity: scalarCapacity)
+        }
+        self.scalarBuffers = initialScalars
     }
 
     // MARK: - Appending Samples
@@ -48,6 +92,48 @@ public struct MetricsStore: Sendable, Equatable {
             buffers[category] = RingBuffer<MetricReading>(capacity: cap)
         }
         buffers[category]?.append(reading)
+        recordScalarPoints(for: reading)
+    }
+
+    private mutating func recordScalarPoints(for reading: MetricReading) {
+        switch reading {
+        case .cpu(let s):
+            scalarBuffers[.cpuUser]?.append(ScalarPoint(timestamp: s.timestamp, value: s.value.user))
+            scalarBuffers[.cpuSystem]?.append(ScalarPoint(timestamp: s.timestamp, value: s.value.system))
+        case .memory(let s):
+            if s.value.total > 0 {
+                let ratio = (Double(s.value.used) / Double(s.value.total)) * 100.0
+                scalarBuffers[.memoryUsedPercent]?.append(ScalarPoint(timestamp: s.timestamp, value: ratio))
+            }
+        case .gpu(let s):
+            if let u = s.value.utilization {
+                scalarBuffers[.gpuUtilization]?.append(ScalarPoint(timestamp: s.timestamp, value: u))
+            }
+        case .thermal(let s):
+            if let peak = s.value.peakTemperatureCelsius {
+                scalarBuffers[.thermalPeakCelsius]?.append(ScalarPoint(timestamp: s.timestamp, value: peak))
+            }
+        case .fan(let s):
+            let maxRPM = Double(s.value.fans.map(\.rpm).max() ?? 0)
+            scalarBuffers[.fanMaxRPM]?.append(ScalarPoint(timestamp: s.timestamp, value: maxRPM))
+        case .network(let s):
+            scalarBuffers[.networkInBytesPerSec]?.append(ScalarPoint(timestamp: s.timestamp, value: s.value.totalBytesInPerSec))
+            scalarBuffers[.networkOutBytesPerSec]?.append(ScalarPoint(timestamp: s.timestamp, value: s.value.totalBytesOutPerSec))
+        case .disk(let s):
+            if let io = s.value.io {
+                scalarBuffers[.diskReadBytesPerSec]?.append(ScalarPoint(timestamp: s.timestamp, value: io.bytesReadPerSec))
+                scalarBuffers[.diskWriteBytesPerSec]?.append(ScalarPoint(timestamp: s.timestamp, value: io.bytesWrittenPerSec))
+            }
+        case .power(let s):
+            if let draw = s.value.powerDrawWatts {
+                scalarBuffers[.powerWatts]?.append(ScalarPoint(timestamp: s.timestamp, value: draw))
+            }
+            if let charge = s.value.charge {
+                scalarBuffers[.powerChargePercent]?.append(ScalarPoint(timestamp: s.timestamp, value: charge))
+            }
+        case .unavailable:
+            break
+        }
     }
 
     /// Appends multiple readings in chronological order.
@@ -253,17 +339,266 @@ public struct MetricsStore: Sendable, Equatable {
         }
     }
 
+    // MARK: - Querying Scalar Trends (Task 7.6)
+
+    /// Returns all timestamped points stored in the scalar buffer for a given series key.
+    public func scalarPoints(for key: ScalarSeriesKey) -> [ScalarPoint] {
+        scalarBuffers[key]?.elements ?? []
+    }
+
+    /// Returns the number of scalar points stored for a series key.
+    public func scalarCount(for key: ScalarSeriesKey) -> Int {
+        scalarBuffers[key]?.count ?? 0
+    }
+
+    /// Returns the elapsed time interval (in seconds) between the oldest and newest sample
+    /// within the given time window (or full buffer if duration is nil).
+    /// Returns 0 if there are fewer than 2 points.
+    public func scalarTimeSpan(for key: ScalarSeriesKey, duration: TimeInterval? = nil) -> TimeInterval {
+        guard let buffer = scalarBuffers[key] else { return 0 }
+        let points = buffer.elements
+        guard points.count >= 2, let newest = points.last?.timestamp else { return 0 }
+
+        let oldest: Date
+        if let duration = duration, duration > 0 {
+            let cutoff = newest.addingTimeInterval(-duration)
+            guard let firstInRange = points.first(where: { $0.timestamp > cutoff })?.timestamp else { return 0 }
+            oldest = firstInRange
+        } else {
+            guard let first = points.first?.timestamp else { return 0 }
+            oldest = first
+        }
+
+        return max(0, newest.timeIntervalSince(oldest))
+    }
+
+    /// Queries the scalar history for a given series key over a specified time window (duration in seconds),
+    /// downsampled to at most `maxPoints` using spike-preserving bucket downsampling.
+    public func scalarHistory(
+        for key: ScalarSeriesKey,
+        duration: TimeInterval? = nil,
+        maxPoints: Int = 120
+    ) -> [Double] {
+        guard let buffer = scalarBuffers[key] else { return [] }
+        let points = buffer.elements
+        guard !points.isEmpty else { return [] }
+
+        let filtered: [Double]
+        if let duration = duration, duration > 0, let newest = points.last?.timestamp {
+            let cutoff = newest.addingTimeInterval(-duration)
+            filtered = points.filter { $0.timestamp > cutoff }.map(\.value)
+        } else {
+            filtered = points.map(\.value)
+        }
+
+        return Downsampler.downsampleSpikePreserving(filtered, targetCount: maxPoints)
+    }
+
+    // MARK: - Timestamped & Time-Aligned Queries (Task 8.5.2)
+
+    /// Returns raw timestamped scalar points within `duration` seconds ending at `referenceDate`.
+    /// Cutting against the requested `referenceDate` (rather than the newest sample) prevents
+    /// 59–61 point window-count jitter when sampling intervals vary slightly (ADR 0010 / B8).
+    public func timedScalarHistory(
+        for key: ScalarSeriesKey,
+        duration: TimeInterval,
+        referenceDate: Date = Date()
+    ) -> [ChartPoint] {
+        let refEpoch = referenceDate.timeIntervalSince1970
+        guard duration.isFinite, duration > 0.0, refEpoch.isFinite,
+              let buffer = scalarBuffers[key] else {
+            return []
+        }
+
+        let cutoff = refEpoch - duration
+        return buffer.elements.compactMap { point in
+            let t = point.timestamp.timeIntervalSince1970
+            guard t > cutoff, t <= refEpoch, point.value.isFinite else { return nil }
+            return ChartPoint(timestamp: t, value: point.value)
+        }
+    }
+
+    /// Returns time-aligned `(min, max, mean)` envelope buckets within `duration` seconds
+    /// ending at `referenceDate` using `Downsampler.alignedBuckets`.
+    public func bucketedScalarHistory(
+        for key: ScalarSeriesKey,
+        duration: TimeInterval,
+        bucketWidth: TimeInterval,
+        referenceDate: Date = Date()
+    ) -> [BucketPoint] {
+        let refEpoch = referenceDate.timeIntervalSince1970
+        guard duration.isFinite, duration > 0.0,
+              bucketWidth.isFinite, bucketWidth > 0.0,
+              refEpoch.isFinite,
+              let buffer = scalarBuffers[key] else {
+            return []
+        }
+
+        let cutoff = refEpoch - duration
+        let windowPoints = buffer.elements.filter { point in
+            let t = point.timestamp.timeIntervalSince1970
+            guard t <= refEpoch, point.value.isFinite else { return false }
+            let bucketEnd = (floor(t / bucketWidth) + 1.0) * bucketWidth
+            return bucketEnd > cutoff
+        }
+        guard !windowPoints.isEmpty else { return [] }
+
+        return Downsampler.alignedBuckets(
+            windowPoints,
+            bucketWidth: bucketWidth,
+            windowDuration: duration
+        )
+    }
+
+    /// Queries two scalar series against a single shared `referenceDate` and aligns samples
+    /// by timestamp for stacked or mirrored charts (CPU user/system, Network in/out, Disk read/write).
+    public func timedDualScalarHistory(
+        primary primaryKey: ScalarSeriesKey,
+        secondary secondaryKey: ScalarSeriesKey,
+        duration: TimeInterval,
+        referenceDate: Date = Date()
+    ) -> [DualChartPoint] {
+        let primaryPoints = timedScalarHistory(
+            for: primaryKey,
+            duration: duration,
+            referenceDate: referenceDate
+        )
+        let secondaryPoints = timedScalarHistory(
+            for: secondaryKey,
+            duration: duration,
+            referenceDate: referenceDate
+        )
+        return Self.alignDualPoints(primary: primaryPoints, secondary: secondaryPoints)
+    }
+
+    /// Queries two scalar series as time-aligned buckets against a single shared `referenceDate`
+    /// and aligns matching epoch buckets by timestamp.
+    public func bucketedDualScalarHistory(
+        primary primaryKey: ScalarSeriesKey,
+        secondary secondaryKey: ScalarSeriesKey,
+        duration: TimeInterval,
+        bucketWidth: TimeInterval,
+        referenceDate: Date = Date()
+    ) -> (primary: [BucketPoint], secondary: [BucketPoint]) {
+        let primaryBuckets = bucketedScalarHistory(
+            for: primaryKey,
+            duration: duration,
+            bucketWidth: bucketWidth,
+            referenceDate: referenceDate
+        )
+        let secondaryBuckets = bucketedScalarHistory(
+            for: secondaryKey,
+            duration: duration,
+            bucketWidth: bucketWidth,
+            referenceDate: referenceDate
+        )
+        return Self.alignDualBuckets(primary: primaryBuckets, secondary: secondaryBuckets)
+    }
+
+    private static func alignDualPoints(
+        primary: [ChartPoint],
+        secondary: [ChartPoint],
+        tolerance: TimeInterval = 1e-6
+    ) -> [DualChartPoint] {
+        guard !primary.isEmpty, !secondary.isEmpty else { return [] }
+        let orderedPrimary = isChronological(primary) ? primary : primary.sorted { $0.timestamp < $1.timestamp }
+        let orderedSecondary = isChronological(secondary) ? secondary : secondary.sorted { $0.timestamp < $1.timestamp }
+
+        var aligned: [DualChartPoint] = []
+        aligned.reserveCapacity(min(orderedPrimary.count, orderedSecondary.count))
+
+        var i = 0
+        var j = 0
+        while i < orderedPrimary.count && j < orderedSecondary.count {
+            let p = orderedPrimary[i]
+            let s = orderedSecondary[j]
+            let diff = p.timestamp - s.timestamp
+            if abs(diff) <= tolerance {
+                aligned.append(DualChartPoint(timestamp: p.timestamp, primary: p.value, secondary: s.value))
+                i += 1
+                j += 1
+            } else if diff < 0 {
+                i += 1
+            } else {
+                j += 1
+            }
+        }
+        return aligned
+    }
+
+    private static func alignDualBuckets(
+        primary: [BucketPoint],
+        secondary: [BucketPoint],
+        tolerance: TimeInterval = 1e-6
+    ) -> (primary: [BucketPoint], secondary: [BucketPoint]) {
+        guard !primary.isEmpty, !secondary.isEmpty else { return ([], []) }
+
+        var alignedPrimary: [BucketPoint] = []
+        var alignedSecondary: [BucketPoint] = []
+        let capacity = min(primary.count, secondary.count)
+        alignedPrimary.reserveCapacity(capacity)
+        alignedSecondary.reserveCapacity(capacity)
+
+        var i = 0
+        var j = 0
+        while i < primary.count && j < secondary.count {
+            let p = primary[i]
+            let s = secondary[j]
+            let diff = p.timestamp - s.timestamp
+            if abs(diff) <= tolerance {
+                alignedPrimary.append(p)
+                alignedSecondary.append(s)
+                i += 1
+                j += 1
+            } else if diff < 0 {
+                i += 1
+            } else {
+                j += 1
+            }
+        }
+        return (alignedPrimary, alignedSecondary)
+    }
+
+    private static func isChronological(_ points: [ChartPoint]) -> Bool {
+        !zip(points, points.dropFirst()).contains { $0.timestamp > $1.timestamp }
+    }
+
     // MARK: - Resetting & Clearing
 
     /// Clears all readings stored for a specific category.
     public mutating func clear(category: MetricCategory) {
         buffers[category]?.clear()
+        switch category {
+        case .cpu:
+            scalarBuffers[.cpuUser]?.clear()
+            scalarBuffers[.cpuSystem]?.clear()
+        case .memory:
+            scalarBuffers[.memoryUsedPercent]?.clear()
+        case .gpu:
+            scalarBuffers[.gpuUtilization]?.clear()
+        case .thermal:
+            scalarBuffers[.thermalPeakCelsius]?.clear()
+        case .fan:
+            scalarBuffers[.fanMaxRPM]?.clear()
+        case .network:
+            scalarBuffers[.networkInBytesPerSec]?.clear()
+            scalarBuffers[.networkOutBytesPerSec]?.clear()
+        case .disk:
+            scalarBuffers[.diskReadBytesPerSec]?.clear()
+            scalarBuffers[.diskWriteBytesPerSec]?.clear()
+        case .power:
+            scalarBuffers[.powerWatts]?.clear()
+            scalarBuffers[.powerChargePercent]?.clear()
+        }
     }
 
     /// Clears all readings across all categories.
     public mutating func clearAll() {
         for category in MetricCategory.allCases {
             buffers[category]?.clear()
+        }
+        for key in ScalarSeriesKey.allCases {
+            scalarBuffers[key]?.clear()
         }
     }
 }
