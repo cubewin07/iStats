@@ -1039,4 +1039,235 @@ final class PanelScaffoldTests: XCTestCase {
         XCTAssertTrue(controller.shouldDispatch(nil))
         XCTAssertFalse(controller.shouldDispatch(nil))
     }
+
+    // MARK: - Task 8.5.6b: Header v2, Text PageSwitcher & Inline Status Chip
+
+    func testHeaderV2BadgeAndCategoryTitlesFitAllCategories() {
+        for category in MetricCategory.allCases {
+            for pinned in [false, true] {
+                var latestProbe = PanelScaffoldProbeSnapshot()
+                let scaffold = PanelScaffold(
+                    category: category,
+                    glance: PanelGlance(value: 42, unit: "%", headline: "Nominal"),
+                    status: .fine,
+                    pages: PopoverTab.supportedTabs(for: category, hasBattery: true),
+                    selection: .constant(.overview),
+                    isPinned: pinned
+                ) { _ in
+                    Text("Body").frame(height: 40)
+                }
+                .environment(\.panelScaffoldProbeEnabled, true)
+                .onPreferenceChange(PanelScaffoldProbeKey.self) { latestProbe = $0 }
+
+                let controller = NSHostingController(rootView: scaffold)
+                let size = controller.sizeThatFits(in: CGSize(width: Instrument.Size.panelWidth, height: Instrument.Size.maxHeight))
+                XCTAssertEqual(size.width, Instrument.Size.panelWidth, accuracy: 2.0, "Category \(category) (pinned: \(pinned)) must fit 352pt panel width")
+
+                let window = NSWindow(
+                    contentRect: NSRect(x: 0, y: 0, width: Instrument.Size.panelWidth, height: size.height),
+                    styleMask: [.borderless],
+                    backing: .buffered,
+                    defer: false
+                )
+                let hosting = NSHostingView(rootView: scaffold)
+                hosting.frame = NSRect(x: 0, y: 0, width: Instrument.Size.panelWidth, height: size.height)
+                window.contentView = hosting
+                window.orderFront(nil)
+                window.layoutIfNeeded()
+                window.displayIfNeeded()
+                RunLoop.main.run(until: Date().addingTimeInterval(0.03))
+                window.orderOut(nil)
+
+                XCTAssertEqual(latestProbe.badgeTitle, category.displayName, "Header v2 uses sentence-case category displayName")
+                if let eyebrow = latestProbe.eyebrowFrame {
+                    XCTAssertLessThanOrEqual(eyebrow.height, 29.0, "Eyebrow row height for \(category) (pinned: \(pinned)) must remain single-line 28pt")
+                }
+            }
+        }
+    }
+
+    func testTextPageSwitcherLabelsMotionPoliciesContrastAndShortcuts() {
+        XCTAssertEqual(PageSwitcher.label(for: .overview), "Now")
+        XCTAssertEqual(PageSwitcher.label(for: .detail), "Details")
+        XCTAssertEqual(PageSwitcher.label(for: .history), "History")
+
+        XCTAssertEqual(PageSwitcher.accessibilityLabel(for: .overview, category: .cpu), "Now, Overview")
+        XCTAssertEqual(PageSwitcher.accessibilityLabel(for: .detail, category: .cpu), "Details, Cores")
+        XCTAssertEqual(PageSwitcher.accessibilityLabel(for: .history, category: .cpu), "History")
+
+        for policy in [MotionPolicy.full, .reduced, .frozen] {
+            for scheme in [ColorScheme.light, .dark] {
+                let switcher = PageSwitcher(
+                    pages: [.overview, .detail, .history],
+                    selection: .constant(.detail),
+                    category: .cpu
+                )
+                .motionPolicy(policy)
+                .environment(\.colorScheme, scheme)
+
+                let hosting = NSHostingView(rootView: switcher)
+                hosting.frame = CGRect(x: 0, y: 0, width: 220, height: 32)
+                hosting.layoutSubtreeIfNeeded()
+                XCTAssertGreaterThan(hosting.fittingSize.width, 90)
+                XCTAssertLessThanOrEqual(hosting.fittingSize.height, 30)
+            }
+        }
+
+        // Verify ⌘1–3 and arrow commands update PanelScaffold selection cleanly
+        @MainActor
+        final class SelectionHost: ObservableObject {
+            @Published var tab: PopoverTab = .overview
+        }
+        let hostModel = SelectionHost()
+        let scaffold = PanelScaffold(
+            category: .cpu,
+            glance: PanelGlance(value: 25, unit: "%", headline: "Normal"),
+            status: .fine,
+            pages: [.overview, .detail, .history],
+            selection: Binding(get: { hostModel.tab }, set: { hostModel.tab = $0 })
+        ) { _ in
+            Text("Body").frame(height: 40)
+        }
+
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: Instrument.Size.panelWidth, height: 300),
+            styleMask: [.borderless],
+            backing: .buffered,
+            defer: false
+        )
+        let hosting = NSHostingView(rootView: scaffold)
+        window.contentView = hosting
+        window.orderFront(nil)
+        defer { window.orderOut(nil) }
+        RunLoop.main.run(until: Date().addingTimeInterval(0.03))
+
+        NotificationCenter.default.post(name: .panelCommandReceived, object: PanelCommand.selectPage(2), userInfo: ["category": MetricCategory.cpu])
+        RunLoop.main.run(until: Date().addingTimeInterval(0.03))
+        XCTAssertEqual(hostModel.tab, .detail)
+
+        NotificationCenter.default.post(name: .panelCommandReceived, object: PanelCommand.selectPage(3), userInfo: ["category": MetricCategory.cpu])
+        RunLoop.main.run(until: Date().addingTimeInterval(0.03))
+        XCTAssertEqual(hostModel.tab, .history)
+
+        NotificationCenter.default.post(name: .panelCommandReceived, object: PanelCommand.selectPage(1), userInfo: ["category": MetricCategory.cpu])
+        RunLoop.main.run(until: Date().addingTimeInterval(0.03))
+        XCTAssertEqual(hostModel.tab, .overview)
+    }
+
+    func testInlineStatusChipVsActionableStatusRibbon() throws {
+        XCTAssertEqual(InlineStatusChip.displayText(for: .elevated), "● Elevated")
+        XCTAssertEqual(InlineStatusChip.displayText(for: .warning), "▲ Warning")
+        XCTAssertEqual(InlineStatusChip.displayText(for: .critical), "◆ Critical")
+
+        // Render InlineStatusChip across statuses and color schemes
+        for status in [StatusLevel.elevated, .warning, .critical] {
+            for scheme in [ColorScheme.light, .dark] {
+                let chip = InlineStatusChip(status: status, detail: "Sample detail")
+                    .environment(\.colorScheme, scheme)
+                let hosting = NSHostingView(rootView: chip)
+                hosting.frame = CGRect(x: 0, y: 0, width: 120, height: 30)
+                hosting.layoutSubtreeIfNeeded()
+                XCTAssertGreaterThan(hosting.fittingSize.width, 40)
+                XCTAssertGreaterThan(hosting.fittingSize.height, 14)
+            }
+        }
+
+        func probeScaffold(
+            status: StatusLevel,
+            ribbon: String? = nil,
+            ribbonActionTitle: String? = nil,
+            ribbonAction: (() -> Void)? = nil,
+            isPaused: Bool = false,
+            isLoading: Bool = false,
+            availability: Availability? = nil
+        ) -> (shouldShowChip: Bool, shouldShowRibbon: Bool, probe: PanelScaffoldProbeSnapshot) {
+            var latestProbe = PanelScaffoldProbeSnapshot()
+            let scaffold = PanelScaffold(
+                category: .thermal,
+                glance: PanelGlance(value: 84, unit: "°C", headline: "Hot"),
+                status: status,
+                ribbon: ribbon,
+                ribbonActionTitle: ribbonActionTitle,
+                ribbonAction: ribbonAction,
+                pages: [.overview, .detail, .history],
+                selection: .constant(.overview),
+                availability: availability,
+                isLoading: isLoading,
+                isPaused: isPaused
+            ) { _ in
+                Text("Body").frame(height: 40)
+            }
+
+            let view = scaffold
+                .environment(\.panelScaffoldProbeEnabled, true)
+                .onPreferenceChange(PanelScaffoldProbeKey.self) { latestProbe = $0 }
+
+            let window = NSWindow(
+                contentRect: NSRect(x: 0, y: 0, width: Instrument.Size.panelWidth, height: 320),
+                styleMask: [.borderless],
+                backing: .buffered,
+                defer: false
+            )
+            let hosting = NSHostingView(rootView: view)
+            hosting.frame = NSRect(x: 0, y: 0, width: Instrument.Size.panelWidth, height: 320)
+            window.contentView = hosting
+            window.orderFront(nil)
+            window.layoutIfNeeded()
+            window.displayIfNeeded()
+            RunLoop.main.run(until: Date().addingTimeInterval(0.04))
+            window.orderOut(nil)
+
+            return (scaffold.shouldShowInlineStatusChip, scaffold.shouldShowActionableRibbon, latestProbe)
+        }
+
+        // 1. Fine status: no inline chip, no ribbon
+        let fineResult = probeScaffold(status: .fine, ribbon: nil)
+        XCTAssertFalse(fineResult.shouldShowChip)
+        XCTAssertFalse(fineResult.shouldShowRibbon)
+        XCTAssertNil(fineResult.probe.inlineStatusText)
+        XCTAssertEqual(fineResult.probe.hasActionRibbon, false)
+
+        // 2. Elevated / Warning / Critical with passive message: inline chip shown on trailing side of Glance, NO full-width StatusRibbon
+        for (level, expectedText) in [
+            (StatusLevel.elevated, "● Elevated"),
+            (StatusLevel.warning, "▲ Warning"),
+            (StatusLevel.critical, "◆ Critical")
+        ] {
+            let res = probeScaffold(status: level, ribbon: "Thermal pressure \(level.rawValue)")
+            XCTAssertTrue(res.shouldShowChip)
+            XCTAssertFalse(res.shouldShowRibbon, "Non-actionable ribbon message must not show full-width StatusRibbon")
+            XCTAssertEqual(res.probe.inlineStatusText, expectedText)
+            XCTAssertEqual(res.probe.hasActionRibbon, false)
+
+            let glanceFrame = try XCTUnwrap(res.probe.glanceFrame)
+            let chipFrame = try XCTUnwrap(res.probe.inlineStatusFrame)
+            XCTAssertGreaterThan(chipFrame.minX, glanceFrame.midX, "Inline status chip must sit on trailing side of Glance numeral row")
+            XCTAssertEqual(res.probe.glanceSummary?.contains(InlineStatusChip.title(for: level)), true)
+        }
+
+        // 3. Paused state: full-width StatusRibbon IS shown
+        let pausedResult = probeScaffold(status: .fine, isPaused: true)
+        XCTAssertTrue(pausedResult.shouldShowRibbon)
+        XCTAssertEqual(pausedResult.probe.hasActionRibbon, true)
+
+        // 4. Explicit action button on ribbon: full-width StatusRibbon IS shown
+        let actionResult = probeScaffold(
+            status: .warning,
+            ribbon: "Helper upgrade needed",
+            ribbonActionTitle: "Install",
+            ribbonAction: {}
+        )
+        XCTAssertTrue(actionResult.shouldShowChip)
+        XCTAssertTrue(actionResult.shouldShowRibbon)
+        XCTAssertEqual(actionResult.probe.hasActionRibbon, true)
+
+        // 5. Loading / Unavailable suppress inline status chip
+        let loadingResult = probeScaffold(status: .critical, isLoading: true)
+        XCTAssertFalse(loadingResult.shouldShowChip)
+        XCTAssertNil(loadingResult.probe.inlineStatusText)
+
+        let unavailableResult = probeScaffold(status: .warning, availability: .unavailable(reason: "No sensor"))
+        XCTAssertFalse(unavailableResult.shouldShowChip)
+        XCTAssertNil(unavailableResult.probe.inlineStatusText)
+    }
 }

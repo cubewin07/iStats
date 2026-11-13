@@ -88,6 +88,20 @@ public struct PanelScaffold<Content: View>: View {
         return selection != .history
     }
 
+    internal var shouldShowInlineStatusChip: Bool {
+        !isLoading && (availability?.isAvailable ?? true) && status >= .elevated
+    }
+
+    internal var shouldShowActionableRibbon: Bool {
+        if isPaused { return true }
+        guard let message = ribbon, !message.isEmpty,
+              let actionTitle = ribbonActionTitle, !actionTitle.isEmpty,
+              ribbonAction != nil else {
+            return false
+        }
+        return true
+    }
+
     public init(
         category: MetricCategory,
         glance: PanelGlance,
@@ -138,6 +152,22 @@ public struct PanelScaffold<Content: View>: View {
                 // Zone ①: Eyebrow row (28 pt)
                 eyebrowRow
                     .frame(height: 28)
+                    .background(
+                        Group {
+                            if probeEnabled {
+                                GeometryReader { proxy in
+                                    Color.clear.preference(
+                                        key: PanelScaffoldProbeKey.self,
+                                        value: PanelScaffoldProbeSnapshot(
+                                            badgeTitle: category.displayName,
+                                            eyebrowFrame: proxy.frame(in: .named("PanelScaffoldProbe")),
+                                            hasActionRibbon: shouldShowActionableRibbon
+                                        )
+                                    )
+                                }
+                            }
+                        }
+                    )
                     .padding(.bottom, 8)
                     .accessibilityElement(children: .contain)
                     .accessibilityLabel("\(category.displayName) Header")
@@ -203,7 +233,7 @@ public struct PanelScaffold<Content: View>: View {
                         )
                 }
 
-                // Zone ④: Status Ribbon (shown only at >= .elevated or paused or explicit message)
+                // Zone ④: Status Ribbon (strictly reserved for actionable states: paused sampling or explicit action buttons)
                 if isPaused {
                     StatusRibbon(
                         status: .elevated,
@@ -213,12 +243,14 @@ public struct PanelScaffold<Content: View>: View {
                     )
                     .padding(.top, 6)
                     .accessibilityElement(children: .combine)
-                } else if let message = ribbon, (!status.isQuiet || status == .fine) {
+                } else if let message = ribbon, !message.isEmpty,
+                          let actionTitle = ribbonActionTitle, !actionTitle.isEmpty,
+                          let action = ribbonAction {
                     StatusRibbon(
                         status: status,
                         message: message,
-                        actionTitle: ribbonActionTitle,
-                        action: ribbonAction
+                        actionTitle: actionTitle,
+                        action: action
                     )
                     .padding(.top, 6)
                     .accessibilityElement(children: .combine)
@@ -263,21 +295,30 @@ public struct PanelScaffold<Content: View>: View {
     // MARK: - Zone ①: Eyebrow Row
 
     private var eyebrowRow: some View {
-        HStack(spacing: 8) {
-            // Category Glyph + Tracked Uppercase Name
-            HStack(spacing: 5) {
-                Image(systemName: category.symbolName)
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundColor(CategoryPalette.tint(for: category))
+        let tint = CategoryPalette.tint(for: category)
 
-                Text(category.displayName.uppercased())
-                    .font(Instrument.Typography.eyebrow)
-                    .foregroundColor(.secondary)
+        return HStack(spacing: 6) {
+            // 18×18 Tinted Category Badge + 13 pt Semibold Sentence-Case Title
+            HStack(spacing: 6) {
+                ZStack {
+                    Circle()
+                        .fill(tint.opacity(0.16))
+                    Image(systemName: category.symbolName)
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundColor(tint)
+                }
+                .frame(width: 18, height: 18)
+
+                Text(category.displayName)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(.primary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
             }
 
-            Spacer()
+            Spacer(minLength: 4)
 
-            // Page Switcher
+            // Text Page Switcher (Now · Details · History)
             if pages.count > 1 {
                 PageSwitcher(
                     pages: pages,
@@ -286,62 +327,64 @@ public struct PanelScaffold<Content: View>: View {
                 )
             }
 
-            // Ellipsis Menu
-            Menu {
-                if let (title, action) = contextUtilityAction() {
-                    Button(title, action: action)
-                }
+            HStack(spacing: 2) {
+                // Ellipsis Menu
+                Menu {
+                    if let (title, action) = contextUtilityAction() {
+                        Button(title, action: action)
+                    }
 
-                if let pauseAction = onTogglePause {
-                    Button(isPaused ? "Resume Sampling" : "Pause Sampling", action: pauseAction)
-                }
+                    if let pauseAction = onTogglePause {
+                        Button(isPaused ? "Resume Sampling" : "Pause Sampling", action: pauseAction)
+                    }
 
-                Divider()
+                    Divider()
 
-                Button("Settings...") {
-                    PreferencesWindowController.shared.showPreferences()
-                }
-            } label: {
-                Image(systemName: "ellipsis")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundColor(.secondary)
-                    .frame(width: 20, height: 20)
-                    .contentShape(Rectangle())
-            }
-            .menuStyle(.borderlessButton)
-            .frame(width: 20, height: 20)
-            .help("More Actions")
-
-            // Pin / Detach Button
-            Button {
-                if let pinAction = onPinToggle {
-                    pinAction()
-                } else {
-                    panelController.togglePin(for: category)
-                }
-            } label: {
-                Image(systemName: effectiveIsPinned ? "pin.fill" : "pin")
-                    .font(.system(size: 11, weight: effectiveIsPinned ? .semibold : .regular))
-                    .foregroundColor(effectiveIsPinned ? CategoryPalette.tint(for: category) : .secondary)
-                    .frame(width: 20, height: 20)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .help(effectiveIsPinned ? "Unpin Window" : "Pin Window")
-
-            // Explicit Close Button on Pinned HUDs
-            if effectiveIsPinned {
-                Button {
-                    panelController.unpin(category: category)
+                    Button("Settings...") {
+                        PreferencesWindowController.shared.showPreferences()
+                    }
                 } label: {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 10, weight: .semibold))
+                    Image(systemName: "ellipsis")
+                        .font(.system(size: 11, weight: .medium))
                         .foregroundColor(.secondary)
-                        .frame(width: 20, height: 20)
+                        .frame(width: 18, height: 18)
+                        .contentShape(Rectangle())
+                }
+                .menuStyle(.borderlessButton)
+                .frame(width: 18, height: 18)
+                .help("More Actions")
+
+                // Pin / Detach Button
+                Button {
+                    if let pinAction = onPinToggle {
+                        pinAction()
+                    } else {
+                        panelController.togglePin(for: category)
+                    }
+                } label: {
+                    Image(systemName: effectiveIsPinned ? "pin.fill" : "pin")
+                        .font(.system(size: 11, weight: effectiveIsPinned ? .semibold : .regular))
+                        .foregroundColor(effectiveIsPinned ? tint : .secondary)
+                        .frame(width: 18, height: 18)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .help("Close Pinned Window")
+                .help(effectiveIsPinned ? "Unpin Window" : "Pin Window")
+
+                // Explicit Close Button on Pinned HUDs
+                if effectiveIsPinned {
+                    Button {
+                        panelController.unpin(category: category)
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundColor(.secondary)
+                            .frame(width: 18, height: 18)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .help("Close Pinned Window")
+                }
             }
         }
     }
@@ -412,7 +455,26 @@ public struct PanelScaffold<Content: View>: View {
                     }
                 }
 
-                Spacer()
+                Spacer(minLength: 8)
+
+                if shouldShowInlineStatusChip {
+                    InlineStatusChip(status: status, detail: ribbon)
+                        .background(
+                            Group {
+                                if probeEnabled {
+                                    GeometryReader { proxy in
+                                        Color.clear.preference(
+                                            key: PanelScaffoldProbeKey.self,
+                                            value: PanelScaffoldProbeSnapshot(
+                                                inlineStatusText: InlineStatusChip.displayText(for: status),
+                                                inlineStatusFrame: proxy.frame(in: .named("PanelScaffoldProbe"))
+                                            )
+                                        )
+                                    }
+                                }
+                            }
+                        )
+                }
             }
 
             // Headline
@@ -539,15 +601,16 @@ public struct PanelScaffold<Content: View>: View {
         if let avail = availability, case .unavailable(let reason) = avail {
             return reason
         }
+        let statusSuffix = status >= .elevated ? ", \(InlineStatusChip.title(for: status))" : ""
         if let scrub = activeScrubState {
             let primary = scrub.primaryUnit.isEmpty
                 ? scrub.formattedPrimary
                 : "\(scrub.formattedPrimary) \(scrub.primaryUnit)"
             if let sec = scrub.secondaryReadout {
                 let secText = sec.unit.isEmpty ? sec.text : "\(sec.text) \(sec.unit)"
-                return "\(primary), \(secText), \(scrub.headlineText)"
+                return "\(primary), \(secText), \(scrub.headlineText)\(statusSuffix)"
             }
-            return "\(primary), \(scrub.headlineText)"
+            return "\(primary), \(scrub.headlineText)\(statusSuffix)"
         }
         let primaryText: String
         if let custom = glance.formattedValue {
@@ -557,9 +620,9 @@ public struct PanelScaffold<Content: View>: View {
             primaryText = glance.unit.isEmpty ? num : "\(num) \(glance.unit)"
         }
         if glance.headline.isEmpty {
-            return primaryText
+            return "\(primaryText)\(statusSuffix)"
         }
-        return "\(primaryText), \(glance.headline)"
+        return "\(primaryText), \(glance.headline)\(statusSuffix)"
     }
 
     private func updateScrubState(_ newState: ChartScrubState?, sourceID: UUID?) {
@@ -714,24 +777,38 @@ public struct PanelScaffold<Content: View>: View {
 
     // MARK: - Keyboard Command Handling
 
+    private var pageSwitchAnimation: Animation? {
+        let policy = MotionPolicy.resolve(
+            reduceMotion: accessibilityReduceMotion,
+            lowPower: coordinator.isLowPowerModeActive,
+            paused: isPaused,
+            visible: isWindowVisible
+        )
+        switch policy {
+        case .full: return Motion.snappy
+        case .reduced: return .easeInOut(duration: 0.15)
+        case .frozen: return nil
+        }
+    }
+
     private func handleCommand(_ cmd: PanelCommand) {
         switch cmd {
         case .previousPage:
             if let idx = pages.firstIndex(of: selection), idx > 0 {
-                withAnimation(Motion.snappy) {
+                withAnimation(pageSwitchAnimation) {
                     selection = pages[idx - 1]
                 }
             }
         case .nextPage:
             if let idx = pages.firstIndex(of: selection), idx < pages.count - 1 {
-                withAnimation(Motion.snappy) {
+                withAnimation(pageSwitchAnimation) {
                     selection = pages[idx + 1]
                 }
             }
         case .selectPage(let pageNumber):
             let idx = pageNumber - 1
             if idx >= 0 && idx < pages.count {
-                withAnimation(Motion.snappy) {
+                withAnimation(pageSwitchAnimation) {
                     selection = pages[idx]
                 }
             }
@@ -893,6 +970,11 @@ internal struct PanelScaffoldProbeSnapshot: Equatable, Sendable {
     var chartFrame: CGRect?
     var insightText: String?
     var insightFrame: CGRect?
+    var badgeTitle: String?
+    var eyebrowFrame: CGRect?
+    var inlineStatusText: String?
+    var inlineStatusFrame: CGRect?
+    var hasActionRibbon: Bool?
 }
 
 internal struct PanelScaffoldProbeKey: PreferenceKey {
@@ -904,6 +986,11 @@ internal struct PanelScaffoldProbeKey: PreferenceKey {
         if let f = next.chartFrame { value.chartFrame = f }
         if let t = next.insightText { value.insightText = t }
         if let f = next.insightFrame { value.insightFrame = f }
+        if let b = next.badgeTitle { value.badgeTitle = b }
+        if let f = next.eyebrowFrame { value.eyebrowFrame = f }
+        if let s = next.inlineStatusText { value.inlineStatusText = s }
+        if let f = next.inlineStatusFrame { value.inlineStatusFrame = f }
+        if let r = next.hasActionRibbon { value.hasActionRibbon = r }
     }
 }
 
