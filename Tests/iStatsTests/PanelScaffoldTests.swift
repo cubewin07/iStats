@@ -686,4 +686,357 @@ final class PanelScaffoldTests: XCTestCase {
         }
         XCTAssertNil(EnvironmentValues().chartNamespace, "Cross-view chartNamespace must default to nil")
     }
+
+    // MARK: - Task 8.5.4: ChartScrubState, Glance Header Scrub Override & Insight Caption
+
+    func testChartScrubStateFormattingAndEquatable() {
+        XCTAssertEqual(ChartScrubState.splitFormattedValue("42.3%").value, "42.3")
+        XCTAssertEqual(ChartScrubState.splitFormattedValue("42.3%").unit, "%")
+        XCTAssertEqual(ChartScrubState.splitFormattedValue("62% used").value, "62")
+        XCTAssertEqual(ChartScrubState.splitFormattedValue("62% used").unit, "% used")
+        XCTAssertEqual(ChartScrubState.splitFormattedValue("55.0 °C").value, "55.0")
+        XCTAssertEqual(ChartScrubState.splitFormattedValue("55.0 °C").unit, "°C")
+        XCTAssertEqual(ChartScrubState.splitFormattedValue("1,800 RPM").value, "1,800")
+        XCTAssertEqual(ChartScrubState.splitFormattedValue("1,800 RPM").unit, "RPM")
+        XCTAssertEqual(ChartScrubState.splitFormattedValue("4.60 MiB/s").value, "4.60")
+        XCTAssertEqual(ChartScrubState.splitFormattedValue("4.60 MiB/s").unit, "MiB/s")
+        XCTAssertEqual(ChartScrubState.splitFormattedValue("20.0 W").value, "20.0")
+        XCTAssertEqual(ChartScrubState.splitFormattedValue("20.0 W").unit, "W")
+        XCTAssertEqual(ChartScrubState.splitFormattedValue("-55 dBm").value, "-55")
+        XCTAssertEqual(ChartScrubState.splitFormattedValue("-55 dBm").unit, "dBm")
+        XCTAssertEqual(ChartScrubState.splitFormattedValue("N/A").value, "N/A")
+        XCTAssertEqual(ChartScrubState.splitFormattedValue("N/A").unit, "")
+
+        XCTAssertEqual(ChartScrubState.formatRelativeTime(0), "now")
+        XCTAssertEqual(ChartScrubState.formatRelativeTime(12), "12s ago")
+        XCTAssertEqual(ChartScrubState.formatRelativeTime(135), "2m 15s ago")
+        XCTAssertEqual(ChartScrubState.formatRelativeTime(180), "3m ago")
+        XCTAssertEqual(ChartScrubState.formatRelativeTime(3600), "1h ago")
+
+        var comps = DateComponents()
+        comps.calendar = Calendar(identifier: .gregorian)
+        comps.timeZone = TimeZone(secondsFromGMT: 0)
+        comps.year = 2026
+        comps.month = 11
+        comps.day = 13
+        comps.hour = 14
+        comps.minute = 2
+        comps.second = 31
+        let sampleTimestamp = comps.date!.timeIntervalSince1970
+        let latestTimestamp = sampleTimestamp + 12.0
+
+        XCTAssertEqual(
+            ChartScrubState.formatClockTime(timestamp: sampleTimestamp, timeZone: TimeZone(secondsFromGMT: 0)!),
+            "14:02:31"
+        )
+
+        let singleState = ChartScrubState.make(
+            primaryValue: 78.4,
+            timestamp: sampleTimestamp,
+            latestTimestamp: latestTimestamp,
+            valueFormatter: { String(format: "%.1f%%", $0) },
+            timeZone: TimeZone(secondsFromGMT: 0)!
+        )
+        XCTAssertEqual(singleState.formattedPrimary, "78.4")
+        XCTAssertEqual(singleState.primaryUnit, "%")
+        XCTAssertNil(singleState.secondaryReadout)
+        XCTAssertEqual(singleState.relativeTimeText, "12s ago")
+        XCTAssertEqual(singleState.clockTimeText, "14:02:31")
+        XCTAssertEqual(singleState.headlineText, "12s ago · 14:02:31")
+
+        let dualStateA = ChartScrubState.make(
+            primaryValue: 4.5 * 1_048_576,
+            secondaryValue: 1.2 * 1_048_576,
+            primaryLabel: "↓",
+            secondaryLabel: "↑",
+            secondaryColor: CategoryPalette.Series.networkUpload,
+            timestamp: sampleTimestamp,
+            latestTimestamp: latestTimestamp,
+            valueFormatter: { Units.formatNetworkRate($0, unit: .bytesPerSecond, standard: .iec) },
+            timeZone: TimeZone(secondsFromGMT: 0)!
+        )
+        let dualStateB = dualStateA
+        XCTAssertEqual(dualStateA, dualStateB)
+        XCTAssertEqual(dualStateA.formattedPrimary, "4.50")
+        XCTAssertEqual(dualStateA.primaryUnit, "MiB/s")
+        XCTAssertEqual(dualStateA.primaryLabel, "↓")
+        XCTAssertEqual(dualStateA.secondaryReadout?.text, "1.20")
+        XCTAssertEqual(dualStateA.secondaryReadout?.unit, "MiB/s")
+        XCTAssertEqual(dualStateA.secondaryReadout?.label, "↑")
+        XCTAssertEqual(dualStateA.headlineText, "12s ago · 14:02:31")
+    }
+
+    func testChartScrubActionEnvironmentRoutingAndGlanceOverrideRelease() {
+        var capturedAction: ChartScrubAction?
+
+        struct ScrubProbeView: View {
+            @Environment(\.chartScrubAction) private var chartScrubAction
+            let onCapture: (ChartScrubAction?) -> Void
+
+            var body: some View {
+                Text("Probe")
+                    .frame(height: 30)
+                    .onAppear {
+                        onCapture(chartScrubAction)
+                    }
+            }
+        }
+
+        var latestProbe = PanelScaffoldProbeSnapshot()
+        let binding = Binding.constant(PopoverTab.overview)
+        let scaffold = PanelScaffold(
+            category: .cpu,
+            glance: PanelGlance(
+                value: 42,
+                format: "%.0f",
+                unit: "%",
+                headline: "Moderate load · 10 cores",
+                insight: "↗ Peak 92% · 3m ago",
+                chartMode: .single(values: [30, 42, 55], color: .blue)
+            ),
+            status: .fine,
+            pages: [.overview, .detail, .history],
+            selection: binding
+        ) { _ in
+            ScrubProbeView { action in
+                capturedAction = action
+            }
+        }
+        .environment(\.panelScaffoldProbeEnabled, true)
+        .onPreferenceChange(PanelScaffoldProbeKey.self) { latestProbe = $0 }
+
+        _ = NSApplication.shared
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: Instrument.Size.panelWidth, height: 420),
+            styleMask: [.borderless],
+            backing: .buffered,
+            defer: false
+        )
+        let hosting = NSHostingView(rootView: scaffold)
+        hosting.frame = NSRect(x: 0, y: 0, width: Instrument.Size.panelWidth, height: 420)
+        window.contentView = hosting
+        window.makeKeyAndOrderFront(nil)
+        defer { window.orderOut(nil) }
+
+        func flush() {
+            hosting.layoutSubtreeIfNeeded()
+            window.layoutIfNeeded()
+            window.displayIfNeeded()
+            RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+        }
+
+        flush()
+        XCTAssertNotNil(capturedAction, "PanelScaffold must inject ChartScrubAction into SwiftUI environment")
+
+        let initialValue = latestProbe.glanceSummary ?? ""
+        XCTAssertTrue(initialValue.contains("42 %"), "Live Glance value should show 42 %, got: \(initialValue)")
+        XCTAssertTrue(initialValue.contains("Moderate load · 10 cores"), "Live Glance headline should show live headline, got: \(initialValue)")
+
+        // Trigger scrub update via environment action (as hero LiveChart or HistoryPage does)
+        let scrub = ChartScrubState(
+            formattedPrimary: "78.5",
+            primaryUnit: "%",
+            secondaryReadout: nil,
+            relativeTimeText: "12s ago",
+            clockTimeText: "14:02:31"
+        )
+        capturedAction?(scrub)
+        flush()
+
+        let scrubbedValue = latestProbe.glanceSummary ?? ""
+        XCTAssertTrue(scrubbedValue.contains("78.5 %"), "Scrubbed Glance must display scrubbed value 78.5 %, got: \(scrubbedValue)")
+        XCTAssertTrue(scrubbedValue.contains("12s ago · 14:02:31"), "Scrubbed Glance headline must show '<relative> · <clock>', got: \(scrubbedValue)")
+        XCTAssertFalse(scrubbedValue.contains("Moderate load · 10 cores"))
+
+        // Release scrub (nil) -> restores live telemetry
+        capturedAction?(nil)
+        flush()
+
+        let restoredValue = latestProbe.glanceSummary ?? ""
+        XCTAssertTrue(restoredValue.contains("42 %"), "Releasing scrub must restore live telemetry, got: \(restoredValue)")
+        XCTAssertTrue(restoredValue.contains("Moderate load · 10 cores"))
+    }
+
+    func testPanelScaffoldInsightCaptionPlacementBelowChartAndDualTickerScrub() throws {
+        @MainActor
+        final class HostModel: ObservableObject {
+            @Published var tab: PopoverTab = .overview
+            @Published var scrub: ChartScrubState? = nil
+            var latestProbe = PanelScaffoldProbeSnapshot()
+        }
+
+        struct HostView: View {
+            @ObservedObject var model: HostModel
+
+            var body: some View {
+                PanelScaffold(
+                    category: .network,
+                    glance: PanelGlance(
+                        value: 4.2,
+                        format: "%.1f",
+                        unit: "MB/s",
+                        secondaryGlance: (value: 1.1, unit: "MB/s", color: CategoryPalette.Series.networkUpload),
+                        headline: "Wi-Fi · HomeNet",
+                        insight: "↗ Peak 18.4 MB/s · 2m ago",
+                        chartMode: .mirrored(
+                            top: [1_000_000, 4_200_000, 2_500_000],
+                            bottom: [500_000, 1_100_000, 800_000],
+                            topColor: CategoryPalette.tint(for: .network),
+                            bottomColor: CategoryPalette.Series.networkUpload
+                        ),
+                        chartHeight: 56
+                    ),
+                    status: .fine,
+                    pages: [.overview, .detail, .history],
+                    selection: $model.tab,
+                    scrubState: $model.scrub
+                ) { _ in
+                    Text("Body")
+                        .frame(height: 60)
+                }
+                .environment(\.panelScaffoldProbeEnabled, true)
+                .onPreferenceChange(PanelScaffoldProbeKey.self) { model.latestProbe = $0 }
+            }
+        }
+
+        let model = HostModel()
+        _ = NSApplication.shared
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: Instrument.Size.panelWidth, height: 420),
+            styleMask: [.borderless],
+            backing: .buffered,
+            defer: false
+        )
+        let hosting = NSHostingView(rootView: HostView(model: model))
+        hosting.frame = NSRect(x: 0, y: 0, width: Instrument.Size.panelWidth, height: 420)
+        window.contentView = hosting
+        window.makeKeyAndOrderFront(nil)
+        defer { window.orderOut(nil) }
+
+        func flush() {
+            hosting.layoutSubtreeIfNeeded()
+            window.layoutIfNeeded()
+            window.displayIfNeeded()
+            RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+        }
+
+        flush()
+
+        XCTAssertEqual(model.latestProbe.insightText, "↗ Peak 18.4 MB/s · 2m ago")
+        let glanceFrame = try XCTUnwrap(model.latestProbe.glanceFrame)
+        let chartFrame = try XCTUnwrap(model.latestProbe.chartFrame)
+        let insightFrame = try XCTUnwrap(model.latestProbe.insightFrame, "Insight caption row must render below the hero chart")
+
+        // Verify vertical placement in SwiftUI coordinate space (Y increases downward):
+        // Glance sits above Chart, and Insight sits directly below the hero Chart.
+        XCTAssertGreaterThan(chartFrame.minY, glanceFrame.maxY - 1.0)
+        XCTAssertGreaterThan(insightFrame.minY, glanceFrame.maxY, "Insight row must be positioned below Glance header, not top-right")
+        XCTAssertGreaterThanOrEqual(insightFrame.minY, chartFrame.maxY - 1.0, "Insight row must sit directly below the hero chart")
+
+        // Verify dual-ticker scrub readout
+        model.scrub = ChartScrubState(
+            formattedPrimary: "9.80",
+            primaryUnit: "MiB/s",
+            primaryLabel: "↓",
+            secondaryReadout: ChartScrubState.SecondaryReadout(
+                text: "2.40",
+                unit: "MiB/s",
+                color: CategoryPalette.Series.networkUpload,
+                label: "↑"
+            ),
+            relativeTimeText: "25s ago",
+            clockTimeText: "14:02:18"
+        )
+        flush()
+
+        let dualGlanceVal = model.latestProbe.glanceSummary ?? ""
+        XCTAssertTrue(dualGlanceVal.contains("9.80 MiB/s"), "Dual scrub primary must render in Glance, got: \(dualGlanceVal)")
+        XCTAssertTrue(dualGlanceVal.contains("2.40 MiB/s"), "Dual scrub secondary must render in Glance, got: \(dualGlanceVal)")
+        XCTAssertTrue(dualGlanceVal.contains("25s ago · 14:02:18"))
+
+        // Switching to .history collapses hero chart + insight caption row
+        model.tab = .history
+        model.scrub = nil
+        model.latestProbe = PanelScaffoldProbeSnapshot()
+        flush()
+
+        XCTAssertNil(model.latestProbe.insightText, "Hero insight row must collapse when on .history tab")
+        XCTAssertNil(model.latestProbe.insightFrame, "Hero insight row must collapse when on .history tab")
+    }
+
+    func testScrubControllerHoverActiveAndEndedBuildsAndClearsChartScrubState() throws {
+        let controller = ScrubController()
+        let base: TimeInterval = 1_700_000_000
+        let points = [
+            ChartPoint(timestamp: base, value: 20.0),
+            ChartPoint(timestamp: base + 10, value: 60.0),
+            ChartPoint(timestamp: base + 20, value: 80.0),
+            ChartPoint(timestamp: base + 30, value: 40.0)
+        ]
+        let timeline = ChartTimeline(edge: base + 30, sampleInterval: 1.0)
+
+        var resolvedTargets: [ScrubController.ResolvedTarget?] = []
+        var legacyCallbacks: [(Int?, Double?, Double?)] = []
+
+        // Hover at 10s into 30s window (x = 100 on 300pt width -> snaps to index 1, value 60.0, 20s ago)
+        controller.handleHover(
+            phase: .active(CGPoint(x: 100, y: 36)),
+            plotWidth: 300,
+            points: points,
+            secondaryPoints: [],
+            timeline: timeline,
+            windowDuration: 30,
+            isTimestamped: true,
+            valueFormatter: { String(format: "%.1f%%", $0) },
+            onScrub: { idx, val, ago in legacyCallbacks.append((idx, val, ago)) },
+            onScrubState: { target in resolvedTargets.append(target) }
+        )
+
+        XCTAssertEqual(resolvedTargets.count, 1)
+        let activeTarget = try XCTUnwrap(resolvedTargets.first ?? nil)
+        XCTAssertEqual(activeTarget.index, 1)
+        XCTAssertEqual(activeTarget.primaryValue, 60.0, accuracy: 0.01)
+        XCTAssertEqual(activeTarget.secondsAgo, 20.0, accuracy: 0.01)
+
+        // Interpolated bead Y at midpoint (base + 15s) between 60.0 and 80.0 (cubic Catmull-Rom spline)
+        let midInterp = try XCTUnwrap(ChartTimeline.interpolateValue(at: base + 15, points: points))
+        XCTAssertEqual(midInterp, 73.75, accuracy: 0.01)
+
+        let scrubState = ChartScrubState.make(
+            primaryValue: activeTarget.primaryValue,
+            timestamp: activeTarget.timestamp,
+            latestTimestamp: timeline.edge,
+            valueFormatter: { String(format: "%.1f%%", $0) },
+            timeZone: TimeZone(secondsFromGMT: 0)!
+        )
+        XCTAssertEqual(scrubState.formattedPrimary, "60.0")
+        XCTAssertEqual(scrubState.primaryUnit, "%")
+        XCTAssertEqual(scrubState.relativeTimeText, "20s ago")
+        XCTAssertTrue(controller.shouldDispatch(scrubState))
+        XCTAssertFalse(controller.shouldDispatch(scrubState), "Duplicate scrub state must not re-dispatch")
+
+        XCTAssertEqual(legacyCallbacks.count, 1)
+        XCTAssertEqual(legacyCallbacks[0].0, 1)
+
+        // End hover -> clears hover and dispatches nil
+        controller.handleHover(
+            phase: .ended,
+            plotWidth: 300,
+            points: points,
+            secondaryPoints: [],
+            timeline: timeline,
+            windowDuration: 30,
+            isTimestamped: true,
+            valueFormatter: nil,
+            onScrub: { idx, val, ago in legacyCallbacks.append((idx, val, ago)) },
+            onScrubState: { target in resolvedTargets.append(target) }
+        )
+
+        XCTAssertNil(controller.hoveredIndex)
+        XCTAssertNil(controller.hoverLocation)
+        XCTAssertEqual(resolvedTargets.count, 2)
+        XCTAssertNil(resolvedTargets[1])
+        XCTAssertTrue(controller.shouldDispatch(nil))
+        XCTAssertFalse(controller.shouldDispatch(nil))
+    }
 }

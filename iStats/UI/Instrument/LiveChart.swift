@@ -1360,6 +1360,206 @@ enum ChartRenderer {
     }
 }
 
+// MARK: - ChartScrubState & Environment Routing (Task 8.5.4)
+
+/// Scrubbed sample readout routed from `LiveChart` into `PanelScaffold`'s Stocks-style Glance header.
+public struct ChartScrubState: Equatable, Sendable {
+    public struct SecondaryReadout: Equatable, Sendable {
+        public let text: String
+        public let unit: String
+        public let color: Color
+        public let label: String?
+
+        public init(text: String, unit: String, color: Color, label: String? = nil) {
+            self.text = text
+            self.unit = unit
+            self.color = color
+            self.label = label
+        }
+    }
+
+    public let formattedPrimary: String
+    public let primaryUnit: String
+    public let primaryLabel: String?
+    public let secondaryReadout: SecondaryReadout?
+    public let relativeTimeText: String
+    public let clockTimeText: String
+    public let timestamp: TimeInterval?
+
+    public init(
+        formattedPrimary: String,
+        primaryUnit: String = "",
+        primaryLabel: String? = nil,
+        secondaryReadout: SecondaryReadout? = nil,
+        relativeTimeText: String,
+        clockTimeText: String,
+        timestamp: TimeInterval? = nil
+    ) {
+        self.formattedPrimary = formattedPrimary
+        self.primaryUnit = primaryUnit
+        self.primaryLabel = primaryLabel
+        self.secondaryReadout = secondaryReadout
+        self.relativeTimeText = relativeTimeText
+        self.clockTimeText = clockTimeText
+        self.timestamp = timestamp
+    }
+
+    /// Combined Glance headline string `"<relativeTimeText> · <clockTimeText>"`.
+    public var headlineText: String {
+        if clockTimeText.isEmpty {
+            return relativeTimeText
+        }
+        return "\(relativeTimeText) · \(clockTimeText)"
+    }
+
+    @MainActor
+    private static let clockFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "HH:mm:ss"
+        return formatter
+    }()
+
+    /// Formats elapsed seconds relative to the latest sample (`"now"`, `"12s ago"`, `"2m 15s ago"`).
+    public static func formatRelativeTime(_ seconds: Double) -> String {
+        guard seconds.isFinite else { return "now" }
+        let sec = Int(seconds.rounded())
+        if sec <= 0 {
+            return "now"
+        } else if sec < 60 {
+            return "\(sec)s ago"
+        } else if sec < 3600 {
+            let m = sec / 60
+            let s = sec % 60
+            return s == 0 ? "\(m)m ago" : "\(m)m \(s)s ago"
+        } else {
+            let h = sec / 3600
+            let m = (sec % 3600) / 60
+            return m == 0 ? "\(h)h ago" : "\(h)h \(m)m ago"
+        }
+    }
+
+    /// Formats a Unix timestamp as `"HH:mm:ss"`.
+    @MainActor
+    public static func formatClockTime(timestamp: TimeInterval, timeZone: TimeZone = .current) -> String {
+        guard timestamp.isFinite else { return "" }
+        clockFormatter.timeZone = timeZone
+        return clockFormatter.string(from: Date(timeIntervalSince1970: timestamp))
+    }
+
+    /// Splits a formatted metric string (e.g. `"42.3%"`, `"4.60 MiB/s"`, `"1,800 RPM"`) into numeric and unit components.
+    public static func splitFormattedValue(_ raw: String) -> (value: String, unit: String) {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return ("", "") }
+
+        var idx = trimmed.startIndex
+        var sawDigit = false
+        if trimmed[idx] == "-" || trimmed[idx] == "+" {
+            let next = trimmed.index(after: idx)
+            if next < trimmed.endIndex && trimmed[next].isASCII && trimmed[next].isNumber {
+                idx = next
+            }
+        }
+
+        while idx < trimmed.endIndex {
+            let ch = trimmed[idx]
+            if ch.isASCII && ch.isNumber {
+                sawDigit = true
+                idx = trimmed.index(after: idx)
+            } else if (ch == "." || ch == ",") && sawDigit {
+                let next = trimmed.index(after: idx)
+                if next < trimmed.endIndex && trimmed[next].isASCII && trimmed[next].isNumber {
+                    idx = next
+                } else {
+                    break
+                }
+            } else {
+                break
+            }
+        }
+
+        guard sawDigit else {
+            return (trimmed, "")
+        }
+
+        let numPart = String(trimmed[..<idx])
+        let unitPart = String(trimmed[idx...]).trimmingCharacters(in: .whitespaces)
+        return (numPart, unitPart)
+    }
+
+    /// Builds a `ChartScrubState` from numeric sample values, timestamp, and an optional formatter.
+    @MainActor
+    public static func make(
+        primaryValue: Double,
+        secondaryValue: Double? = nil,
+        primaryLabel: String? = nil,
+        secondaryLabel: String? = nil,
+        secondaryColor: Color? = nil,
+        timestamp: TimeInterval,
+        latestTimestamp: TimeInterval,
+        valueFormatter: ((Double) -> String)? = nil,
+        timeZone: TimeZone = .current
+    ) -> ChartScrubState {
+        let primaryRaw = valueFormatter?(primaryValue) ?? String(format: "%.1f", primaryValue)
+        let (primaryText, primaryUnit) = splitFormattedValue(primaryRaw)
+
+        let secondary: SecondaryReadout?
+        if let secVal = secondaryValue, let secColor = secondaryColor {
+            let secRaw = valueFormatter?(secVal) ?? String(format: "%.1f", secVal)
+            let (secText, secUnit) = splitFormattedValue(secRaw)
+            secondary = SecondaryReadout(text: secText, unit: secUnit, color: secColor, label: secondaryLabel)
+        } else {
+            secondary = nil
+        }
+
+        let secondsAgo = max(0.0, latestTimestamp - timestamp)
+        return ChartScrubState(
+            formattedPrimary: primaryText,
+            primaryUnit: primaryUnit,
+            primaryLabel: primaryLabel,
+            secondaryReadout: secondary,
+            relativeTimeText: formatRelativeTime(secondsAgo),
+            clockTimeText: formatClockTime(timestamp: timestamp, timeZone: timeZone),
+            timestamp: timestamp
+        )
+    }
+}
+
+/// Environment callback allowing any `LiveChart` inside a `PanelScaffold` (hero or `HistoryPage`)
+/// to route `ChartScrubState` updates to the Glance header without coupling to chrome views.
+public struct ChartScrubAction: Sendable {
+    private let handler: @MainActor @Sendable (ChartScrubState?, UUID?) -> Void
+
+    public init(_ handler: @escaping @MainActor @Sendable (ChartScrubState?) -> Void) {
+        self.handler = { state, _ in handler(state) }
+    }
+
+    internal init(scopedHandler: @escaping @MainActor @Sendable (ChartScrubState?, UUID?) -> Void) {
+        self.handler = scopedHandler
+    }
+
+    @MainActor
+    public func callAsFunction(_ state: ChartScrubState?) {
+        handler(state, nil)
+    }
+
+    @MainActor
+    internal func callAsFunction(_ state: ChartScrubState?, sourceID: UUID?) {
+        handler(state, sourceID)
+    }
+}
+
+private struct ChartScrubActionKey: EnvironmentKey {
+    static let defaultValue: ChartScrubAction? = nil
+}
+
+extension EnvironmentValues {
+    public var chartScrubAction: ChartScrubAction? {
+        get { self[ChartScrubActionKey.self] }
+        set { self[ChartScrubActionKey.self] = newValue }
+    }
+}
+
 // MARK: - ScrubController (Time-Domain Hover & Crosshair Resolution)
 
 /// Resolves continuous pointer coordinates in time domain into sample indices, X/Y screen coordinates,
@@ -1369,6 +1569,7 @@ final class ScrubController: ObservableObject {
     @Published private(set) var hoveredIndex: Int?
     @Published private(set) var hoverLocation: CGPoint?
     private var lastHapticPeakFiredIndex: Int?
+    private var lastDispatchedState: ChartScrubState?
 
     struct ResolvedTarget {
         let index: Int
@@ -1376,6 +1577,7 @@ final class ScrubController: ObservableObject {
         let primaryValue: Double
         let secondaryValue: Double?
         let secondsAgo: Double
+        let timestamp: TimeInterval
     }
 
     func resolveTarget(
@@ -1415,7 +1617,8 @@ final class ScrubController: ObservableObject {
                 x: min(plotWidth, max(0.0, snappedX)),
                 primaryValue: pt.value,
                 secondaryValue: secVal,
-                secondsAgo: secondsAgo
+                secondsAgo: secondsAgo,
+                timestamp: pt.timestamp
             )
         } else {
             guard let idx = LiveChartMath.hoverIndex(for: Double(clampedX), totalWidth: Double(plotWidth), count: points.count),
@@ -1439,7 +1642,8 @@ final class ScrubController: ObservableObject {
                 x: resolvedX,
                 primaryValue: pt.value,
                 secondaryValue: secVal,
-                secondsAgo: secondsAgo
+                secondsAgo: secondsAgo,
+                timestamp: pt.timestamp
             )
         }
     }
@@ -1470,8 +1674,10 @@ final class ScrubController: ObservableObject {
         timeline: ChartTimeline,
         windowDuration: TimeInterval,
         isTimestamped: Bool,
+        readoutValueForIndex: ((Int) -> Double)? = nil,
         valueFormatter: ((Double) -> String)?,
-        onScrub: ((_ index: Int?, _ value: Double?, _ secondsAgo: Double?) -> Void)?
+        onScrub: ((_ index: Int?, _ value: Double?, _ secondsAgo: Double?) -> Void)?,
+        onScrubState: ((ResolvedTarget?) -> Void)? = nil
     ) {
         switch phase {
         case .active(let loc):
@@ -1488,9 +1694,11 @@ final class ScrubController: ObservableObject {
                 return
             }
             hoveredIndex = target.index
-            onScrub?(target.index, target.primaryValue, target.secondsAgo)
+            let readoutValue = readoutValueForIndex?(target.index) ?? target.primaryValue
+            onScrub?(target.index, readoutValue, target.secondsAgo)
+            onScrubState?(target)
 
-            let formatted = valueFormatter?(target.primaryValue) ?? String(format: "%.1f", target.primaryValue)
+            let formatted = valueFormatter?(readoutValue) ?? String(format: "%.1f", readoutValue)
             CopyHoverCoordinator.shared.setHoveredText(formatted)
 
             let values = points.map(\.value)
@@ -1503,12 +1711,25 @@ final class ScrubController: ObservableObject {
             }
 
         case .ended:
-            hoverLocation = nil
-            hoveredIndex = nil
-            lastHapticPeakFiredIndex = nil
-            CopyHoverCoordinator.shared.setHoveredText(nil)
+            clearHover()
             onScrub?(nil, nil, nil)
+            onScrubState?(nil)
         }
+    }
+
+    func clearHover() {
+        hoverLocation = nil
+        hoveredIndex = nil
+        lastHapticPeakFiredIndex = nil
+        CopyHoverCoordinator.shared.setHoveredText(nil)
+    }
+
+    func shouldDispatch(_ state: ChartScrubState?) -> Bool {
+        if lastDispatchedState == state {
+            return false
+        }
+        lastDispatchedState = state
+        return true
     }
 }
 
@@ -1520,6 +1741,7 @@ public struct LiveChart: View {
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.colorSchemeContrast) private var colorSchemeContrast
     @Environment(\.accessibilityDifferentiateWithoutColor) private var differentiateWithoutColor
+    @Environment(\.chartScrubAction) private var chartScrubAction
     @ObservedObject private var panelController = PanelController.shared
 
     public let mode: LiveChartMode
@@ -1535,10 +1757,21 @@ public struct LiveChart: View {
     public var isolatedChannel: Int?
     public var scrubIndex: Int?
     public var onScrub: ((_ index: Int?, _ value: Double?, _ secondsAgo: Double?) -> Void)?
+    public var onScrubStateChange: ((ChartScrubState?) -> Void)?
 
     @StateObject private var model = ChartModel()
     @StateObject private var scrubController = ScrubController()
     @State private var isWindowKey: Bool = true
+    @State private var chartID = UUID()
+
+    private static let crosshairSpring = Animation.spring(response: 0.12, dampingFraction: 0.9)
+
+    private struct ActiveScrubSeries {
+        let primary: [ChartPoint]
+        let secondary: [ChartPoint]
+        let total: [ChartPoint]
+        let windowDuration: TimeInterval
+    }
 
     public init(
         category: MetricCategory,
@@ -1553,7 +1786,8 @@ public struct LiveChart: View {
         valueFormatter: ((Double) -> String)? = nil,
         isolatedChannel: Int? = nil,
         scrubIndex: Int? = nil,
-        onScrub: ((_ index: Int?, _ value: Double?, _ secondsAgo: Double?) -> Void)? = nil
+        onScrub: ((_ index: Int?, _ value: Double?, _ secondsAgo: Double?) -> Void)? = nil,
+        onScrubStateChange: ((ChartScrubState?) -> Void)? = nil
     ) {
         self.category = category
         self.mode = mode
@@ -1568,6 +1802,7 @@ public struct LiveChart: View {
         self.isolatedChannel = isolatedChannel
         self.scrubIndex = scrubIndex
         self.onScrub = onScrub
+        self.onScrubStateChange = onScrubStateChange
     }
 
     /// Returns the `TimelineView` update interval: `1/60 s` when key/transient, `1/30 s` when pinned & non-key.
@@ -1647,14 +1882,15 @@ public struct LiveChart: View {
                     )
                 }
 
-                // Interactive Crosshair & Scrub Lens
+                // Interactive Crosshair v2 (hairline + curve-snapped beads; no floating pill)
                 if let index = activeIndex {
                     let activeSeries = activeScrubPoints(now: Date().timeIntervalSince1970)
-                    if index >= 0, index < activeSeries.primary.count,
+                    let refPoints = referencePoints(for: activeSeries)
+                    if index >= 0, index < refPoints.count,
                        let x = scrubController.resolveX(
                            forIndex: index,
                            plotWidth: plotWidth,
-                           points: activeSeries.primary,
+                           points: refPoints,
                            timeline: model.timeline,
                            windowDuration: activeSeries.windowDuration
                        ) {
@@ -1662,7 +1898,6 @@ public struct LiveChart: View {
                             x: x,
                             index: index,
                             activeSeries: activeSeries,
-                            width: width,
                             height: chartHeight
                         )
                     }
@@ -1671,16 +1906,31 @@ public struct LiveChart: View {
             .contentShape(Rectangle())
             .onContinuousHover { phase in
                 let activeSeries = activeScrubPoints(now: Date().timeIntervalSince1970)
+                let refPoints = referencePoints(for: activeSeries)
                 scrubController.handleHover(
                     phase: phase,
                     plotWidth: plotWidth,
-                    points: activeSeries.primary,
+                    points: refPoints,
                     secondaryPoints: activeSeries.secondary,
                     timeline: model.timeline,
                     windowDuration: activeSeries.windowDuration,
                     isTimestamped: mode.isTimestamped,
+                    readoutValueForIndex: { idx in
+                        primaryNumericValue(atIndex: idx, activeSeries: activeSeries) ?? 0.0
+                    },
                     valueFormatter: valueFormatter,
-                    onScrub: onScrub
+                    onScrub: onScrub,
+                    onScrubState: { target in
+                        if let target {
+                            let state = buildScrubState(atIndex: target.index, activeSeries: activeSeries)
+                            dispatchScrubState(state)
+                        } else if let idx = scrubIndex {
+                            let state = buildScrubState(atIndex: idx, activeSeries: activeSeries)
+                            dispatchScrubState(state)
+                        } else {
+                            dispatchScrubState(nil)
+                        }
+                    }
                 )
             }
             .background(
@@ -1699,6 +1949,25 @@ public struct LiveChart: View {
         .accessibilityValue(accessibilitySummary)
         .onAppear {
             refreshWindowKeyState()
+            if let idx = scrubIndex, scrubController.hoveredIndex == nil {
+                let activeSeries = activeScrubPoints(now: Date().timeIntervalSince1970)
+                dispatchScrubState(buildScrubState(atIndex: idx, activeSeries: activeSeries))
+            }
+        }
+        .onChange(of: scrubIndex) { newIndex in
+            guard scrubController.hoveredIndex == nil else { return }
+            if let idx = newIndex {
+                let activeSeries = activeScrubPoints(now: Date().timeIntervalSince1970)
+                dispatchScrubState(buildScrubState(atIndex: idx, activeSeries: activeSeries))
+            } else {
+                dispatchScrubState(nil)
+            }
+        }
+        .onDisappear {
+            if scrubController.hoveredIndex != nil || scrubIndex != nil {
+                scrubController.clearHover()
+                dispatchScrubState(nil)
+            }
         }
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { _ in
             refreshWindowKeyState()
@@ -1716,30 +1985,111 @@ public struct LiveChart: View {
         }
     }
 
-    private func activeScrubPoints(now: TimeInterval) -> (primary: [ChartPoint], secondary: [ChartPoint], windowDuration: TimeInterval) {
+    private func activeScrubPoints(now: TimeInterval) -> ActiveScrubSeries {
         let resolved = model.resolveSeries(
             mode: mode,
             now: now,
             sampleInterval: max(1e-3, sampleIntervalSeconds),
             explicitWindow: windowDuration
         )
-        if let iso = isolatedChannel {
-            switch mode.payload {
-            case .stacked:
-                return (iso == 1 ? resolved.secondaryPoints : resolved.primaryPoints, [], resolved.windowDuration)
-            case .mirrored, .mirroredEnvelope:
-                return (resolved.primaryPoints, resolved.secondaryPoints, resolved.windowDuration)
-            default:
-                return (resolved.primaryPoints, [], resolved.windowDuration)
-            }
-        }
+        return ActiveScrubSeries(
+            primary: resolved.primaryPoints,
+            secondary: resolved.secondaryPoints,
+            total: resolved.totalPoints,
+            windowDuration: resolved.windowDuration
+        )
+    }
+
+    private func referencePoints(for series: ActiveScrubSeries) -> [ChartPoint] {
         switch mode.payload {
         case .stacked:
-            return (resolved.totalPoints, resolved.primaryPoints, resolved.windowDuration)
+            if isolatedChannel == 0 { return series.primary }
+            if isolatedChannel == 1 { return series.secondary }
+            return series.total
         case .mirrored, .mirroredEnvelope:
-            return (resolved.primaryPoints, resolved.secondaryPoints, resolved.windowDuration)
+            if isolatedChannel == 1 && !series.secondary.isEmpty {
+                return series.secondary
+            }
+            return series.primary
         default:
-            return (resolved.primaryPoints, [], resolved.windowDuration)
+            return series.primary
+        }
+    }
+
+    private func primaryNumericValue(atIndex index: Int, activeSeries: ActiveScrubSeries) -> Double? {
+        switch mode.payload {
+        case .stacked:
+            if isolatedChannel == 0 {
+                return index < activeSeries.primary.count ? activeSeries.primary[index].value : nil
+            } else if isolatedChannel == 1 {
+                return index < activeSeries.secondary.count ? activeSeries.secondary[index].value : nil
+            }
+            return index < activeSeries.total.count ? activeSeries.total[index].value : nil
+        case .mirrored, .mirroredEnvelope:
+            if isolatedChannel == 1 {
+                return index < activeSeries.secondary.count ? activeSeries.secondary[index].value : nil
+            }
+            return index < activeSeries.primary.count ? activeSeries.primary[index].value : nil
+        default:
+            return index < activeSeries.primary.count ? activeSeries.primary[index].value : nil
+        }
+    }
+
+    private func dispatchScrubState(_ state: ChartScrubState?) {
+        guard scrubController.shouldDispatch(state) else { return }
+        onScrubStateChange?(state)
+        chartScrubAction?(state, sourceID: chartID)
+    }
+
+    private func buildScrubState(atIndex index: Int, activeSeries: ActiveScrubSeries) -> ChartScrubState? {
+        let refPts = referencePoints(for: activeSeries)
+        guard index >= 0, index < refPts.count,
+              let primaryVal = primaryNumericValue(atIndex: index, activeSeries: activeSeries) else {
+            return nil
+        }
+
+        let timestamp = refPts[index].timestamp
+        let latestTimestamp = refPts.last?.timestamp ?? timestamp
+
+        switch mode.payload {
+        case .mirrored(_, _, let botColor, let topLbl, let botLbl, _, _, _),
+             .mirroredEnvelope(_, _, _, let botColor, let topLbl, let botLbl, _, _):
+            if isolatedChannel == 0 {
+                return ChartScrubState.make(
+                    primaryValue: primaryVal,
+                    primaryLabel: topLbl,
+                    timestamp: timestamp,
+                    latestTimestamp: latestTimestamp,
+                    valueFormatter: valueFormatter
+                )
+            } else if isolatedChannel == 1 {
+                return ChartScrubState.make(
+                    primaryValue: primaryVal,
+                    primaryLabel: botLbl,
+                    timestamp: timestamp,
+                    latestTimestamp: latestTimestamp,
+                    valueFormatter: valueFormatter
+                )
+            } else {
+                let secVal = index < activeSeries.secondary.count ? activeSeries.secondary[index].value : nil
+                return ChartScrubState.make(
+                    primaryValue: primaryVal,
+                    secondaryValue: secVal,
+                    primaryLabel: topLbl,
+                    secondaryLabel: botLbl,
+                    secondaryColor: botColor,
+                    timestamp: timestamp,
+                    latestTimestamp: latestTimestamp,
+                    valueFormatter: valueFormatter
+                )
+            }
+        default:
+            return ChartScrubState.make(
+                primaryValue: primaryVal,
+                timestamp: timestamp,
+                latestTimestamp: latestTimestamp,
+                valueFormatter: valueFormatter
+            )
         }
     }
 
@@ -2176,27 +2526,21 @@ public struct LiveChart: View {
         }
     }
 
-    // MARK: - Interaction & Crosshair Lens (Compatible until 8.5.4)
+    // MARK: - Interaction & Crosshair v2 (Task 8.5.4)
 
     @ViewBuilder
     private func crosshairOverlay(
         x: CGFloat,
         index: Int,
-        activeSeries: (primary: [ChartPoint], secondary: [ChartPoint], windowDuration: TimeInterval),
-        width: CGFloat,
+        activeSeries: ActiveScrubSeries,
         height: CGFloat
     ) -> some View {
         let primaryPts = activeSeries.primary
-        let latestTs = primaryPts.last?.timestamp ?? 0.0
-        let sampleTs = index < primaryPts.count ? primaryPts[index].timestamp : latestTs
-        let secondsAgo = mode.isTimestamped
-            ? max(0.0, latestTs - sampleTs)
-            : Double(max(0, primaryPts.count - 1 - index)) * sampleIntervalSeconds
-        let timeStr = formatRelativeTime(secondsAgo)
+        let anim: Animation? = (motionPolicy == .full) ? Self.crosshairSpring : nil
 
         switch mode.payload {
-        case .mirrored(_, let topCol, let botCol, let topLbl, let botLbl, _, _, _),
-             .mirroredEnvelope(_, _, let topCol, let botCol, let topLbl, let botLbl, _, _):
+        case .mirrored(_, let topCol, let botCol, _, _, _, _, _),
+             .mirroredEnvelope(_, _, let topCol, let botCol, _, _, _, _):
             let midY = height / 2.0
             let topRange = ChartRenderer.VerticalRange(
                 floor: model.topScale.displayedFloor,
@@ -2212,66 +2556,63 @@ public struct LiveChart: View {
                 baselineY: midY,
                 inverted: true
             )
-            let topVal = index < activeSeries.primary.count ? activeSeries.primary[index].value : 0.0
-            let botVal = index < activeSeries.secondary.count ? activeSeries.secondary[index].value : 0.0
+            let refPts = referencePoints(for: activeSeries)
+            let sampleTs = index < refPts.count ? refPts[index].timestamp : (refPts.last?.timestamp ?? 0.0)
+            let topVal = index < primaryPts.count
+                ? (ChartTimeline.interpolateValue(at: sampleTs, points: primaryPts) ?? primaryPts[index].value)
+                : 0.0
+            let botPts = activeSeries.secondary
+            let botVal = index < botPts.count
+                ? (ChartTimeline.interpolateValue(at: sampleTs, points: botPts) ?? botPts[index].value)
+                : 0.0
 
             let topY = topRange.yPosition(for: topVal)
             let botY = botRange.yPosition(for: botVal)
 
-            let topStr = valueFormatter?(topVal) ?? String(format: "%.1f", topVal)
-            let botStr = valueFormatter?(botVal) ?? String(format: "%.1f", botVal)
+            ZStack(alignment: .topLeading) {
+                crosshairHairline(x: x, height: height)
+
+                if isolatedChannel == nil || isolatedChannel == 0 {
+                    crosshairBead(at: CGPoint(x: x, y: topY), color: topCol)
+                }
+                if isolatedChannel == nil || isolatedChannel == 1 {
+                    crosshairBead(at: CGPoint(x: x, y: botY), color: botCol)
+                }
+            }
+            .animation(anim, value: x)
+
+        case .stacked(_, let primaryCol, let secondaryCol, _, _, _):
+            let range = ChartRenderer.VerticalRange(
+                floor: model.topScale.displayedFloor,
+                ceiling: model.topScale.displayedCeiling,
+                topY: 0.0,
+                baselineY: height,
+                inverted: false
+            )
+            let refPts = referencePoints(for: activeSeries)
+            let sampleTs = index < refPts.count ? refPts[index].timestamp : (refPts.last?.timestamp ?? 0.0)
 
             ZStack(alignment: .topLeading) {
-                Rectangle()
-                    .fill(Color.primary.opacity(0.3))
-                    .frame(width: 1, height: height)
-                    .position(x: x, y: midY)
+                crosshairHairline(x: x, height: height)
 
-                Circle()
-                    .fill(topCol)
-                    .frame(width: 7, height: 7)
-                    .overlay(Circle().stroke(Instrument.Surface.panel, lineWidth: 1.5))
-                    .position(x: x, y: topY)
-
-                Circle()
-                    .fill(botCol)
-                    .frame(width: 7, height: 7)
-                    .overlay(Circle().stroke(Instrument.Surface.panel, lineWidth: 1.5))
-                    .position(x: x, y: botY)
-
-                HStack(spacing: 5) {
-                    Text(timeStr)
-                        .foregroundColor(.secondary)
-                    Text("·")
-                        .foregroundColor(.secondary.opacity(0.6))
-                    HStack(spacing: 2) {
-                        Text(topLbl)
-                            .foregroundColor(topCol)
-                        Text(topStr)
-                            .foregroundColor(.primary)
-                    }
-                    Text(" ")
-                    HStack(spacing: 2) {
-                        Text(botLbl)
-                            .foregroundColor(botCol)
-                        Text(botStr)
-                            .foregroundColor(.primary)
-                    }
+                if isolatedChannel != 1, index < activeSeries.primary.count {
+                    let primVal = ChartTimeline.interpolateValue(at: sampleTs, points: activeSeries.primary)
+                        ?? activeSeries.primary[index].value
+                    crosshairBead(at: CGPoint(x: x, y: range.yPosition(for: primVal)), color: primaryCol)
                 }
-                .font(Instrument.Typography.micro)
-                .padding(.horizontal, 6)
-                .padding(.vertical, 2.5)
-                .background(
-                    RoundedRectangle(cornerRadius: 4)
-                        .fill(Color(nsColor: .windowBackgroundColor).opacity(0.92))
-                        .shadow(color: .black.opacity(0.2), radius: 2, y: 1)
-                )
-                .position(x: min(max(x, 60), width - 60), y: max(12, min(topY, midY) - 16))
+                if isolatedChannel != 0, index < activeSeries.total.count {
+                    let totalVal = ChartTimeline.interpolateValue(at: sampleTs, points: activeSeries.total)
+                        ?? activeSeries.total[index].value
+                    crosshairBead(at: CGPoint(x: x, y: range.yPosition(for: totalVal)), color: secondaryCol)
+                }
             }
+            .animation(anim, value: x)
 
-        default:
+        case .banded(_, let bands, _, _, _),
+             .envelope(_, _, _, let bands, _, _):
             if index < primaryPts.count {
-                let val = primaryPts[index].value
+                let sampleTs = primaryPts[index].timestamp
+                let val = ChartTimeline.interpolateValue(at: sampleTs, points: primaryPts) ?? primaryPts[index].value
                 let range = ChartRenderer.VerticalRange(
                     floor: model.topScale.displayedFloor,
                     ceiling: model.topScale.displayedCeiling,
@@ -2280,64 +2621,76 @@ public struct LiveChart: View {
                     inverted: false
                 )
                 let pointY = range.yPosition(for: val)
-                let color = resolvedPrimaryColor
-                let valStr = valueFormatter?(val) ?? String(format: "%.1f", val)
+                let baseColor = resolvedPrimaryColor
+                let beadColor = bands.isEmpty
+                    ? baseColor
+                    : (bands.sorted { $0.threshold < $1.threshold }.last(where: { val >= $0.threshold })?.color ?? baseColor)
 
                 ZStack(alignment: .topLeading) {
-                    Rectangle()
-                        .fill(Color.primary.opacity(0.3))
-                        .frame(width: 1, height: height)
-                        .position(x: x, y: height / 2.0)
-
-                    Circle()
-                        .fill(color)
-                        .frame(width: 7, height: 7)
-                        .overlay(
-                            Circle()
-                                .stroke(Instrument.Surface.panel, lineWidth: 1.5)
-                        )
-                        .position(x: x, y: pointY)
-
-                    HStack(spacing: 3) {
-                        Text(timeStr)
-                            .foregroundColor(.secondary)
-                        Text("·")
-                            .foregroundColor(.secondary.opacity(0.6))
-                        Text(valStr)
-                            .foregroundColor(.primary)
-                    }
-                    .font(Instrument.Typography.micro)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2.5)
-                    .background(
-                        RoundedRectangle(cornerRadius: 4)
-                            .fill(Color(nsColor: .windowBackgroundColor).opacity(0.92))
-                            .shadow(color: .black.opacity(0.2), radius: 2, y: 1)
-                    )
-                    .position(x: min(max(x, 48), width - 48), y: max(12, pointY - 16))
+                    crosshairHairline(x: x, height: height)
+                    crosshairBead(at: CGPoint(x: x, y: pointY), color: beadColor)
                 }
+                .animation(anim, value: x)
+            }
+
+        case .single:
+            if index < primaryPts.count {
+                let sampleTs = primaryPts[index].timestamp
+                let val = ChartTimeline.interpolateValue(at: sampleTs, points: primaryPts) ?? primaryPts[index].value
+                let range = ChartRenderer.VerticalRange(
+                    floor: model.topScale.displayedFloor,
+                    ceiling: model.topScale.displayedCeiling,
+                    topY: 0.0,
+                    baselineY: height,
+                    inverted: false
+                )
+                let pointY = range.yPosition(for: val)
+
+                ZStack(alignment: .topLeading) {
+                    crosshairHairline(x: x, height: height)
+                    crosshairBead(at: CGPoint(x: x, y: pointY), color: resolvedPrimaryColor)
+                }
+                .animation(anim, value: x)
             }
         }
     }
 
-    private func formatRelativeTime(_ seconds: Double) -> String {
-        let sec = Int(seconds.rounded())
-        if sec <= 0 {
-            return "now"
-        } else if sec < 60 {
-            return "\(sec)s ago"
-        } else {
-            let m = sec / 60
-            let s = sec % 60
-            return s == 0 ? "\(m)m ago" : "\(m)m \(s)s ago"
-        }
+    private func crosshairHairline(x: CGFloat, height: CGFloat) -> some View {
+        let fadeFraction = height > 0 ? min(0.5, Double(6.0 / height)) : 0.0
+        let lineColor = Color.primary.opacity(0.30)
+        return Rectangle()
+            .fill(
+                LinearGradient(
+                    stops: [
+                        .init(color: .clear, location: 0.0),
+                        .init(color: lineColor, location: fadeFraction),
+                        .init(color: lineColor, location: 1.0 - fadeFraction),
+                        .init(color: .clear, location: 1.0)
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            )
+            .frame(width: 1, height: height)
+            .position(x: x, y: height / 2.0)
+    }
+
+    private func crosshairBead(at point: CGPoint, color: Color) -> some View {
+        Circle()
+            .fill(color)
+            .frame(width: 6, height: 6)
+            .overlay(
+                Circle()
+                    .stroke(Instrument.Surface.panel, lineWidth: 1.5)
+            )
+            .position(point)
     }
 
     private func copyScrubbedValue() {
-        let values = resolvedPrimaryValues
+        let activeSeries = activeScrubPoints(now: Date().timeIntervalSince1970)
         let idx = scrubController.hoveredIndex ?? scrubIndex
-        guard let validIdx = idx, validIdx < values.count else { return }
-        let val = values[validIdx]
+        guard let validIdx = idx,
+              let val = primaryNumericValue(atIndex: validIdx, activeSeries: activeSeries) else { return }
         let formatted = valueFormatter?(val) ?? String(format: "%.1f", val)
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(formatted, forType: .string)

@@ -57,12 +57,15 @@ public struct PanelScaffold<Content: View>: View {
     public var onTogglePause: (() -> Void)? = nil
     public var onPinToggle: (() -> Void)? = nil
     public var isPinned: Bool = false
+    private var externalScrubState: Binding<ChartScrubState?>?
     @ViewBuilder public let content: (PopoverTab) -> Content
 
-    @State private var scrubSummary: String? = nil
+    @State private var scrubState: ChartScrubState? = nil
+    @State private var activeScrubSourceID: UUID? = nil
     @State private var measuredBodyHeight: CGFloat? = nil
     @State private var scrollVisibleHeight: CGFloat = 0
     @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
+    @Environment(\.panelScaffoldProbeEnabled) private var probeEnabled
     @ObservedObject private var coordinator = MetricsCoordinator.shared
     @ObservedObject private var panelController = PanelController.shared
 
@@ -72,6 +75,17 @@ public struct PanelScaffold<Content: View>: View {
 
     private var isWindowVisible: Bool {
         panelController.isPanelOpen(for: category) || (!panelController.isTransientVisible && panelController.pinnedCategories.isEmpty)
+    }
+
+    private var activeScrubState: ChartScrubState? {
+        guard !isLoading, (availability?.isAvailable ?? true) else { return nil }
+        return externalScrubState?.wrappedValue ?? scrubState
+    }
+
+    private var shouldShowInsightRow: Bool {
+        guard !isLoading else { return false }
+        if let avail = availability, !avail.isAvailable { return false }
+        return selection != .history
     }
 
     public init(
@@ -89,6 +103,7 @@ public struct PanelScaffold<Content: View>: View {
         onTogglePause: (() -> Void)? = nil,
         onPinToggle: (() -> Void)? = nil,
         isPinned: Bool = false,
+        scrubState: Binding<ChartScrubState?>? = nil,
         @ViewBuilder content: @escaping (PopoverTab) -> Content
     ) {
         self.category = category
@@ -105,6 +120,7 @@ public struct PanelScaffold<Content: View>: View {
         self.onTogglePause = onTogglePause
         self.onPinToggle = onPinToggle
         self.isPinned = isPinned
+        self.externalScrubState = scrubState
         self.content = content
     }
 
@@ -117,7 +133,7 @@ public struct PanelScaffold<Content: View>: View {
         )
 
         PanelStackLayout(maxHeight: Instrument.Size.maxHeight - (Instrument.Space.xl * 2)) {
-            // Child 0: Static-height Chrome (Eyebrow + Glance + Chart + Status Ribbon)
+            // Child 0: Static-height Chrome (Eyebrow + Glance + Chart + Insight + Status Ribbon)
             VStack(alignment: .leading, spacing: 0) {
                 // Zone ①: Eyebrow row (28 pt)
                 eyebrowRow
@@ -126,16 +142,66 @@ public struct PanelScaffold<Content: View>: View {
                     .accessibilityElement(children: .contain)
                     .accessibilityLabel("\(category.displayName) Header")
 
-                // Zone ②: Glance (display numeral + headline + insight)
+                // Zone ②: Glance (display numeral + headline)
                 glanceHeader
                     .padding(.bottom, 6)
+                    .background(
+                        Group {
+                            if probeEnabled {
+                                GeometryReader { proxy in
+                                    Color.clear.preference(
+                                        key: PanelScaffoldProbeKey.self,
+                                        value: PanelScaffoldProbeSnapshot(
+                                            glanceSummary: glanceAccessibilitySummary,
+                                            glanceFrame: proxy.frame(in: .named("PanelScaffoldProbe"))
+                                        )
+                                    )
+                                }
+                            }
+                        }
+                    )
                     .accessibilityElement(children: .combine)
                     .accessibilityLabel("\(category.displayName) Glance")
+                    .accessibilityValue(glanceAccessibilitySummary)
 
                 // Zone ③: Living Chart (full-bleed, 72 pt; collapses cleanly on .history)
                 chartZone
                     .padding(.horizontal, -Instrument.Space.xl)
                     .animation(nil, value: selection)
+                    .background(
+                        Group {
+                            if probeEnabled {
+                                GeometryReader { proxy in
+                                    Color.clear.preference(
+                                        key: PanelScaffoldProbeKey.self,
+                                        value: PanelScaffoldProbeSnapshot(
+                                            chartFrame: proxy.frame(in: .named("PanelScaffoldProbe"))
+                                        )
+                                    )
+                                }
+                            }
+                        }
+                    )
+
+                // Dedicated 11 pt insight caption row directly below the hero chart
+                if shouldShowInsightRow, let insight = glance.insight, !insight.isEmpty {
+                    insightCaptionRow(insight)
+                        .background(
+                            Group {
+                                if probeEnabled {
+                                    GeometryReader { proxy in
+                                        Color.clear.preference(
+                                            key: PanelScaffoldProbeKey.self,
+                                            value: PanelScaffoldProbeSnapshot(
+                                                insightText: insight,
+                                                insightFrame: proxy.frame(in: .named("PanelScaffoldProbe"))
+                                            )
+                                        )
+                                    }
+                                }
+                            }
+                        )
+                }
 
                 // Zone ④: Status Ribbon (shown only at >= .elevated or paused or explicit message)
                 if isPaused {
@@ -165,6 +231,7 @@ public struct PanelScaffold<Content: View>: View {
         }
         .padding(Instrument.Space.xl)
         .frame(width: Instrument.Size.panelWidth)
+        .coordinateSpace(name: "PanelScaffoldProbe")
         .background(
             GeometryReader { proxy in
                 Color.clear.preference(
@@ -176,6 +243,12 @@ public struct PanelScaffold<Content: View>: View {
             }
         )
         .motionPolicy(resolvedPolicy)
+        .environment(\.chartScrubAction, ChartScrubAction(scopedHandler: { newState, sourceID in
+            updateScrubState(newState, sourceID: sourceID)
+        }))
+        .onChange(of: selection) { _ in
+            updateScrubState(nil, sourceID: nil)
+        }
         .onReceive(NotificationCenter.default.publisher(for: .panelCommandReceived)) { notification in
             if let targetCategory = notification.userInfo?["category"] as? MetricCategory,
                targetCategory != category {
@@ -287,6 +360,8 @@ public struct PanelScaffold<Content: View>: View {
                     Text("—")
                         .font(Instrument.Typography.display)
                         .foregroundColor(.secondary)
+                } else if let scrub = activeScrubState {
+                    scrubValueDisplay(scrub)
                 } else if let sec = glance.secondaryGlance {
                     // Dual Ticker (e.g. Network Download ↓ / Upload ↑)
                     HStack(alignment: .firstTextBaseline, spacing: 14) {
@@ -338,19 +413,6 @@ public struct PanelScaffold<Content: View>: View {
                 }
 
                 Spacer()
-
-                // Trailing Top-Aligned Insight or Scrub Lens Readout
-                if let scrub = scrubSummary {
-                    Text(scrub)
-                        .font(Instrument.Typography.caption)
-                        .foregroundColor(.primary)
-                        .lineLimit(1)
-                } else if let insight = glance.insight, !insight.isEmpty {
-                    Text(insight)
-                        .font(Instrument.Typography.caption)
-                        .foregroundColor(.secondary)
-                        .lineLimit(1)
-                }
             }
 
             // Headline
@@ -364,11 +426,181 @@ public struct PanelScaffold<Content: View>: View {
                     .font(Instrument.Typography.headline)
                     .foregroundColor(.secondary)
                     .lineLimit(1)
+            } else if let scrub = activeScrubState {
+                scrubHeadline(scrub)
             } else if !glance.headline.isEmpty {
                 Text(glance.headline)
                     .font(Instrument.Typography.headline)
                     .foregroundColor(.secondary)
                     .lineLimit(1)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func scrubValueDisplay(_ scrub: ChartScrubState) -> some View {
+        if let sec = scrub.secondaryReadout {
+            HStack(alignment: .firstTextBaseline, spacing: 14) {
+                HStack(alignment: .firstTextBaseline, spacing: 2) {
+                    if let primaryLbl = scrub.primaryLabel, !primaryLbl.isEmpty {
+                        Text(primaryLbl)
+                            .font(Instrument.Typography.body)
+                            .foregroundColor(CategoryPalette.tint(for: category))
+                    }
+                    HStack(alignment: .firstTextBaseline, spacing: 2) {
+                        Text(scrub.formattedPrimary)
+                            .font(Instrument.Typography.displayCompact)
+                            .tracking(-0.6)
+                        if !scrub.primaryUnit.isEmpty {
+                            Text(scrub.primaryUnit)
+                                .font(Instrument.Typography.unit)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                }
+
+                HStack(alignment: .firstTextBaseline, spacing: 2) {
+                    if let secLbl = sec.label, !secLbl.isEmpty {
+                        Text(secLbl)
+                            .font(Instrument.Typography.body)
+                            .foregroundColor(sec.color)
+                    }
+                    HStack(alignment: .firstTextBaseline, spacing: 2) {
+                        Text(sec.text)
+                            .font(Instrument.Typography.displayCompact)
+                            .tracking(-0.6)
+                        if !sec.unit.isEmpty {
+                            Text(sec.unit)
+                                .font(Instrument.Typography.unit)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                }
+            }
+            .frame(minHeight: glance.secondaryGlance == nil ? 52 : nil, alignment: .bottomLeading)
+        } else {
+            HStack(alignment: .firstTextBaseline, spacing: 2) {
+                Text(scrub.formattedPrimary)
+                    .font(Instrument.Typography.display)
+                    .tracking(-1.2)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                if !scrub.primaryUnit.isEmpty {
+                    Text(scrub.primaryUnit)
+                        .font(Instrument.Typography.unit)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+    }
+
+    private func scrubHeadline(_ scrub: ChartScrubState) -> some View {
+        HStack(spacing: 4) {
+            Text(scrub.relativeTimeText)
+                .fontWeight(.medium)
+                .foregroundColor(.primary)
+            if !scrub.clockTimeText.isEmpty {
+                Text("· \(scrub.clockTimeText)")
+                    .foregroundColor(.secondary)
+            }
+        }
+        .font(Instrument.Typography.headline.monospacedDigit())
+        .padding(.horizontal, 5)
+        .background(
+            RoundedRectangle(cornerRadius: 4, style: .continuous)
+                .fill(Color.secondary.opacity(0.12))
+        )
+        .lineLimit(1)
+    }
+
+    private func insightCaptionRow(_ insight: String) -> some View {
+        HStack(spacing: 4) {
+            Text(insight)
+                .font(Instrument.Typography.caption)
+                .foregroundColor(.secondary)
+                .lineLimit(1)
+                .truncationMode(.tail)
+            Spacer(minLength: 0)
+        }
+        .padding(.top, 6)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(category.displayName) Insight")
+        .accessibilityValue(insight)
+    }
+
+    private var glanceAccessibilitySummary: String {
+        if isLoading {
+            return "Loading"
+        }
+        if let avail = availability, case .unavailable(let reason) = avail {
+            return reason
+        }
+        if let scrub = activeScrubState {
+            let primary = scrub.primaryUnit.isEmpty
+                ? scrub.formattedPrimary
+                : "\(scrub.formattedPrimary) \(scrub.primaryUnit)"
+            if let sec = scrub.secondaryReadout {
+                let secText = sec.unit.isEmpty ? sec.text : "\(sec.text) \(sec.unit)"
+                return "\(primary), \(secText), \(scrub.headlineText)"
+            }
+            return "\(primary), \(scrub.headlineText)"
+        }
+        let primaryText: String
+        if let custom = glance.formattedValue {
+            primaryText = glance.unit.isEmpty ? custom : "\(custom) \(glance.unit)"
+        } else {
+            let num = String(format: glance.format, glance.value ?? 0)
+            primaryText = glance.unit.isEmpty ? num : "\(num) \(glance.unit)"
+        }
+        if glance.headline.isEmpty {
+            return primaryText
+        }
+        return "\(primaryText), \(glance.headline)"
+    }
+
+    private func updateScrubState(_ newState: ChartScrubState?, sourceID: UUID?) {
+        if let newState {
+            activeScrubSourceID = sourceID
+            if let externalScrubState {
+                if externalScrubState.wrappedValue != newState {
+                    externalScrubState.wrappedValue = newState
+                }
+            } else if scrubState != newState {
+                scrubState = newState
+            }
+        } else {
+            guard sourceID == nil || activeScrubSourceID == nil || activeScrubSourceID == sourceID else {
+                return
+            }
+            activeScrubSourceID = nil
+            if let externalScrubState {
+                if externalScrubState.wrappedValue != nil {
+                    externalScrubState.wrappedValue = nil
+                }
+            } else if scrubState != nil {
+                scrubState = nil
+            }
+        }
+    }
+
+    private var resolvedScrubFormatter: (@Sendable (Double) -> String)? {
+        if let custom = glance.scrubFormat {
+            return custom
+        }
+        let format = glance.format
+        let unit = glance.unit
+        return { val in
+            let num = String(format: format, val)
+            if unit.isEmpty {
+                return num
+            } else if unit == "%" || unit.hasPrefix("°") {
+                return "\(num)\(unit)"
+            } else {
+                return "\(num) \(unit)"
             }
         }
     }
@@ -400,16 +632,7 @@ public struct PanelScaffold<Content: View>: View {
                     category: category,
                     mode: mode,
                     height: glance.chartHeight,
-                    valueFormatter: glance.scrubFormat,
-                    onScrub: { index, val, secAgo in
-                        if let val = val, let secAgo = secAgo {
-                            let agoFormatted = formatScrubInterval(secAgo)
-                            let formattedVal = glance.scrubFormat?(val) ?? "\(String(format: glance.format, val))\(glance.unit)"
-                            scrubSummary = "\(agoFormatted) · \(formattedVal)"
-                        } else {
-                            scrubSummary = nil
-                        }
-                    }
+                    valueFormatter: resolvedScrubFormatter
                 )
                 .opacity(isPaused ? 0.4 : 1.0)
                 .transition(.opacity)
@@ -528,17 +751,6 @@ public struct PanelScaffold<Content: View>: View {
             } else {
                 panelController.close()
             }
-        }
-    }
-
-    private func formatScrubInterval(_ seconds: Double) -> String {
-        let sec = Int(seconds.rounded())
-        if sec < 60 {
-            return "\(sec)s ago"
-        } else {
-            let m = sec / 60
-            let s = sec % 60
-            return "\(m)m \(s)s ago"
         }
     }
 
@@ -663,6 +875,35 @@ extension EnvironmentValues {
     public var chartNamespace: Namespace.ID? {
         get { self[ChartNamespaceKey.self] }
         set { self[ChartNamespaceKey.self] = newValue }
+    }
+
+    internal var panelScaffoldProbeEnabled: Bool {
+        get { self[PanelScaffoldProbeEnabledKey.self] }
+        set { self[PanelScaffoldProbeEnabledKey.self] = newValue }
+    }
+}
+
+private struct PanelScaffoldProbeEnabledKey: EnvironmentKey {
+    static let defaultValue: Bool = false
+}
+
+internal struct PanelScaffoldProbeSnapshot: Equatable, Sendable {
+    var glanceSummary: String?
+    var glanceFrame: CGRect?
+    var chartFrame: CGRect?
+    var insightText: String?
+    var insightFrame: CGRect?
+}
+
+internal struct PanelScaffoldProbeKey: PreferenceKey {
+    static let defaultValue = PanelScaffoldProbeSnapshot()
+    static func reduce(value: inout PanelScaffoldProbeSnapshot, nextValue: () -> PanelScaffoldProbeSnapshot) {
+        let next = nextValue()
+        if let s = next.glanceSummary { value.glanceSummary = s }
+        if let f = next.glanceFrame { value.glanceFrame = f }
+        if let f = next.chartFrame { value.chartFrame = f }
+        if let t = next.insightText { value.insightText = t }
+        if let f = next.insightFrame { value.insightFrame = f }
     }
 }
 
