@@ -31,6 +31,12 @@ public final class MetricPanel: NSPanel {
     public var onCloseRequested: (() -> Void)?
     public var onUnpinRequested: (() -> Void)?
     public var onCommand: ((PanelCommand) -> Void)?
+    public var onContentHeightChanged: ((CGFloat) -> Void)?
+
+    /// Persistent glass backdrop + SwiftUI host (reused across category switches; A11 / 8.5.6a).
+    internal let backgroundContainer = PanelBackgroundView()
+    internal let hostingView = NSHostingView(rootView: AnyView(EmptyView()))
+    internal var targetHeight: CGFloat?
 
     public init(contentRect: NSRect = NSRect(x: 0, y: 0, width: Instrument.Size.panelWidth, height: 400)) {
         super.init(
@@ -48,6 +54,21 @@ public final class MetricPanel: NSPanel {
         self.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient]
         self.isMovableByWindowBackground = false
         self.hidesOnDeactivate = false
+
+        // Disable NSHostingView auto-sizing constraints so Auto Layout never fights animated setFrame.
+        hostingView.sizingOptions = []
+        hostingView.translatesAutoresizingMaskIntoConstraints = false
+        hostingView.wantsLayer = true
+
+        backgroundContainer.addSubview(hostingView)
+        NSLayoutConstraint.activate([
+            hostingView.leadingAnchor.constraint(equalTo: backgroundContainer.leadingAnchor),
+            hostingView.trailingAnchor.constraint(equalTo: backgroundContainer.trailingAnchor),
+            hostingView.topAnchor.constraint(equalTo: backgroundContainer.topAnchor),
+            hostingView.bottomAnchor.constraint(equalTo: backgroundContainer.bottomAnchor)
+        ])
+
+        self.contentView = backgroundContainer
     }
 
     public override var canBecomeKey: Bool {
@@ -138,20 +159,51 @@ public final class MetricPanel: NSPanel {
         super.keyDown(with: event)
     }
 
+    /// Swaps the SwiftUI root view in place on the persistent hosting view without rebuilding AppKit layers.
     public func setSwiftUIContent<V: View>(_ view: V) {
-        let backgroundContainer = PanelBackgroundView()
-        let hostingView = NSHostingView(rootView: view)
-        hostingView.translatesAutoresizingMaskIntoConstraints = false
+        let wrapped = view
+            .onPreferenceChange(PanelContentHeightKey.self) { [weak self] height in
+                guard let self, height > 0 else { return }
+                self.onContentHeightChanged?(height)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        hostingView.rootView = AnyView(wrapped)
+    }
 
-        backgroundContainer.addSubview(hostingView)
-        NSLayoutConstraint.activate([
-            hostingView.leadingAnchor.constraint(equalTo: backgroundContainer.leadingAnchor),
-            hostingView.trailingAnchor.constraint(equalTo: backgroundContainer.trailingAnchor),
-            hostingView.topAnchor.constraint(equalTo: backgroundContainer.topAnchor),
-            hostingView.bottomAnchor.constraint(equalTo: backgroundContainer.bottomAnchor)
-        ])
+    /// Tears down hosted SwiftUI content so timelines stop and `onDisappear` fires cleanly.
+    public func clearContent() {
+        hostingView.layer?.removeAnimation(forKey: "openTransform")
+        hostingView.rootView = AnyView(EmptyView())
+        targetHeight = nil
+    }
 
-        self.contentView = backgroundContainer
+    /// Runs the content-layer open transform animation (scale 0.96 -> 1.0 top-anchored, y -6 -> 0).
+    public func animateOpenTransform() {
+        guard NSClassFromString("XCTestCase") == nil,
+              !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion,
+              let layer = hostingView.layer else {
+            return
+        }
+        layer.removeAnimation(forKey: "openTransform")
+
+        let bounds = hostingView.bounds
+        let cx = bounds.width / 2.0
+        let topY = hostingView.isFlipped ? 0.0 : bounds.height
+        let yShift: CGFloat = hostingView.isFlipped ? -6.0 : 6.0
+
+        var start = CATransform3DIdentity
+        start = CATransform3DTranslate(start, cx, topY, 0)
+        start = CATransform3DScale(start, 0.96, 0.96, 1.0)
+        start = CATransform3DTranslate(start, -cx, -topY, 0)
+        start = CATransform3DTranslate(start, 0, yShift, 0)
+
+        let anim = CABasicAnimation(keyPath: "transform")
+        anim.fromValue = start
+        anim.toValue = CATransform3DIdentity
+        anim.duration = 0.28
+        anim.timingFunction = CAMediaTimingFunction(controlPoints: 0.2, 0.9, 0.25, 1.0)
+        layer.transform = CATransform3DIdentity
+        layer.add(anim, forKey: "openTransform")
     }
 }
 

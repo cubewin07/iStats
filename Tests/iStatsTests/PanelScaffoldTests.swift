@@ -609,4 +609,81 @@ final class PanelScaffoldTests: XCTestCase {
         let fit = hosting.fittingSize
         XCTAssertGreaterThan(fit.height, 50)
     }
+
+    func testPanelScaffoldSingleScrollContainerBuildsBodyOnceAndClampsAllTabs() {
+        for tab in [PopoverTab.overview, .detail, .history] {
+            var buildCount = 0
+            let binding = Binding.constant(tab)
+
+            let scaffold = PanelScaffold(
+                category: .thermal,
+                glance: PanelGlance(value: 62, unit: "°C", headline: "Elevated"),
+                status: .fine,
+                pages: [.overview, .detail, .history],
+                selection: binding
+            ) { _ in
+                let _ = { buildCount += 1 }()
+                return VStack(spacing: 8) {
+                    ForEach(0..<30, id: \.self) { idx in
+                        Text("Sensor \(idx)")
+                            .frame(height: 24)
+                    }
+                }
+            }
+
+            let controller = NSHostingController(rootView: scaffold)
+            let size = controller.sizeThatFits(in: CGSize(width: Instrument.Size.panelWidth, height: Instrument.Size.maxHeight))
+            XCTAssertEqual(size.width, Instrument.Size.panelWidth, accuracy: 2.0)
+            XCTAssertLessThanOrEqual(size.height, Instrument.Size.maxHeight + 0.5, "Tab \(tab) must clamp to maxHeight via ScrollView (B3/B4)")
+            XCTAssertEqual(buildCount, 1, "Tab \(tab) body must be built once, not twice as with ViewThatFits (B4)")
+        }
+    }
+
+    func testPanelScaffoldEmitsContentHeightKeyAndRemovesCrossViewChartNamespace() {
+        var selected = PopoverTab.overview
+        let binding = Binding(get: { selected }, set: { selected = $0 })
+        var reportedHeights: [CGFloat] = []
+
+        let scaffold = PanelScaffold(
+            category: .cpu,
+            glance: PanelGlance(value: 35, unit: "%", headline: "Normal"),
+            status: .fine,
+            pages: [.overview, .detail, .history],
+            selection: binding
+        ) { _ in
+            VStack(spacing: 6) {
+                ForEach(0..<6, id: \.self) { idx in
+                    Text("Row \(idx)")
+                        .frame(height: 24)
+                }
+            }
+        }
+        .onPreferenceChange(PanelContentHeightKey.self) { height in
+            if height > 0 {
+                reportedHeights.append(height)
+            }
+        }
+
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: Instrument.Size.panelWidth, height: 400),
+            styleMask: [.borderless],
+            backing: .buffered,
+            defer: false
+        )
+        let hosting = NSHostingView(rootView: scaffold)
+        window.contentView = hosting
+        window.orderFront(nil)
+        defer { window.orderOut(nil) }
+
+        window.layoutIfNeeded()
+        window.displayIfNeeded()
+        RunLoop.main.run(until: Date().addingTimeInterval(0.08))
+
+        XCTAssertFalse(reportedHeights.isEmpty, "PanelScaffold must emit PanelContentHeightKey > 0")
+        if let latest = reportedHeights.last {
+            XCTAssertGreaterThanOrEqual(latest, 160.0)
+            XCTAssertLessThanOrEqual(latest, Instrument.Size.maxHeight)
+        }
+        XCTAssertNil(EnvironmentValues().chartNamespace, "Cross-view chartNamespace must default to nil")
+    }
 }

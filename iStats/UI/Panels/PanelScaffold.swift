@@ -60,7 +60,8 @@ public struct PanelScaffold<Content: View>: View {
     @ViewBuilder public let content: (PopoverTab) -> Content
 
     @State private var scrubSummary: String? = nil
-    @Namespace private var chartNamespace
+    @State private var measuredBodyHeight: CGFloat? = nil
+    @State private var scrollVisibleHeight: CGFloat = 0
     @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
     @ObservedObject private var coordinator = MetricsCoordinator.shared
     @ObservedObject private var panelController = PanelController.shared
@@ -115,52 +116,65 @@ public struct PanelScaffold<Content: View>: View {
             visible: isWindowVisible
         )
 
-        VStack(alignment: .leading, spacing: 0) {
-            // Zone ①: Eyebrow row (28 pt)
-            eyebrowRow
-                .frame(height: 28)
-                .padding(.bottom, 8)
-                .accessibilityElement(children: .contain)
-                .accessibilityLabel("\(category.displayName) Header")
+        PanelStackLayout(maxHeight: Instrument.Size.maxHeight - (Instrument.Space.xl * 2)) {
+            // Child 0: Static-height Chrome (Eyebrow + Glance + Chart + Status Ribbon)
+            VStack(alignment: .leading, spacing: 0) {
+                // Zone ①: Eyebrow row (28 pt)
+                eyebrowRow
+                    .frame(height: 28)
+                    .padding(.bottom, 8)
+                    .accessibilityElement(children: .contain)
+                    .accessibilityLabel("\(category.displayName) Header")
 
-            // Zone ②: Glance (display numeral + headline + insight)
-            glanceHeader
-                .padding(.bottom, 6)
-                .accessibilityElement(children: .combine)
-                .accessibilityLabel("\(category.displayName) Glance")
+                // Zone ②: Glance (display numeral + headline + insight)
+                glanceHeader
+                    .padding(.bottom, 6)
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel("\(category.displayName) Glance")
 
-            // Zone ③: Living Chart (full-bleed, 72 pt)
-            chartZone
-                .padding(.horizontal, -Instrument.Space.xl)
+                // Zone ③: Living Chart (full-bleed, 72 pt; collapses cleanly on .history)
+                chartZone
+                    .padding(.horizontal, -Instrument.Space.xl)
+                    .animation(nil, value: selection)
 
-            // Zone ④: Status Ribbon (shown only at >= .elevated or paused or explicit message)
-            if isPaused {
-                StatusRibbon(
-                    status: .elevated,
-                    message: "Sampling paused",
-                    actionTitle: "Resume",
-                    action: onTogglePause
-                )
-                .padding(.top, 6)
-                .accessibilityElement(children: .combine)
-            } else if let message = ribbon, (!status.isQuiet || status == .fine) {
-                StatusRibbon(
-                    status: status,
-                    message: message,
-                    actionTitle: ribbonActionTitle,
-                    action: ribbonAction
-                )
-                .padding(.top, 6)
-                .accessibilityElement(children: .combine)
+                // Zone ④: Status Ribbon (shown only at >= .elevated or paused or explicit message)
+                if isPaused {
+                    StatusRibbon(
+                        status: .elevated,
+                        message: "Sampling paused",
+                        actionTitle: "Resume",
+                        action: onTogglePause
+                    )
+                    .padding(.top, 6)
+                    .accessibilityElement(children: .combine)
+                } else if let message = ribbon, (!status.isQuiet || status == .fine) {
+                    StatusRibbon(
+                        status: status,
+                        message: message,
+                        actionTitle: ribbonActionTitle,
+                        action: ribbonAction
+                    )
+                    .padding(.top, 6)
+                    .accessibilityElement(children: .combine)
+                }
             }
 
-            // Zone ⑤: Page Body
-            pageContent
+            // Child 1: Zone ⑤ Page Body
+            pageContent(policy: resolvedPolicy)
                 .accessibilityElement(children: .contain)
         }
         .padding(Instrument.Space.xl)
         .frame(width: Instrument.Size.panelWidth)
-        .environment(\.chartNamespace, chartNamespace)
+        .background(
+            GeometryReader { proxy in
+                Color.clear.preference(
+                    key: PanelContentHeightKey.self,
+                    value: proxy.size.height > 0
+                        ? min(max(proxy.size.height, 160.0), Instrument.Size.maxHeight)
+                        : 0
+                )
+            }
+        )
         .motionPolicy(resolvedPolicy)
         .onReceive(NotificationCenter.default.publisher(for: .panelCommandReceived)) { notification in
             if let targetCategory = notification.userInfo?["category"] as? MetricCategory,
@@ -361,6 +375,18 @@ public struct PanelScaffold<Content: View>: View {
 
     // MARK: - Zone ③: Living Chart
 
+    private var targetChartHeight: CGFloat {
+        if let avail = availability, !avail.isAvailable {
+            return 12
+        } else if selection == .history {
+            return 0
+        } else if glance.chartMode != nil {
+            return glance.chartHeight
+        } else {
+            return 8
+        }
+    }
+
     private var chartZone: some View {
         Group {
             if let avail = availability, !avail.isAvailable {
@@ -385,19 +411,21 @@ public struct PanelScaffold<Content: View>: View {
                         }
                     }
                 )
-                .matchedGeometryEffect(id: "panelChart-\(category.rawValue)", in: chartNamespace)
                 .opacity(isPaused ? 0.4 : 1.0)
+                .transition(.opacity)
             } else {
                 Color.clear
                     .frame(height: 8)
             }
         }
+        .frame(height: targetChartHeight)
+        .clipped()
     }
 
     // MARK: - Zone ⑤: Page Content
 
     @ViewBuilder
-    private var pageContent: some View {
+    private func pageContent(policy: MotionPolicy) -> some View {
         if let avail = availability, case .unavailable(let reason) = avail {
             InsetEmptyState(
                 systemImage: category.symbolName,
@@ -416,44 +444,48 @@ public struct PanelScaffold<Content: View>: View {
             .frame(maxWidth: .infinity, minHeight: 120)
             .padding(.top, 10)
         } else {
-            Group {
-                if selection == .overview {
-                    content(selection)
-                } else {
-                    ViewThatFits(in: .vertical) {
-                        content(selection)
-                            .padding(.vertical, 2)
+            let bodyFits = (measuredBodyHeight ?? 0) <= scrollVisibleHeight + 0.5
+            let transition: AnyTransition = (selection == .history && policy == .full)
+                ? .asymmetric(
+                    insertion: .opacity.combined(with: .offset(y: 8)),
+                    removal: .opacity
+                )
+                : .opacity
 
-                        ScrollView(.vertical, showsIndicators: false) {
-                            content(selection)
-                                .padding(.vertical, 2)
-                        }
-                        .frame(maxHeight: 380)
-                        .mask(
-                            VStack(spacing: 0) {
-                                LinearGradient(colors: [.clear, .black], startPoint: .top, endPoint: .bottom)
-                                    .frame(height: 6)
-                                Rectangle().fill(Color.black)
-                                LinearGradient(colors: [.black, .clear], startPoint: .top, endPoint: .bottom)
-                                    .frame(height: 8)
-                            }
-                        )
-                    }
+            ScrollView(.vertical, showsIndicators: false) {
+                PageBodySlot(tab: selection, activeTab: selection) {
+                    content(selection)
                 }
+                .id(selection)
+                .transition(transition)
+            }
+            .frame(idealHeight: measuredBodyHeight, maxHeight: measuredBodyHeight)
+            .fixedSize(horizontal: false, vertical: measuredBodyHeight == nil)
+            .scrollDisabled(bodyFits)
+            .background(
+                GeometryReader { proxy in
+                    Color.clear.preference(key: PanelScrollVisibleHeightKey.self, value: proxy.size.height)
+                }
+            )
+            .onPreferenceChange(PanelScrollVisibleHeightKey.self) { height in
+                if height > 0 && abs(scrollVisibleHeight - height) > 0.5 {
+                    scrollVisibleHeight = height
+                }
+            }
+            .mask(
+                VStack(spacing: 0) {
+                    LinearGradient(colors: [bodyFits ? .black : .clear, .black], startPoint: .top, endPoint: .bottom)
+                        .frame(height: 6)
+                    Rectangle().fill(Color.black)
+                    LinearGradient(colors: [.black, bodyFits ? .black : .clear], startPoint: .top, endPoint: .bottom)
+                        .frame(height: 8)
+                }
+            )
+            .onPreferenceChange(PanelBodyHeightKey.self) { height in
+                guard height > 0, abs((measuredBodyHeight ?? -1) - height) > 0.5 else { return }
+                measuredBodyHeight = height
             }
             .padding(.top, 8)
-            .onAppear {
-                let cat = category
-                DispatchQueue.main.async {
-                    PanelController.shared.updateFittingHeight(for: cat, animated: false)
-                }
-            }
-            .onChange(of: selection) { _ in
-                let cat = category
-                DispatchQueue.main.async {
-                    PanelController.shared.updateFittingHeight(for: cat, animated: true)
-                }
-            }
         }
     }
 
@@ -540,7 +572,88 @@ public struct PanelScaffold<Content: View>: View {
     }
 }
 
-// MARK: - Chart Namespace Environment
+// MARK: - Panel Layout & Height Preference Keys
+
+/// Single-pass layout clamping the scroll body to `maxHeight - chromeHeight` without double-building content.
+private struct PanelStackLayout: Layout {
+    let maxHeight: CGFloat
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let width = proposal.width ?? Instrument.Size.panelWidth
+        guard subviews.count == 2 else { return .zero }
+        let chromeSize = subviews[0].sizeThatFits(ProposedViewSize(width: width, height: nil))
+        let maxBody = max(80.0, maxHeight - chromeSize.height)
+        let bodyIdeal = subviews[1].sizeThatFits(ProposedViewSize(width: width, height: nil))
+        let clampedBody = min(bodyIdeal.height, maxBody)
+        return CGSize(width: width, height: chromeSize.height + clampedBody)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        guard subviews.count == 2 else { return }
+        let width = bounds.width
+        let chromeSize = subviews[0].sizeThatFits(ProposedViewSize(width: width, height: nil))
+        subviews[0].place(at: bounds.origin, proposal: ProposedViewSize(width: width, height: chromeSize.height))
+        let maxBody = max(80.0, maxHeight - chromeSize.height)
+        let bodyIdeal = subviews[1].sizeThatFits(ProposedViewSize(width: width, height: nil))
+        let clampedBody = min(bodyIdeal.height, maxBody)
+        subviews[1].place(
+            at: CGPoint(x: bounds.minX, y: bounds.minY + chromeSize.height),
+            proposal: ProposedViewSize(width: width, height: clampedBody)
+        )
+    }
+}
+
+/// Reports the scaffold's target total height to `MetricPanel` and `PanelController`.
+public struct PanelContentHeightKey: PreferenceKey {
+    public static let defaultValue: CGFloat = 0
+    public static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        let next = nextValue()
+        if next > 0 {
+            value = next
+        }
+    }
+}
+
+private struct PanelBodyHeightKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        let next = nextValue()
+        if next > 0 {
+            value = next
+        }
+    }
+}
+
+private struct PanelScrollVisibleHeightKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        let next = nextValue()
+        if next > 0 {
+            value = next
+        }
+    }
+}
+
+private struct PageBodySlot<BodyContent: View>: View {
+    let tab: PopoverTab
+    let activeTab: PopoverTab
+    @ViewBuilder let bodyContent: () -> BodyContent
+
+    var body: some View {
+        bodyContent()
+            .padding(.vertical, 2)
+            .background(
+                GeometryReader { proxy in
+                    Color.clear.preference(
+                        key: PanelBodyHeightKey.self,
+                        value: tab == activeTab ? proxy.size.height : 0
+                    )
+                }
+            )
+    }
+}
+
+// MARK: - Chart Namespace Environment (unused in 8.5.6a; kept nil until 8.5.5 removes HistoryPage reference)
 
 private struct ChartNamespaceKey: EnvironmentKey {
     static let defaultValue: Namespace.ID? = nil

@@ -102,6 +102,8 @@
 		110000000000000000000135 /* MenuBarDirtyCheckingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000134 /* MenuBarDirtyCheckingTests.swift */; };
 		110000000000000000000137 /* CoordinatorBatchingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000136 /* CoordinatorBatchingTests.swift */; };
 		1100000000000000000001BD /* PanelScaffoldTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000001BC /* PanelScaffoldTests.swift */; };
+		110000000000000000000201 /* PanelControllerLifecycleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000200 /* PanelControllerLifecycleTests.swift */; };
+		110000000000000000000203 /* PanelPlacementTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000202 /* PanelPlacementTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -211,6 +213,8 @@
 		110000000000000000000134 /* MenuBarDirtyCheckingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarDirtyCheckingTests.swift; sourceTree = "<group>"; };
 		110000000000000000000136 /* CoordinatorBatchingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoordinatorBatchingTests.swift; sourceTree = "<group>"; };
 		1100000000000000000001BC /* PanelScaffoldTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PanelScaffoldTests.swift; sourceTree = "<group>"; };
+		110000000000000000000200 /* PanelControllerLifecycleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PanelControllerLifecycleTests.swift; sourceTree = "<group>"; };
+		110000000000000000000202 /* PanelPlacementTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PanelPlacementTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -384,6 +388,8 @@
 				110000000000000000000134 /* MenuBarDirtyCheckingTests.swift */,
 				110000000000000000000136 /* CoordinatorBatchingTests.swift */,
 				1100000000000000000001BC /* PanelScaffoldTests.swift */,
+				110000000000000000000200 /* PanelControllerLifecycleTests.swift */,
+				110000000000000000000202 /* PanelPlacementTests.swift */,
 				1100000000000000000001DA /* ProcessSamplerTests.swift */,
 				1100000000000000000001DE /* AccessibilityAppearanceTests.swift */,
 			);
@@ -599,6 +605,8 @@
 				110000000000000000000135 /* MenuBarDirtyCheckingTests.swift in Sources */,
 				110000000000000000000137 /* CoordinatorBatchingTests.swift in Sources */,
 				1100000000000000000001BD /* PanelScaffoldTests.swift in Sources */,
+				110000000000000000000201 /* PanelControllerLifecycleTests.swift in Sources */,
+				110000000000000000000203 /* PanelPlacementTests.swift in Sources */,
 				1100000000000000000001DB /* ProcessSamplerTests.swift in Sources */,
 				1100000000000000000001DF /* AccessibilityAppearanceTests.swift in Sources */,
 			);

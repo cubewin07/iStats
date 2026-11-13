@@ -74,6 +74,10 @@ public final class MenuBarController: NSObject {
         super.init()
 
         PanelController.shared.configure(preferences: preferences)
+        PanelController.shared.statusItemHitTest = { [weak self] screenPoint in
+            guard let self else { return false }
+            return self.containsStatusItem(at: screenPoint)
+        }
         PanelController.shared.onTransientPanelClosed = { [weak self] in
             MainActor.assumeIsolated {
                 self?.stopScrubbingMonitor()
@@ -546,6 +550,15 @@ public final class MenuBarController: NSObject {
         NSApplication.shared.terminate(nil)
     }
 
+    /// Returns `true` if the given screen coordinate falls within any of this controller's status item buttons.
+    public func containsStatusItem(at screenPoint: NSPoint) -> Bool {
+        statusItems.values.contains { item in
+            guard let button = item.button, let window = button.window else { return false }
+            let rect = window.convertToScreen(button.convert(button.bounds, to: nil))
+            return rect.contains(screenPoint)
+        }
+    }
+
     /// Shows the dedicated panel for a specific category anchored to a menu bar button.
     public func showPanel(for category: MetricCategory, relativeTo button: NSStatusBarButton) {
         let rawId = button.identifier?.rawValue ?? category.rawValue
@@ -553,7 +566,12 @@ public final class MenuBarController: NSObject {
         PanelController.shared.show(category: category, itemID: rawId, relativeTo: button) {
             self.makePanelContentView(forConfigId: rawId)
         }
-        startScrubbingMonitor()
+        if PanelController.shared.isTransientPanelOpen(for: category) {
+            startScrubbingMonitor()
+        } else {
+            stopScrubbingMonitor()
+            currentlyShownButton = nil
+        }
     }
 
     /// Backward-compatibility forwarder
@@ -589,9 +607,11 @@ public final class MenuBarController: NSObject {
             let hitRect = buttonScreenRect.insetBy(dx: 0, dy: -6)
             if hitRect.contains(mouseLocation) {
                 let category = categoryForConfigId(id) ?? .cpu
-                currentlyShownButton = button
                 PanelController.shared.handleStatusItemHover(category: category, itemID: id, button: button) {
                     self.makePanelContentView(forConfigId: id)
+                }
+                if PanelController.shared.isTransientPanelOpen(for: category) {
+                    currentlyShownButton = button
                 }
                 break
             }
