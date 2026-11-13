@@ -549,4 +549,274 @@ final class SwiftUIViewsTests: XCTestCase {
         XCTAssertEqual(target?.primaryValue ?? -1, 29.0, accuracy: 1e-6)
         XCTAssertEqual(target?.secondsAgo ?? -1, 30.0, accuracy: 1e-6)
     }
+
+    // MARK: - 8. HistoryPage v3 Tests (Task 8.5.5 / B8, B9, B10, Kit v2)
+
+    func testHistoryPageInitializesRangeFromPreferencesInInitB10() {
+        let (defaults, prefs, coord, suiteName) = makeContext()
+        defer { cleanup(defaults: defaults, suiteName: suiteName) }
+
+        prefs.setHistoryRange(.fiveMinutes, for: .memory)
+        prefs.setHistoryRange(.fifteenMinutes, for: .network)
+
+        let memoryPage = HistoryPage(category: .memory, coordinator: coord, preferences: prefs)
+        let networkPage = HistoryPage(category: .network, coordinator: coord, preferences: prefs)
+        let cpuPage = HistoryPage(category: .cpu, coordinator: coord, preferences: prefs)
+
+        // Must reflect saved range immediately after init (before onAppear / hosting)
+        XCTAssertEqual(memoryPage.currentSelectedRange, .fiveMinutes)
+        XCTAssertEqual(networkPage.currentSelectedRange, .fifteenMinutes)
+        XCTAssertEqual(cpuPage.currentSelectedRange, .oneMinute)
+
+        var capturedProbe = HistoryPageProbeSnapshot()
+        let probed = memoryPage
+            .environment(\.historyPageProbeEnabled, true)
+            .onPreferenceChange(HistoryPageProbeKey.self) { capturedProbe = $0 }
+
+        let hosting = NSHostingView(rootView: probed)
+        hosting.frame = CGRect(x: 0, y: 0, width: Instrument.Size.panelWidth, height: 320)
+        hosting.layoutSubtreeIfNeeded()
+        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+
+        XCTAssertEqual(capturedProbe.selectedRange, .fiveMinutes)
+        XCTAssertEqual(capturedProbe.showAverageLine, false)
+        XCTAssertEqual(capturedProbe.showPeakMarker, false)
+        XCTAssertEqual(capturedProbe.timeAxisLabels, ["-5m", "-3m", "-1m", "now"])
+    }
+
+    func testHistoryPage1m5m15mScalarQueriesAndEnvelopesB8B9() {
+        let (defaults, prefs, coord, suiteName) = makeContext()
+        defer { cleanup(defaults: defaults, suiteName: suiteName) }
+
+        let ref = Date(timeIntervalSince1970: 1_700_010_000.0)
+        // Populate 900 seconds (15m @ 1 Hz) across CPU, Memory, Network, and Power (watts nil, charge present)
+        var batch: [MetricReading] = []
+        batch.reserveCapacity(900 * 4)
+        for i in 0..<900 {
+            let ts = ref.addingTimeInterval(-Double(899 - i))
+            let user = 20.0 + Double(i % 25)
+            let sys = 10.0 + Double(i % 10)
+            batch.append(.cpu(Sample(
+                value: CPUSample(totalUsage: user + sys, perCore: [user + sys], user: user, system: sys, idle: 100.0 - user - sys),
+                timestamp: ts
+            )))
+            batch.append(.memory(Sample(
+                value: MemorySample(total: 1000, used: UInt64(400 + (i % 200)), free: 400, wired: 100, compressed: 50, cached: 50, swapUsed: 0, pressure: .normal),
+                timestamp: ts
+            )))
+            batch.append(.network(Sample(
+                value: NetworkSample(interfaces: [InterfaceThroughput(
+                    interfaceName: "en0",
+                    bytesInPerSec: 1_000_000.0 + Double(i % 50) * 10_000.0,
+                    bytesOutPerSec: 250_000.0 + Double(i % 20) * 5_000.0,
+                    totalBytesIn: 10_000_000,
+                    totalBytesOut: 2_000_000
+                )]),
+                timestamp: ts
+            )))
+            // B9: powerDrawWatts nil with 85% charge must NOT populate powerWatts
+            batch.append(.power(Sample(
+                value: PowerSample(hasBattery: true, charge: 85.0, state: .charging, timeRemaining: 3600, powerDrawWatts: nil),
+                timestamp: ts
+            )))
+        }
+        coord.handleReadings(batch)
+
+        // 1m Memory -> .single timestamped points (60 points)
+        prefs.setHistoryRange(.oneMinute, for: .memory)
+        let mem1m = HistoryPage(category: .memory, coordinator: coord, preferences: prefs)
+            .buildSeriesData(referenceDate: ref)
+        XCTAssertTrue(mem1m.mode.isTimestamped)
+        XCTAssertFalse(mem1m.mode.isEnvelope)
+        XCTAssertEqual(mem1m.activeValues.count, 60)
+
+        // 5m Memory -> .envelope buckets (bucketWidth = 2.5s -> ~120 buckets)
+        prefs.setHistoryRange(.fiveMinutes, for: .memory)
+        let mem5m = HistoryPage(category: .memory, coordinator: coord, preferences: prefs)
+            .buildSeriesData(referenceDate: ref)
+        XCTAssertTrue(mem5m.mode.isEnvelope)
+        XCTAssertEqual(mem5m.sampleInterval, 2.5, accuracy: 1e-6)
+        XCTAssertGreaterThanOrEqual(mem5m.activeValues.count, 118)
+        XCTAssertLessThanOrEqual(mem5m.activeValues.count, 121)
+
+        // 15m Memory -> .envelope buckets (bucketWidth = 7.5s -> ~120 buckets)
+        prefs.setHistoryRange(.fifteenMinutes, for: .memory)
+        let mem15m = HistoryPage(category: .memory, coordinator: coord, preferences: prefs)
+            .buildSeriesData(referenceDate: ref)
+        XCTAssertTrue(mem15m.mode.isEnvelope)
+        XCTAssertEqual(mem15m.sampleInterval, 7.5, accuracy: 1e-6)
+        XCTAssertGreaterThanOrEqual(mem15m.activeValues.count, 118)
+        XCTAssertLessThanOrEqual(mem15m.activeValues.count, 121)
+
+        // 1m CPU -> .stacked; 5m CPU -> .envelope
+        prefs.setHistoryRange(.oneMinute, for: .cpu)
+        let cpu1m = HistoryPage(category: .cpu, coordinator: coord, preferences: prefs)
+            .buildSeriesData(referenceDate: ref)
+        XCTAssertEqual(cpu1m.activeValues.count, 60)
+        XCTAssertFalse(cpu1m.mode.isEnvelope)
+
+        prefs.setHistoryRange(.fiveMinutes, for: .cpu)
+        let cpu5m = HistoryPage(category: .cpu, coordinator: coord, preferences: prefs)
+            .buildSeriesData(referenceDate: ref)
+        XCTAssertTrue(cpu5m.mode.isEnvelope)
+
+        // 5m Network -> .mirroredEnvelope
+        prefs.setHistoryRange(.fiveMinutes, for: .network)
+        let net5m = HistoryPage(category: .network, coordinator: coord, preferences: prefs)
+            .buildSeriesData(referenceDate: ref)
+        XCTAssertTrue(net5m.mode.isEnvelope)
+        XCTAssertTrue(net5m.mode.isMirrored)
+
+        // B9 Power -> defaults to .powerWatts, stays empty when only charge % was recorded
+        prefs.setHistoryRange(.oneMinute, for: .power)
+        let power1m = HistoryPage(category: .power, coordinator: coord, preferences: prefs)
+            .buildSeriesData(referenceDate: ref)
+        XCTAssertEqual(power1m.unit, "W")
+        XCTAssertEqual(power1m.rawSampleCount, 0)
+        XCTAssertTrue(power1m.activeValues.isEmpty)
+    }
+
+    func testHistoryPageTimestampPinnedStatCellDoesNotDriftB10() throws {
+        let (defaults, prefs, coord, suiteName) = makeContext()
+        defer { cleanup(defaults: defaults, suiteName: suiteName) }
+
+        let base = Date(timeIntervalSince1970: 1_700_020_000.0)
+        // 60 samples from t = base..base+59, with peak at i = 20 (95%)
+        for i in 0..<60 {
+            let val = (i == 20) ? 95.0 : 30.0 + Double(i % 10)
+            coord.handleReading(.memory(Sample(
+                value: MemorySample(total: 1000, used: UInt64(val * 10), free: UInt64((100 - val) * 10), wired: 100, compressed: 0, cached: 0, swapUsed: 0, pressure: .normal),
+                timestamp: base.addingTimeInterval(Double(i))
+            )))
+        }
+
+        prefs.setHistoryRange(.oneMinute, for: .memory)
+        let page = HistoryPage(category: .memory, coordinator: coord, preferences: prefs)
+        let ref1 = base.addingTimeInterval(59.0)
+        let data1 = page.buildSeriesData(referenceDate: ref1)
+        let stats1 = LiveChartMath.computeStats(for: data1.activeValues)!
+        let targets1 = HistoryPage.statTargets(stats: stats1, seriesData: data1)
+
+        XCTAssertEqual(targets1.max.index, 20)
+        let pinnedPeakDate = try XCTUnwrap(targets1.max.timestamp)
+        XCTAssertEqual(pinnedPeakDate.timeIntervalSince1970, base.timeIntervalSince1970 + 20.0, accuracy: 1e-6)
+
+        // Append 5 newer samples (t = base+60..base+64); window [5..64] shifts indices by -5
+        for i in 60..<65 {
+            coord.handleReading(.memory(Sample(
+                value: MemorySample(total: 1000, used: 350, free: 650, wired: 100, compressed: 0, cached: 0, swapUsed: 0, pressure: .normal),
+                timestamp: base.addingTimeInterval(Double(i))
+            )))
+        }
+
+        let ref2 = base.addingTimeInterval(64.0)
+        let data2 = page.buildSeriesData(referenceDate: ref2)
+        let resolvedIdx = HistoryPage.resolveTimestampIndex(for: pinnedPeakDate, in: data2.timestamps)
+        // Must track the pinned Date to index 15 rather than drifting on fixed index 20!
+        XCTAssertEqual(resolvedIdx, 15)
+        XCTAssertEqual(data2.activeValues[15], 95.0, accuracy: 1e-6)
+
+        let pinnedScrubState = try XCTUnwrap(page.buildPinnedGlanceState(resolvedPinnedIndex: resolvedIdx, seriesData: data2))
+        XCTAssertEqual(pinnedScrubState.formattedPrimary, "95")
+        XCTAssertEqual(pinnedScrubState.primaryUnit, "%")
+        XCTAssertEqual(pinnedScrubState.relativeTimeText, "44s ago")
+
+        // Advance past the 60s window so pinned timestamp falls outside -> unpins cleanly (nil)
+        let refExpired = base.addingTimeInterval(85.0)
+        for i in 65..<86 {
+            coord.handleReading(.memory(Sample(
+                value: MemorySample(total: 1000, used: 350, free: 650, wired: 100, compressed: 0, cached: 0, swapUsed: 0, pressure: .normal),
+                timestamp: base.addingTimeInterval(Double(i))
+            )))
+        }
+        let data3 = page.buildSeriesData(referenceDate: refExpired)
+        XCTAssertNil(HistoryPage.resolveTimestampIndex(for: pinnedPeakDate, in: data3.timestamps))
+    }
+
+    func testHistoryPageTimeAxisAndScrubAxisLabels() {
+        XCTAssertEqual(
+            HistoryPage.timeAxisTicks(for: .oneMinute).map(\.label),
+            ["-60s", "-40s", "-20s", "now"]
+        )
+        XCTAssertEqual(
+            HistoryPage.timeAxisTicks(for: .fiveMinutes).map(\.label),
+            ["-5m", "-3m", "-1m", "now"]
+        )
+        XCTAssertEqual(
+            HistoryPage.timeAxisTicks(for: .fifteenMinutes).map(\.label),
+            ["-15m", "-10m", "-5m", "now"]
+        )
+
+        XCTAssertEqual(HistoryPage.formatScrubAxisLabel(secondsAgo: 0), "AT -0s")
+        XCTAssertEqual(HistoryPage.formatScrubAxisLabel(secondsAgo: 12), "AT -12s")
+        XCTAssertEqual(HistoryPage.formatScrubAxisLabel(secondsAgo: 60), "AT -1m")
+        XCTAssertEqual(HistoryPage.formatScrubAxisLabel(secondsAgo: 90), "AT -1m30s")
+        XCTAssertEqual(HistoryPage.formatScrubAxisLabel(secondsAgo: 300), "AT -5m")
+    }
+
+    func testHistoryPageKitAdoptionAndPanelScaffoldScrubRouting() {
+        let (defaults, prefs, coord, suiteName) = makeContext()
+        defer { cleanup(defaults: defaults, suiteName: suiteName) }
+
+        let now = Date()
+        for i in 0..<25 {
+            let ts = now.addingTimeInterval(-Double(24 - i))
+            coord.handleReading(.cpu(Sample(
+                value: CPUSample(totalUsage: 40.0 + Double(i), perCore: [40.0], user: 25.0 + Double(i), system: 15.0, idle: 60.0 - Double(i)),
+                timestamp: ts
+            )))
+        }
+
+        // Render Kit SegmentedControl and FilterChip standalone
+        let seg = SegmentedControl(options: HistoryTimeRange.allCases, selection: .constant(.fiveMinutes)) { $0.rawValue }
+        let segHost = NSHostingView(rootView: seg)
+        segHost.frame = CGRect(x: 0, y: 0, width: 150, height: 30)
+        segHost.layoutSubtreeIfNeeded()
+        XCTAssertGreaterThan(segHost.fittingSize.width, 40)
+
+        let chip = FilterChip(title: "User", isSelected: true, dotColor: .blue, tint: .blue) {}
+        let chipHost = NSHostingView(rootView: chip)
+        chipHost.frame = CGRect(x: 0, y: 0, width: 100, height: 30)
+        chipHost.layoutSubtreeIfNeeded()
+        XCTAssertGreaterThan(chipHost.fittingSize.width, 20)
+
+        // Render HistoryPage inside PanelScaffold and verify Environment(\.chartScrubAction) routing
+        var scaffoldProbe = PanelScaffoldProbeSnapshot()
+        var historyProbe = HistoryPageProbeSnapshot()
+
+        let scaffold = PanelScaffold(
+            category: .cpu,
+            glance: PanelGlance(value: 64, format: "%.0f", unit: "%", headline: "Live CPU"),
+            status: .fine,
+            pages: [.overview, .detail, .history],
+            selection: .constant(.history)
+        ) { _ in
+            HistoryPage(category: .cpu, coordinator: coord, preferences: prefs)
+                .environment(\.historyPageProbeEnabled, true)
+                .onPreferenceChange(HistoryPageProbeKey.self) { historyProbe = $0 }
+        }
+        .environment(\.panelScaffoldProbeEnabled, true)
+        .onPreferenceChange(PanelScaffoldProbeKey.self) { scaffoldProbe = $0 }
+
+        _ = NSApplication.shared
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: Instrument.Size.panelWidth, height: 480),
+            styleMask: [.borderless],
+            backing: .buffered,
+            defer: false
+        )
+        let hosting = NSHostingView(rootView: scaffold)
+        hosting.frame = NSRect(x: 0, y: 0, width: Instrument.Size.panelWidth, height: 480)
+        window.contentView = hosting
+        window.makeKeyAndOrderFront(nil)
+        defer { window.orderOut(nil) }
+
+        hosting.layoutSubtreeIfNeeded()
+        window.layoutIfNeeded()
+        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+
+        XCTAssertEqual(historyProbe.fourthCellLabel, "NOW")
+        XCTAssertEqual(historyProbe.timeAxisLabels, ["-60s", "-40s", "-20s", "now"])
+        XCTAssertTrue((scaffoldProbe.glanceSummary ?? "").contains("64 %"))
+    }
 }

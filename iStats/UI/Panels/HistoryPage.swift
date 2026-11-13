@@ -2,27 +2,62 @@ import SwiftUI
 import AppKit
 import iStatsCore
 
-/// Instrument-grade History Page used across all 8 category panels (Task 8.10 / ADR 0009).
+/// Instrument-grade History Page used across all 8 category panels (Task 8.5.5 / ADR 0009 / ADR 0010).
 /// Features:
-/// 1. Glass segmented range control: 1m · 5m · 15m (persists per category)
-/// 2. 140 pt vector LiveChart with niceTicks y-axis, avg dashed line, ▲ peak marker with value, and relative-time lens
-/// 3. Stats strip (Min · Avg · Max · Now) driven by LiveNumber with interactive tap-to-scrub
-/// 4. Channel isolation chips for dual-series categories (CPU, Network, Disk) dimming the non-selected series to 15%
-/// 5. Matched-geometry morphing under full motion
-/// 6. Calm empty state when fewer than 10 samples have been collected.
+/// 1. Unified `SegmentedControl` for 1m · 5m · 15m (initialized from preferences in `init`, fixing B10)
+/// 2. Unified `FilterChip` bar for channel isolation, thermal sources, and Power Watts/Charge filtering
+/// 3. Scalar-only queries (B8): `timedScalarHistory` for 1m, `bucketedScalarHistory` (2.5s / 7.5s) envelopes for 5m / 15m
+/// 4. 140 pt `LiveChart` + 14 pt relative bottom time axis (`9.5 pt` tertiary tabular text)
+/// 5. Decluttered annotations (avg line / peak marker revealed on `AVG` / `MAX` stat-cell hover or pin)
+/// 6. Timestamp-pinned stat-cell scrub (B10) and Glance header routing via `Environment(\.chartScrubAction)`
 public struct HistoryPage: View {
     public let category: MetricCategory
     @ObservedObject public var coordinator: MetricsCoordinator
     @ObservedObject public var preferences: PreferencesStore
 
-    @State private var selectedRange: HistoryTimeRange = .oneMinute
+    @State private var selectedRange: HistoryTimeRange
     @State private var isolatedChannel: Int? = nil
-    @State private var scrubIndex: Int? = nil
-    @State private var scrubSummary: String? = nil
     @State private var selectedThermalSource: MetricSource = .peak
+    @State private var selectedPowerSeries: PowerSeriesFilter = .watts
+    @State private var pinnedScrub: PinnedScrub? = nil
+    @State private var hoveredStatCell: StatCellKind? = nil
+    @State private var hoverScrub: HoverScrubReadout? = nil
 
     @Environment(\.motionPolicy) private var motionPolicy
-    @Environment(\.chartNamespace) private var chartNamespace
+    @Environment(\.chartScrubAction) private var chartScrubAction
+    @Environment(\.historyPageProbeEnabled) private var probeEnabled
+
+    internal enum PowerSeriesFilter: String, CaseIterable, Hashable {
+        case watts = "Watts"
+        case charge = "Charge %"
+    }
+
+    internal enum StatCellKind: String, Equatable, Hashable {
+        case min = "MIN"
+        case avg = "AVG"
+        case max = "MAX"
+        case now = "NOW"
+    }
+
+    internal struct PinnedScrub: Equatable {
+        let timestamp: Date
+        let kind: StatCellKind
+    }
+
+    private struct HoverScrubReadout: Equatable {
+        let index: Int?
+        let state: ChartScrubState?
+    }
+
+    internal struct TimeAxisTick: Equatable {
+        let label: String
+        let fraction: Double
+    }
+
+    internal struct StatTarget: Equatable {
+        let index: Int?
+        let timestamp: Date?
+    }
 
     public init(
         category: MetricCategory,
@@ -32,6 +67,11 @@ public struct HistoryPage: View {
         self.category = category
         self.coordinator = coordinator
         self.preferences = preferences
+        self._selectedRange = State(initialValue: preferences.historyRange(for: category))
+    }
+
+    internal var currentSelectedRange: HistoryTimeRange {
+        selectedRange
     }
 
     private var isFanless: Bool {
@@ -48,57 +88,110 @@ public struct HistoryPage: View {
 
     public var body: some View {
         let seriesData = buildSeriesData()
+        let resolvedPinnedIndex = pinnedScrub.flatMap {
+            Self.resolveTimestampIndex(for: $0.timestamp, in: seriesData.timestamps)
+        }
+        let stats = (!isFanless && seriesData.activeValues.count >= 2)
+            ? LiveChartMath.computeStats(for: seriesData.activeValues)
+            : nil
+        let activeFourthCell = resolveFourthCell(
+            stats: stats,
+            seriesData: seriesData,
+            resolvedPinnedIndex: resolvedPinnedIndex
+        )
+        let pinnedGlanceState = buildPinnedGlanceState(
+            resolvedPinnedIndex: resolvedPinnedIndex,
+            seriesData: seriesData
+        )
+        let showAverageLine = (hoveredStatCell == .avg || pinnedScrub?.kind == .avg)
+        let showPeakMarker = (hoveredStatCell == .max || pinnedScrub?.kind == .max)
+        let hasSufficientData = seriesData.rawSampleCount >= 10 && seriesData.activeValues.count >= 2
 
         VStack(spacing: Instrument.Space.l) {
-            // Top Controls Bar (Channel Isolation / Source Chips + Glass Range Segment)
+            // Top Controls Bar (Unified FilterChips + SegmentedControl)
             HStack(spacing: 8) {
-                // Leading: Channel Chips or Title
                 leadingChips(seriesData: seriesData)
-
-                Spacer()
-
-                if let summary = scrubSummary {
-                    Text(summary)
-                        .font(Instrument.Typography.caption)
-                        .foregroundColor(.primary)
-                }
-
-                // Trailing: Glass Segmented Range Control
+                Spacer(minLength: 4)
                 rangeControl
             }
 
-            // Chart Zone (140 pt)
+            // Chart Zone (140 pt plot + 14 pt relative time axis)
             if isFanless {
                 InsetEmptyState(
                     systemImage: "fan.slash",
                     title: "Passive Cooling",
                     reason: "Fanless system — no cooling telemetry to record."
                 )
-                .frame(height: 140)
-            } else if seriesData.activeValues.count < 10 {
+                .frame(height: Instrument.Size.historyChartHeight)
+            } else if !hasSufficientData {
                 InsetEmptyState(
                     systemImage: "waveform.path.ecg",
                     title: "Collecting History",
                     reason: "History fills while iStats runs (in-memory only)."
                 )
-                .frame(height: 140)
+                .frame(height: Instrument.Size.historyChartHeight)
             } else {
-                chartContainer(seriesData: seriesData)
-                    .frame(height: 140)
+                VStack(spacing: 0) {
+                    chartContainer(
+                        seriesData: seriesData,
+                        resolvedScrubIndex: resolvedPinnedIndex,
+                        showAverageLine: showAverageLine,
+                        showPeakMarker: showPeakMarker
+                    )
+                    .frame(height: Instrument.Size.historyChartHeight)
+
+                    timeAxis
+                }
             }
 
-            // Stats Strip (Min · Avg · Max · Now)
-            if !isFanless && seriesData.activeValues.count >= 2, let stats = LiveChartMath.computeStats(for: seriesData.activeValues) {
-                statsStrip(stats: stats, seriesData: seriesData)
+            // Stats Strip (Min · Avg · Max · Now / AT -<time>)
+            if let stats, hasSufficientData {
+                statsStrip(
+                    stats: stats,
+                    seriesData: seriesData,
+                    fourthCellLabel: activeFourthCell.label,
+                    fourthCellValue: activeFourthCell.value,
+                    isScrubbing: activeFourthCell.isScrubbing
+                )
             }
         }
         .padding(.vertical, 2)
-        .onAppear {
-            selectedRange = preferences.historyRange(for: category)
+        .onChange(of: resolvedPinnedIndex) { newIdx in
+            if newIdx == nil && pinnedScrub != nil {
+                pinnedScrub = nil
+                if hoverScrub?.state == nil {
+                    chartScrubAction?(nil)
+                }
+            }
         }
+        .onChange(of: pinnedGlanceState) { newState in
+            guard hoverScrub?.state == nil else { return }
+            chartScrubAction?(newState)
+        }
+        .onDisappear {
+            if pinnedScrub != nil || hoverScrub != nil {
+                pinnedScrub = nil
+                hoverScrub = nil
+                chartScrubAction?(nil)
+            }
+        }
+        .preference(
+            key: HistoryPageProbeKey.self,
+            value: probeEnabled
+                ? HistoryPageProbeSnapshot(
+                    selectedRange: selectedRange,
+                    fourthCellLabel: activeFourthCell.label,
+                    fourthCellValue: activeFourthCell.value,
+                    showAverageLine: showAverageLine,
+                    showPeakMarker: showPeakMarker,
+                    resolvedScrubIndex: resolvedPinnedIndex,
+                    timeAxisLabels: Self.timeAxisTicks(for: selectedRange).map(\.label)
+                )
+                : HistoryPageProbeSnapshot()
+        )
     }
 
-    // MARK: - Leading Chips
+    // MARK: - Leading Filter Chips
 
     @ViewBuilder
     private func leadingChips(seriesData: SeriesData) -> some View {
@@ -106,33 +199,34 @@ public struct HistoryPage: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 4) {
                     ForEach(availableThermalSources, id: \.self) { src in
-                        let isSelected = selectedThermalSource == src
-                        Button {
-                            withAnimation(Motion.snappy) {
-                                selectedThermalSource = src
-                                if selectedRange != .oneMinute && src != .peak {
-                                    selectedRange = .oneMinute
-                                    preferences.setHistoryRange(.oneMinute, for: category)
-                                }
-                                scrubIndex = nil
+                        let isSelected = (selectedThermalSource == src)
+                        FilterChip(
+                            title: src.shortLabel,
+                            isSelected: isSelected,
+                            tint: CategoryPalette.tint(for: .thermal),
+                            fontSize: 10.5
+                        ) {
+                            selectedThermalSource = src
+                            if selectedRange != .oneMinute && src != .peak {
+                                selectedRange = .oneMinute
+                                preferences.setHistoryRange(.oneMinute, for: category)
                             }
-                        } label: {
-                            Text(src.shortLabel)
-                                .font(Instrument.Typography.micro)
-                                .fontWeight(isSelected ? .semibold : .regular)
-                                .foregroundColor(isSelected ? .primary : .secondary)
-                                .padding(.horizontal, 7)
-                                .padding(.vertical, 3)
-                                .background(
-                                    Capsule()
-                                        .fill(isSelected ? CategoryPalette.tint(for: .thermal).opacity(0.18) : Color.primary.opacity(0.06))
-                                        .overlay(
-                                            Capsule()
-                                                .stroke(isSelected ? CategoryPalette.tint(for: .thermal).opacity(0.6) : Color.clear, lineWidth: 1)
-                                        )
-                                )
+                            clearScrubState()
                         }
-                        .buttonStyle(.plain)
+                    }
+                }
+            }
+        } else if category == .power && hasBattery {
+            HStack(spacing: 6) {
+                ForEach(PowerSeriesFilter.allCases, id: \.self) { filter in
+                    FilterChip(
+                        title: filter.rawValue,
+                        isSelected: selectedPowerSeries == filter,
+                        tint: CategoryPalette.tint(for: .power),
+                        fontSize: 10.5
+                    ) {
+                        selectedPowerSeries = filter
+                        clearScrubState()
                     }
                 }
             }
@@ -157,154 +251,198 @@ public struct HistoryPage: View {
     private func channelChip(label: String, color: Color, channelIndex: Int) -> some View {
         let isSelected = (isolatedChannel == channelIndex)
         let isDimmed = (isolatedChannel != nil && !isSelected)
-        return Button {
-            withAnimation(Motion.snappy) {
-                if isolatedChannel == channelIndex {
-                    isolatedChannel = nil
-                } else {
-                    isolatedChannel = channelIndex
-                }
-                scrubIndex = nil
+        return FilterChip(
+            title: label,
+            isSelected: isSelected,
+            isDimmed: isDimmed,
+            dotColor: color,
+            tint: color,
+            fontSize: 10.5
+        ) {
+            if isolatedChannel == channelIndex {
+                isolatedChannel = nil
+            } else {
+                isolatedChannel = channelIndex
             }
-        } label: {
-            HStack(spacing: 5) {
-                Circle()
-                    .fill(color)
-                    .frame(width: 5, height: 5)
-                Text(label)
-                    .font(Instrument.Typography.caption)
-                    .fontWeight(isSelected ? .semibold : .regular)
-                    .foregroundColor(isSelected ? .primary : (isDimmed ? .secondary.opacity(0.4) : .secondary))
-            }
-            .padding(.horizontal, 7)
-            .padding(.vertical, 3)
-            .background(
-                RoundedRectangle(cornerRadius: Instrument.Radius.control)
-                    .fill(isSelected ? color.opacity(0.16) : Color.primary.opacity(0.05))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: Instrument.Radius.control)
-                            .stroke(isSelected ? color.opacity(0.4) : Color.clear, lineWidth: 1)
-                    )
-            )
-            .opacity(isDimmed ? 0.35 : 1.0)
+            clearScrubState()
         }
-        .buttonStyle(.plain)
         .help("Click to isolate \(label) (dims other series)")
     }
 
-    // MARK: - Glass Segmented Range Control
+    // MARK: - Segmented Range Control
 
     private var rangeControl: some View {
-        HStack(spacing: 2) {
-            ForEach(HistoryTimeRange.allCases) { range in
-                let isSelected = (selectedRange == range)
-                Button {
-                    withAnimation(Motion.snappy) {
-                        selectedRange = range
-                        preferences.setHistoryRange(range, for: category)
-                        if category == .thermal && range != .oneMinute && selectedThermalSource != .peak {
-                            selectedThermalSource = .peak
-                        }
-                        scrubIndex = nil
-                    }
-                } label: {
-                    Text(range.rawValue)
-                        .font(Instrument.Typography.micro)
-                        .fontWeight(isSelected ? .semibold : .regular)
-                        .foregroundColor(isSelected ? .primary : .secondary)
-                        .padding(.horizontal, 7)
-                        .padding(.vertical, 3)
-                        .background(
-                            RoundedRectangle(cornerRadius: 4)
-                                .fill(isSelected ? Color.primary.opacity(0.12) : Color.clear)
-                        )
+        let selectionBinding = Binding<HistoryTimeRange>(
+            get: { selectedRange },
+            set: { newRange in
+                selectedRange = newRange
+                preferences.setHistoryRange(newRange, for: category)
+                if category == .thermal && newRange != .oneMinute && selectedThermalSource != .peak {
+                    selectedThermalSource = .peak
                 }
-                .buttonStyle(.plain)
+                clearScrubState()
             }
-        }
-        .padding(2)
-        .background(
-            RoundedRectangle(cornerRadius: 6)
-                .fill(Color.primary.opacity(0.06))
         )
+
+        return SegmentedControl(
+            options: HistoryTimeRange.allCases,
+            selection: selectionBinding,
+            fontSize: 10.5,
+            horizontalPadding: 7,
+            verticalPadding: 3,
+            accessibilityLabel: { range in
+                switch range {
+                case .oneMinute: return "1 minute history"
+                case .fiveMinutes: return "5 minutes history"
+                case .fifteenMinutes: return "15 minutes history"
+                }
+            }
+        ) { range in
+            range.rawValue
+        }
     }
 
-    // MARK: - Chart Container
+    // MARK: - Chart Container & Bottom Time Axis
 
-    @ViewBuilder
-    private func chartContainer(seriesData: SeriesData) -> some View {
-        let chart = LiveChart(
+    private func chartContainer(
+        seriesData: SeriesData,
+        resolvedScrubIndex: Int?,
+        showAverageLine: Bool,
+        showPeakMarker: Bool
+    ) -> some View {
+        LiveChart(
             category: category,
             mode: seriesData.mode,
-            height: 140,
-            sampleIntervalSeconds: seriesData.interval,
-            showAverageLine: true,
-            showPeakMarker: true,
+            height: Instrument.Size.historyChartHeight,
+            sampleIntervalSeconds: seriesData.sampleInterval,
+            windowDuration: selectedRange.durationSeconds,
+            showAverageLine: showAverageLine,
+            showPeakMarker: showPeakMarker,
             showAxisTicks: true,
             valueFormatter: seriesData.valueFormatter,
             isolatedChannel: isolatedChannel,
-            scrubIndex: scrubIndex,
-            onScrub: { idx, val, secAgo in
-                if let val = val, let secAgo = secAgo {
-                    let ago = formatRelativeTime(secAgo)
-                    scrubSummary = "\(ago) · \(seriesData.valueFormatter(val))"
+            scrubIndex: resolvedScrubIndex,
+            onScrub: { idx, _, _ in
+                if let idx {
+                    hoverScrub = HoverScrubReadout(index: idx, state: hoverScrub?.state)
                 } else {
-                    scrubSummary = nil
+                    hoverScrub = nil
+                }
+            },
+            onScrubStateChange: { newState in
+                if let newState {
+                    hoverScrub = HoverScrubReadout(index: hoverScrub?.index, state: newState)
+                } else {
+                    hoverScrub = nil
                 }
             }
         )
-
-        if let ns = chartNamespace, motionPolicy == .full {
-            chart
-                .matchedGeometryEffect(id: "panelChart-\(category.rawValue)", in: ns)
-        } else {
-            chart
-        }
     }
 
-    // MARK: - Stats Strip (Min · Avg · Max · Now)
+    private var timeAxis: some View {
+        let ticks = Self.timeAxisTicks(for: selectedRange)
+        return GeometryReader { proxy in
+            let plotWidth = max(1.0, proxy.size.width - 5.0)
+            ZStack(alignment: .leading) {
+                ForEach(Array(ticks.enumerated()), id: \.offset) { idx, tick in
+                    let label = Text(tick.label)
+                        .font(.system(size: 9.5, weight: .regular).monospacedDigit())
+                        .foregroundStyle(.tertiary)
+                        .lineLimit(1)
+                        .fixedSize()
 
-    private func statsStrip(stats: LiveChartMath.Stats, seriesData: SeriesData) -> some View {
-        let values = seriesData.activeValues
-        let minIdx = values.enumerated().min(by: { $0.element < $1.element })?.offset
-        let peakIdx = LiveChartMath.peakIndex(values: values)
-        let nowIdx = max(0, values.count - 1)
+                    if idx == 0 {
+                        label
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    } else if idx == ticks.count - 1 {
+                        label
+                            .frame(maxWidth: .infinity, alignment: .trailing)
+                    } else {
+                        label
+                            .position(x: plotWidth * tick.fraction, y: proxy.size.height / 2.0)
+                    }
+                }
+            }
+        }
+        .frame(height: 14)
+        .accessibilityHidden(true)
+    }
 
-        // Find index closest to average
-        let avgIdx = values.enumerated().min(by: { abs($0.element - stats.avg) < abs($1.element - stats.avg) })?.offset
+    // MARK: - Stats Strip (Min · Avg · Max · Now / AT -<time>)
+
+    private func statsStrip(
+        stats: LiveChartMath.Stats,
+        seriesData: SeriesData,
+        fourthCellLabel: String,
+        fourthCellValue: Double,
+        isScrubbing: Bool
+    ) -> some View {
+        let targets = Self.statTargets(stats: stats, seriesData: seriesData)
 
         return HStack(spacing: 6) {
-            statCell(label: "MIN", value: stats.min, targetIndex: minIdx, seriesData: seriesData)
-            statCell(label: "AVG", value: stats.avg, targetIndex: avgIdx, seriesData: seriesData)
-            statCell(label: "MAX", value: stats.max, targetIndex: peakIdx, seriesData: seriesData)
-            statCell(label: "NOW", value: stats.now, targetIndex: nowIdx, seriesData: seriesData)
+            statCell(
+                kind: .min,
+                label: StatCellKind.min.rawValue,
+                value: stats.min,
+                targetTimestamp: targets.min.timestamp,
+                seriesData: seriesData
+            )
+            statCell(
+                kind: .avg,
+                label: StatCellKind.avg.rawValue,
+                value: stats.avg,
+                targetTimestamp: targets.avg.timestamp,
+                seriesData: seriesData
+            )
+            statCell(
+                kind: .max,
+                label: StatCellKind.max.rawValue,
+                value: stats.max,
+                targetTimestamp: targets.max.timestamp,
+                seriesData: seriesData
+            )
+            statCell(
+                kind: .now,
+                label: fourthCellLabel,
+                value: fourthCellValue,
+                targetTimestamp: targets.now.timestamp,
+                seriesData: seriesData,
+                isScrubDisplay: isScrubbing
+            )
         }
         .padding(.top, 2)
     }
 
     private func statCell(
+        kind: StatCellKind,
         label: String,
         value: Double,
-        targetIndex: Int?,
-        seriesData: SeriesData
+        targetTimestamp: Date?,
+        seriesData: SeriesData,
+        isScrubDisplay: Bool = false
     ) -> some View {
-        let isHighlighted = (scrubIndex != nil && scrubIndex == targetIndex)
+        let isPinned = (pinnedScrub?.kind == kind)
+        let isHighlighted = isPinned || (isScrubDisplay && kind == .now)
+        let tint = CategoryPalette.tint(for: category)
+
         return Button {
-            if let target = targetIndex {
-                withAnimation(Motion.snappy) {
-                    if scrubIndex == target {
-                        scrubIndex = nil
-                    } else {
-                        scrubIndex = target
-                    }
+            guard let targetTs = targetTimestamp else { return }
+            let anim: Animation? = (motionPolicy == .full) ? Motion.snappy : nil
+            withAnimation(anim) {
+                if pinnedScrub?.kind == kind {
+                    pinnedScrub = nil
+                } else {
+                    pinnedScrub = PinnedScrub(timestamp: targetTs, kind: kind)
                 }
-                NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .default)
             }
+            NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .default)
         } label: {
             VStack(alignment: .leading, spacing: 1) {
                 Text(label)
                     .font(Instrument.Typography.eyebrow)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(isHighlighted ? tint : .secondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
 
                 LiveNumber(
                     value: value,
@@ -318,311 +456,773 @@ public struct HistoryPage: View {
             .padding(.vertical, 5)
             .background(
                 RoundedRectangle(cornerRadius: Instrument.Radius.control)
-                    .fill(isHighlighted ? CategoryPalette.tint(for: category).opacity(0.14) : Color.primary.opacity(0.04))
+                    .fill(isHighlighted ? tint.opacity(0.14) : Color.primary.opacity(0.04))
                     .overlay(
                         RoundedRectangle(cornerRadius: Instrument.Radius.control)
-                            .stroke(isHighlighted ? CategoryPalette.tint(for: category).opacity(0.4) : Color.clear, lineWidth: 1)
+                            .stroke(isHighlighted ? tint.opacity(0.4) : Color.clear, lineWidth: 1)
                     )
             )
+            .contentShape(RoundedRectangle(cornerRadius: Instrument.Radius.control))
         }
         .buttonStyle(.plain)
-        .help("Click to jump crosshair to \(label)")
+        .onHover { hovering in
+            if hovering {
+                hoveredStatCell = kind
+            } else if hoveredStatCell == kind {
+                hoveredStatCell = nil
+            }
+        }
+        .help(kind == .now && isScrubDisplay ? "Pinned / scrubbed sample" : "Click to pin crosshair to \(kind.rawValue)")
+    }
+
+    // MARK: - Scrub State Helpers
+
+    private func clearScrubState() {
+        pinnedScrub = nil
+        hoverScrub = nil
+        chartScrubAction?(nil)
+    }
+
+    private func resolveFourthCell(
+        stats: LiveChartMath.Stats?,
+        seriesData: SeriesData,
+        resolvedPinnedIndex: Int?
+    ) -> (label: String, value: Double, isScrubbing: Bool) {
+        let timestamps = seriesData.timestamps
+        let values = seriesData.activeValues
+        let latestTs = timestamps.last ?? 0.0
+
+        if let hoverState = hoverScrub?.state {
+            let idx: Int?
+            if let explicitIdx = hoverScrub?.index, explicitIdx >= 0, explicitIdx < values.count {
+                idx = explicitIdx
+            } else if let ts = hoverState.timestamp {
+                idx = Self.resolveTimestampIndex(for: Date(timeIntervalSince1970: ts), in: timestamps)
+            } else {
+                idx = nil
+            }
+
+            if let idx, idx < values.count, idx < timestamps.count {
+                let secAgo = max(0.0, latestTs - timestamps[idx])
+                return (Self.formatScrubAxisLabel(secondsAgo: secAgo), values[idx], true)
+            }
+        }
+
+        if let pinnedIdx = resolvedPinnedIndex, pinnedIdx < values.count, pinnedIdx < timestamps.count {
+            let secAgo = max(0.0, latestTs - timestamps[pinnedIdx])
+            return (Self.formatScrubAxisLabel(secondsAgo: secAgo), values[pinnedIdx], true)
+        }
+
+        return (StatCellKind.now.rawValue, stats?.now ?? 0.0, false)
+    }
+
+    internal func buildPinnedGlanceState(
+        resolvedPinnedIndex: Int?,
+        seriesData: SeriesData
+    ) -> ChartScrubState? {
+        guard let idx = resolvedPinnedIndex,
+              idx >= 0,
+              idx < seriesData.timestamps.count else {
+            return nil
+        }
+
+        let timestamp = seriesData.timestamps[idx]
+        let latestTimestamp = seriesData.timestamps.last ?? timestamp
+
+        switch seriesData.mode.payload {
+        case .mirrored(let pts, _, let botColor, let topLbl, let botLbl, _, _, _):
+            guard idx < pts.count else { return nil }
+            if isolatedChannel == 0 {
+                return ChartScrubState.make(
+                    primaryValue: pts[idx].primary,
+                    primaryLabel: topLbl,
+                    timestamp: timestamp,
+                    latestTimestamp: latestTimestamp,
+                    valueFormatter: seriesData.valueFormatter
+                )
+            } else if isolatedChannel == 1 {
+                return ChartScrubState.make(
+                    primaryValue: pts[idx].secondary,
+                    primaryLabel: botLbl,
+                    timestamp: timestamp,
+                    latestTimestamp: latestTimestamp,
+                    valueFormatter: seriesData.valueFormatter
+                )
+            } else {
+                return ChartScrubState.make(
+                    primaryValue: pts[idx].primary,
+                    secondaryValue: pts[idx].secondary,
+                    primaryLabel: topLbl,
+                    secondaryLabel: botLbl,
+                    secondaryColor: botColor,
+                    timestamp: timestamp,
+                    latestTimestamp: latestTimestamp,
+                    valueFormatter: seriesData.valueFormatter
+                )
+            }
+
+        case .mirroredEnvelope(let top, let bot, _, let botColor, let topLbl, let botLbl, _, _):
+            guard idx < top.count else { return nil }
+            if isolatedChannel == 0 {
+                return ChartScrubState.make(
+                    primaryValue: top[idx].mean,
+                    primaryLabel: topLbl,
+                    timestamp: timestamp,
+                    latestTimestamp: latestTimestamp,
+                    valueFormatter: seriesData.valueFormatter
+                )
+            } else if isolatedChannel == 1 {
+                let botVal = idx < bot.count ? bot[idx].mean : top[idx].mean
+                return ChartScrubState.make(
+                    primaryValue: botVal,
+                    primaryLabel: botLbl,
+                    timestamp: timestamp,
+                    latestTimestamp: latestTimestamp,
+                    valueFormatter: seriesData.valueFormatter
+                )
+            } else {
+                let botVal = idx < bot.count ? bot[idx].mean : nil
+                return ChartScrubState.make(
+                    primaryValue: top[idx].mean,
+                    secondaryValue: botVal,
+                    primaryLabel: topLbl,
+                    secondaryLabel: botLbl,
+                    secondaryColor: botColor,
+                    timestamp: timestamp,
+                    latestTimestamp: latestTimestamp,
+                    valueFormatter: seriesData.valueFormatter
+                )
+            }
+
+        default:
+            guard idx < seriesData.activeValues.count else { return nil }
+            return ChartScrubState.make(
+                primaryValue: seriesData.activeValues[idx],
+                timestamp: timestamp,
+                latestTimestamp: latestTimestamp,
+                valueFormatter: seriesData.valueFormatter
+            )
+        }
     }
 
     // MARK: - Telemetry Series Construction
 
-    struct SeriesData {
+    internal struct SeriesData {
         let mode: LiveChartMode
         let activeValues: [Double]
-        let interval: Double
+        let timestamps: [TimeInterval]
+        let rawSampleCount: Int
+        let sampleInterval: Double
         let unit: String
-        let valueFormatter: (Double) -> String
-        let formatLiveNumber: (Double) -> String
+        let valueFormatter: @Sendable (Double) -> String
+        let formatLiveNumber: @Sendable (Double) -> String
         let channelA: String?
         let channelB: String?
         let channelAColor: Color?
         let channelBColor: Color?
     }
 
-    private func buildSeriesData() -> SeriesData {
-        let isExtended = selectedRange != .oneMinute
+    internal static func bucketWidth(for range: HistoryTimeRange) -> TimeInterval? {
+        switch range {
+        case .oneMinute: return nil
+        case .fiveMinutes: return 2.5
+        case .fifteenMinutes: return 7.5
+        }
+    }
+
+    internal static func timeAxisTicks(for range: HistoryTimeRange) -> [TimeAxisTick] {
+        switch range {
+        case .oneMinute:
+            return [
+                TimeAxisTick(label: "-60s", fraction: 0.0),
+                TimeAxisTick(label: "-40s", fraction: 1.0 / 3.0),
+                TimeAxisTick(label: "-20s", fraction: 2.0 / 3.0),
+                TimeAxisTick(label: "now", fraction: 1.0)
+            ]
+        case .fiveMinutes:
+            return [
+                TimeAxisTick(label: "-5m", fraction: 0.0),
+                TimeAxisTick(label: "-3m", fraction: 0.4),
+                TimeAxisTick(label: "-1m", fraction: 0.8),
+                TimeAxisTick(label: "now", fraction: 1.0)
+            ]
+        case .fifteenMinutes:
+            return [
+                TimeAxisTick(label: "-15m", fraction: 0.0),
+                TimeAxisTick(label: "-10m", fraction: 1.0 / 3.0),
+                TimeAxisTick(label: "-5m", fraction: 2.0 / 3.0),
+                TimeAxisTick(label: "now", fraction: 1.0)
+            ]
+        }
+    }
+
+    internal static func formatScrubAxisLabel(secondsAgo: Double) -> String {
+        guard secondsAgo.isFinite else { return "AT -0s" }
+        let sec = max(0, Int(secondsAgo.rounded()))
+        if sec < 60 {
+            return "AT -\(sec)s"
+        }
+        let m = sec / 60
+        let s = sec % 60
+        return s == 0 ? "AT -\(m)m" : "AT -\(m)m\(s)s"
+    }
+
+    internal static func resolveTimestampIndex(
+        for timestamp: Date,
+        in timestamps: [TimeInterval],
+        tolerance: TimeInterval = 1e-3
+    ) -> Int? {
+        guard !timestamps.isEmpty else { return nil }
+        let target = timestamp.timeIntervalSince1970
+        var bestIndex: Int? = nil
+        var bestDistance = TimeInterval.greatestFiniteMagnitude
+
+        for (idx, ts) in timestamps.enumerated() {
+            let dist = abs(ts - target)
+            if dist <= tolerance && dist < bestDistance {
+                bestDistance = dist
+                bestIndex = idx
+            }
+        }
+        return bestIndex
+    }
+
+    internal static func statTargets(
+        stats: LiveChartMath.Stats,
+        seriesData: SeriesData
+    ) -> (min: StatTarget, avg: StatTarget, max: StatTarget, now: StatTarget) {
+        let values = seriesData.activeValues
+        let timestamps = seriesData.timestamps
+        guard !values.isEmpty, values.count == timestamps.count else {
+            return (
+                StatTarget(index: nil, timestamp: nil),
+                StatTarget(index: nil, timestamp: nil),
+                StatTarget(index: nil, timestamp: nil),
+                StatTarget(index: nil, timestamp: nil)
+            )
+        }
+
+        let minIdx = values.enumerated().min(by: { $0.element < $1.element })?.offset
+        let avgIdx = values.enumerated().min(by: { abs($0.element - stats.avg) < abs($1.element - stats.avg) })?.offset
+        let maxIdx = LiveChartMath.peakIndex(values: values)
+        let nowIdx = values.count - 1
+
+        func target(at idx: Int?) -> StatTarget {
+            guard let idx, idx >= 0, idx < timestamps.count else {
+                return StatTarget(index: nil, timestamp: nil)
+            }
+            return StatTarget(index: idx, timestamp: Date(timeIntervalSince1970: timestamps[idx]))
+        }
+
+        return (target(at: minIdx), target(at: avgIdx), target(at: maxIdx), target(at: nowIdx))
+    }
+
+    internal func buildSeriesData(referenceDate: Date = Date()) -> SeriesData {
         let duration = selectedRange.durationSeconds
+        let bucketWidth = Self.bucketWidth(for: selectedRange)
+        let sampleInterval = bucketWidth ?? preferences.refreshInterval
 
         switch category {
         case .cpu:
-            let user: [Double]
-            let system: [Double]
-            if isExtended {
-                user = coordinator.scalarHistory(for: .cpuUser, duration: duration)
-                system = coordinator.scalarHistory(for: .cpuSystem, duration: duration)
+            if let bucketWidth {
+                let dual = coordinator.bucketedDualScalarHistory(
+                    primary: .cpuUser,
+                    secondary: .cpuSystem,
+                    duration: duration,
+                    bucketWidth: bucketWidth,
+                    referenceDate: referenceDate
+                )
+                let rawCount = coordinator.timedScalarHistory(
+                    for: .cpuUser,
+                    duration: duration,
+                    referenceDate: referenceDate
+                ).count
+                let totalBuckets = zip(dual.primary, dual.secondary).map { u, s in
+                    BucketPoint(
+                        timestamp: u.timestamp,
+                        min: min(100.0, u.min + s.min),
+                        max: min(100.0, u.max + s.max),
+                        mean: min(100.0, u.mean + s.mean)
+                    )
+                }
+                let activeBuckets: [BucketPoint]
+                let seriesColor: Color
+                if isolatedChannel == 0 {
+                    activeBuckets = dual.primary
+                    seriesColor = CategoryPalette.tint(for: .cpu)
+                } else if isolatedChannel == 1 {
+                    activeBuckets = dual.secondary
+                    seriesColor = CategoryPalette.Series.cpuSystem
+                } else {
+                    activeBuckets = totalBuckets
+                    seriesColor = CategoryPalette.tint(for: .cpu)
+                }
+                return SeriesData(
+                    mode: .envelope(buckets: activeBuckets, color: seriesColor, fixedMax: 100.0),
+                    activeValues: activeBuckets.map(\.mean),
+                    timestamps: activeBuckets.map(\.timestamp),
+                    rawSampleCount: rawCount,
+                    sampleInterval: sampleInterval,
+                    unit: "%",
+                    valueFormatter: { String(format: "%.0f%%", $0) },
+                    formatLiveNumber: { String(format: "%.0f", $0) },
+                    channelA: "User",
+                    channelB: "System",
+                    channelAColor: CategoryPalette.tint(for: .cpu),
+                    channelBColor: CategoryPalette.Series.cpuSystem
+                )
             } else {
-                let samples = coordinator.cpuHistory
-                user = samples.map { $0.value.user }
-                system = samples.map { $0.value.system }
+                let dualPoints = coordinator.timedDualScalarHistory(
+                    primary: .cpuUser,
+                    secondary: .cpuSystem,
+                    duration: duration,
+                    referenceDate: referenceDate
+                )
+                let active: [Double]
+                if isolatedChannel == 0 {
+                    active = dualPoints.map(\.primary)
+                } else if isolatedChannel == 1 {
+                    active = dualPoints.map(\.secondary)
+                } else {
+                    active = dualPoints.map { $0.primary + $0.secondary }
+                }
+                return SeriesData(
+                    mode: .stacked(
+                        points: dualPoints,
+                        primaryColor: CategoryPalette.tint(for: .cpu),
+                        secondaryColor: CategoryPalette.Series.cpuSystem,
+                        fixedMax: 100.0
+                    ),
+                    activeValues: active,
+                    timestamps: dualPoints.map(\.timestamp),
+                    rawSampleCount: dualPoints.count,
+                    sampleInterval: sampleInterval,
+                    unit: "%",
+                    valueFormatter: { String(format: "%.0f%%", $0) },
+                    formatLiveNumber: { String(format: "%.0f", $0) },
+                    channelA: "User",
+                    channelB: "System",
+                    channelAColor: CategoryPalette.tint(for: .cpu),
+                    channelBColor: CategoryPalette.Series.cpuSystem
+                )
             }
-            let active: [Double]
-            if isolatedChannel == 0 {
-                active = user
-            } else if isolatedChannel == 1 {
-                active = system
-            } else {
-                active = zip(user, system).map(+)
-            }
-            let interval = effectiveInterval(for: max(user.count, system.count), duration: duration, isExtended: isExtended, key: .cpuUser)
-            return SeriesData(
-                mode: .stacked(
-                    primary: user,
-                    secondary: system,
-                    primaryColor: CategoryPalette.tint(for: .cpu),
-                    secondaryColor: CategoryPalette.Series.cpuSystem,
-                    fixedMax: 100.0
-                ),
-                activeValues: active,
-                interval: interval,
-                unit: "%",
-                valueFormatter: { String(format: "%.0f%%", $0) },
-                formatLiveNumber: { String(format: "%.0f", $0) },
-                channelA: "User",
-                channelB: "System",
-                channelAColor: CategoryPalette.tint(for: .cpu),
-                channelBColor: CategoryPalette.Series.cpuSystem
-            )
 
         case .memory:
-            let ratios: [Double]
-            if isExtended {
-                ratios = coordinator.scalarHistory(for: .memoryUsedPercent, duration: duration)
-            } else {
-                let samples = coordinator.memoryHistory
-                ratios = samples.map { sample -> Double in
-                    let mem = sample.value
-                    guard mem.total > 0 else { return 0.0 }
-                    return (Double(mem.used) / Double(mem.total)) * 100.0
-                }
-            }
-            let interval = effectiveInterval(for: ratios.count, duration: duration, isExtended: isExtended, key: .memoryUsedPercent)
-            return SeriesData(
-                mode: .single(
-                    values: ratios,
-                    color: CategoryPalette.tint(for: .memory),
-                    deepColor: CategoryPalette.tintDeep(for: .memory),
-                    fixedMax: 100.0
-                ),
-                activeValues: ratios,
-                interval: interval,
+            return buildSingleScalarSeries(
+                key: .memoryUsedPercent,
+                duration: duration,
+                bucketWidth: bucketWidth,
+                sampleInterval: sampleInterval,
+                referenceDate: referenceDate,
+                color: CategoryPalette.tint(for: .memory),
+                deepColor: CategoryPalette.tintDeep(for: .memory),
+                fixedMax: 100.0,
                 unit: "%",
                 valueFormatter: { String(format: "%.0f%%", $0) },
-                formatLiveNumber: { String(format: "%.0f", $0) },
-                channelA: nil, channelB: nil, channelAColor: nil, channelBColor: nil
+                formatLiveNumber: { String(format: "%.0f", $0) }
             )
 
         case .gpu:
-            let utils: [Double]
-            if isExtended {
-                utils = coordinator.scalarHistory(for: .gpuUtilization, duration: duration)
-            } else {
-                let samples = coordinator.gpuHistory
-                utils = samples.compactMap { $0.value.utilization }
-            }
-            let interval = effectiveInterval(for: utils.count, duration: duration, isExtended: isExtended, key: .gpuUtilization)
-            return SeriesData(
-                mode: .single(
-                    values: utils,
-                    color: CategoryPalette.tint(for: .gpu),
-                    deepColor: CategoryPalette.tintDeep(for: .gpu),
-                    fixedMax: 100.0
-                ),
-                activeValues: utils,
-                interval: interval,
+            return buildSingleScalarSeries(
+                key: .gpuUtilization,
+                duration: duration,
+                bucketWidth: bucketWidth,
+                sampleInterval: sampleInterval,
+                referenceDate: referenceDate,
+                color: CategoryPalette.tint(for: .gpu),
+                deepColor: CategoryPalette.tintDeep(for: .gpu),
+                fixedMax: 100.0,
                 unit: "%",
                 valueFormatter: { String(format: "%.0f%%", $0) },
-                formatLiveNumber: { String(format: "%.0f", $0) },
-                channelA: nil, channelB: nil, channelAColor: nil, channelBColor: nil
+                formatLiveNumber: { String(format: "%.0f", $0) }
             )
 
         case .thermal:
-            let temps: [Double]
-            if isExtended {
-                let raw = coordinator.scalarHistory(for: .thermalPeakCelsius, duration: duration)
-                temps = raw.map { preferences.temperatureUnit == .fahrenheit ? Units.celsiusToFahrenheit($0) : $0 }
-            } else {
-                let samples = coordinator.thermalHistory
-                temps = samples.map { sample -> Double in
-                    let matching = ThermalSensorClassifier.sensors(in: sample.value, for: selectedThermalSource)
-                    let c = matching.map(\.celsius).max() ?? sample.value.peakTemperatureCelsius ?? 0.0
-                    return preferences.temperatureUnit == .fahrenheit ? Units.celsiusToFahrenheit(c) : c
-                }
+            let tempUnit = preferences.temperatureUnit
+            let sym = tempUnit.symbol
+            let convertTemp: @Sendable (Double) -> Double = { celsius in
+                tempUnit == .fahrenheit ? Units.celsiusToFahrenheit(celsius) : celsius
             }
-            let interval = effectiveInterval(for: temps.count, duration: duration, isExtended: isExtended, key: .thermalPeakCelsius)
-            let sym = preferences.temperatureUnit.symbol
-            return SeriesData(
-                mode: .single(
-                    values: temps,
-                    color: CategoryPalette.tint(for: .thermal),
-                    deepColor: CategoryPalette.tintDeep(for: .thermal)
-                ),
-                activeValues: temps,
-                interval: interval,
-                unit: sym,
-                valueFormatter: { String(format: "%.0f\(sym)", $0) },
-                formatLiveNumber: { String(format: "%.0f", $0) },
-                channelA: nil, channelB: nil, channelAColor: nil, channelBColor: nil
-            )
+
+            if let bucketWidth {
+                let rawBuckets = coordinator.bucketedScalarHistory(
+                    for: .thermalPeakCelsius,
+                    duration: duration,
+                    bucketWidth: bucketWidth,
+                    referenceDate: referenceDate
+                )
+                let buckets = rawBuckets.map { b in
+                    BucketPoint(
+                        timestamp: b.timestamp,
+                        min: convertTemp(b.min),
+                        max: convertTemp(b.max),
+                        mean: convertTemp(b.mean)
+                    )
+                }
+                let rawCount = coordinator.timedScalarHistory(
+                    for: .thermalPeakCelsius,
+                    duration: duration,
+                    referenceDate: referenceDate
+                ).count
+                return SeriesData(
+                    mode: .envelope(
+                        buckets: buckets,
+                        color: CategoryPalette.tint(for: .thermal),
+                        deepColor: CategoryPalette.tintDeep(for: .thermal)
+                    ),
+                    activeValues: buckets.map(\.mean),
+                    timestamps: buckets.map(\.timestamp),
+                    rawSampleCount: rawCount,
+                    sampleInterval: sampleInterval,
+                    unit: sym,
+                    valueFormatter: { String(format: "%.0f\(sym)", $0) },
+                    formatLiveNumber: { String(format: "%.0f", $0) },
+                    channelA: nil,
+                    channelB: nil,
+                    channelAColor: nil,
+                    channelBColor: nil
+                )
+            } else if selectedThermalSource == .peak {
+                let points = coordinator.timedScalarHistory(
+                    for: .thermalPeakCelsius,
+                    duration: duration,
+                    referenceDate: referenceDate
+                ).map { ChartPoint(timestamp: $0.timestamp, value: convertTemp($0.value)) }
+                return SeriesData(
+                    mode: .single(
+                        points: points,
+                        color: CategoryPalette.tint(for: .thermal),
+                        deepColor: CategoryPalette.tintDeep(for: .thermal)
+                    ),
+                    activeValues: points.map(\.value),
+                    timestamps: points.map(\.timestamp),
+                    rawSampleCount: points.count,
+                    sampleInterval: sampleInterval,
+                    unit: sym,
+                    valueFormatter: { String(format: "%.0f\(sym)", $0) },
+                    formatLiveNumber: { String(format: "%.0f", $0) },
+                    channelA: nil,
+                    channelB: nil,
+                    channelAColor: nil,
+                    channelBColor: nil
+                )
+            } else {
+                let refEpoch = referenceDate.timeIntervalSince1970
+                let cutoff = refEpoch - duration
+                let source = selectedThermalSource
+                let points: [ChartPoint] = coordinator.thermalHistory.compactMap { sample in
+                    let t = sample.timestamp.timeIntervalSince1970
+                    guard t > cutoff, t <= refEpoch else { return nil }
+                    let matching = ThermalSensorClassifier.sensors(in: sample.value, for: source)
+                    let celsius = matching.map(\.celsius).max() ?? sample.value.peakTemperatureCelsius ?? 0.0
+                    return ChartPoint(timestamp: t, value: convertTemp(celsius))
+                }
+                return SeriesData(
+                    mode: .single(
+                        points: points,
+                        color: CategoryPalette.tint(for: .thermal),
+                        deepColor: CategoryPalette.tintDeep(for: .thermal)
+                    ),
+                    activeValues: points.map(\.value),
+                    timestamps: points.map(\.timestamp),
+                    rawSampleCount: points.count,
+                    sampleInterval: sampleInterval,
+                    unit: sym,
+                    valueFormatter: { String(format: "%.0f\(sym)", $0) },
+                    formatLiveNumber: { String(format: "%.0f", $0) },
+                    channelA: nil,
+                    channelB: nil,
+                    channelAColor: nil,
+                    channelBColor: nil
+                )
+            }
 
         case .fan:
-            let maxRPMs: [Double]
-            if isExtended {
-                maxRPMs = coordinator.scalarHistory(for: .fanMaxRPM, duration: duration)
-            } else {
-                let samples = coordinator.fanHistory
-                maxRPMs = samples.map { sample -> Double in
-                    Double(sample.value.fans.map(\.rpm).max() ?? 0)
-                }
-            }
-            let interval = effectiveInterval(for: maxRPMs.count, duration: duration, isExtended: isExtended, key: .fanMaxRPM)
-            return SeriesData(
-                mode: .single(
-                    values: maxRPMs,
-                    color: CategoryPalette.tint(for: .fan),
-                    deepColor: CategoryPalette.tintDeep(for: .fan)
-                ),
-                activeValues: maxRPMs,
-                interval: interval,
+            return buildSingleScalarSeries(
+                key: .fanMaxRPM,
+                duration: duration,
+                bucketWidth: bucketWidth,
+                sampleInterval: sampleInterval,
+                referenceDate: referenceDate,
+                color: CategoryPalette.tint(for: .fan),
+                deepColor: CategoryPalette.tintDeep(for: .fan),
+                fixedMax: nil,
                 unit: "RPM",
                 valueFormatter: { Units.formatRPM(Int($0)) },
-                formatLiveNumber: { String(format: "%.0f", $0) },
-                channelA: nil, channelB: nil, channelAColor: nil, channelBColor: nil
+                formatLiveNumber: { String(format: "%.0f", $0) }
             )
 
         case .network:
-            let inRates: [Double]
-            let outRates: [Double]
-            if isExtended {
-                inRates = coordinator.scalarHistory(for: .networkInBytesPerSec, duration: duration)
-                outRates = coordinator.scalarHistory(for: .networkOutBytesPerSec, duration: duration)
-            } else {
-                let samples = coordinator.networkHistory
-                inRates = samples.map { $0.value.totalBytesInPerSec }
-                outRates = samples.map { $0.value.totalBytesOutPerSec }
+            let netUnit = preferences.networkUnit
+            let byteStandard = preferences.byteUnitStandard
+            let formatter: @Sendable (Double) -> String = {
+                Units.formatCompactRate($0, unit: netUnit, standard: byteStandard)
             }
-            let active: [Double]
-            if isolatedChannel == 0 {
-                active = inRates
-            } else if isolatedChannel == 1 {
-                active = outRates
-            } else {
-                active = zip(inRates, outRates).map(+)
-            }
-            let interval = effectiveInterval(for: max(inRates.count, outRates.count), duration: duration, isExtended: isExtended, key: .networkInBytesPerSec)
-            return SeriesData(
-                mode: .mirrored(
-                    top: inRates,
-                    bottom: outRates,
-                    topColor: CategoryPalette.tint(for: .network),
-                    bottomColor: CategoryPalette.Series.networkUpload,
-                    topLabel: "↓",
-                    bottomLabel: "↑"
-                ),
-                activeValues: active,
-                interval: interval,
-                unit: "",
-                valueFormatter: { Units.formatCompactRate($0, unit: self.preferences.networkUnit, standard: self.preferences.byteUnitStandard) },
-                formatLiveNumber: { Units.formatCompactRate($0, unit: self.preferences.networkUnit, standard: self.preferences.byteUnitStandard) },
+            return buildMirroredScalarSeries(
+                primaryKey: .networkInBytesPerSec,
+                secondaryKey: .networkOutBytesPerSec,
+                duration: duration,
+                bucketWidth: bucketWidth,
+                sampleInterval: sampleInterval,
+                referenceDate: referenceDate,
+                topColor: CategoryPalette.tint(for: .network),
+                bottomColor: CategoryPalette.Series.networkUpload,
+                topLabel: "↓",
+                bottomLabel: "↑",
                 channelA: "Download ↓",
                 channelB: "Upload ↑",
-                channelAColor: CategoryPalette.tint(for: .network),
-                channelBColor: CategoryPalette.Series.networkUpload
+                valueFormatter: formatter,
+                formatLiveNumber: formatter
             )
 
         case .disk:
-            let readRates: [Double]
-            let writeRates: [Double]
-            if isExtended {
-                readRates = coordinator.scalarHistory(for: .diskReadBytesPerSec, duration: duration)
-                writeRates = coordinator.scalarHistory(for: .diskWriteBytesPerSec, duration: duration)
-            } else {
-                let samples = coordinator.diskHistory
-                readRates = samples.map { $0.value.io?.bytesReadPerSec ?? 0.0 }
-                writeRates = samples.map { $0.value.io?.bytesWrittenPerSec ?? 0.0 }
+            let byteStandard = preferences.byteUnitStandard
+            let formatter: @Sendable (Double) -> String = {
+                Units.formatDiskRate($0, standard: byteStandard)
             }
-            let active: [Double]
-            if isolatedChannel == 0 {
-                active = readRates
-            } else if isolatedChannel == 1 {
-                active = writeRates
-            } else {
-                active = zip(readRates, writeRates).map(+)
-            }
-            let interval = effectiveInterval(for: max(readRates.count, writeRates.count), duration: duration, isExtended: isExtended, key: .diskReadBytesPerSec)
-            return SeriesData(
-                mode: .mirrored(
-                    top: readRates,
-                    bottom: writeRates,
-                    topColor: CategoryPalette.tint(for: .disk),
-                    bottomColor: CategoryPalette.Series.diskWrite,
-                    topLabel: "R",
-                    bottomLabel: "W"
-                ),
-                activeValues: active,
-                interval: interval,
-                unit: "",
-                valueFormatter: { Units.formatDiskRate($0, standard: self.preferences.byteUnitStandard) },
-                formatLiveNumber: { Units.formatDiskRate($0, standard: self.preferences.byteUnitStandard) },
+            return buildMirroredScalarSeries(
+                primaryKey: .diskReadBytesPerSec,
+                secondaryKey: .diskWriteBytesPerSec,
+                duration: duration,
+                bucketWidth: bucketWidth,
+                sampleInterval: sampleInterval,
+                referenceDate: referenceDate,
+                topColor: CategoryPalette.tint(for: .disk),
+                bottomColor: CategoryPalette.Series.diskWrite,
+                topLabel: "R",
+                bottomLabel: "W",
                 channelA: "Read",
                 channelB: "Write",
-                channelAColor: CategoryPalette.tint(for: .disk),
-                channelBColor: CategoryPalette.Series.diskWrite
+                valueFormatter: formatter,
+                formatLiveNumber: formatter
             )
 
         case .power:
-            let watts: [Double]
-            if isExtended {
-                watts = coordinator.scalarHistory(for: .powerWatts, duration: duration)
-            } else {
-                let samples = coordinator.powerHistory
-                watts = samples.map { $0.value.powerDrawWatts ?? 0.0 }
-            }
-            let interval = effectiveInterval(for: watts.count, duration: duration, isExtended: isExtended, key: .powerWatts)
-            return SeriesData(
-                mode: .single(
-                    values: watts,
+            let useCharge = (hasBattery && selectedPowerSeries == .charge)
+            if useCharge {
+                return buildSingleScalarSeries(
+                    key: .powerChargePercent,
+                    duration: duration,
+                    bucketWidth: bucketWidth,
+                    sampleInterval: sampleInterval,
+                    referenceDate: referenceDate,
                     color: CategoryPalette.tint(for: .power),
-                    deepColor: CategoryPalette.tintDeep(for: .power)
-                ),
-                activeValues: watts,
-                interval: interval,
-                unit: "W",
-                valueFormatter: { String(format: "%.1f W", $0) },
-                formatLiveNumber: { String(format: "%.1f", $0) },
-                channelA: nil, channelB: nil, channelAColor: nil, channelBColor: nil
+                    deepColor: CategoryPalette.tintDeep(for: .power),
+                    fixedMax: 100.0,
+                    unit: "%",
+                    valueFormatter: { String(format: "%.0f%%", $0) },
+                    formatLiveNumber: { String(format: "%.0f", $0) }
+                )
+            } else {
+                return buildSingleScalarSeries(
+                    key: .powerWatts,
+                    duration: duration,
+                    bucketWidth: bucketWidth,
+                    sampleInterval: sampleInterval,
+                    referenceDate: referenceDate,
+                    color: CategoryPalette.tint(for: .power),
+                    deepColor: CategoryPalette.tintDeep(for: .power),
+                    fixedMax: nil,
+                    unit: "W",
+                    valueFormatter: { String(format: "%.1f W", $0) },
+                    formatLiveNumber: { String(format: "%.1f", $0) }
+                )
+            }
+        }
+    }
+
+    private func buildSingleScalarSeries(
+        key: ScalarSeriesKey,
+        duration: TimeInterval,
+        bucketWidth: TimeInterval?,
+        sampleInterval: Double,
+        referenceDate: Date,
+        color: Color,
+        deepColor: Color,
+        fixedMax: Double?,
+        unit: String,
+        valueFormatter: @escaping @Sendable (Double) -> String,
+        formatLiveNumber: @escaping @Sendable (Double) -> String
+    ) -> SeriesData {
+        if let bucketWidth {
+            let buckets = coordinator.bucketedScalarHistory(
+                for: key,
+                duration: duration,
+                bucketWidth: bucketWidth,
+                referenceDate: referenceDate
+            )
+            let rawCount = coordinator.timedScalarHistory(
+                for: key,
+                duration: duration,
+                referenceDate: referenceDate
+            ).count
+            return SeriesData(
+                mode: .envelope(buckets: buckets, color: color, deepColor: deepColor, fixedMax: fixedMax),
+                activeValues: buckets.map(\.mean),
+                timestamps: buckets.map(\.timestamp),
+                rawSampleCount: rawCount,
+                sampleInterval: sampleInterval,
+                unit: unit,
+                valueFormatter: valueFormatter,
+                formatLiveNumber: formatLiveNumber,
+                channelA: nil,
+                channelB: nil,
+                channelAColor: nil,
+                channelBColor: nil
+            )
+        } else {
+            let points = coordinator.timedScalarHistory(
+                for: key,
+                duration: duration,
+                referenceDate: referenceDate
+            )
+            return SeriesData(
+                mode: .single(points: points, color: color, deepColor: deepColor, fixedMax: fixedMax),
+                activeValues: points.map(\.value),
+                timestamps: points.map(\.timestamp),
+                rawSampleCount: points.count,
+                sampleInterval: sampleInterval,
+                unit: unit,
+                valueFormatter: valueFormatter,
+                formatLiveNumber: formatLiveNumber,
+                channelA: nil,
+                channelB: nil,
+                channelAColor: nil,
+                channelBColor: nil
             )
         }
     }
 
-    private func effectiveInterval(for count: Int, duration: Double, isExtended: Bool, key: ScalarSeriesKey? = nil) -> Double {
-        if isExtended && count > 1 {
-            if let key = key {
-                let actualSpan = coordinator.scalarTimeSpan(for: key, duration: duration)
-                if actualSpan > 0 {
-                    return min(duration, actualSpan) / Double(count - 1)
-                }
+    private func buildMirroredScalarSeries(
+        primaryKey: ScalarSeriesKey,
+        secondaryKey: ScalarSeriesKey,
+        duration: TimeInterval,
+        bucketWidth: TimeInterval?,
+        sampleInterval: Double,
+        referenceDate: Date,
+        topColor: Color,
+        bottomColor: Color,
+        topLabel: String,
+        bottomLabel: String,
+        channelA: String,
+        channelB: String,
+        valueFormatter: @escaping @Sendable (Double) -> String,
+        formatLiveNumber: @escaping @Sendable (Double) -> String
+    ) -> SeriesData {
+        if let bucketWidth {
+            let dual = coordinator.bucketedDualScalarHistory(
+                primary: primaryKey,
+                secondary: secondaryKey,
+                duration: duration,
+                bucketWidth: bucketWidth,
+                referenceDate: referenceDate
+            )
+            let rawCount = coordinator.timedScalarHistory(
+                for: primaryKey,
+                duration: duration,
+                referenceDate: referenceDate
+            ).count
+            let active: [Double]
+            if isolatedChannel == 0 {
+                active = dual.primary.map(\.mean)
+            } else if isolatedChannel == 1 {
+                active = dual.secondary.map(\.mean)
+            } else {
+                active = zip(dual.primary, dual.secondary).map { $0.mean + $1.mean }
             }
-            return duration / Double(count - 1)
+            return SeriesData(
+                mode: .mirroredEnvelope(
+                    top: dual.primary,
+                    bottom: dual.secondary,
+                    topColor: topColor,
+                    bottomColor: bottomColor,
+                    topLabel: topLabel,
+                    bottomLabel: bottomLabel
+                ),
+                activeValues: active,
+                timestamps: dual.primary.map(\.timestamp),
+                rawSampleCount: rawCount,
+                sampleInterval: sampleInterval,
+                unit: "",
+                valueFormatter: valueFormatter,
+                formatLiveNumber: formatLiveNumber,
+                channelA: channelA,
+                channelB: channelB,
+                channelAColor: topColor,
+                channelBColor: bottomColor
+            )
         } else {
-            return preferences.refreshInterval
+            let dualPoints = coordinator.timedDualScalarHistory(
+                primary: primaryKey,
+                secondary: secondaryKey,
+                duration: duration,
+                referenceDate: referenceDate
+            )
+            let active: [Double]
+            if isolatedChannel == 0 {
+                active = dualPoints.map(\.primary)
+            } else if isolatedChannel == 1 {
+                active = dualPoints.map(\.secondary)
+            } else {
+                active = dualPoints.map { $0.primary + $0.secondary }
+            }
+            return SeriesData(
+                mode: .mirrored(
+                    points: dualPoints,
+                    topColor: topColor,
+                    bottomColor: bottomColor,
+                    topLabel: topLabel,
+                    bottomLabel: bottomLabel
+                ),
+                activeValues: active,
+                timestamps: dualPoints.map(\.timestamp),
+                rawSampleCount: dualPoints.count,
+                sampleInterval: sampleInterval,
+                unit: "",
+                valueFormatter: valueFormatter,
+                formatLiveNumber: formatLiveNumber,
+                channelA: channelA,
+                channelB: channelB,
+                channelAColor: topColor,
+                channelBColor: bottomColor
+            )
         }
     }
+}
 
-    private func formatRelativeTime(_ seconds: Double) -> String {
-        let sec = Int(seconds.rounded())
-        if sec <= 0 {
-            return "now"
-        } else if sec < 60 {
-            return "\(sec)s ago"
-        } else {
-            let m = sec / 60
-            let s = sec % 60
-            return s == 0 ? "\(m)m ago" : "\(m)m \(s)s ago"
-        }
+// MARK: - Test Probe Environment & Preference
+
+private struct HistoryPageProbeEnabledKey: EnvironmentKey {
+    static let defaultValue: Bool = false
+}
+
+extension EnvironmentValues {
+    internal var historyPageProbeEnabled: Bool {
+        get { self[HistoryPageProbeEnabledKey.self] }
+        set { self[HistoryPageProbeEnabledKey.self] = newValue }
+    }
+}
+
+internal struct HistoryPageProbeSnapshot: Equatable, Sendable {
+    var selectedRange: HistoryTimeRange?
+    var fourthCellLabel: String?
+    var fourthCellValue: Double?
+    var showAverageLine: Bool?
+    var showPeakMarker: Bool?
+    var resolvedScrubIndex: Int?
+    var timeAxisLabels: [String]?
+}
+
+internal struct HistoryPageProbeKey: PreferenceKey {
+    static let defaultValue = HistoryPageProbeSnapshot()
+    static func reduce(value: inout HistoryPageProbeSnapshot, nextValue: () -> HistoryPageProbeSnapshot) {
+        let next = nextValue()
+        if let r = next.selectedRange { value.selectedRange = r }
+        if let l = next.fourthCellLabel { value.fourthCellLabel = l }
+        if let v = next.fourthCellValue { value.fourthCellValue = v }
+        if let a = next.showAverageLine { value.showAverageLine = a }
+        if let p = next.showPeakMarker { value.showPeakMarker = p }
+        if let i = next.resolvedScrubIndex { value.resolvedScrubIndex = i }
+        if let t = next.timeAxisLabels { value.timeAxisLabels = t }
     }
 }
