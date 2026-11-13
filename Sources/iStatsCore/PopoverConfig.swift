@@ -32,11 +32,9 @@ public enum PopoverTab: String, Codable, CaseIterable, Identifiable, Sendable {
     /// Returns the ordered list of tabs supported by a category on the current hardware.
     public static func supportedTabs(for category: MetricCategory, hasBattery: Bool = true) -> [PopoverTab] {
         switch category {
-        case .fan:
-            return [.overview, .history]
         case .power:
             return hasBattery ? [.overview, .detail, .history] : [.overview, .history]
-        case .cpu, .memory, .gpu, .thermal, .network, .disk:
+        case .cpu, .memory, .gpu, .thermal, .fan, .network, .disk:
             return [.overview, .detail, .history]
         }
     }

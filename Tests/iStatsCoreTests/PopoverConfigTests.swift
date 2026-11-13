@@ -73,6 +73,7 @@ final class PopoverConfigTests: XCTestCase {
         XCTAssertEqual(PopoverTab.detail.title(for: .gpu, hasDetailedGPUEngines: true), "Engines")
         XCTAssertEqual(PopoverTab.detail.title(for: .gpu, hasDetailedGPUEngines: false), "Device")
         XCTAssertEqual(PopoverTab.detail.title(for: .thermal), "Sensors")
+        XCTAssertEqual(PopoverTab.detail.title(for: .fan), "Fans")
         XCTAssertEqual(PopoverTab.detail.title(for: .network), "Connection")
         XCTAssertEqual(PopoverTab.detail.title(for: .disk), "Volumes")
         XCTAssertEqual(PopoverTab.detail.title(for: .power), "Health")
@@ -81,15 +82,12 @@ final class PopoverConfigTests: XCTestCase {
     // MARK: - 3. Supported Tabs per Category
 
     func testSupportedTabs() {
-        // Fans only has 2 tabs: Overview · History
-        XCTAssertEqual(PopoverTab.supportedTabs(for: .fan), [.overview, .history])
-
         // Power has 3 tabs on laptop (with battery), 2 tabs on desktop (no battery)
         XCTAssertEqual(PopoverTab.supportedTabs(for: .power, hasBattery: true), [.overview, .detail, .history])
         XCTAssertEqual(PopoverTab.supportedTabs(for: .power, hasBattery: false), [.overview, .history])
 
-        // Other categories have 3 tabs
-        for cat in [MetricCategory.cpu, .memory, .gpu, .thermal, .network, .disk] {
+        // All other categories (including Fan with its hardware Details table) have 3 tabs
+        for cat in [MetricCategory.cpu, .memory, .gpu, .thermal, .fan, .network, .disk] {
             XCTAssertEqual(PopoverTab.supportedTabs(for: cat), [.overview, .detail, .history])
         }
     }

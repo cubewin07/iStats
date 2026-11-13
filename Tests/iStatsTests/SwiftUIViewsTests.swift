@@ -819,4 +819,311 @@ final class SwiftUIViewsTests: XCTestCase {
         XCTAssertEqual(historyProbe.timeAxisLabels, ["-60s", "-40s", "-20s", "now"])
         XCTAssertTrue((scaffoldProbe.glanceSummary ?? "").contains("64 %"))
     }
+
+    // MARK: - 9. Stage 4 & Stage 5: Polished Panels (8.5.8a–h) & InstrumentGalleryPreview
+
+    private func populateRichTelemetry(in coord: MetricsCoordinator, endingAt endDate: Date, count: Int = 65) {
+        let gib: UInt64 = 1_073_741_824
+        var batch: [MetricReading] = []
+        batch.reserveCapacity(count * 8)
+
+        for i in 0..<count {
+            let ts = endDate.addingTimeInterval(-Double(count - 1 - i))
+            let wave = Double(i % 12)
+            batch.append(.cpu(Sample(
+                value: CPUSample(
+                    totalUsage: 28.0 + wave * 1.5,
+                    perCore: [18.0 + wave, 22.0 + wave, 16.0, 20.0, 35.0 + wave, 38.0 + wave, 30.0, 32.0, 34.0, 36.0],
+                    user: 18.0 + wave,
+                    system: 10.0 + wave * 0.5,
+                    idle: 72.0 - wave * 1.5,
+                    loadAverage: LoadAverage(oneMinute: 2.4, fiveMinute: 2.1, fifteenMinute: 1.8),
+                    frequencyHz: 3_120_000_000,
+                    efficiencyCoreCount: 4,
+                    performanceCoreCount: 6
+                ),
+                timestamp: ts
+            )))
+            batch.append(.memory(Sample(
+                value: MemorySample(
+                    total: 16 * gib,
+                    used: 10 * gib,
+                    free: 6 * gib,
+                    wired: 3 * gib,
+                    compressed: 1 * gib,
+                    cached: 2 * gib,
+                    swapUsed: 256 * 1024 * 1024,
+                    pressure: .normal,
+                    appMemory: 6 * gib,
+                    active: 4 * gib,
+                    inactive: 2 * gib,
+                    swapTotal: 2 * gib,
+                    swapFree: (2 * gib) - (256 * 1024 * 1024)
+                ),
+                timestamp: ts
+            )))
+            batch.append(.gpu(Sample(
+                value: GPUSample(
+                    utilization: 34.0 + wave * 2.0,
+                    memoryUsed: 2 * gib,
+                    tempCelsius: 52.0 + wave * 0.4,
+                    powerWatts: 7.5 + wave * 0.3,
+                    coreCount: 16,
+                    deviceName: "Apple M3 Pro",
+                    allocatedMemory: 2 * gib,
+                    recommendedMaxMemory: 18 * gib,
+                    rendererUtilization: 30.0 + wave,
+                    tilerUtilization: 22.0 + wave * 0.5,
+                    isUnifiedMemory: true,
+                    displayCount: 1,
+                    displayDescriptions: ["Built-in Liquid Retina XDR"],
+                    recoveryCount: 0,
+                    supportsRaytracing: true,
+                    metalFeatureSet: "Metal 3"
+                ),
+                timestamp: ts
+            )))
+            batch.append(.thermal(Sample(
+                value: ThermalSample(
+                    sensors: [
+                        SensorReading(name: "CPU Performance Core 1", celsius: 56.0 + wave * 0.5),
+                        SensorReading(name: "GPU Cluster 1", celsius: 51.0 + wave * 0.4),
+                        SensorReading(name: "Memory Proximity", celsius: 42.0),
+                        SensorReading(name: "Storage NAND", celsius: 36.0),
+                        SensorReading(name: "Battery Sensor 1", celsius: 31.0)
+                    ],
+                    pressure: .nominal
+                ),
+                timestamp: ts
+            )))
+            batch.append(.fan(Sample(
+                value: FanSample(fans: [
+                    FanReading(name: "Left Fan", rpm: 1600 + Int(wave) * 30, minRPM: 1200, maxRPM: 5800),
+                    FanReading(name: "Right Fan", rpm: 1680 + Int(wave) * 30, minRPM: 1200, maxRPM: 6000)
+                ]),
+                timestamp: ts
+            )))
+            batch.append(.network(Sample(
+                value: NetworkSample(
+                    interfaces: [
+                        InterfaceThroughput(
+                            interfaceName: "en0",
+                            bytesInPerSec: 2_400_000.0 + wave * 100_000.0,
+                            bytesOutPerSec: 450_000.0 + wave * 20_000.0,
+                            totalBytesIn: 120_000_000,
+                            totalBytesOut: 28_000_000,
+                            ipv4Address: "192.168.1.42",
+                            type: .wifi
+                        ),
+                        InterfaceThroughput(
+                            interfaceName: "en5",
+                            bytesInPerSec: 0,
+                            bytesOutPerSec: 0,
+                            totalBytesIn: 0,
+                            totalBytesOut: 0,
+                            ipv4Address: nil,
+                            type: .ethernet
+                        )
+                    ],
+                    primaryInterface: "en0",
+                    primaryType: .wifi,
+                    localIPv4: "192.168.1.42",
+                    gatewayIPv4: "192.168.1.1",
+                    primaryDNS: "1.1.1.1",
+                    wifiDetails: WiFiLinkTelemetry(
+                        ssid: "LabNet-5G",
+                        rssi: -54,
+                        noise: -92,
+                        txRate: 866.0,
+                        channel: 36,
+                        band: "5 GHz"
+                    )
+                ),
+                timestamp: ts
+            )))
+            batch.append(.disk(Sample(
+                value: DiskSample(
+                    volumes: [
+                        VolumeCapacity(name: "Macintosh HD", mountPoint: "/", total: 1_000_000_000_000, used: 480_000_000_000, free: 520_000_000_000),
+                        VolumeCapacity(name: "Backup", mountPoint: "/Volumes/Backup", total: 2_000_000_000_000, used: 700_000_000_000, free: 1_300_000_000_000)
+                    ],
+                    io: DiskIO(
+                        bytesReadPerSec: 18_000_000.0 + wave * 500_000.0,
+                        bytesWrittenPerSec: 4_500_000.0 + wave * 200_000.0,
+                        readOpsPerSec: 210,
+                        writeOpsPerSec: 85
+                    )
+                ),
+                timestamp: ts
+            )))
+            batch.append(.power(Sample(
+                value: PowerSample(
+                    hasBattery: true,
+                    charge: 84.0,
+                    state: .charging,
+                    timeRemaining: 2400,
+                    cycleCount: 112,
+                    condition: "Normal",
+                    designCapacity: 5100,
+                    currentMaxCapacity: 4950,
+                    powerDrawWatts: 18.5 + wave * 0.4,
+                    adapterWatts: 96.0,
+                    voltageVolts: 12.2,
+                    amperageMilliAmps: 1800.0,
+                    designCycleCount: 1000,
+                    adapterName: "Apple 96W USB-C"
+                ),
+                timestamp: ts
+            )))
+        }
+        coord.handleReadings(batch)
+        coord.updateProcessesForTesting(ProcessSample(
+            topCPU: [
+                ProcessInfoItem(pid: 201, name: "Xcode", bundleID: "com.apple.dt.Xcode", cpuPercent: 32.4, memoryBytes: 2_400_000_000),
+                ProcessInfoItem(pid: 202, name: "swift-frontend", bundleID: nil, cpuPercent: 18.1, memoryBytes: 900_000_000)
+            ],
+            topMemory: [
+                ProcessInfoItem(pid: 201, name: "Xcode", bundleID: "com.apple.dt.Xcode", cpuPercent: 32.4, memoryBytes: 2_400_000_000),
+                ProcessInfoItem(pid: 202, name: "swift-frontend", bundleID: nil, cpuPercent: 18.1, memoryBytes: 900_000_000)
+            ],
+            skippedCount: 0
+        ))
+    }
+
+    func testPolishedPanels858aThroughHAllTabsRenderAndClamp() {
+        let (defaults, prefs, coord, suiteName) = makeContext()
+        defer { cleanup(defaults: defaults, suiteName: suiteName) }
+
+        populateRichTelemetry(in: coord, endingAt: Date(), count: 65)
+
+        // Verify synced Fan Details tab support (B13 / PopoverConfig)
+        XCTAssertEqual(PopoverTab.supportedTabs(for: .fan), [.overview, .detail, .history])
+        XCTAssertEqual(PopoverTab.detail.title(for: .fan), "Fans")
+
+        for category in MetricCategory.allCases {
+            let tabs = PopoverTab.supportedTabs(for: category, hasBattery: true)
+            XCTAssertEqual(tabs, [.overview, .detail, .history], "All 8 categories with battery support Now/Details/History")
+
+            for tab in tabs {
+                let panelView = PanelFactory.makeCategoryPanelView(
+                    category: category,
+                    initialTab: tab,
+                    rememberLastTab: false,
+                    coordinator: coord,
+                    preferences: prefs
+                )
+                let controller = NSHostingController(rootView: AnyView(panelView))
+                let size = controller.sizeThatFits(in: CGSize(width: Instrument.Size.panelWidth, height: Instrument.Size.maxHeight))
+                XCTAssertEqual(size.width, Instrument.Size.panelWidth, accuracy: 2.0, "\(category).\(tab) must fit 352pt width")
+                XCTAssertGreaterThan(size.height, 140.0, "\(category).\(tab) must have positive height")
+                XCTAssertLessThanOrEqual(size.height, Instrument.Size.maxHeight + 0.5, "\(category).\(tab) must clamp to maxHeight")
+            }
+        }
+
+        // Verify FanPanel Details hardware table renders distinct content from Now (B13)
+        let fanNowView = FanPanel(initialTab: .overview, rememberLastTab: false, coordinator: coord, preferences: prefs)
+            .frame(width: Instrument.Size.panelWidth, height: 420)
+        let fanDetailView = FanPanel(initialTab: .detail, rememberLastTab: false, coordinator: coord, preferences: prefs)
+            .frame(width: Instrument.Size.panelWidth, height: 420)
+        let fanNowRenderer = ImageRenderer(content: fanNowView)
+        let fanDetailRenderer = ImageRenderer(content: fanDetailView)
+        let fanNowCG = fanNowRenderer.cgImage
+        let fanDetailCG = fanDetailRenderer.cgImage
+        XCTAssertNotNil(fanNowCG)
+        XCTAssertNotNil(fanDetailCG)
+        if let fanNowCG, let fanDetailCG {
+            let nowData = NSBitmapImageRep(cgImage: fanNowCG).tiffRepresentation
+            let detailData = NSBitmapImageRep(cgImage: fanDetailCG).tiffRepresentation
+            XCTAssertNotEqual(nowData, detailData, "Fan Details page must render distinct hardware table rather than duplicating Now (B13)")
+        }
+
+        // Verify Fanless Details + Power Desktop fallback
+        coord.handleReading(.fan(Sample(value: FanSample(fans: []))))
+        let fanlessDetailCtrl = NSHostingController(rootView: FanPanel(initialTab: .detail, rememberLastTab: false, coordinator: coord, preferences: prefs))
+        let fanlessSize = fanlessDetailCtrl.sizeThatFits(in: CGSize(width: Instrument.Size.panelWidth, height: Instrument.Size.maxHeight))
+        XCTAssertGreaterThan(fanlessSize.height, 140.0)
+
+        coord.handleReading(.power(Sample(value: PowerSample(hasBattery: false, powerDrawWatts: 42.0, adapterWatts: 150.0, adapterName: "Internal PSU"))))
+        let desktopPowerCtrl = NSHostingController(rootView: PowerPanel(initialTab: .overview, rememberLastTab: false, coordinator: coord, preferences: prefs))
+        let desktopSize = desktopPowerCtrl.sizeThatFits(in: CGSize(width: Instrument.Size.panelWidth, height: Instrument.Size.maxHeight))
+        XCTAssertGreaterThan(desktopSize.height, 140.0)
+    }
+
+    #if DEBUG
+    func testInstrumentGalleryPreviewDriverAndHarnessLayout() {
+        let baseDate = Date(timeIntervalSince1970: 1_700_050_000.0)
+        let driver = InstrumentGalleryTelemetryDriver(referenceDate: baseDate, seedSampleCount: 75)
+        defer { driver.stop() }
+
+        // All 8 categories and process list must be populated immediately from seedHistory
+        XCTAssertNotNil(driver.coordinator.latestCPU)
+        XCTAssertNotNil(driver.coordinator.latestMemory)
+        XCTAssertNotNil(driver.coordinator.latestGPU)
+        XCTAssertNotNil(driver.coordinator.latestThermal)
+        XCTAssertNotNil(driver.coordinator.latestFan)
+        XCTAssertNotNil(driver.coordinator.latestNetwork)
+        XCTAssertNotNil(driver.coordinator.latestDisk)
+        XCTAssertNotNil(driver.coordinator.latestPower)
+        XCTAssertNotNil(driver.coordinator.latestProcesses)
+        XCTAssertEqual(driver.tickCount, 75)
+
+        // Test +60 ms late sample jitter + 10x spike driving ChartModel (A1 + ChartScale hysteresis)
+        driver.loadMode = .spike10x
+        driver.lateJitterEnabled = true
+        let model = ChartModel(sampleInterval: 1.0)
+        var prevEdge: TimeInterval = 0
+
+        for stepIdx in 0..<6 {
+            driver.stepTick()
+            let netPoints = driver.coordinator.timedScalarHistory(
+                for: .networkInBytesPerSec,
+                duration: 60.0,
+                referenceDate: driver.lastSampleDate
+            )
+            _ = model.step(
+                now: driver.lastSampleDate.timeIntervalSince1970 + 0.016,
+                mode: .single(points: netPoints, color: CategoryPalette.tint(for: .network)),
+                category: .network,
+                sampleInterval: 1.0,
+                explicitWindow: 60.0,
+                isScrubbing: false,
+                motionPolicy: .full
+            )
+            if stepIdx > 0 {
+                XCTAssertGreaterThanOrEqual(model.timeline.edge, prevEdge - 1e-12, "A1: +60ms jitter must never snap edge backward")
+            }
+            prevEdge = model.timeline.edge
+        }
+        // 10x spike on network (~12 MB/s) must raise ceiling well above steady ~1.5 MB/s
+        XCTAssertGreaterThan(model.topScale.displayedCeiling, 8_000_000.0)
+
+        // Test 15s sleep gap -> clean edge snap
+        driver.injectSleepGap(seconds: 15.0)
+        XCTAssertEqual(driver.lastSleepGapSeconds, 15.0)
+        let postGapPoints = driver.coordinator.timedScalarHistory(
+            for: .networkInBytesPerSec,
+            duration: 60.0,
+            referenceDate: driver.lastSampleDate
+        )
+        _ = model.step(
+            now: driver.lastSampleDate.timeIntervalSince1970 + 1.0,
+            mode: .single(points: postGapPoints, color: CategoryPalette.tint(for: .network)),
+            category: .network,
+            sampleInterval: 1.0,
+            explicitWindow: 60.0,
+            isScrubbing: false,
+            motionPolicy: .full
+        )
+        XCTAssertEqual(model.timeline.edge, driver.lastSampleDate.timeIntervalSince1970, accuracy: 1.5)
+
+        // Render InstrumentGalleryPreview view hierarchy cleanly
+        let gallery = InstrumentGalleryPreview(driver: driver)
+        let hosting = NSHostingView(rootView: gallery)
+        hosting.frame = CGRect(x: 0, y: 0, width: 1140, height: 820)
+        hosting.layoutSubtreeIfNeeded()
+        XCTAssertGreaterThan(hosting.fittingSize.width, 300)
+        XCTAssertGreaterThan(hosting.fittingSize.height, 200)
+        driver.stop()
+    }
+    #endif
 }
