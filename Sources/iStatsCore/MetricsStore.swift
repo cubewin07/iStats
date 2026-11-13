@@ -24,6 +24,7 @@ public enum ScalarSeriesKey: String, CaseIterable, Identifiable, Sendable, Codab
     case diskReadBytesPerSec
     case diskWriteBytesPerSec
     case powerWatts
+    case powerChargePercent
 
     public var id: String { rawValue }
 }
@@ -126,8 +127,9 @@ public struct MetricsStore: Sendable, Equatable {
         case .power(let s):
             if let draw = s.value.powerDrawWatts {
                 scalarBuffers[.powerWatts]?.append(ScalarPoint(timestamp: s.timestamp, value: draw))
-            } else if let charge = s.value.charge {
-                scalarBuffers[.powerWatts]?.append(ScalarPoint(timestamp: s.timestamp, value: charge))
+            }
+            if let charge = s.value.charge {
+                scalarBuffers[.powerChargePercent]?.append(ScalarPoint(timestamp: s.timestamp, value: charge))
             }
         case .unavailable:
             break
@@ -392,6 +394,175 @@ public struct MetricsStore: Sendable, Equatable {
         return Downsampler.downsampleSpikePreserving(filtered, targetCount: maxPoints)
     }
 
+    // MARK: - Timestamped & Time-Aligned Queries (Task 8.5.2)
+
+    /// Returns raw timestamped scalar points within `duration` seconds ending at `referenceDate`.
+    /// Cutting against the requested `referenceDate` (rather than the newest sample) prevents
+    /// 59–61 point window-count jitter when sampling intervals vary slightly (ADR 0010 / B8).
+    public func timedScalarHistory(
+        for key: ScalarSeriesKey,
+        duration: TimeInterval,
+        referenceDate: Date = Date()
+    ) -> [ChartPoint] {
+        let refEpoch = referenceDate.timeIntervalSince1970
+        guard duration.isFinite, duration > 0.0, refEpoch.isFinite,
+              let buffer = scalarBuffers[key] else {
+            return []
+        }
+
+        let cutoff = refEpoch - duration
+        return buffer.elements.compactMap { point in
+            let t = point.timestamp.timeIntervalSince1970
+            guard t > cutoff, t <= refEpoch, point.value.isFinite else { return nil }
+            return ChartPoint(timestamp: t, value: point.value)
+        }
+    }
+
+    /// Returns time-aligned `(min, max, mean)` envelope buckets within `duration` seconds
+    /// ending at `referenceDate` using `Downsampler.alignedBuckets`.
+    public func bucketedScalarHistory(
+        for key: ScalarSeriesKey,
+        duration: TimeInterval,
+        bucketWidth: TimeInterval,
+        referenceDate: Date = Date()
+    ) -> [BucketPoint] {
+        let refEpoch = referenceDate.timeIntervalSince1970
+        guard duration.isFinite, duration > 0.0,
+              bucketWidth.isFinite, bucketWidth > 0.0,
+              refEpoch.isFinite,
+              let buffer = scalarBuffers[key] else {
+            return []
+        }
+
+        let cutoff = refEpoch - duration
+        let windowPoints = buffer.elements.filter { point in
+            let t = point.timestamp.timeIntervalSince1970
+            guard t <= refEpoch, point.value.isFinite else { return false }
+            let bucketEnd = (floor(t / bucketWidth) + 1.0) * bucketWidth
+            return bucketEnd > cutoff
+        }
+        guard !windowPoints.isEmpty else { return [] }
+
+        return Downsampler.alignedBuckets(
+            windowPoints,
+            bucketWidth: bucketWidth,
+            windowDuration: duration
+        )
+    }
+
+    /// Queries two scalar series against a single shared `referenceDate` and aligns samples
+    /// by timestamp for stacked or mirrored charts (CPU user/system, Network in/out, Disk read/write).
+    public func timedDualScalarHistory(
+        primary primaryKey: ScalarSeriesKey,
+        secondary secondaryKey: ScalarSeriesKey,
+        duration: TimeInterval,
+        referenceDate: Date = Date()
+    ) -> [DualChartPoint] {
+        let primaryPoints = timedScalarHistory(
+            for: primaryKey,
+            duration: duration,
+            referenceDate: referenceDate
+        )
+        let secondaryPoints = timedScalarHistory(
+            for: secondaryKey,
+            duration: duration,
+            referenceDate: referenceDate
+        )
+        return Self.alignDualPoints(primary: primaryPoints, secondary: secondaryPoints)
+    }
+
+    /// Queries two scalar series as time-aligned buckets against a single shared `referenceDate`
+    /// and aligns matching epoch buckets by timestamp.
+    public func bucketedDualScalarHistory(
+        primary primaryKey: ScalarSeriesKey,
+        secondary secondaryKey: ScalarSeriesKey,
+        duration: TimeInterval,
+        bucketWidth: TimeInterval,
+        referenceDate: Date = Date()
+    ) -> (primary: [BucketPoint], secondary: [BucketPoint]) {
+        let primaryBuckets = bucketedScalarHistory(
+            for: primaryKey,
+            duration: duration,
+            bucketWidth: bucketWidth,
+            referenceDate: referenceDate
+        )
+        let secondaryBuckets = bucketedScalarHistory(
+            for: secondaryKey,
+            duration: duration,
+            bucketWidth: bucketWidth,
+            referenceDate: referenceDate
+        )
+        return Self.alignDualBuckets(primary: primaryBuckets, secondary: secondaryBuckets)
+    }
+
+    private static func alignDualPoints(
+        primary: [ChartPoint],
+        secondary: [ChartPoint],
+        tolerance: TimeInterval = 1e-6
+    ) -> [DualChartPoint] {
+        guard !primary.isEmpty, !secondary.isEmpty else { return [] }
+        let orderedPrimary = isChronological(primary) ? primary : primary.sorted { $0.timestamp < $1.timestamp }
+        let orderedSecondary = isChronological(secondary) ? secondary : secondary.sorted { $0.timestamp < $1.timestamp }
+
+        var aligned: [DualChartPoint] = []
+        aligned.reserveCapacity(min(orderedPrimary.count, orderedSecondary.count))
+
+        var i = 0
+        var j = 0
+        while i < orderedPrimary.count && j < orderedSecondary.count {
+            let p = orderedPrimary[i]
+            let s = orderedSecondary[j]
+            let diff = p.timestamp - s.timestamp
+            if abs(diff) <= tolerance {
+                aligned.append(DualChartPoint(timestamp: p.timestamp, primary: p.value, secondary: s.value))
+                i += 1
+                j += 1
+            } else if diff < 0 {
+                i += 1
+            } else {
+                j += 1
+            }
+        }
+        return aligned
+    }
+
+    private static func alignDualBuckets(
+        primary: [BucketPoint],
+        secondary: [BucketPoint],
+        tolerance: TimeInterval = 1e-6
+    ) -> (primary: [BucketPoint], secondary: [BucketPoint]) {
+        guard !primary.isEmpty, !secondary.isEmpty else { return ([], []) }
+
+        var alignedPrimary: [BucketPoint] = []
+        var alignedSecondary: [BucketPoint] = []
+        let capacity = min(primary.count, secondary.count)
+        alignedPrimary.reserveCapacity(capacity)
+        alignedSecondary.reserveCapacity(capacity)
+
+        var i = 0
+        var j = 0
+        while i < primary.count && j < secondary.count {
+            let p = primary[i]
+            let s = secondary[j]
+            let diff = p.timestamp - s.timestamp
+            if abs(diff) <= tolerance {
+                alignedPrimary.append(p)
+                alignedSecondary.append(s)
+                i += 1
+                j += 1
+            } else if diff < 0 {
+                i += 1
+            } else {
+                j += 1
+            }
+        }
+        return (alignedPrimary, alignedSecondary)
+    }
+
+    private static func isChronological(_ points: [ChartPoint]) -> Bool {
+        !zip(points, points.dropFirst()).contains { $0.timestamp > $1.timestamp }
+    }
+
     // MARK: - Resetting & Clearing
 
     /// Clears all readings stored for a specific category.
@@ -417,6 +588,7 @@ public struct MetricsStore: Sendable, Equatable {
             scalarBuffers[.diskWriteBytesPerSec]?.clear()
         case .power:
             scalarBuffers[.powerWatts]?.clear()
+            scalarBuffers[.powerChargePercent]?.clear()
         }
     }
 

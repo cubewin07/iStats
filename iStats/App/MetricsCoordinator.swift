@@ -105,6 +105,62 @@ public final class MetricsCoordinator: ObservableObject {
         store.scalarTimeSpan(for: key, duration: duration)
     }
 
+    /// Queries raw timestamped scalar points within `duration` seconds ending at `referenceDate` (Task 8.5.2).
+    public func timedScalarHistory(
+        for key: ScalarSeriesKey,
+        duration: TimeInterval,
+        referenceDate: Date = Date()
+    ) -> [ChartPoint] {
+        store.timedScalarHistory(for: key, duration: duration, referenceDate: referenceDate)
+    }
+
+    /// Queries time-aligned `(min, max, mean)` envelope buckets within `duration` seconds ending at `referenceDate` (Task 8.5.2).
+    public func bucketedScalarHistory(
+        for key: ScalarSeriesKey,
+        duration: TimeInterval,
+        bucketWidth: TimeInterval,
+        referenceDate: Date = Date()
+    ) -> [BucketPoint] {
+        store.bucketedScalarHistory(
+            for: key,
+            duration: duration,
+            bucketWidth: bucketWidth,
+            referenceDate: referenceDate
+        )
+    }
+
+    /// Queries two scalar series at a single shared `referenceDate` and aligns points by sample timestamp (Task 8.5.2).
+    public func timedDualScalarHistory(
+        primary primaryKey: ScalarSeriesKey,
+        secondary secondaryKey: ScalarSeriesKey,
+        duration: TimeInterval,
+        referenceDate: Date = Date()
+    ) -> [DualChartPoint] {
+        store.timedDualScalarHistory(
+            primary: primaryKey,
+            secondary: secondaryKey,
+            duration: duration,
+            referenceDate: referenceDate
+        )
+    }
+
+    /// Queries two scalar series as time-aligned envelope buckets at a single shared `referenceDate` (Task 8.5.2).
+    public func bucketedDualScalarHistory(
+        primary primaryKey: ScalarSeriesKey,
+        secondary secondaryKey: ScalarSeriesKey,
+        duration: TimeInterval,
+        bucketWidth: TimeInterval,
+        referenceDate: Date = Date()
+    ) -> (primary: [BucketPoint], secondary: [BucketPoint]) {
+        store.bucketedDualScalarHistory(
+            primary: primaryKey,
+            secondary: secondaryKey,
+            duration: duration,
+            bucketWidth: bucketWidth,
+            referenceDate: referenceDate
+        )
+    }
+
     /// Live availability status per metric category.
     @Published public private(set) var categoryAvailability: [MetricCategory: Availability] = [:]
 

@@ -321,8 +321,269 @@ final class MetricsStoreTests: XCTestCase {
         let totalPoints = 900 * seriesCount
         let rawDataBytes = totalPoints * pointStride
 
-        // 16 bytes per point * 900 * 11 series = 158,400 bytes (~154 KB)
+        // 16 bytes per point * 900 * 12 series = 172,800 bytes (~169 KB)
+        XCTAssertEqual(seriesCount, 12, "Expected 12 scalar series including powerChargePercent")
         XCTAssertEqual(pointStride, 16, "ScalarPoint (Date + Double) stride must be exactly 16 bytes")
-        XCTAssertLessThanOrEqual(rawDataBytes, 160_000, "11 series of 900 points must fit within 160 KB")
+        XCTAssertLessThanOrEqual(rawDataBytes, 175_000, "12 series of 900 points must fit within 175 KB")
+    }
+
+    // MARK: - Timestamped & Bucketed Series + B8/B9 Fixes (Task 8.5.2)
+
+    func testTimedScalarHistoryPreservesTimestampsAndRequestedEdgeCutoff() {
+        var store = MetricsStore()
+        let base = 1_700_000_000.0
+
+        // Append 70 samples at 1 Hz with slight sampling jitter on the newest sample (+0.15 s)
+        for i in 0..<70 {
+            let jitter = (i == 69) ? 0.15 : 0.0
+            let t = Date(timeIntervalSince1970: base + Double(i) + jitter)
+            store.record(
+                category: .memory,
+                value: MemorySample(
+                    total: 1000,
+                    used: UInt64(100 + i),
+                    free: UInt64(900 - i),
+                    wired: 100,
+                    compressed: 50,
+                    cached: 50,
+                    swapUsed: 0,
+                    pressure: .normal
+                ),
+                timestamp: t
+            )
+        }
+
+        // Query at explicit reference edge base + 69.0 (before the 69.15 jittered sample)
+        let ref69 = Date(timeIntervalSince1970: base + 69.0)
+        let windowAt69 = store.timedScalarHistory(for: .memoryUsedPercent, duration: 60.0, referenceDate: ref69)
+        // Window (9.0, 69.0] contains t = 10...68 -> 59 points (69.15 is excluded because > ref69)
+        XCTAssertEqual(windowAt69.count, 59)
+        XCTAssertEqual(windowAt69.first?.timestamp ?? -1, base + 10.0, accuracy: 1e-9)
+        XCTAssertEqual(windowAt69.last?.timestamp ?? -1, base + 68.0, accuracy: 1e-9)
+        XCTAssertEqual(windowAt69.first?.value ?? -1, 11.0, accuracy: 1e-9)
+
+        // Query at reference edge base + 69.2 (after the 69.15 jittered sample).
+        // Oldest cutoff is 9.2 (> 9.0), so t = 10...68 + 69.15 -> exactly 60 points,
+        // and timestamps are preserved verbatim instead of snapping to newest - 60.
+        let ref69_2 = Date(timeIntervalSince1970: base + 69.2)
+        let windowAt69_2 = store.timedScalarHistory(for: .memoryUsedPercent, duration: 60.0, referenceDate: ref69_2)
+        XCTAssertEqual(windowAt69_2.count, 60)
+        XCTAssertEqual(windowAt69_2.first?.timestamp ?? -1, base + 10.0, accuracy: 1e-9)
+        XCTAssertEqual(windowAt69_2.last?.timestamp ?? -1, base + 69.15, accuracy: 1e-9)
+
+        // Advancing reference edge slightly to 69.8 (before t=70 arrives) keeps 60 points stable (no B8 jitter)
+        let ref69_8 = Date(timeIntervalSince1970: base + 69.8)
+        let windowAt69_8 = store.timedScalarHistory(for: .memoryUsedPercent, duration: 60.0, referenceDate: ref69_8)
+        XCTAssertEqual(windowAt69_8.count, 60)
+        XCTAssertEqual(windowAt69_8, windowAt69_2)
+    }
+
+    func testBucketedScalarHistoryStabilityAcrossAppends() {
+        var store = MetricsStore()
+        let base = 1_700_000_000.0
+
+        // Seed 300s (5 minutes) of 1 Hz CPU samples
+        for i in 0..<300 {
+            let t = Date(timeIntervalSince1970: base + Double(i))
+            let cpu = CPUSample(
+                totalUsage: Double(i % 100),
+                perCore: [Double(i % 100)],
+                user: Double((i * 13) % 70),
+                system: Double((i * 7) % 30),
+                idle: 10.0
+            )
+            store.record(category: .cpu, value: cpu, timestamp: t)
+        }
+
+        // 5m window (300s) with 2.5s buckets
+        var previous5m = store.bucketedScalarHistory(
+            for: .cpuUser,
+            duration: 300.0,
+            bucketWidth: 2.5,
+            referenceDate: Date(timeIntervalSince1970: base + 299.0)
+        )
+        XCTAssertFalse(previous5m.isEmpty)
+
+        // Append 15 more 1 Hz samples one by one and verify closed historical buckets never mutate
+        for offset in 300..<315 {
+            let t = base + Double(offset)
+            let cpu = CPUSample(
+                totalUsage: 50.0,
+                perCore: [50.0],
+                user: Double((offset * 19) % 75),
+                system: 12.0,
+                idle: 13.0
+            )
+            store.record(category: .cpu, value: cpu, timestamp: Date(timeIntervalSince1970: t))
+
+            let current5m = store.bucketedScalarHistory(
+                for: .cpuUser,
+                duration: 300.0,
+                bucketWidth: 2.5,
+                referenceDate: Date(timeIntervalSince1970: t)
+            )
+            let activeBucketCenter = (floor(t / 2.5) + 0.5) * 2.5
+            let cutoff = t - 300.0
+
+            for prev in previous5m {
+                let prevBucketEnd = prev.timestamp + 1.25
+                guard prev.timestamp < activeBucketCenter - 1e-6, prevBucketEnd > cutoff else { continue }
+                let match = current5m.first(where: { abs($0.timestamp - prev.timestamp) < 1e-6 })
+                XCTAssertEqual(match, prev, "Closed 5m bucket at \(prev.timestamp) mutated on append")
+            }
+            previous5m = current5m
+        }
+
+        // Also check 15m window (900s, 7.5s buckets) drops whole buckets cleanly when referenceDate advances
+        let at314 = store.bucketedScalarHistory(
+            for: .cpuUser,
+            duration: 900.0,
+            bucketWidth: 7.5,
+            referenceDate: Date(timeIntervalSince1970: base + 314.0)
+        )
+        let later = store.bucketedScalarHistory(
+            for: .cpuUser,
+            duration: 900.0,
+            bucketWidth: 7.5,
+            referenceDate: Date(timeIntervalSince1970: base + 902.5)
+        )
+        XCTAssertLessThan(later.count, at314.count)
+        for bucket in later {
+            let original = at314.first(where: { abs($0.timestamp - bucket.timestamp) < 1e-6 })
+            XCTAssertEqual(bucket, original, "Surviving 15m bucket must remain identical when referenceDate advances")
+        }
+    }
+
+    func testPowerWattsDoesNotStoreChargeWhenWattageNil_B9() {
+        var store = MetricsStore()
+        let t0 = Date(timeIntervalSince1970: 1_700_000_000)
+        let t1 = Date(timeIntervalSince1970: 1_700_000_001)
+        let t2 = Date(timeIntervalSince1970: 1_700_000_002)
+
+        // Battery sample with nil wattage and 85% charge -> must NOT write 85 into powerWatts
+        store.record(
+            category: .power,
+            value: PowerSample(
+                hasBattery: true,
+                charge: 85.0,
+                state: .discharging,
+                timeRemaining: 3600,
+                cycleCount: 50,
+                powerDrawWatts: nil
+            ),
+            timestamp: t0
+        )
+
+        XCTAssertEqual(store.scalarCount(for: .powerWatts), 0)
+        XCTAssertEqual(store.scalarCount(for: .powerChargePercent), 1)
+        XCTAssertEqual(store.scalarPoints(for: .powerChargePercent).first?.value, 85.0)
+
+        // Sample with both wattage and charge -> each goes to its dedicated series
+        store.record(
+            category: .power,
+            value: PowerSample(
+                hasBattery: true,
+                charge: 84.5,
+                state: .discharging,
+                timeRemaining: 3500,
+                cycleCount: 50,
+                powerDrawWatts: 18.2
+            ),
+            timestamp: t1
+        )
+
+        XCTAssertEqual(store.scalarCount(for: .powerWatts), 1)
+        XCTAssertEqual(store.scalarPoints(for: .powerWatts).last?.value, 18.2)
+        XCTAssertEqual(store.scalarCount(for: .powerChargePercent), 2)
+        XCTAssertEqual(store.scalarPoints(for: .powerChargePercent).last?.value, 84.5)
+
+        // Desktop sample with wattage and nil charge -> writes powerWatts only
+        store.record(
+            category: .power,
+            value: PowerSample(
+                hasBattery: false,
+                charge: nil,
+                state: .acConnected,
+                powerDrawWatts: 42.0
+            ),
+            timestamp: t2
+        )
+
+        XCTAssertEqual(store.scalarCount(for: .powerWatts), 2)
+        XCTAssertEqual(store.scalarCount(for: .powerChargePercent), 2)
+
+        // Clearing .power clears both scalar buffers
+        store.clear(category: .power)
+        XCTAssertEqual(store.scalarCount(for: .powerWatts), 0)
+        XCTAssertEqual(store.scalarCount(for: .powerChargePercent), 0)
+    }
+
+    func testDualChannelTimestampAlignment() {
+        var store = MetricsStore()
+        let base = 1_700_000_000.0
+
+        for i in 0..<10 {
+            let t = Date(timeIntervalSince1970: base + Double(i))
+            store.record(
+                category: .network,
+                value: NetworkSample(interfaces: [
+                    InterfaceThroughput(
+                        interfaceName: "en0",
+                        bytesInPerSec: Double(1000 + i * 100),
+                        bytesOutPerSec: Double(500 + i * 50),
+                        totalBytesIn: UInt64(i * 1000),
+                        totalBytesOut: UInt64(i * 500)
+                    )
+                ]),
+                timestamp: t
+            )
+            // Record power with wattage only on even seconds to verify mismatched series alignment
+            let watts: Double? = (i % 2 == 0) ? Double(10 + i) : nil
+            store.record(
+                category: .power,
+                value: PowerSample(
+                    hasBattery: true,
+                    charge: Double(90 - i),
+                    state: .discharging,
+                    powerDrawWatts: watts
+                ),
+                timestamp: t
+            )
+        }
+
+        let ref = Date(timeIntervalSince1970: base + 9.0)
+        let netDual = store.timedDualScalarHistory(
+            primary: .networkInBytesPerSec,
+            secondary: .networkOutBytesPerSec,
+            duration: 60.0,
+            referenceDate: ref
+        )
+        XCTAssertEqual(netDual.count, 10)
+        XCTAssertEqual(netDual.first, DualChartPoint(timestamp: base, primary: 1000.0, secondary: 500.0))
+        XCTAssertEqual(netDual.last, DualChartPoint(timestamp: base + 9.0, primary: 1900.0, secondary: 950.0))
+
+        // Inner-join timestamp alignment across sparse powerWatts + dense powerChargePercent
+        let sparseDual = store.timedDualScalarHistory(
+            primary: .powerWatts,
+            secondary: .powerChargePercent,
+            duration: 60.0,
+            referenceDate: ref
+        )
+        XCTAssertEqual(sparseDual.count, 5)
+        XCTAssertEqual(sparseDual.map(\.timestamp), [0, 2, 4, 6, 8].map { base + Double($0) })
+        XCTAssertEqual(sparseDual.map(\.primary), [10, 12, 14, 16, 18])
+        XCTAssertEqual(sparseDual.map(\.secondary), [90, 88, 86, 84, 82])
+
+        // Bucketed dual alignment
+        let bucketedNet = store.bucketedDualScalarHistory(
+            primary: .networkInBytesPerSec,
+            secondary: .networkOutBytesPerSec,
+            duration: 60.0,
+            bucketWidth: 2.5,
+            referenceDate: ref
+        )
+        XCTAssertEqual(bucketedNet.primary.count, bucketedNet.secondary.count)
+        XCTAssertFalse(bucketedNet.primary.isEmpty)
+        XCTAssertEqual(bucketedNet.primary.map(\.timestamp), bucketedNet.secondary.map(\.timestamp))
     }
 }
