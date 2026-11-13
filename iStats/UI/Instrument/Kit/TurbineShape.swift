@@ -98,6 +98,7 @@ public struct TurbineView: View {
     public var isPaused: Bool
 
     @Environment(\.motionPolicy) private var motionPolicy
+    @Environment(\.colorSchemeContrast) private var colorSchemeContrast
     @State private var driver = TurbineDriver()
 
     public init(
@@ -117,11 +118,17 @@ public struct TurbineView: View {
     public var body: some View {
         let speed = FanMath.visualSpeed(rpm: rpm, min: minRPM, max: maxRPM)
         let shouldSpin = (motionPolicy == .full) && (speed > 0.0) && !isPaused
+        let bezelWidth: CGFloat = size <= 36 ? 1.5 : 2.0
+        let bladeSize = max(8.0, size - (size <= 36 ? 5.0 : 8.0))
+        let bladeTint = CategoryPalette.tint(for: .fan).opacity(rpm > 0 ? 1.0 : 0.45)
+        let bezelColor = colorSchemeContrast == .increased
+            ? Color.primary.opacity(0.25)
+            : Instrument.Surface.inset
 
         ZStack {
             // Bezel Ring
             Circle()
-                .stroke(Instrument.Surface.inset, lineWidth: 2)
+                .stroke(bezelColor, lineWidth: bezelWidth)
                 .frame(width: size, height: size)
 
             // Turbine Blades
@@ -132,14 +139,15 @@ public struct TurbineView: View {
                         speed: speed
                     )
                     TurbineShape()
-                        .fill(CategoryPalette.tint(for: .fan))
+                        .fill(bladeTint)
                         .rotationEffect(.degrees(degrees))
-                        .frame(width: size - 8, height: size - 8)
+                        .frame(width: bladeSize, height: bladeSize)
                 }
             } else {
                 TurbineShape()
-                    .fill(CategoryPalette.tint(for: .fan))
-                    .frame(width: size - 8, height: size - 8)
+                    .fill(bladeTint)
+                    .rotationEffect(.degrees(driver.degrees))
+                    .frame(width: bladeSize, height: bladeSize)
                     .onAppear {
                         driver.reset()
                     }
