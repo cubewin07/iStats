@@ -2,8 +2,9 @@ import SwiftUI
 import AppKit
 import iStatsCore
 
-/// Dedicated GPU Instrument Panel (Task 8.8c / ADR 0009 / Blueprint §6.3).
-/// Features the signature Engine Rings, VRAM working set meter, driver recovery status, and hardware facts.
+/// Dedicated GPU Instrument Panel (Task 8.5.8c / ADR 0009 / ADR 0010).
+/// Features the Engine Activity RingStack + tabular bars, consolidated Memory & Telemetry,
+/// Engine Breakdown, and Device Architecture spec sheet.
 public struct GPUPanel: View {
     public let initialTab: PopoverTab
     public let rememberLastTab: Bool
@@ -13,6 +14,25 @@ public struct GPUPanel: View {
     @ObservedObject public var preferences: PreferencesStore
 
     @State private var selectedTab: PopoverTab
+    @State private var derivedMemo = DerivedMemo()
+
+    private struct MemoKey: Equatable {
+        let sampleTimestamp: Date?
+        let hasSample: Bool
+        let refreshInterval: Double
+    }
+
+    private struct DerivedState {
+        let glance: PanelGlance
+        let status: StatusLevel
+        let ribbon: String?
+        let rings: [RingData]
+    }
+
+    private final class DerivedMemo {
+        var key: MemoKey?
+        var state: DerivedState?
+    }
 
     public init(
         initialTab: PopoverTab = .overview,
@@ -37,18 +57,17 @@ public struct GPUPanel: View {
     }
 
     public var body: some View {
-        let sample = coordinator.latestGPU?.value
-        let glance = deriveGlance(sample: sample)
+        let sampleWrapper = coordinator.latestGPU
+        let sample = sampleWrapper?.value
+        let derived = resolveDerivedState(sampleWrapper: sampleWrapper)
         let availability = coordinator.categoryAvailability[.gpu]
         let isLoading = (availability == nil && !coordinator.isSamplingPaused)
-        let status = deriveStatus(sample: sample)
-        let ribbon = deriveRibbon(sample: sample)
 
         PanelScaffold(
             category: .gpu,
-            glance: glance,
-            status: status,
-            ribbon: ribbon,
+            glance: derived.glance,
+            status: derived.status,
+            ribbon: derived.ribbon,
             pages: PopoverTab.supportedTabs(for: .gpu),
             selection: $selectedTab,
             availability: availability,
@@ -64,7 +83,7 @@ public struct GPUPanel: View {
         ) { tab in
             switch tab {
             case .overview:
-                nowPage(sample: sample)
+                nowPage(sample: sample, rings: derived.rings)
             case .detail:
                 detailPage(sample: sample)
             case .history:
@@ -78,15 +97,51 @@ public struct GPUPanel: View {
         }
     }
 
-    // MARK: - Glance Derivation
+    // MARK: - Memoised Glance & State Derivation (B8 + B14)
 
-    private func deriveGlance(sample: GPUSample?) -> PanelGlance {
+    private func resolveDerivedState(sampleWrapper: Sample<GPUSample>?) -> DerivedState {
+        let key = MemoKey(
+            sampleTimestamp: sampleWrapper?.timestamp,
+            hasSample: sampleWrapper != nil,
+            refreshInterval: preferences.refreshInterval
+        )
+        if derivedMemo.key == key, let cached = derivedMemo.state {
+            return cached
+        }
+
+        let sample = sampleWrapper?.value
+        let referenceDate = sampleWrapper?.timestamp ?? Date()
+        let glance = deriveGlance(sample: sample, referenceDate: referenceDate)
+        let status = deriveStatus(sample: sample)
+        let ribbon = deriveRibbon(sample: sample)
+        let rings = sample.map(buildRings(sample:)) ?? []
+
+        let state = DerivedState(
+            glance: glance,
+            status: status,
+            ribbon: ribbon,
+            rings: rings
+        )
+        derivedMemo.key = key
+        derivedMemo.state = state
+        return state
+    }
+
+    private func deriveGlance(sample: GPUSample?, referenceDate: Date) -> PanelGlance {
         let util = sample?.utilization ?? 0.0
         let headline = PanelHeadline.gpu(sample: sample)
-        let utilHistory = coordinator.scalarHistory(for: .gpuUtilization, duration: 60)
-        let insight = InsightEngine.insights(series: utilHistory, interval: 1.0, unit: .percent).first?.text
+        let utilPoints = coordinator.timedScalarHistory(
+            for: .gpuUtilization,
+            duration: 60,
+            referenceDate: referenceDate
+        )
+        let insight = InsightEngine.insights(
+            series: utilPoints.map(\.value),
+            interval: preferences.refreshInterval,
+            unit: .percent
+        ).first?.text
         let chartMode = LiveChartMode.single(
-            values: utilHistory,
+            points: utilPoints,
             color: CategoryPalette.tint(for: .gpu),
             deepColor: CategoryPalette.tintDeep(for: .gpu),
             fixedMax: 100.0
@@ -122,142 +177,176 @@ public struct GPUPanel: View {
         return nil
     }
 
-    // MARK: - Now Page (Overview)
+    // MARK: - Now Page (Max 2 Sections)
 
     @ViewBuilder
-    private func nowPage(sample: GPUSample?) -> some View {
+    private func nowPage(sample: GPUSample?, rings: [RingData]) -> some View {
         if let s = sample {
-            VStack(alignment: .leading, spacing: Instrument.Space.l) {
-                engineActivityModule(sample: s)
+            let hasMemoryOrTelemetry = hasMemoryTelemetrySection(sample: s)
 
-                if let allocated = s.allocatedMemory, let maxMem = s.recommendedMaxMemory, maxMem > 0 {
-                    vramWorkingSetModule(allocated: allocated, maxMem: maxMem)
-                } else if let memUsed = s.memoryUsed {
-                    graphicsWorkingSetModule(memUsed: memUsed)
-                }
+            VStack(alignment: .leading, spacing: Instrument.Space.m) {
+                engineActivitySection(sample: s, rings: rings)
 
-                if s.powerWatts != nil || s.tempCelsius != nil {
-                    subsystemTelemetryModule(sample: s)
+                if hasMemoryOrTelemetry {
+                    memoryAndTelemetrySection(sample: s)
                 }
             }
         }
     }
 
-    @ViewBuilder
-    private func engineActivityModule(sample: GPUSample) -> some View {
-        let util = sample.utilization ?? 0.0
-        let rings = buildRings(sample: sample)
+    private func hasMemoryTelemetrySection(sample: GPUSample) -> Bool {
+        let hasVRAM = (sample.allocatedMemory != nil && (sample.recommendedMaxMemory ?? 0) > 0)
+        return hasVRAM || sample.memoryUsed != nil || sample.powerWatts != nil || sample.tempCelsius != nil
+    }
 
-        Module(eyebrow: "Engine Activity") {
-            HStack(spacing: Instrument.Space.l) {
+    private func engineActivitySection(sample: GPUSample, rings: [RingData]) -> some View {
+        let util = sample.utilization ?? 0.0
+
+        return Section(
+            "Engine Activity",
+            trailing: {
+                if let coreCount = sample.coreCount, coreCount > 0 {
+                    Text("\(coreCount) cores")
+                        .font(Instrument.Typography.caption)
+                        .foregroundStyle(.secondary)
+                        .monospacedDigit()
+                }
+            }
+        ) {
+            HStack(alignment: .center, spacing: Instrument.Space.l) {
                 RingStack(
                     rings: rings,
-                    size: 76,
-                    ringWidth: 6,
-                    ringGap: 3.5
+                    size: 92,
+                    ringWidth: 7,
+                    ringGap: 4
                 )
 
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack {
-                        Circle()
-                            .fill(CategoryPalette.tint(for: .gpu))
-                            .frame(width: 8, height: 8)
-                        Text("Device")
-                            .font(Instrument.Typography.caption)
-                            .foregroundColor(Color.secondary)
-                        Spacer()
-                        LiveNumber(value: util, format: { String(format: "%.0f%%", $0) })
-                            .font(Instrument.Typography.value)
-                            .foregroundColor(Color.primary)
-                    }
+                VStack(alignment: .leading, spacing: 8) {
+                    engineLegendRow(
+                        label: "Device",
+                        value: util,
+                        color: CategoryPalette.tint(for: .gpu)
+                    )
 
                     if let renderer = sample.rendererUtilization {
-                        HStack {
-                            Circle()
-                                .fill(CategoryPalette.tint(for: .gpu).opacity(0.8))
-                                .frame(width: 8, height: 8)
-                            Text("Renderer")
-                                .font(Instrument.Typography.caption)
-                                .foregroundColor(Color.secondary)
-                            Spacer()
-                            LiveNumber(value: renderer, format: { String(format: "%.0f%%", $0) })
-                                .font(Instrument.Typography.value)
-                                .foregroundColor(Color.primary)
-                        }
+                        engineLegendRow(
+                            label: "Renderer",
+                            value: renderer,
+                            color: CategoryPalette.tintDeep(for: .gpu)
+                        )
                     }
 
                     if let tiler = sample.tilerUtilization {
-                        HStack {
-                            Circle()
-                                .fill(CategoryPalette.tint(for: .gpu).opacity(0.55))
-                                .frame(width: 8, height: 8)
-                            Text("Tiler")
-                                .font(Instrument.Typography.caption)
-                                .foregroundColor(Color.secondary)
-                            Spacer()
-                            LiveNumber(value: tiler, format: { String(format: "%.0f%%", $0) })
-                                .font(Instrument.Typography.value)
-                                .foregroundColor(Color.primary)
-                        }
+                        engineLegendRow(
+                            label: "Tiler",
+                            value: tiler,
+                            color: CategoryPalette.tint(for: .gpu).opacity(0.55)
+                        )
                     }
 
                     if !hasDetailedEngines {
                         Text("Engine breakdown not exposed by this GPU")
                             .font(Instrument.Typography.caption)
-                            .foregroundColor(Color.secondary)
+                            .foregroundStyle(.secondary)
                     }
                 }
             }
         }
     }
 
-    private func vramWorkingSetModule(allocated: UInt64, maxMem: UInt64) -> some View {
-        let ratio = maxMem > 0 ? (Double(allocated) / Double(maxMem)) : 0.0
-        let formattedAlloc = Units.formatBytes(allocated, standard: preferences.byteUnitStandard)
-        let formattedMax = Units.formatBytes(maxMem, standard: preferences.byteUnitStandard)
+    private func engineLegendRow(label: String, value: Double, color: Color) -> some View {
+        HStack(spacing: Instrument.Space.s) {
+            Circle()
+                .fill(color)
+                .frame(width: 7, height: 7)
 
-        let vramTint = ratio > 0.90 ? CategoryPalette.statusColor(for: .critical) : (ratio > 0.75 ? CategoryPalette.statusColor(for: .elevated) : CategoryPalette.tint(for: .gpu))
+            Text(label)
+                .font(Instrument.Typography.body)
+                .foregroundStyle(.secondary)
+                .frame(width: 56, alignment: .leading)
+                .lineLimit(1)
 
-        return Module(eyebrow: "VRAM Working Set") {
-            HStack {
-                Text("\(formattedAlloc) / \(formattedMax)")
-                    .font(Instrument.Typography.caption)
-                    .foregroundColor(Color.secondary)
-                Spacer()
-            }
             Meter(
-                progress: ratio,
-                height: .medium,
-                tint: vramTint,
-                deepTint: ratio > 0.75 ? nil : CategoryPalette.tintDeep(for: .gpu)
+                progress: value / 100.0,
+                height: .small,
+                tint: color,
+                interval: preferences.refreshInterval
             )
+
+            LiveNumber(
+                value: value,
+                format: { String(format: "%.0f%%", $0) },
+                font: Instrument.Typography.value
+            )
+            .foregroundStyle(.primary)
+            .frame(width: 36, alignment: .trailing)
         }
     }
 
-    @ViewBuilder
-    private func graphicsWorkingSetModule(memUsed: UInt64) -> some View {
-        Module(eyebrow: "Graphics Working Set") {
-            MetricRow(
-                label: "Allocated Memory",
-                valueText: Units.formatBytes(memUsed, standard: preferences.byteUnitStandard)
-            )
-        }
-    }
+    private func memoryAndTelemetrySection(sample: GPUSample) -> some View {
+        let hasPower = sample.powerWatts != nil
+        let hasTemp = sample.tempCelsius != nil
+        let hasTelemetry = hasPower || hasTemp
 
-    @ViewBuilder
-    private func subsystemTelemetryModule(sample: GPUSample) -> some View {
-        Module(eyebrow: "Subsystem Telemetry") {
-            VStack(spacing: 8) {
+        return Section("Memory & Telemetry") {
+            VStack(spacing: 0) {
+                if let allocated = sample.allocatedMemory, let maxMem = sample.recommendedMaxMemory, maxMem > 0 {
+                    let ratio = Double(allocated) / Double(maxMem)
+                    let formattedAlloc = Units.formatBytes(allocated, standard: preferences.byteUnitStandard)
+                    let formattedMax = Units.formatBytes(maxMem, standard: preferences.byteUnitStandard)
+                    let vramTint = ratio > 0.90
+                        ? CategoryPalette.statusColor(for: .critical)
+                        : (ratio > 0.75 ? CategoryPalette.statusColor(for: .elevated) : CategoryPalette.tint(for: .gpu))
+
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack {
+                            Text("VRAM Working Set")
+                                .font(Instrument.Typography.body)
+                                .foregroundStyle(.secondary)
+                            Spacer()
+                            Text("\(formattedAlloc) / \(formattedMax)")
+                                .font(Instrument.Typography.value)
+                                .foregroundStyle(.primary)
+                        }
+                        Meter(
+                            progress: ratio,
+                            height: .medium,
+                            tint: vramTint,
+                            deepTint: ratio > 0.75 ? nil : CategoryPalette.tintDeep(for: .gpu),
+                            interval: preferences.refreshInterval
+                        )
+                    }
+                    .padding(.horizontal, 4)
+                    .padding(.vertical, 6)
+                    .overlay(alignment: .bottom) {
+                        if hasTelemetry {
+                            Rectangle()
+                                .fill(Instrument.Surface.hairline)
+                                .frame(height: 0.5)
+                        }
+                    }
+                } else if let memUsed = sample.memoryUsed {
+                    MetricRow(
+                        label: "Allocated Memory",
+                        valueText: Units.formatBytes(memUsed, standard: preferences.byteUnitStandard),
+                        showHairline: hasTelemetry
+                    )
+                }
+
                 if let watts = sample.powerWatts {
                     MetricRow(
                         label: "Power Consumption",
-                        valueText: String(format: "%.1f W", watts)
+                        valueText: String(format: "%.1f", watts),
+                        unit: "W",
+                        showHairline: hasTemp
                     )
                 }
+
                 if let temp = sample.tempCelsius {
                     MetricRow(
                         label: "Die Temperature",
-                        valueText: Units.formatTemperature(temp, unit: preferences.temperatureUnit, fractionDigits: 1)
+                        valueText: Units.formatTemperature(temp, unit: preferences.temperatureUnit, fractionDigits: 1),
+                        showHairline: false
                     )
                 }
             }
@@ -280,7 +369,7 @@ public struct GPUPanel: View {
                 RingData(
                     id: "gpu.renderer",
                     fraction: renderer / 100.0,
-                    color: CategoryPalette.tint(for: .gpu).opacity(0.8),
+                    color: CategoryPalette.tintDeep(for: .gpu),
                     label: "Renderer"
                 )
             )
@@ -300,100 +389,159 @@ public struct GPUPanel: View {
         return rings
     }
 
-    // MARK: - Detail Page (Engines / Device)
+    // MARK: - Detail Page (Max 2 Sections)
 
     @ViewBuilder
     private func detailPage(sample: GPUSample?) -> some View {
         if let s = sample {
-            VStack(alignment: .leading, spacing: Instrument.Space.l) {
-                engineBreakdownModule(sample: s)
-                hardwareArchitectureModule(sample: s)
+            let specs = architectureSpecRows(sample: s)
+
+            VStack(alignment: .leading, spacing: Instrument.Space.m) {
+                engineBreakdownSection(sample: s)
+
+                if !specs.isEmpty {
+                    deviceArchitectureSection(rows: specs)
+                }
             }
         }
     }
 
-    @ViewBuilder
-    private func engineBreakdownModule(sample: GPUSample) -> some View {
+    private func engineBreakdownSection(sample: GPUSample) -> some View {
         let util = sample.utilization ?? 0.0
         let enginesTitle = PopoverTab.detail.title(for: .gpu, hasDetailedGPUEngines: hasDetailedEngines)
 
-        Module(eyebrow: "\(enginesTitle) Breakdown") {
+        return Section("\(enginesTitle) Breakdown") {
             VStack(alignment: .leading, spacing: 10) {
-                VStack(alignment: .leading, spacing: 4) {
-                    MetricRow(label: "Device Utilization", valueText: String(format: "%.0f", util), unit: "%")
-                    Meter(
-                        progress: util / 100.0,
-                        height: .medium,
-                        tint: CategoryPalette.tint(for: .gpu)
+                engineMeterBlock(
+                    label: "Device Utilization",
+                    value: util,
+                    tint: CategoryPalette.tint(for: .gpu)
+                )
+
+                if let renderer = sample.rendererUtilization {
+                    engineMeterBlock(
+                        label: "3D Renderer Engine",
+                        value: renderer,
+                        tint: CategoryPalette.tintDeep(for: .gpu)
                     )
                 }
 
-                if let renderer = sample.rendererUtilization {
-                    VStack(alignment: .leading, spacing: 4) {
-                        MetricRow(label: "3D Renderer Engine", valueText: String(format: "%.0f", renderer), unit: "%")
-                        Meter(
-                            progress: renderer / 100.0,
-                            height: .medium,
-                            tint: CategoryPalette.tint(for: .gpu).opacity(0.85)
-                        )
-                    }
-                }
-
                 if let tiler = sample.tilerUtilization {
-                    VStack(alignment: .leading, spacing: 4) {
-                        MetricRow(label: "Geometry / Tiler Engine", valueText: String(format: "%.0f", tiler), unit: "%")
-                        Meter(
-                            progress: tiler / 100.0,
-                            height: .medium,
-                            tint: CategoryPalette.tint(for: .gpu).opacity(0.65)
-                        )
-                    }
+                    engineMeterBlock(
+                        label: "Geometry / Tiler Engine",
+                        value: tiler,
+                        tint: CategoryPalette.tint(for: .gpu).opacity(0.65)
+                    )
                 }
 
                 if !hasDetailedEngines {
                     Text("Per-engine hardware telemetry is synthesized via IOKit on this architecture.")
                         .font(Instrument.Typography.caption)
-                        .foregroundColor(Color.secondary)
-                        .padding(.top, 4)
+                        .foregroundStyle(.secondary)
+                        .padding(.top, 2)
                 }
             }
         }
     }
 
-    @ViewBuilder
-    private func hardwareArchitectureModule(sample: GPUSample) -> some View {
-        Module(eyebrow: "Device Architecture") {
-            VStack(spacing: 8) {
-                if let deviceName = sample.deviceName, !deviceName.isEmpty {
-                    MetricRow(label: "Metal Device", valueText: deviceName)
-                }
-                if let coreCount = sample.coreCount {
-                    MetricRow(label: "GPU Cores", valueText: "\(coreCount) Cores")
-                }
-                if let unified = sample.isUnifiedMemory {
-                    MetricRow(label: "Memory Architecture", valueText: unified ? "Unified Memory" : "Discrete VRAM")
-                }
-                if let metal = sample.metalFeatureSet, !metal.isEmpty {
-                    MetricRow(label: "Metal Architecture", valueText: metal)
-                }
-                if let ray = sample.supportsRaytracing {
-                    MetricRow(label: "Hardware Ray Tracing", valueText: ray ? "Supported" : "Not Supported")
-                }
-                if let displays = sample.displayDescriptions, !displays.isEmpty {
-                    MetricRow(label: "Connected Displays", valueText: displays.joined(separator: ", "))
+    private func engineMeterBlock(label: String, value: Double, tint: Color) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            MetricRow(
+                label: label,
+                valueText: String(format: "%.0f", value),
+                unit: "%"
+            )
+            Meter(
+                progress: value / 100.0,
+                height: .medium,
+                tint: tint,
+                interval: preferences.refreshInterval
+            )
+        }
+    }
+
+    private struct ArchitectureSpecRow: Identifiable {
+        let id: String
+        let label: String
+        let value: String
+        let isCopyable: Bool
+    }
+
+    private func architectureSpecRows(sample: GPUSample) -> [ArchitectureSpecRow] {
+        var rows: [ArchitectureSpecRow] = []
+
+        if let deviceName = sample.deviceName, !deviceName.isEmpty {
+            rows.append(ArchitectureSpecRow(
+                id: "metalDevice",
+                label: "Metal Device",
+                value: deviceName,
+                isCopyable: true
+            ))
+        }
+        if let coreCount = sample.coreCount {
+            rows.append(ArchitectureSpecRow(
+                id: "gpuCores",
+                label: "GPU Cores",
+                value: "\(coreCount) Cores",
+                isCopyable: false
+            ))
+        }
+        if let unified = sample.isUnifiedMemory {
+            rows.append(ArchitectureSpecRow(
+                id: "memoryArch",
+                label: "Memory Architecture",
+                value: unified ? "Unified Memory" : "Discrete VRAM",
+                isCopyable: false
+            ))
+        }
+        if let metal = sample.metalFeatureSet, !metal.isEmpty {
+            rows.append(ArchitectureSpecRow(
+                id: "metalFamily",
+                label: "Metal Family",
+                value: metal,
+                isCopyable: false
+            ))
+        }
+        if let ray = sample.supportsRaytracing {
+            rows.append(ArchitectureSpecRow(
+                id: "rayTracing",
+                label: "Hardware Ray Tracing",
+                value: ray ? "Supported" : "Not Supported",
+                isCopyable: false
+            ))
+        }
+        if let displays = sample.displayDescriptions, !displays.isEmpty {
+            rows.append(ArchitectureSpecRow(
+                id: "displays",
+                label: "Connected Displays",
+                value: displays.joined(separator: ", "),
+                isCopyable: true
+            ))
+        }
+
+        return rows
+    }
+
+    private func deviceArchitectureSection(rows: [ArchitectureSpecRow]) -> some View {
+        Section("Device Architecture") {
+            VStack(spacing: 0) {
+                ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
+                    MetricRow(
+                        label: row.label,
+                        valueText: row.value,
+                        isCopyable: row.isCopyable,
+                        showHairline: index < rows.count - 1
+                    )
                 }
             }
         }
     }
-
-
 }
 
 #if DEBUG
 struct GPUPanel_Previews: PreviewProvider {
     static var previews: some View {
         Group {
-            // Full engines preview
             GPUPanel(
                 initialTab: .overview,
                 coordinator: .shared,
@@ -401,7 +549,6 @@ struct GPUPanel_Previews: PreviewProvider {
             )
             .previewDisplayName("Full Engines")
 
-            // Device only preview
             GPUPanel(
                 initialTab: .detail,
                 coordinator: .shared,
@@ -409,7 +556,7 @@ struct GPUPanel_Previews: PreviewProvider {
             )
             .previewDisplayName("Device Only")
         }
-        .frame(width: 320)
+        .frame(width: 352)
         .background(Instrument.Surface.panel)
     }
 }
