@@ -241,7 +241,7 @@ final class MenuBarItemConfigTests: XCTestCase {
     }
 
     func testCategorySpecificDisplayNames() {
-        XCTAssertEqual(MetricDisplayStyle.bar.displayName(for: .cpu), "Core Cluster")
+        XCTAssertEqual(MetricDisplayStyle.bar.displayName(for: .cpu), "Cluster Bars")
         XCTAssertEqual(MetricDisplayStyle.gauge.displayName(for: .cpu), "Load Ring")
         XCTAssertEqual(MetricDisplayStyle.gauge.displayName(for: .memory), "Pressure Ring")
         XCTAssertEqual(MetricDisplayStyle.bar.displayName(for: .memory), "Allocation")

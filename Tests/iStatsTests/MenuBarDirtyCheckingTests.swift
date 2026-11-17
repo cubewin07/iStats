@@ -364,7 +364,7 @@ final class MenuBarDirtyCheckingTests: XCTestCase {
         XCTAssertFalse(img1 === img2, "Power .text image must update when second line time changes")
     }
 
-    func testCPUBarUpdatesWhenPerCoreLoadShiftsAtSameTotalUsage() {
+    func testCPUBarUpdatesWhenClusterLoadShiftsAtSameTotalUsage() {
         let (defaults, prefs, coord, controller, suiteName) = makeContext()
         defer { cleanup(defaults: defaults, controller: controller, suiteName: suiteName) }
 
@@ -373,16 +373,33 @@ final class MenuBarDirtyCheckingTests: XCTestCase {
         controller.syncStatusItems()
         controller.resetPerformanceCounters()
 
-        let sample1 = CPUSample(totalUsage: 25.0, perCore: [50.0, 0.0, 50.0, 0.0], user: 15.0, system: 10.0, idle: 75.0)
+        // Hybrid 2E + 2P: load concentrated on E-cluster (50% E, 0% P, 25% total)
+        let sample1 = CPUSample(
+            totalUsage: 25.0,
+            perCore: [50.0, 50.0, 0.0, 0.0],
+            user: 15.0,
+            system: 10.0,
+            idle: 75.0,
+            efficiencyCoreCount: 2,
+            performanceCoreCount: 2
+        )
         coord.handleReading(MetricReading.wrap(category: .cpu, value: sample1))
         controller.updateItems(for: .cpu)
 
-        // Total is still 25.0%, but core distribution changed
-        let sample2 = CPUSample(totalUsage: 25.0, perCore: [25.0, 25.0, 25.0, 25.0], user: 15.0, system: 10.0, idle: 75.0)
+        // Total is still 25.0%, but load shifted from E-cluster to P-cluster (0% E, 50% P)
+        let sample2 = CPUSample(
+            totalUsage: 25.0,
+            perCore: [0.0, 0.0, 50.0, 50.0],
+            user: 15.0,
+            system: 10.0,
+            idle: 75.0,
+            efficiencyCoreCount: 2,
+            performanceCoreCount: 2
+        )
         coord.handleReading(MetricReading.wrap(category: .cpu, value: sample2))
         controller.updateItems(for: .cpu)
 
-        XCTAssertEqual(controller.buttonMutationCount, 2, "CPU .bar must redraw when per-core bars change even if total usage is identical")
+        XCTAssertEqual(controller.buttonMutationCount, 2, "CPU .bar must redraw when E/P cluster utilization shifts even if total usage is identical")
     }
 
     func testMultiFanBarAndThroughputUpdateWhenSecondaryFanChanges() {

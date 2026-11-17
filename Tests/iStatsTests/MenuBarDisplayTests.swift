@@ -583,13 +583,13 @@ final class MenuBarDisplayTests: XCTestCase {
         let cores8 = [10.0, 25.0, 50.0, 75.0, 20.0, 40.0, 60.0, 80.0]
         let img8 = MenuBarIconRenderer.drawCPUBar(perCore: cores8, user: 45.0, system: 15.0)
         XCTAssertEqual(img8.size.height, 22)
-        XCTAssertEqual(img8.size.width, 41)
+        XCTAssertEqual(img8.size.width, 36)
         XCTAssertNotNil(img8)
 
-        let cores12 = Array(repeating: 30.0, count: 12)
-        let img12 = MenuBarIconRenderer.drawCPUBar(perCore: cores12, user: 30.0, system: 0.0)
-        XCTAssertEqual(img12.size.width, 41)
-        XCTAssertEqual(img12.size.height, 22)
+        let cores10Hybrid = Array(repeating: 20.0, count: 6) + Array(repeating: 80.0, count: 4)
+        let img10 = MenuBarIconRenderer.drawCPUBar(perCore: cores10Hybrid, user: 30.0, system: 10.0, eCoreCount: 6, pCoreCount: 4)
+        XCTAssertEqual(img10.size.width, 36)
+        XCTAssertEqual(img10.size.height, 22)
 
         let coresNil = MenuBarIconRenderer.drawCPUBar(perCore: nil, user: 40.0, system: 10.0)
         XCTAssertEqual(coresNil.size.width, 36)

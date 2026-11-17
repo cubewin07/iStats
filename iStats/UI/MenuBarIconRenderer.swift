@@ -105,14 +105,17 @@ public struct MenuBarIconRenderer {
             let qSys = Int(round(min(max(cpu?.system ?? 0.0, 0.0), 100.0 - Double(qUser))))
             return "cpu:gauge:\(qUser):\(qSys)"
         case .bar:
-            let qUsage = Int(round(usage))
-            if let cores = cpu?.perCore, cores.count >= 2 {
-                let coreKey = cores.prefix(16).map { String(Int(round(min(max($0, 0.0), 100.0)))) }.joined(separator: ",")
-                return "cpu:bar:\(qUsage):\(coreKey)"
+            if let cpu,
+               let eCount = cpu.efficiencyCoreCount, let pCount = cpu.performanceCoreCount,
+               eCount > 0, pCount > 0, eCount + pCount == cpu.perCore.count,
+               let eAvg = cpu.efficiencyUsage, let pAvg = cpu.performanceUsage {
+                let qE = Int(round(min(max(eAvg, 0.0), 100.0)))
+                let qP = Int(round(min(max(pAvg, 0.0), 100.0)))
+                return "cpu:bar:ep:\(qE):\(qP)"
             } else {
                 let qUser = Int(round(min(max(cpu?.user ?? usage, 0.0), 100.0)))
                 let qSys = Int(round(min(max(cpu?.system ?? 0.0, 0.0), 100.0)))
-                return "cpu:bar:\(qUsage):\(qUser):\(qSys)"
+                return "cpu:bar:us:\(qUser):\(qSys)"
             }
         case .text:
             return "cpu:text:\(valStr)"
@@ -1868,71 +1871,36 @@ public struct MenuBarIconRenderer {
         return image
     }
 
-    /// Draws per-core CPU micro-bar cluster with vertical "CPU" label on the left, grouped E | P with 2 pt gap.
+    /// Draws dual CPU cluster capsule bars (Efficiency | Performance on hybrid Apple Silicon, or User | System).
     public static func drawCPUCoreClusterBar(
         cores: [Double],
         label: String = "CPU",
-        barColor: NSColor? = .systemBlue,
+        barColor: NSColor? = nil,
         eCoreCount: Int = 0,
         pCoreCount: Int = 0
     ) -> NSImage {
-        let textWidth: CGFloat = 9.5
-        let gap: CGFloat = 3.0
-        let clusterWidth: CGFloat = 24.5
-        let totalWidth = 2.0 + textWidth + gap + clusterWidth + 2.0
-        let size = NSSize(width: totalWidth, height: 22)
-
-        let image = NSImage(size: size, flipped: false) { bounds in
-            let barHeight: CGFloat = 20.0
-            let barY: CGFloat = (bounds.height - barHeight) / 2.0
-
-            let textRect = NSRect(x: 2.0, y: barY, width: textWidth, height: barHeight)
-            drawVerticalCategoryText(label, in: textRect, color: .labelColor)
-
-            let clusterX: CGFloat = 2.0 + textWidth + gap
-
-            if cores.count > 16 {
-                // Above 16 cores, render cluster summary bars
-                let eAvg: Double
-                let pAvg: Double
-                if eCoreCount > 0 && pCoreCount > 0 && eCoreCount + pCoreCount == cores.count {
-                    eAvg = cores.prefix(eCoreCount).reduce(0.0, +) / Double(eCoreCount)
-                    pAvg = cores.suffix(from: eCoreCount).reduce(0.0, +) / Double(pCoreCount)
-                } else {
-                    let half = cores.count / 2
-                    eAvg = cores.prefix(half).reduce(0.0, +) / Double(max(half, 1))
-                    pAvg = cores.suffix(from: half).reduce(0.0, +) / Double(max(cores.count - half, 1))
-                }
-                let barW = (clusterWidth - 2.0) / 2.0
-                let eRect = NSRect(x: clusterX, y: barY, width: barW, height: barHeight)
-                let pRect = NSRect(x: clusterX + barW + 2.0, y: barY, width: barW, height: barHeight)
-                drawCapsulePill(in: eRect, percentage: eAvg, fillColor: barColor)
-                drawCapsulePill(in: pRect, percentage: pAvg, fillColor: barColor)
-            } else {
-                let n = cores.count
-                let hasClusters = eCoreCount > 0 && pCoreCount > 0 && (eCoreCount + pCoreCount == n)
-                let clusterGap: CGFloat = hasClusters ? 2.0 : 0.0
-                let interCoreGap: CGFloat = 0.5
-                let totalGaps = (CGFloat(n - 1) * interCoreGap) + clusterGap
-                let coreWidth = max(1.0, (clusterWidth - totalGaps) / CGFloat(n))
-
-                var currentX = clusterX
-                for (idx, coreUsage) in cores.enumerated() {
-                    let trackRect = NSRect(x: currentX, y: barY, width: coreWidth, height: barHeight)
-                    drawCapsulePill(in: trackRect, percentage: coreUsage, fillColor: barColor)
-                    currentX += coreWidth + interCoreGap
-                    if hasClusters && idx == eCoreCount - 1 {
-                        currentX += clusterGap - interCoreGap
-                    }
-                }
-            }
-            return true
+        let eAvg: Double
+        let pAvg: Double
+        if eCoreCount > 0 && pCoreCount > 0 && eCoreCount + pCoreCount == cores.count {
+            eAvg = cores.prefix(eCoreCount).reduce(0.0, +) / Double(eCoreCount)
+            pAvg = cores.suffix(from: eCoreCount).reduce(0.0, +) / Double(pCoreCount)
+        } else {
+            let half = max(1, cores.count / 2)
+            eAvg = cores.prefix(half).reduce(0.0, +) / Double(min(half, max(1, cores.count)))
+            let rem = Array(cores.dropFirst(min(half, cores.count)))
+            pAvg = rem.isEmpty ? eAvg : rem.reduce(0.0, +) / Double(rem.count)
         }
-        image.isTemplate = (barColor == nil)
-        return image
+
+        return drawDualCapsuleBar(
+            label: label,
+            leftPercentage: eAvg,
+            rightPercentage: pAvg,
+            leftColor: barColor ?? NSColor(CategoryPalette.Series.cpuEfficiency),
+            rightColor: barColor ?? CategoryPalette.nsColor(for: .cpu)
+        )
     }
 
-    /// Draws modern capsule load bar for CPU.
+    /// Draws dual capsule load bars for CPU (Efficiency/Performance clusters on hybrid CPUs, otherwise User/System).
     public static func drawCPUBar(
         perCore: [Double]?,
         user: Double? = nil,
@@ -1940,27 +1908,26 @@ public struct MenuBarIconRenderer {
         eCoreCount: Int = 0,
         pCoreCount: Int = 0
     ) -> NSImage {
-        if let cores = perCore, cores.count >= 2 {
-            return drawCPUCoreClusterBar(cores: cores, label: "CPU", barColor: .systemBlue, eCoreCount: eCoreCount, pCoreCount: pCoreCount)
-        } else {
-            let usr = user ?? 0.0
-            let sys = system ?? 0.0
-            if sys > 0 {
-                return drawDualCapsuleBar(
-                    label: "CPU",
-                    leftPercentage: usr,
-                    rightPercentage: sys,
-                    leftColor: .systemBlue,
-                    rightColor: .systemOrange
-                )
-            } else {
-                return drawSingleCapsuleBar(
-                    label: "CPU",
-                    percentage: usr + sys,
-                    barColor: .systemBlue
-                )
-            }
+        if let cores = perCore,
+           eCoreCount > 0, pCoreCount > 0,
+           eCoreCount + pCoreCount == cores.count {
+            return drawCPUCoreClusterBar(
+                cores: cores,
+                label: "CPU",
+                eCoreCount: eCoreCount,
+                pCoreCount: pCoreCount
+            )
         }
+
+        let usr = user ?? (perCore.map { $0.reduce(0.0, +) / Double(max(1, $0.count)) } ?? 0.0)
+        let sys = system ?? 0.0
+        return drawDualCapsuleBar(
+            label: "CPU",
+            leftPercentage: usr,
+            rightPercentage: sys,
+            leftColor: CategoryPalette.nsColor(for: .cpu),
+            rightColor: NSColor(CategoryPalette.Series.cpuSystem)
+        )
     }
 
     /// Draws authentic iStat Menus segmented CPU Donut Pie (User vs. System load) with 2.6 pt ring stroke.

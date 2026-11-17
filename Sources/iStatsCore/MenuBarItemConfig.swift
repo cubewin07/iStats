@@ -69,7 +69,7 @@ public enum MetricDisplayStyle: String, CaseIterable, Identifiable, Codable, Sen
         // CPU (4)
         case (.cpu, .text): return "CPU %"
         case (.cpu, .gauge): return "Load Ring"
-        case (.cpu, .bar): return "Core Cluster"
+        case (.cpu, .bar): return "Cluster Bars"
         case (.cpu, .sparkline): return "Usage History"
 
         // Memory (4)
