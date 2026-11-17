@@ -226,6 +226,52 @@ final class PanelScaffoldTests: XCTestCase {
         XCTAssertGreaterThan(fit.height, 150)
     }
 
+    func testMemoryPanelGlanceUnitMatchesByteUnitStandard() {
+        let (defaults, prefs, coord, suiteName) = makeContext()
+        defer { cleanup(defaults: defaults, suiteName: suiteName) }
+
+        coord.handleReading(.memory(Sample(value: MemorySample(
+            total: 16 * 1024 * 1024 * 1024,
+            used: 10 * 1024 * 1024 * 1024,
+            free: 6 * 1024 * 1024 * 1024,
+            wired: 3 * 1024 * 1024 * 1024,
+            compressed: 1 * 1024 * 1024 * 1024,
+            cached: 2 * 1024 * 1024 * 1024,
+            swapUsed: 0,
+            pressure: .normal,
+            appMemory: 6 * 1024 * 1024 * 1024
+        ))))
+
+        var capturedSummary: String?
+        prefs.byteUnitStandard = .iec
+        let probedIEC = MemoryPanel(coordinator: coord, preferences: prefs)
+            .environment(\.panelScaffoldProbeEnabled, true)
+            .onPreferenceChange(PanelScaffoldProbeKey.self) { snapshot in
+                if let summary = snapshot.glanceSummary {
+                    capturedSummary = summary
+                }
+            }
+        let iecHost = NSHostingView(rootView: probedIEC)
+        iecHost.frame = CGRect(x: 0, y: 0, width: Instrument.Size.panelWidth, height: 450)
+        iecHost.layoutSubtreeIfNeeded()
+        XCTAssertTrue(capturedSummary?.contains("10.0 GiB") == true, "Expected '10.0 GiB' in IEC mode, got: \(capturedSummary ?? "nil")")
+        XCTAssertTrue(capturedSummary?.contains("of 16 GiB") == true, "Expected 'of 16 GiB' in IEC mode, got: \(capturedSummary ?? "nil")")
+
+        capturedSummary = nil
+        prefs.byteUnitStandard = .si
+        let probedSI = MemoryPanel(coordinator: coord, preferences: prefs)
+            .environment(\.panelScaffoldProbeEnabled, true)
+            .onPreferenceChange(PanelScaffoldProbeKey.self) { snapshot in
+                if let summary = snapshot.glanceSummary {
+                    capturedSummary = summary
+                }
+            }
+        let siHost = NSHostingView(rootView: probedSI)
+        siHost.frame = CGRect(x: 0, y: 0, width: Instrument.Size.panelWidth, height: 450)
+        siHost.layoutSubtreeIfNeeded()
+        XCTAssertTrue(capturedSummary?.contains("10.7 GB") == true, "Expected '10.7 GB' in SI mode, got: \(capturedSummary ?? "nil")")
+    }
+
     func testGPUPanelRendersFullEnginesCleanly() {
         let (defaults, prefs, coord, suiteName) = makeContext()
         defer { cleanup(defaults: defaults, suiteName: suiteName) }

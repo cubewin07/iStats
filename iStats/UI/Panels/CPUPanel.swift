@@ -546,7 +546,7 @@ public struct CPUPanel: View {
             Spacer(minLength: 2)
 
             coreSparkline(history: history, color: color)
-                .frame(width: 32, height: 12)
+                .frame(width: 28, height: 12)
 
             Text("\(Int(round(usage)))%")
                 .font(Instrument.Typography.value)

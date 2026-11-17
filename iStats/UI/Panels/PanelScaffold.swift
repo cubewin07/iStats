@@ -651,7 +651,8 @@ public struct PanelScaffold<Content: View>: View {
             }
         }
         .font(Instrument.Typography.headline.monospacedDigit())
-        .padding(.horizontal, 5)
+        .padding(.horizontal, 6)
+        .padding(.vertical, 1.5)
         .background(
             RoundedRectangle(cornerRadius: 4, style: .continuous)
                 .fill(Color.secondary.opacity(0.12))

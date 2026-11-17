@@ -151,7 +151,9 @@ public struct MemoryPanel: View {
     // MARK: - Glance Derivation
 
     private func deriveGlance(sample: MemorySample?, standard: Units.ByteUnitStandard) -> PanelGlance {
-        let usedGB = sample.map { Double($0.used) / 1_073_741_824.0 } ?? 0.0
+        let divisor: Double = standard == .si ? 1_000_000_000.0 : 1_073_741_824.0
+        let unitLabel = standard == .si ? "GB" : "GiB"
+        let usedValue = sample.map { Double($0.used) / divisor } ?? 0.0
         let headline: String
         if let s = sample {
             let totalStr = formatTotalBytes(s.total, standard: standard)
@@ -173,9 +175,9 @@ public struct MemoryPanel: View {
             fixedMax: 100.0
         )
         return PanelGlance(
-            value: usedGB,
+            value: usedValue,
             format: "%.1f",
-            unit: "GB",
+            unit: unitLabel,
             headline: headline,
             insight: insight,
             chartMode: chartMode,
@@ -252,7 +254,7 @@ public struct MemoryPanel: View {
             ("wired", "Wired", sample.wired, CategoryPalette.Series.memoryWired),
             ("compressed", "Compressed", sample.compressed, CategoryPalette.Series.memoryCompressed),
             ("cached", "Cached", sample.cached, CategoryPalette.Series.memoryCached),
-            ("free", "Free", sample.free, Instrument.Surface.inset)
+            ("free", "Free", sample.free, Color.secondary.opacity(0.24))
         ]
 
         let legendItems: [AllocationLegendItem] = specs.map { spec in

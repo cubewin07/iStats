@@ -100,6 +100,7 @@ public struct TopConsumersModule: View {
     public let sparklines: [Int32: [Double]]
     public let standard: Units.ByteUnitStandard
 
+    @State private var isActivityMonitorHovered: Bool = false
     @Environment(\.motionPolicy) private var motionPolicy
 
     public init(
@@ -121,7 +122,9 @@ public struct TopConsumersModule: View {
     }
 
     public var body: some View {
-        Section(
+        let accentTint = CategoryPalette.tint(for: criterion == .cpu ? .cpu : .memory)
+
+        return Section(
             sectionTitle,
             trailing: {
                 Button {
@@ -135,9 +138,20 @@ public struct TopConsumersModule: View {
                         Image(systemName: "arrow.up.forward.app")
                             .font(.system(size: 9))
                     }
-                    .foregroundColor(CategoryPalette.tint(for: criterion == .cpu ? .cpu : .memory))
+                    .foregroundColor(accentTint)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(
+                        RoundedRectangle(cornerRadius: 5, style: .continuous)
+                            .fill(isActivityMonitorHovered ? accentTint.opacity(0.12) : Color.clear)
+                    )
                 }
                 .buttonStyle(.plain)
+                .onHover { hovering in
+                    withAnimation(motionPolicy.allowsEasing ? Motion.snappy : nil) {
+                        isActivityMonitorHovered = hovering
+                    }
+                }
                 .help("Open Activity Monitor")
             }
         ) {
@@ -170,10 +184,12 @@ public struct TopConsumersModule: View {
                                 Text(String(format: "%.1f%%", item.cpuPercent))
                                     .font(Instrument.Typography.value)
                                     .foregroundColor(.primary)
+                                    .frame(minWidth: 48, alignment: .trailing)
                             } else {
                                 Text(Units.formatBytes(item.memoryBytes, standard: standard))
                                     .font(Instrument.Typography.value)
                                     .foregroundColor(.primary)
+                                    .frame(minWidth: 58, alignment: .trailing)
                             }
                         }
                         .frame(height: 20)
@@ -187,24 +203,33 @@ public struct TopConsumersModule: View {
 
     @ViewBuilder
     private func microSparkline(history: [Double], color: Color) -> some View {
-        let maxVal = max(1.0, history.max() ?? 100.0)
-        GeometryReader { proxy in
-            Path { path in
-                let w = proxy.size.width
-                let h = proxy.size.height
-                let step = history.count > 1 ? w / CGFloat(history.count - 1) : 0
+        Canvas { context, size in
+            let w = size.width
+            let h = size.height
+            let maxVal = max(1.0, LiveChartMath.computeMaxBound(values: history))
+            guard history.count >= 2, maxVal > 0 else { return }
 
-                for (idx, val) in history.enumerated() {
-                    let x = CGFloat(idx) * step
-                    let y = h - (CGFloat(val / maxVal) * h)
-                    if idx == 0 {
-                        path.move(to: CGPoint(x: x, y: y))
-                    } else {
-                        path.addLine(to: CGPoint(x: x, y: y))
-                    }
+            let step = w / CGFloat(history.count - 1)
+            let points = history.enumerated().map { idx, val in
+                LiveChartMath.Point2D(
+                    x: Double(CGFloat(idx) * step),
+                    y: Double(h * (1.0 - CGFloat(max(0.0, min(maxVal, val)) / maxVal)))
+                )
+            }
+            let segments = LiveChartMath.smoothSegments(points: points)
+
+            var path = Path()
+            if let first = segments.first {
+                path.move(to: CGPoint(x: first.start.x, y: first.start.y))
+                for seg in segments {
+                    path.addCurve(
+                        to: CGPoint(x: seg.end.x, y: seg.end.y),
+                        control1: CGPoint(x: seg.control1.x, y: seg.control1.y),
+                        control2: CGPoint(x: seg.control2.x, y: seg.control2.y)
+                    )
                 }
             }
-            .stroke(color, lineWidth: 1.2)
+            context.stroke(path, with: .color(color.opacity(0.85)), style: StrokeStyle(lineWidth: 1.2, lineCap: .round, lineJoin: .round))
         }
     }
 }

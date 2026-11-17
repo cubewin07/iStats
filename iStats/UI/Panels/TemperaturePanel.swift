@@ -17,6 +17,7 @@ public struct TemperaturePanel: View {
     @State private var selectedTab: PopoverTab
     @State private var expandedGroups: Set<MetricSource>
     @State private var hasInitializedDefaultExpansion: Bool
+    @State private var hoveredGroup: MetricSource?
     @State private var derivedMemo = DerivedMemo()
 
     private static let spectrumMinCelsius: Double = 30.0
@@ -507,6 +508,7 @@ public struct TemperaturePanel: View {
 
     private func collapsibleSensorGroupSection(group: SensorGroup, unit: Units.TemperatureUnit) -> some View {
         let isExpanded = expandedGroups.contains(group.source)
+        let isHovered = (hoveredGroup == group.source)
         let peakFormatted = Units.formatTemperature(group.peak, unit: unit, fractionDigits: 1)
 
         return Section {
@@ -522,7 +524,7 @@ public struct TemperaturePanel: View {
                 HStack(alignment: .firstTextBaseline, spacing: Instrument.Space.m) {
                     Text(group.source.displayName)
                         .font(Instrument.Typography.sectionTitle)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(isHovered ? .primary : .secondary)
                         .accessibilityAddTraits(.isHeader)
 
                     Spacer(minLength: Instrument.Space.m)
@@ -535,13 +537,28 @@ public struct TemperaturePanel: View {
 
                         Image(systemName: "chevron.right")
                             .font(.system(size: 10, weight: .semibold))
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(isHovered ? .primary : .secondary)
                             .rotationEffect(.degrees(isExpanded ? 90 : 0))
                     }
                 }
+                .padding(.horizontal, 4)
+                .padding(.vertical, 2)
+                .background(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(isHovered ? Instrument.Surface.moduleHover : .clear)
+                )
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .onHover { hovering in
+                withAnimation(motionPolicy.allowsEasing ? Motion.snappy : nil) {
+                    if hovering {
+                        hoveredGroup = group.source
+                    } else if hoveredGroup == group.source {
+                        hoveredGroup = nil
+                    }
+                }
+            }
             .accessibilityLabel("\(group.source.displayName), \(group.sensors.count) sensors, peak \(peakFormatted)")
             .accessibilityValue(isExpanded ? "Expanded" : "Collapsed")
 

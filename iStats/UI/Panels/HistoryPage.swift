@@ -422,6 +422,7 @@ public struct HistoryPage: View {
         isScrubDisplay: Bool = false
     ) -> some View {
         let isPinned = (pinnedScrub?.kind == kind)
+        let isHovered = (hoveredStatCell == kind)
         let isHighlighted = isPinned || (isScrubDisplay && kind == .now)
         let tint = CategoryPalette.tint(for: category)
 
@@ -440,7 +441,7 @@ public struct HistoryPage: View {
             VStack(alignment: .leading, spacing: 1) {
                 Text(label)
                     .font(Instrument.Typography.eyebrow)
-                    .foregroundColor(isHighlighted ? tint : .secondary)
+                    .foregroundColor(isHighlighted ? tint : (isHovered ? .primary : .secondary))
                     .lineLimit(1)
                     .minimumScaleFactor(0.75)
 
@@ -456,20 +457,22 @@ public struct HistoryPage: View {
             .padding(.vertical, 5)
             .background(
                 RoundedRectangle(cornerRadius: Instrument.Radius.control)
-                    .fill(isHighlighted ? tint.opacity(0.14) : Color.primary.opacity(0.04))
+                    .fill(isHighlighted ? tint.opacity(0.14) : (isHovered ? tint.opacity(0.08) : Color.primary.opacity(0.04)))
                     .overlay(
                         RoundedRectangle(cornerRadius: Instrument.Radius.control)
-                            .stroke(isHighlighted ? tint.opacity(0.4) : Color.clear, lineWidth: 1)
+                            .stroke(isHighlighted ? tint.opacity(0.4) : (isHovered ? tint.opacity(0.22) : Color.clear), lineWidth: 1)
                     )
             )
             .contentShape(RoundedRectangle(cornerRadius: Instrument.Radius.control))
         }
         .buttonStyle(.plain)
         .onHover { hovering in
-            if hovering {
-                hoveredStatCell = kind
-            } else if hoveredStatCell == kind {
-                hoveredStatCell = nil
+            withAnimation(motionPolicy.allowsEasing ? Motion.snappy : nil) {
+                if hovering {
+                    hoveredStatCell = kind
+                } else if hoveredStatCell == kind {
+                    hoveredStatCell = nil
+                }
             }
         }
         .help(kind == .now && isScrubDisplay ? "Pinned / scrubbed sample" : "Click to pin crosshair to \(kind.rawValue)")

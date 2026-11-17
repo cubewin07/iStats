@@ -6,6 +6,7 @@ public struct InlineStatusChip: View {
     public let status: StatusLevel
     public var detail: String?
 
+    @State private var isActionHovered: Bool = false
     @Environment(\.colorSchemeContrast) private var colorSchemeContrast
 
     public init(status: StatusLevel, detail: String? = nil) {
@@ -74,6 +75,7 @@ public struct StatusRibbon: View {
     public var actionTitle: String?
     public var action: (() -> Void)?
 
+    @State private var isActionHovered: Bool = false
     @Environment(\.colorSchemeContrast) private var colorSchemeContrast
 
     public init(
@@ -104,18 +106,24 @@ public struct StatusRibbon: View {
             Spacer(minLength: 4)
 
             if let title = actionTitle, let action = action {
+                let baseAlpha: Double = colorSchemeContrast == .increased ? 0.26 : 0.18
                 Button(action: action) {
                     Text(title)
                         .font(.system(size: 10, weight: .semibold))
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 2.5)
                         .background(
                             RoundedRectangle(cornerRadius: 4, style: .continuous)
-                                .fill(tint.opacity(colorSchemeContrast == .increased ? 0.26 : 0.18))
+                                .fill(tint.opacity(isActionHovered ? min(1.0, baseAlpha + 0.10) : baseAlpha))
                         )
                         .foregroundColor(tint)
                 }
                 .buttonStyle(.plain)
+                .onHover { hovering in
+                    withAnimation(Motion.snappy) {
+                        isActionHovered = hovering
+                    }
+                }
             }
         }
         .padding(.horizontal, 10)
