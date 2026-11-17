@@ -308,4 +308,16 @@ final class MenuBarGeometryInvarianceTests: XCTestCase {
         XCTAssertEqual(imgNil.size.width, 36.0, "Single-core dual bar fallback must be 36.0pt wide")
         XCTAssertEqual(imgNil.size.height, 22.0)
     }
+
+    // MARK: - 9. Thermometer Glyph Non-Clipping Width
+
+    func testThermometerGlyphWidthAccommodatesUnit() {
+        let twoDigit = MenuBarIconRenderer.drawThermometerGlyph(celsius: 52.0, formattedTemp: "52°C", status: .fine)
+        XCTAssertGreaterThanOrEqual(twoDigit.size.width, 42.0, "52°C thermometer glyph must be wide enough to avoid clipping °C")
+        XCTAssertEqual(twoDigit.size.height, 22.0)
+
+        let threeDigit = MenuBarIconRenderer.drawThermometerGlyph(celsius: 102.0, formattedTemp: "102°C", status: .critical)
+        XCTAssertGreaterThan(threeDigit.size.width, 42.0, "3-digit temperature must expand beyond 42pt so °C is never clipped")
+        XCTAssertEqual(threeDigit.size.height, 22.0)
+    }
 }

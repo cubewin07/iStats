@@ -2789,15 +2789,19 @@ public struct MenuBarIconRenderer {
         formattedTemp: String,
         status: StatusLevel
     ) -> NSImage {
-        let fixedWidth: CGFloat = 36.0
+        let minWidth: CGFloat = 42.0
         let cacheKey = "thermGlyph:\(celsius != nil ? "\(Int(round(celsius!)))" : "nil"):\(formattedTemp):\(status.rawValue)" as NSString
         if let cached = imageCache.object(forKey: cacheKey) {
             return cached
         }
 
-        let size = NSSize(width: fixedWidth, height: 22)
         let statusColor = (status >= .warning) ? CategoryPalette.statusNSColor(for: status) : CategoryPalette.nsColor(for: .thermal)
         let valColor = (status >= .warning) ? CategoryPalette.statusNSColor(for: status) : NSColor.labelColor
+        let valAttr = formatCompactValueAttributedString(value: formattedTemp, color: valColor)
+        let valSize = valAttr.size()
+        let valX: CGFloat = 12.0
+        let canvasWidth = max(minWidth, ceil(valX + valSize.width + 2.0))
+        let size = NSSize(width: canvasWidth, height: 22)
 
         let image = NSImage(size: size, flipped: false) { bounds in
             let centerX: CGFloat = 6.0
@@ -2827,9 +2831,6 @@ public struct MenuBarIconRenderer {
                 fillPath.fill()
             }
 
-            let valAttr = formatCompactValueAttributedString(value: formattedTemp, color: valColor)
-            let valSize = valAttr.size()
-            let valX = 12.0
             let valY = floor((bounds.height - valSize.height) / 2.0) - 1.0
             valAttr.draw(at: NSPoint(x: valX, y: valY))
 
