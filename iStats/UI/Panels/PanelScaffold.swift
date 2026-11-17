@@ -64,6 +64,9 @@ public struct PanelScaffold<Content: View>: View {
     @State private var activeScrubSourceID: UUID? = nil
     @State private var measuredBodyHeight: CGFloat? = nil
     @State private var scrollVisibleHeight: CGFloat = 0
+    @State private var isMenuHovered: Bool = false
+    @State private var isPinHovered: Bool = false
+    @State private var isCloseHovered: Bool = false
     @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
     @Environment(\.panelScaffoldProbeEnabled) private var probeEnabled
     @ObservedObject private var coordinator = MetricsCoordinator.shared
@@ -297,7 +300,7 @@ public struct PanelScaffold<Content: View>: View {
     private var eyebrowRow: some View {
         let tint = CategoryPalette.tint(for: category)
 
-        return HStack(spacing: 6) {
+        return HStack(spacing: 4) {
             // 18×18 Tinted Category Badge + 13 pt Semibold Sentence-Case Title
             HStack(spacing: 6) {
                 ZStack {
@@ -316,7 +319,7 @@ public struct PanelScaffold<Content: View>: View {
                     .minimumScaleFactor(0.85)
             }
 
-            Spacer(minLength: 4)
+            Spacer(minLength: 2)
 
             // Text Page Switcher (Now · Details · History)
             if pages.count > 1 {
@@ -328,31 +331,71 @@ public struct PanelScaffold<Content: View>: View {
             }
 
             HStack(spacing: 2) {
-                // Ellipsis Menu
+                // Ellipsis Menu (plain button menu + hidden indicator prevents chevron overlap)
                 Menu {
-                    if let (title, action) = contextUtilityAction() {
-                        Button(title, action: action)
+                    if let (title, icon, action) = contextUtilityAction() {
+                        Button {
+                            if !effectiveIsPinned {
+                                panelController.close()
+                            }
+                            action()
+                        } label: {
+                            Label(title, systemImage: icon)
+                        }
                     }
 
                     if let pauseAction = onTogglePause {
-                        Button(isPaused ? "Resume Sampling" : "Pause Sampling", action: pauseAction)
+                        Button(action: pauseAction) {
+                            Label(
+                                isPaused ? "Resume Sampling" : "Pause Sampling",
+                                systemImage: isPaused ? "play.circle" : "pause.circle"
+                            )
+                        }
+                    }
+
+                    Button {
+                        if let pinAction = onPinToggle {
+                            pinAction()
+                        } else {
+                            panelController.togglePin(for: category)
+                        }
+                    } label: {
+                        Label(
+                            effectiveIsPinned ? "Unpin Window" : "Pin Window",
+                            systemImage: effectiveIsPinned ? "pin.slash" : "pin"
+                        )
                     }
 
                     Divider()
 
-                    Button("Settings...") {
+                    Button {
+                        if !effectiveIsPinned {
+                            panelController.close()
+                        }
                         PreferencesWindowController.shared.showPreferences()
+                    } label: {
+                        Label("Settings...", systemImage: "gearshape")
                     }
                 } label: {
-                    Image(systemName: "ellipsis")
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundColor(.secondary)
-                        .frame(width: 18, height: 18)
-                        .contentShape(Rectangle())
+                    eyebrowIconLabel(
+                        systemName: "ellipsis",
+                        size: 11,
+                        weight: .semibold,
+                        foreground: isMenuHovered ? .primary : .secondary,
+                        pillFill: isMenuHovered ? Color.primary.opacity(0.09) : .clear
+                    )
                 }
-                .menuStyle(.borderlessButton)
-                .frame(width: 18, height: 18)
+                .menuStyle(.button)
+                .buttonStyle(.plain)
+                .menuIndicator(.hidden)
+                .fixedSize()
+                .onHover { hovering in
+                    withAnimation(Motion.snappy) {
+                        isMenuHovered = hovering
+                    }
+                }
                 .help("More Actions")
+                .accessibilityLabel("More Actions")
 
                 // Pin / Detach Button
                 Button {
@@ -362,31 +405,68 @@ public struct PanelScaffold<Content: View>: View {
                         panelController.togglePin(for: category)
                     }
                 } label: {
-                    Image(systemName: effectiveIsPinned ? "pin.fill" : "pin")
-                        .font(.system(size: 11, weight: effectiveIsPinned ? .semibold : .regular))
-                        .foregroundColor(effectiveIsPinned ? tint : .secondary)
-                        .frame(width: 18, height: 18)
-                        .contentShape(Rectangle())
+                    let pillFill: Color = effectiveIsPinned
+                        ? tint.opacity(isPinHovered ? 0.22 : 0.14)
+                        : (isPinHovered ? Color.primary.opacity(0.09) : .clear)
+                    eyebrowIconLabel(
+                        systemName: effectiveIsPinned ? "pin.fill" : "pin",
+                        size: 10.5,
+                        weight: effectiveIsPinned ? .semibold : .regular,
+                        foreground: effectiveIsPinned ? tint : (isPinHovered ? .primary : .secondary),
+                        pillFill: pillFill
+                    )
                 }
                 .buttonStyle(.plain)
-                .help(effectiveIsPinned ? "Unpin Window" : "Pin Window")
+                .onHover { hovering in
+                    withAnimation(Motion.snappy) {
+                        isPinHovered = hovering
+                    }
+                }
+                .help(effectiveIsPinned ? "Unpin Window (⌘P)" : "Pin Window (⌘P)")
+                .accessibilityLabel(effectiveIsPinned ? "Unpin Window" : "Pin Window")
 
                 // Explicit Close Button on Pinned HUDs
                 if effectiveIsPinned {
                     Button {
                         panelController.unpin(category: category)
                     } label: {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 10, weight: .semibold))
-                            .foregroundColor(.secondary)
-                            .frame(width: 18, height: 18)
-                            .contentShape(Rectangle())
+                        eyebrowIconLabel(
+                            systemName: "xmark",
+                            size: 9.5,
+                            weight: .semibold,
+                            foreground: isCloseHovered ? .primary : .secondary,
+                            pillFill: isCloseHovered ? Color.primary.opacity(0.09) : .clear
+                        )
                     }
                     .buttonStyle(.plain)
-                    .help("Close Pinned Window")
+                    .onHover { hovering in
+                        withAnimation(Motion.snappy) {
+                            isCloseHovered = hovering
+                        }
+                    }
+                    .help("Close Pinned Window (⌘W)")
+                    .accessibilityLabel("Close Pinned Window")
                 }
             }
         }
+    }
+
+    private func eyebrowIconLabel(
+        systemName: String,
+        size: CGFloat,
+        weight: Font.Weight,
+        foreground: Color,
+        pillFill: Color
+    ) -> some View {
+        Image(systemName: systemName)
+            .font(.system(size: size, weight: weight))
+            .foregroundColor(foreground)
+            .frame(width: 21, height: 21)
+            .background(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(pillFill)
+            )
+            .contentShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
     }
 
     // MARK: - Zone ②: Glance Header
@@ -831,26 +911,26 @@ public struct PanelScaffold<Content: View>: View {
         }
     }
 
-    private func contextUtilityAction() -> (title: String, action: () -> Void)? {
+    private func contextUtilityAction() -> (title: String, systemImage: String, action: () -> Void)? {
         switch category {
         case .cpu, .memory, .gpu:
-            return ("Open Activity Monitor", {
+            return ("Open Activity Monitor", "waveform.path.ecg", {
                 NSWorkspace.shared.open(URL(fileURLWithPath: "/System/Applications/Utilities/Activity Monitor.app"))
             })
         case .network:
-            return ("Open Network Settings", {
+            return ("Open Network Settings", "network", {
                 if let url = URL(string: "x-apple.systempreferences:com.apple.Network-Settings.extension") {
                     NSWorkspace.shared.open(url)
                 }
             })
         case .disk:
-            return ("Open Storage Settings", {
+            return ("Open Storage Settings", "internaldrive", {
                 if let url = URL(string: "x-apple.systempreferences:com.apple.settings.Storage") {
                     NSWorkspace.shared.open(url)
                 }
             })
         case .power:
-            return ("Open Battery Settings", {
+            return ("Open Battery Settings", "battery.100percent", {
                 if let url = URL(string: "x-apple.systempreferences:com.apple.preference.battery") {
                     NSWorkspace.shared.open(url)
                 }
