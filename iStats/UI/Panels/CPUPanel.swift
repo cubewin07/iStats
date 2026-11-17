@@ -232,19 +232,19 @@ public struct CPUPanel: View {
             }
         ) {
             if hasTopology {
-                let pStrip = pCount > 0 ? makePerformanceClusterStrip(sample: sample, eCount: eCount, pCount: pCount) : nil
                 let eStrip = eCount > 0 ? makeEfficiencyClusterStrip(sample: sample, eCount: eCount) : nil
+                let pStrip = pCount > 0 ? makePerformanceClusterStrip(sample: sample, eCount: eCount, pCount: pCount) : nil
 
-                if (pCount + eCount) <= 14, let pStrip, let eStrip {
+                if (pCount + eCount) <= 14, let eStrip, let pStrip {
                     HStack(alignment: .top, spacing: Instrument.Space.xl) {
-                        pStrip
-                        Spacer(minLength: 0)
                         eStrip
+                        Spacer(minLength: 0)
+                        pStrip
                     }
                 } else {
                     VStack(alignment: .leading, spacing: Instrument.Space.m) {
-                        if let pStrip { pStrip }
                         if let eStrip { eStrip }
+                        if let pStrip { pStrip }
                     }
                 }
             } else {
