@@ -526,6 +526,36 @@ final class SwiftUIViewsTests: XCTestCase {
         XCTAssertEqual(LiveChart.frameInterval(isPinnedNonKey: true), 1.0 / 30.0, accuracy: 1e-9)
     }
 
+    func testLiveChartVerticalInsetPreventsHeadBeadClipping() {
+        let chartHeight: CGFloat = 72.0
+        let inset = LiveChart.verticalInset(showLiveHead: true, chartHeight: chartHeight)
+        XCTAssertGreaterThanOrEqual(inset, 5.0, "Vertical inset must leave >= 5pt clearance for the 10pt head bead halo")
+
+        let base: TimeInterval = 1_700_000_000.0
+        let points = (0..<10).map { i in
+            ChartPoint(timestamp: base + Double(i), value: i == 9 ? 100.0 : 0.0)
+        }
+        let timeline = ChartTimeline(edge: base + 9.0, sampleInterval: 1.0)
+        let range = ChartRenderer.VerticalRange(
+            floor: 0.0,
+            ceiling: 100.0,
+            topY: inset,
+            baselineY: chartHeight - inset,
+            inverted: false
+        )
+        let geom = ChartRenderer.buildSeriesGeometry(
+            points: points,
+            timeline: timeline,
+            windowDuration: 60.0,
+            plotWidth: 300.0,
+            verticalRange: range
+        )
+        XCTAssertNotNil(geom?.headPoint)
+        let headY = geom?.headPoint?.y ?? -1.0
+        XCTAssertGreaterThanOrEqual(headY - 5.0, 0.0, "Top of 10pt head halo must remain >= 0")
+        XCTAssertLessThanOrEqual(headY + 5.0, chartHeight, "Bottom of 10pt head halo must remain <= chartHeight")
+    }
+
     func testLiveChartScrubControllerTimeDomainResolution() {
         let scrub = ScrubController()
         let base: TimeInterval = 1_700_000_000.0

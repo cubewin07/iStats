@@ -1181,10 +1181,10 @@ enum ChartRenderer {
         guard px >= 0.0 && px <= totalWidth else { return }
         let py = verticalRange.yPosition(for: peak.value)
 
-        let isBottom = verticalRange.inverted
-        let markerRect = CGRect(x: px - 4, y: isBottom ? py + 4 : py - 10, width: 8, height: 6)
+        let placeBelow = verticalRange.inverted ? (py < verticalRange.topY - 18.0) : (py < 18.0)
+        let markerRect = CGRect(x: px - 4, y: placeBelow ? py + 4 : py - 10, width: 8, height: 6)
         var peakPath = Path()
-        if isBottom {
+        if placeBelow {
             peakPath.move(to: CGPoint(x: markerRect.midX, y: markerRect.maxY))
             peakPath.addLine(to: CGPoint(x: markerRect.maxX, y: markerRect.minY))
             peakPath.addLine(to: CGPoint(x: markerRect.minX, y: markerRect.minY))
@@ -1200,9 +1200,9 @@ enum ChartRenderer {
         let isNearRight = px > totalWidth - 45
         let isNearLeft = px < 35
         let anchor: UnitPoint = isNearRight
-            ? (isBottom ? .bottomTrailing : .topTrailing)
-            : (isNearLeft ? (isBottom ? .bottomLeading : .topLeading) : (isBottom ? .top : .bottom))
-        let labelY = isBottom ? py + 14 : max(10, py - 14)
+            ? (placeBelow ? .bottomTrailing : .topTrailing)
+            : (isNearLeft ? (placeBelow ? .bottomLeading : .topLeading) : (placeBelow ? .top : .bottom))
+        let labelY = placeBelow ? py + 14 : max(10, py - 14)
         context.draw(
             Text(labelText)
                 .font(Instrument.Typography.micro)
@@ -1242,7 +1242,7 @@ enum ChartRenderer {
             )
 
             let label = valueFormatter?(tick) ?? String(format: "%.0f", tick)
-            let isTopCeiling = (index == gridTicks.count - 1) && (lineY < 12.0)
+            let isTopCeiling = (index == gridTicks.count - 1) && (lineY < 16.0)
             let labelPoint = CGPoint(x: 4.0, y: isTopCeiling ? (lineY + 2.0) : (lineY - 2.0))
             let anchor: UnitPoint = isTopCeiling ? .topLeading : .bottomLeading
 
@@ -2093,6 +2093,43 @@ public struct LiveChart: View {
         }
     }
 
+    /// Vertical padding inset keeping the 10×10 pt head bead halo, crosshair bead, and 1.75 pt peak stroke unclipped.
+    public static func verticalInset(showLiveHead: Bool, chartHeight: CGFloat) -> CGFloat {
+        let desired: CGFloat = showLiveHead ? 5.5 : 4.5
+        return min(desired, max(0.0, (chartHeight - 4.0) / 2.0))
+    }
+
+    private func singleVerticalRange(height: CGFloat) -> ChartRenderer.VerticalRange {
+        let inset = Self.verticalInset(showLiveHead: showLiveHead, chartHeight: height)
+        return ChartRenderer.VerticalRange(
+            floor: model.topScale.displayedFloor,
+            ceiling: model.topScale.displayedCeiling,
+            topY: inset,
+            baselineY: height - inset,
+            inverted: false
+        )
+    }
+
+    private func mirroredVerticalRanges(height: CGFloat) -> (top: ChartRenderer.VerticalRange, bottom: ChartRenderer.VerticalRange) {
+        let inset = Self.verticalInset(showLiveHead: showLiveHead, chartHeight: height)
+        let midY = height / 2.0
+        let topRange = ChartRenderer.VerticalRange(
+            floor: model.topScale.displayedFloor,
+            ceiling: model.topScale.displayedCeiling,
+            topY: inset,
+            baselineY: midY,
+            inverted: false
+        )
+        let botRange = ChartRenderer.VerticalRange(
+            floor: model.bottomScale.displayedFloor,
+            ceiling: model.bottomScale.displayedCeiling,
+            topY: height - inset,
+            baselineY: midY,
+            inverted: true
+        )
+        return (topRange, botRange)
+    }
+
     // MARK: - Canvas Rendering
 
     @ViewBuilder
@@ -2150,13 +2187,7 @@ public struct LiveChart: View {
                 )
 
             case .stacked(_, let primaryColor, let secondaryColor, _, _, _):
-                let range = ChartRenderer.VerticalRange(
-                    floor: model.topScale.displayedFloor,
-                    ceiling: model.topScale.displayedCeiling,
-                    topY: 0.0,
-                    baselineY: h,
-                    inverted: false
-                )
+                let range = singleVerticalRange(height: h)
                 if showAxisTicks {
                     ChartRenderer.drawStandardGrid(context: &context, scale: model.topScale, verticalRange: range, width: w, valueFormatter: valueFormatter)
                 }
@@ -2281,13 +2312,7 @@ public struct LiveChart: View {
         buckets: [BucketPoint]?
     ) {
         let plotRect = CGRect(x: 0, y: 0, width: plotWidth, height: height)
-        let range = ChartRenderer.VerticalRange(
-            floor: model.topScale.displayedFloor,
-            ceiling: model.topScale.displayedCeiling,
-            topY: 0.0,
-            baselineY: height,
-            inverted: false
-        )
+        let range = singleVerticalRange(height: height)
         if showAxisTicks {
             ChartRenderer.drawStandardGrid(context: &context, scale: model.topScale, verticalRange: range, width: width, valueFormatter: valueFormatter)
         }
@@ -2367,21 +2392,7 @@ public struct LiveChart: View {
         bottomBuckets: [BucketPoint]?
     ) {
         let plotRect = CGRect(x: 0, y: 0, width: plotWidth, height: height)
-        let midY = height / 2.0
-        let topRange = ChartRenderer.VerticalRange(
-            floor: model.topScale.displayedFloor,
-            ceiling: model.topScale.displayedCeiling,
-            topY: 0.0,
-            baselineY: midY,
-            inverted: false
-        )
-        let botRange = ChartRenderer.VerticalRange(
-            floor: model.bottomScale.displayedFloor,
-            ceiling: model.bottomScale.displayedCeiling,
-            topY: height,
-            baselineY: midY,
-            inverted: true
-        )
+        let (topRange, botRange) = mirroredVerticalRanges(height: height)
         ChartRenderer.drawMirroredGridAndLabels(
             context: &context,
             topScale: model.topScale,
@@ -2541,21 +2552,7 @@ public struct LiveChart: View {
         switch mode.payload {
         case .mirrored(_, let topCol, let botCol, _, _, _, _, _),
              .mirroredEnvelope(_, _, let topCol, let botCol, _, _, _, _):
-            let midY = height / 2.0
-            let topRange = ChartRenderer.VerticalRange(
-                floor: model.topScale.displayedFloor,
-                ceiling: model.topScale.displayedCeiling,
-                topY: 0.0,
-                baselineY: midY,
-                inverted: false
-            )
-            let botRange = ChartRenderer.VerticalRange(
-                floor: model.bottomScale.displayedFloor,
-                ceiling: model.bottomScale.displayedCeiling,
-                topY: height,
-                baselineY: midY,
-                inverted: true
-            )
+            let (topRange, botRange) = mirroredVerticalRanges(height: height)
             let refPts = referencePoints(for: activeSeries)
             let sampleTs = index < refPts.count ? refPts[index].timestamp : (refPts.last?.timestamp ?? 0.0)
             let topVal = index < primaryPts.count
@@ -2582,13 +2579,7 @@ public struct LiveChart: View {
             .animation(anim, value: x)
 
         case .stacked(_, let primaryCol, let secondaryCol, _, _, _):
-            let range = ChartRenderer.VerticalRange(
-                floor: model.topScale.displayedFloor,
-                ceiling: model.topScale.displayedCeiling,
-                topY: 0.0,
-                baselineY: height,
-                inverted: false
-            )
+            let range = singleVerticalRange(height: height)
             let refPts = referencePoints(for: activeSeries)
             let sampleTs = index < refPts.count ? refPts[index].timestamp : (refPts.last?.timestamp ?? 0.0)
 
@@ -2613,13 +2604,7 @@ public struct LiveChart: View {
             if index < primaryPts.count {
                 let sampleTs = primaryPts[index].timestamp
                 let val = ChartTimeline.interpolateValue(at: sampleTs, points: primaryPts) ?? primaryPts[index].value
-                let range = ChartRenderer.VerticalRange(
-                    floor: model.topScale.displayedFloor,
-                    ceiling: model.topScale.displayedCeiling,
-                    topY: 0.0,
-                    baselineY: height,
-                    inverted: false
-                )
+                let range = singleVerticalRange(height: height)
                 let pointY = range.yPosition(for: val)
                 let baseColor = resolvedPrimaryColor
                 let beadColor = bands.isEmpty
@@ -2637,13 +2622,7 @@ public struct LiveChart: View {
             if index < primaryPts.count {
                 let sampleTs = primaryPts[index].timestamp
                 let val = ChartTimeline.interpolateValue(at: sampleTs, points: primaryPts) ?? primaryPts[index].value
-                let range = ChartRenderer.VerticalRange(
-                    floor: model.topScale.displayedFloor,
-                    ceiling: model.topScale.displayedCeiling,
-                    topY: 0.0,
-                    baselineY: height,
-                    inverted: false
-                )
+                let range = singleVerticalRange(height: height)
                 let pointY = range.yPosition(for: val)
 
                 ZStack(alignment: .topLeading) {
