@@ -190,6 +190,22 @@ final class InstrumentKitTests: XCTestCase {
         XCTAssertEqual(gate.displayedValue, 9.8, accuracy: 0.0001)
     }
 
+    func testLiveNumberCadenceGateCommitsImmediatelyOnUnitChange() {
+        var gate = LiveNumberCadenceGate(initialValue: 1.8, initialUnit: "MB/s", now: 10.0)
+
+        // Sub-unit numeric delta (|1.5 - 1.8| = 0.3 < 1.0) with a unit jump (MB/s -> KB/s)
+        // must commit immediately so "1.8 KB/s" is never displayed.
+        let committed = gate.evaluate(newValue: 1.5, unit: "KB/s", formatted: "1.5", now: 10.5)
+        XCTAssertTrue(committed)
+        XCTAssertEqual(gate.displayedValue, 1.5, accuracy: 0.0001)
+        XCTAssertEqual(gate.displayedUnit, "KB/s")
+
+        // Subsequent small delta in the same unit IS still gated
+        let gated = gate.evaluate(newValue: 1.6, unit: "KB/s", formatted: "1.6", now: 11.0)
+        XCTAssertFalse(gated)
+        XCTAssertEqual(gate.displayedValue, 1.5, accuracy: 0.0001)
+    }
+
     // MARK: - 6. ProcessIconCache Negative Caching (B12)
 
     func testProcessIconCacheCachesMissesForNonAppProcesses() {

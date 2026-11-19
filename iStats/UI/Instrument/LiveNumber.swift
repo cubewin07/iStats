@@ -3,36 +3,42 @@ import iStatsCore
 
 /// Cadence gate for `LiveNumber` (Task 8.5.7 / A12).
 /// - Integer formatted strings update on every sample (preserving smooth `.numericText` rolling).
+/// - Unit changes commit immediately so scaled values never desync from their unit label.
 /// - Fractional formatted strings (containing `.`) enforce a `2.0 s` minimum cadence gate unless
 ///   `abs(newValue - displayedValue) >= 1.0`.
 public struct LiveNumberCadenceGate: Equatable, Sendable {
     public private(set) var displayedValue: Double
+    public private(set) var displayedUnit: String?
     public private(set) var lastCommittedAt: TimeInterval
     public let minimumInterval: TimeInterval
     public let bypassDelta: Double
 
     public init(
         initialValue: Double,
+        initialUnit: String? = nil,
         now: TimeInterval = 0,
         minimumInterval: TimeInterval = 2.0,
         bypassDelta: Double = 1.0
     ) {
         self.displayedValue = initialValue
+        self.displayedUnit = initialUnit
         self.lastCommittedAt = now
         self.minimumInterval = minimumInterval
         self.bypassDelta = bypassDelta
     }
 
-    /// Evaluates whether `newValue` at `now` should update `displayedValue`.
+    /// Evaluates whether `newValue` (with `unit`) at `now` should update `displayedValue`.
     /// - Returns: `true` if `displayedValue` was updated; `false` if gated.
     @discardableResult
     public mutating func evaluate(
         newValue: Double,
+        unit: String? = nil,
         formatted: String,
         now: TimeInterval
     ) -> Bool {
-        if !formatted.contains(".") {
+        if unit != displayedUnit || !formatted.contains(".") {
             displayedValue = newValue
+            displayedUnit = unit
             lastCommittedAt = now
             return true
         }
@@ -41,6 +47,7 @@ public struct LiveNumberCadenceGate: Equatable, Sendable {
         let elapsed = now - lastCommittedAt
         if delta >= bypassDelta || elapsed >= minimumInterval {
             displayedValue = newValue
+            displayedUnit = unit
             lastCommittedAt = now
             return true
         }
@@ -56,6 +63,7 @@ public struct LiveNumber: View {
     public let unit: String?
     public let unitFont: Font
     public let interval: Double
+    public let bypassCadenceGate: Bool
 
     @Environment(\.motionPolicy) private var motionPolicy
     @State private var gate: LiveNumberCadenceGate
@@ -67,7 +75,8 @@ public struct LiveNumber: View {
         font: Font = Instrument.Typography.display,
         unit: String? = nil,
         unitFont: Font = Instrument.Typography.unit,
-        interval: Double = 1.0
+        interval: Double = 1.0,
+        bypassCadenceGate: Bool = false
     ) {
         self.value = value
         self.format = format
@@ -75,8 +84,10 @@ public struct LiveNumber: View {
         self.unit = unit
         self.unitFont = unitFont
         self.interval = interval
+        self.bypassCadenceGate = bypassCadenceGate
         self._gate = State(initialValue: LiveNumberCadenceGate(
             initialValue: value,
+            initialUnit: unit,
             now: ProcessInfo.processInfo.systemUptime
         ))
     }
@@ -84,8 +95,8 @@ public struct LiveNumber: View {
     public var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 2) {
             numberView
-            if let unit = unit {
-                Text(unit)
+            if let shownUnit = (bypassCadenceGate ? unit : gate.displayedUnit) ?? unit {
+                Text(shownUnit)
                     .font(unitFont)
                     .foregroundStyle(.secondary)
             }
@@ -95,7 +106,10 @@ public struct LiveNumber: View {
         .accessibilityElement(children: .ignore)
         .accessibilityValue(accessibilityText)
         .onChange(of: value) { newValue in
-            handleValueChange(newValue)
+            handleValueChange(newValue, newUnit: unit)
+        }
+        .onChange(of: unit) { newUnit in
+            handleValueChange(value, newUnit: newUnit)
         }
         .onDisappear {
             pendingFlushItem?.cancel()
@@ -103,13 +117,17 @@ public struct LiveNumber: View {
         }
     }
 
-    private func handleValueChange(_ newValue: Double) {
+    private func handleValueChange(_ newValue: Double, newUnit: String?) {
         pendingFlushItem?.cancel()
         pendingFlushItem = nil
 
         let now = ProcessInfo.processInfo.systemUptime
         let formatted = format(newValue)
-        if gate.evaluate(newValue: newValue, formatted: formatted, now: now) {
+        if bypassCadenceGate {
+            _ = gate.evaluate(newValue: newValue, unit: newUnit, formatted: "0", now: now)
+            return
+        }
+        if gate.evaluate(newValue: newValue, unit: newUnit, formatted: formatted, now: now) {
             return
         }
 
@@ -119,6 +137,7 @@ public struct LiveNumber: View {
             let flushNow = ProcessInfo.processInfo.systemUptime
             stateGate.wrappedValue.evaluate(
                 newValue: newValue,
+                unit: newUnit,
                 formatted: formatted,
                 now: flushNow
             )
@@ -129,7 +148,7 @@ public struct LiveNumber: View {
 
     @ViewBuilder
     private var numberView: some View {
-        let shownValue = gate.displayedValue
+        let shownValue = bypassCadenceGate ? value : gate.displayedValue
         let text = format(shownValue)
 
         if #available(macOS 14.0, *) {
@@ -177,8 +196,9 @@ public struct LiveNumber: View {
     }
 
     private var accessibilityText: String {
-        let formatted = format(gate.displayedValue)
-        if let u = unit {
+        let shownValue = bypassCadenceGate ? value : gate.displayedValue
+        let formatted = format(shownValue)
+        if let u = (bypassCadenceGate ? unit : gate.displayedUnit) ?? unit {
             return "\(formatted) \(u)"
         }
         return formatted
