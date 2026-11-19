@@ -479,6 +479,8 @@ public struct NetworkSample: Sendable, Equatable, Codable {
     public let gatewayIPv4: String?
     public let primaryDNS: String?
     public let wifiDetails: WiFiLinkTelemetry?
+    /// Real-world connection status evaluated from OS path + active packet reachability probe.
+    public let connectionHealth: NetworkConnectionHealth?
 
     public var totalBytesInPerSec: Double {
         interfaces.reduce(0.0) { $0 + $1.bytesInPerSec }
@@ -503,7 +505,8 @@ public struct NetworkSample: Sendable, Equatable, Codable {
         localIPv4: String? = nil,
         gatewayIPv4: String? = nil,
         primaryDNS: String? = nil,
-        wifiDetails: WiFiLinkTelemetry? = nil
+        wifiDetails: WiFiLinkTelemetry? = nil,
+        connectionHealth: NetworkConnectionHealth? = nil
     ) {
         self.interfaces = interfaces
         self.primaryInterface = primaryInterface
@@ -512,6 +515,7 @@ public struct NetworkSample: Sendable, Equatable, Codable {
         self.gatewayIPv4 = gatewayIPv4
         self.primaryDNS = primaryDNS
         self.wifiDetails = wifiDetails
+        self.connectionHealth = connectionHealth
     }
 }
 

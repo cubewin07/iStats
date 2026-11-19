@@ -41,8 +41,12 @@ public struct MetricsStore: Sendable, Equatable {
     /// Extended number of samples retained for lightweight scalar series buffers (900 samples = 15m @ 1s).
     public static let defaultScalarCapacity: Int = 900
 
+    /// Default number of connection status grid cells retained in memory (60 = 3×20 grid).
+    public static let defaultConnectionStatusCapacity: Int = 60
+
     private var buffers: [MetricCategory: RingBuffer<MetricReading>]
     private var scalarBuffers: [ScalarSeriesKey: RingBuffer<ScalarPoint>]
+    private var connectionStatusBuffer: RingBuffer<ConnectionStatusPoint>
     public let defaultBufferCapacity: Int
     public let categoryCapacities: [MetricCategory: Int]
     public let scalarCapacity: Int
@@ -79,6 +83,9 @@ public struct MetricsStore: Sendable, Equatable {
             initialScalars[key] = RingBuffer<ScalarPoint>(capacity: scalarCapacity)
         }
         self.scalarBuffers = initialScalars
+        self.connectionStatusBuffer = RingBuffer<ConnectionStatusPoint>(
+            capacity: max(defaultCapacity, MetricsStore.defaultConnectionStatusCapacity)
+        )
     }
 
     // MARK: - Appending Samples
@@ -119,6 +126,17 @@ public struct MetricsStore: Sendable, Equatable {
         case .network(let s):
             scalarBuffers[.networkInBytesPerSec]?.append(ScalarPoint(timestamp: s.timestamp, value: s.value.totalBytesInPerSec))
             scalarBuffers[.networkOutBytesPerSec]?.append(ScalarPoint(timestamp: s.timestamp, value: s.value.totalBytesOutPerSec))
+            if let health = s.value.connectionHealth, !health.isProbing {
+                connectionStatusBuffer.append(
+                    ConnectionStatusPoint(
+                        timestamp: s.timestamp,
+                        status: health.status,
+                        latencyMs: health.latencyMs,
+                        packetLossPercent: health.packetLossPercent,
+                        reason: health.reason
+                    )
+                )
+            }
         case .disk(let s):
             if let io = s.value.io {
                 scalarBuffers[.diskReadBytesPerSec]?.append(ScalarPoint(timestamp: s.timestamp, value: io.bytesReadPerSec))
@@ -321,6 +339,11 @@ public struct MetricsStore: Sendable, Equatable {
             if case .network(let s) = $0 { return s }
             return nil
         }
+    }
+
+    /// Chronological rolling history of evaluated network connection status cells (oldest first, newest last).
+    public func networkConnectionHistory() -> [ConnectionStatusPoint] {
+        connectionStatusBuffer.elements
     }
 
     /// All valid Disk samples currently in history, in chronological order.
@@ -583,6 +606,7 @@ public struct MetricsStore: Sendable, Equatable {
         case .network:
             scalarBuffers[.networkInBytesPerSec]?.clear()
             scalarBuffers[.networkOutBytesPerSec]?.clear()
+            connectionStatusBuffer.clear()
         case .disk:
             scalarBuffers[.diskReadBytesPerSec]?.clear()
             scalarBuffers[.diskWriteBytesPerSec]?.clear()
@@ -600,5 +624,6 @@ public struct MetricsStore: Sendable, Equatable {
         for key in ScalarSeriesKey.allCases {
             scalarBuffers[key]?.clear()
         }
+        connectionStatusBuffer.clear()
     }
 }

@@ -392,6 +392,14 @@ public final class InstrumentGalleryTelemetryDriver: ObservableObject {
                 txRate: 866.0,
                 channel: 36,
                 band: "5 GHz"
+            ),
+            connectionHealth: NetworkConnectionHealth(
+                status: isSpike ? .degraded : .connected,
+                reason: isSpike ? "High latency (185 ms)" : "14 ms · 0% loss",
+                isPathSatisfied: true,
+                isInternetReachable: true,
+                latencyMs: isSpike ? 185.0 : 14.0,
+                packetLossPercent: isSpike ? 12.5 : 0.0
             )
         )
 

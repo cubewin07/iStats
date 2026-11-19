@@ -107,6 +107,9 @@
 		110000000000000000000221 /* SegmentedControl.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000220 /* SegmentedControl.swift */; };
 		110000000000000000000223 /* FilterChip.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000222 /* FilterChip.swift */; };
 		110000000000000000000225 /* InstrumentKitTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000224 /* InstrumentKitTests.swift */; };
+		110000000000000000000231 /* NetworkConnectivityMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000230 /* NetworkConnectivityMonitor.swift */; };
+		110000000000000000000233 /* ConnectionStatusGridView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000232 /* ConnectionStatusGridView.swift */; };
+		110000000000000000000235 /* ConnectionStatusTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000234 /* ConnectionStatusTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -221,6 +224,9 @@
 		110000000000000000000220 /* SegmentedControl.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Instrument/Kit/SegmentedControl.swift; sourceTree = "<group>"; };
 		110000000000000000000222 /* FilterChip.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Instrument/Kit/FilterChip.swift; sourceTree = "<group>"; };
 		110000000000000000000224 /* InstrumentKitTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstrumentKitTests.swift; sourceTree = "<group>"; };
+		110000000000000000000230 /* NetworkConnectivityMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkConnectivityMonitor.swift; sourceTree = "<group>"; };
+		110000000000000000000232 /* ConnectionStatusGridView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Instrument/Kit/ConnectionStatusGridView.swift; sourceTree = "<group>"; };
+		110000000000000000000234 /* ConnectionStatusTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionStatusTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -289,6 +295,7 @@
 				110000000000000000000032 /* MemorySampler.swift */,
 				110000000000000000000034 /* MemoryPressureMonitor.swift */,
 				110000000000000000000070 /* NetworkSampler.swift */,
+				110000000000000000000230 /* NetworkConnectivityMonitor.swift */,
 				110000000000000000000080 /* DiskSampler.swift */,
 				110000000000000000000090 /* PowerSampler.swift */,
 				1100000000000000000000A0 /* ThermalSampler.swift */,
@@ -336,6 +343,7 @@
 				1100000000000000000001C6 /* TurbineShape.swift */,
 				1100000000000000000001C8 /* FanPanel.swift */,
 				1100000000000000000001CA /* SignalBarsView.swift */,
+				110000000000000000000232 /* ConnectionStatusGridView.swift */,
 				1100000000000000000001CC /* NetworkPanel.swift */,
 				1100000000000000000001CE /* DiskPanel.swift */,
 				1100000000000000000001D0 /* BatteryGlyph.swift */,
@@ -401,6 +409,7 @@
 				1100000000000000000001DA /* ProcessSamplerTests.swift */,
 				1100000000000000000001DE /* AccessibilityAppearanceTests.swift */,
 				110000000000000000000224 /* InstrumentKitTests.swift */,
+				110000000000000000000234 /* ConnectionStatusTests.swift */,
 			);
 			path = iStatsTests;
 			sourceTree = "<group>";
@@ -557,6 +566,7 @@
 				1100000000000000000001C7 /* TurbineShape.swift in Sources */,
 				1100000000000000000001C9 /* FanPanel.swift in Sources */,
 				1100000000000000000001CB /* SignalBarsView.swift in Sources */,
+				110000000000000000000233 /* ConnectionStatusGridView.swift in Sources */,
 				1100000000000000000001CD /* NetworkPanel.swift in Sources */,
 				1100000000000000000001CF /* DiskPanel.swift in Sources */,
 				1100000000000000000001D1 /* BatteryGlyph.swift in Sources */,
@@ -573,6 +583,7 @@
 				110000000000000000000035 /* MemoryPressureMonitor.swift in Sources */,
 				110000000000000000000061 /* MetricsCoordinator.swift in Sources */,
 				110000000000000000000071 /* NetworkSampler.swift in Sources */,
+				110000000000000000000231 /* NetworkConnectivityMonitor.swift in Sources */,
 				110000000000000000000081 /* DiskSampler.swift in Sources */,
 				110000000000000000000091 /* PowerSampler.swift in Sources */,
 				1100000000000000000000A1 /* ThermalSampler.swift in Sources */,
@@ -621,6 +632,7 @@
 				1100000000000000000001DB /* ProcessSamplerTests.swift in Sources */,
 				1100000000000000000001DF /* AccessibilityAppearanceTests.swift in Sources */,
 				110000000000000000000225 /* InstrumentKitTests.swift in Sources */,
+				110000000000000000000235 /* ConnectionStatusTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

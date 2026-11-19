@@ -58,8 +58,13 @@ public struct NetworkPanel: View {
     }
 
     private func primaryInterfaceName(in net: NetworkSample) -> String? {
-        net.primaryInterface
-            ?? net.interfaces.first(where: { $0.bytesInPerSec > 0 || $0.bytesOutPerSec > 0 })?.interfaceName
+        if let explicit = net.primaryInterface {
+            return explicit
+        }
+        if net.connectionHealth?.isPathSatisfied == false {
+            return nil
+        }
+        return net.interfaces.first(where: { $0.bytesInPerSec > 0 || $0.bytesOutPerSec > 0 })?.interfaceName
             ?? net.interfaces.first?.interfaceName
     }
 
@@ -212,15 +217,29 @@ public struct NetworkPanel: View {
     private func deriveStatusAndRibbon(sample: NetworkSample?) -> (StatusLevel, String?) {
         guard let s = sample else { return (.fine, nil) }
 
+        if let health = s.connectionHealth {
+            if health.isProbing {
+                return (.fine, nil)
+            }
+            switch health.status {
+            case .disconnected:
+                return (.critical, health.reason)
+            case .degraded:
+                return (.elevated, health.reason)
+            case .connected:
+                return (.fine, nil)
+            }
+        }
+
         if let wifi = s.wifiDetails {
             if wifi.qualityRating == "Weak" || (wifi.signalPercent != nil && wifi.signalPercent! < 30) {
                 let pct = wifi.signalPercent ?? 0
-                return (.warning, "Weak Wi-Fi signal (\(pct)%)")
+                return (.elevated, "Weak Wi-Fi signal (\(pct)%)")
             }
         }
 
         if s.interfaces.isEmpty || (s.interfaces.allSatisfy { $0.bytesInPerSec == 0 && $0.bytesOutPerSec == 0 } && s.localIPv4 == nil) {
-            return (.warning, "No active network connection")
+            return (.critical, "No active network connection")
         }
 
         return (.fine, nil)
@@ -251,11 +270,15 @@ public struct NetworkPanel: View {
 
     @ViewBuilder
     private func activeLinkSection(net: NetworkSample, standard: Units.ByteUnitStandard) -> some View {
+        let health = NetworkConnectionEvaluator.fallbackHealth(for: net)
         let primaryName = primaryInterfaceName(in: net)
         let primaryType = net.primaryType
             ?? net.interfaces.first(where: { $0.interfaceName == primaryName })?.type
             ?? (net.wifiDetails != nil ? .wifi : .other)
         let displayName = primaryName.map { "\(primaryType.displayName) (\($0))" } ?? "Offline"
+        let pillDotColor: Color = health.isProbing ? .secondary : ConnectionStatusGridView.cellColor(for: health.status)
+        let pillTextColor: Color = health.isProbing ? .secondary : ConnectionStatusGridView.badgeTextColor(for: health.status)
+        let pillLabel: String = health.isProbing ? "Checking…" : health.status.displayName
 
         Section(
             "Active Link",
@@ -278,9 +301,9 @@ public struct NetworkPanel: View {
             VStack(alignment: .leading, spacing: Instrument.Space.s) {
                 // Interface identity row
                 HStack(alignment: .center, spacing: Instrument.Space.s) {
-                    Image(systemName: primaryName == nil ? "network.slash" : primaryType.iconName)
+                    Image(systemName: primaryName == nil || health.status == .disconnected ? "network.slash" : primaryType.iconName)
                         .font(.system(size: 13, weight: .medium))
-                        .foregroundColor(primaryName == nil ? .secondary : CategoryPalette.tint(for: .network))
+                        .foregroundColor(primaryName == nil ? .secondary : (health.status == .connected ? CategoryPalette.tint(for: .network) : pillTextColor))
                         .frame(width: 18)
 
                     VStack(alignment: .leading, spacing: 1) {
@@ -288,7 +311,12 @@ public struct NetworkPanel: View {
                             .font(Instrument.Typography.headline)
                             .foregroundColor(.primary)
 
-                        if let wifi = net.wifiDetails {
+                        if health.status != .connected && !health.isProbing {
+                            Text(health.reason)
+                                .font(Instrument.Typography.caption)
+                                .foregroundColor(pillTextColor)
+                                .lineLimit(1)
+                        } else if let wifi = net.wifiDetails {
                             let channelText = wifi.channel.map { "Ch \($0)" }
                             let bandDetail = [wifi.band, channelText].compactMap { $0 }.joined(separator: " · ")
                             if !bandDetail.isEmpty {
@@ -301,17 +329,20 @@ public struct NetworkPanel: View {
 
                     Spacer()
 
-                    if let wifi = net.wifiDetails {
-                        Text(wifi.qualityRating ?? "Connected")
+                    HStack(spacing: 4) {
+                        Circle()
+                            .fill(pillDotColor)
+                            .frame(width: 6, height: 6)
+                        Text(pillLabel)
                             .font(Instrument.Typography.caption)
-                            .foregroundColor(CategoryPalette.tint(for: .network))
-                            .padding(.horizontal, 7)
-                            .padding(.vertical, 2)
-                            .background(
-                                Capsule(style: .continuous)
-                                    .fill(CategoryPalette.tint(for: .network).opacity(0.12))
-                            )
+                            .foregroundColor(pillTextColor)
                     }
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 2)
+                    .background(
+                        Capsule(style: .continuous)
+                            .fill(pillDotColor.opacity(0.14))
+                    )
                 }
 
                 // Local IPv4 (copyable hairline row)
@@ -395,7 +426,7 @@ public struct NetworkPanel: View {
         }
     }
 
-    // MARK: - Details Page (Max 2 Sections: Network Interfaces + Wi-Fi Radio Telemetry)
+    // MARK: - Details Page (Connection Status Grid + Network Interfaces + Wi-Fi Radio Telemetry)
 
     @ViewBuilder
     private func connectionPage(sample: NetworkSample?) -> some View {
@@ -405,9 +436,19 @@ public struct NetworkPanel: View {
             let activeCount = rankedActiveInterfaces(in: net).count
             let list = displayedInterfaces(in: net)
             let primaryName = primaryInterfaceName(in: net)
+            let health = NetworkConnectionEvaluator.fallbackHealth(for: net)
 
             VStack(alignment: .leading, spacing: Instrument.Space.l) {
-                // Section 1: Network Interfaces
+                // Section 1: Connection Status Grid (Green = Connected, Yellow = Bad, Red = Not Connected)
+                ConnectionStatusGridView(
+                    health: health,
+                    history: coordinator.networkConnectionHistory,
+                    primaryInterface: primaryName,
+                    primaryType: net.primaryType,
+                    wifiDetails: net.wifiDetails
+                )
+
+                // Section 2: Network Interfaces
                 Section(
                     "Network Interfaces",
                     trailing: {

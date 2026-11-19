@@ -76,6 +76,9 @@ public final class MetricsCoordinator: ObservableObject {
     /// Rolling chronological history of Network samples queried on-demand from backing store.
     public var networkHistory: [Sample<NetworkSample>] { store.networkHistory() }
 
+    /// Rolling chronological history of evaluated network connection status cells (in-memory only; ADR 0006).
+    public var networkConnectionHistory: [ConnectionStatusPoint] { store.networkConnectionHistory() }
+
     /// Rolling chronological history of Disk samples queried on-demand from backing store.
     public var diskHistory: [Sample<DiskSample>] { store.diskHistory() }
 
