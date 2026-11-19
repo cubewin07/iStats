@@ -145,6 +145,7 @@ public final class PanelController: NSObject, ObservableObject {
             }
         }
         isTransientVisible = true
+        syncNetworkForegroundProbing()
 
         installDismissalMonitorsIfNeeded()
     }
@@ -160,6 +161,7 @@ public final class PanelController: NSObject, ObservableObject {
         currentItemID = nil
         currentButton = nil
         isTransientVisible = false
+        syncNetworkForegroundProbing()
 
         let teardown: @Sendable () -> Void = { [weak self, weak panel] in
             MainActor.assumeIsolated {
@@ -202,6 +204,10 @@ public final class PanelController: NSObject, ObservableObject {
 
     public func isPanelOpen(for category: MetricCategory) -> Bool {
         isTransientPanelOpen(for: category) || isPinned(for: category)
+    }
+
+    private func syncNetworkForegroundProbing() {
+        NetworkConnectivityMonitor.shared.setForegroundProbing(isPanelOpen(for: .network))
     }
 
     /// Swaps the active open panel to a different category (e.g. from Fanless state to Temperature).
@@ -266,6 +272,7 @@ public final class PanelController: NSObject, ObservableObject {
         currentItemID = nil
         currentButton = nil
         isTransientVisible = false
+        syncNetworkForegroundProbing()
 
         if let savedOrigin = preferencesStore?.pinnedOrigin(for: category) {
             var frame = panel.frame
@@ -312,6 +319,7 @@ public final class PanelController: NSObject, ObservableObject {
         }
         pinnedPanels.removeValue(forKey: category)
         pinnedCategories.remove(category)
+        syncNetworkForegroundProbing()
 
         let finishUnpin: @Sendable () -> Void = { [weak panel] in
             MainActor.assumeIsolated {
