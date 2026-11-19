@@ -18,6 +18,10 @@ public final class PanelController: NSObject, ObservableObject {
     public var onTransientPanelClosed: (() -> Void)?
     /// Hit-test closure injected by `MenuBarController` so dismissal monitors ignore clicks on any status item button.
     public var statusItemHitTest: ((NSPoint) -> Bool)?
+    /// Resolves an active status bar button and config ID for a category (used when swapping panels).
+    public var statusButtonProvider: ((MetricCategory) -> (button: NSStatusBarButton, itemID: String?)?)?
+    /// Notifies `MenuBarController` when `swapToCategory` anchors the transient panel to another category's status item.
+    public var onTransientCategorySwapped: ((MetricCategory, NSStatusBarButton) -> Void)?
 
     public var activePanel: MetricPanel? {
         transientPanel ?? (currentCategory.flatMap { pinnedPanels[$0] })
@@ -72,6 +76,22 @@ public final class PanelController: NSObject, ObservableObject {
         relativeTo button: NSStatusBarButton,
         content: () -> V
     ) {
+        presentTransient(
+            category: category,
+            itemID: itemID,
+            relativeTo: button,
+            anchorFrame: nil,
+            content: content
+        )
+    }
+
+    private func presentTransient<V: View>(
+        category: MetricCategory,
+        itemID: String?,
+        relativeTo button: NSStatusBarButton?,
+        anchorFrame: NSRect?,
+        content: () -> V
+    ) {
         // B6: Never create a transient panel for a category that already has a visible pinned HUD.
         if let pinned = pinnedPanels[category], pinned.isVisible {
             close()
@@ -113,7 +133,11 @@ public final class PanelController: NSObject, ObservableObject {
         let measuredHeight = measureHeight(of: builtView)
 
         // Compute layout and placement before showing
-        reposition(panel: panel, relativeTo: button, targetHeight: measuredHeight, animated: isSwitching)
+        if let button {
+            reposition(panel: panel, relativeTo: button, targetHeight: measuredHeight, animated: isSwitching)
+        } else if let anchorFrame {
+            reposition(panel: panel, anchoredTo: anchorFrame, targetHeight: measuredHeight)
+        }
 
         // Inject content into persistent host (A11)
         panel.setSwiftUIContent(builtView)
@@ -212,9 +236,38 @@ public final class PanelController: NSObject, ObservableObject {
 
     /// Swaps the active open panel to a different category (e.g. from Fanless state to Temperature).
     public func swapToCategory(_ category: MetricCategory) {
-        guard let button = currentButton else { return }
-        show(category: category, relativeTo: button) {
-            PanelFactory.makeCategoryPanelView(category: category)
+        if let pinned = pinnedPanels[category], pinned.isVisible {
+            close()
+            pinned.makeKeyAndOrderFront(nil)
+            return
+        }
+
+        if let target = statusButtonProvider?(category) {
+            show(category: category, itemID: target.itemID, relativeTo: target.button) {
+                PanelFactory.makeCategoryPanelView(category: category)
+            }
+            if isTransientPanelOpen(for: category) {
+                onTransientCategorySwapped?(category, target.button)
+            }
+            return
+        }
+
+        if let button = currentButton {
+            show(category: category, itemID: nil, relativeTo: button) {
+                PanelFactory.makeCategoryPanelView(category: category)
+            }
+            return
+        }
+
+        if let sourcePinned = pinnedPanels[.fan] ?? pinnedPanels.values.first(where: { $0.isVisible }) {
+            presentTransient(
+                category: category,
+                itemID: nil,
+                relativeTo: nil,
+                anchorFrame: sourcePinned.frame
+            ) {
+                PanelFactory.makeCategoryPanelView(category: category)
+            }
         }
     }
 
@@ -444,6 +497,25 @@ public final class PanelController: NSObject, ObservableObject {
         } else {
             panel.setFrame(targetFrame, display: true)
         }
+    }
+
+    private func reposition(panel: MetricPanel, anchoredTo anchorFrame: NSRect, targetHeight: CGFloat) {
+        let clampedHeight = min(max(targetHeight, 160.0), Instrument.Size.maxHeight)
+        var targetFrame = NSRect(
+            x: anchorFrame.minX,
+            y: anchorFrame.maxY - clampedHeight,
+            width: Instrument.Size.panelWidth,
+            height: clampedHeight
+        )
+
+        if let screen = NSScreen.screens.first(where: { $0.visibleFrame.intersects(anchorFrame) }) ?? NSScreen.main {
+            let visible = screen.visibleFrame
+            targetFrame.origin.x = min(max(targetFrame.origin.x, visible.minX + 8.0), visible.maxX - targetFrame.width - 8.0)
+            targetFrame.origin.y = min(max(targetFrame.origin.y, visible.minY + 8.0), visible.maxY - targetFrame.height)
+        }
+
+        panel.targetHeight = targetFrame.height
+        panel.setFrame(targetFrame, display: true)
     }
 
     private func clampedPinnedOrigin(_ origin: CGPoint, for size: CGSize) -> CGPoint {

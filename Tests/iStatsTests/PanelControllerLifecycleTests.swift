@@ -325,4 +325,52 @@ final class PanelControllerLifecycleTests: XCTestCase {
         XCTAssertFalse(PanelController.shared.isPinned(for: .cpu))
         XCTAssertFalse(pinned.isVisible)
     }
+
+    func testSwapToCategoryWorksOnPinnedPanelAndSyncsMenuBarButton() {
+        let (defaults, prefs, coord, suiteName) = makeContext()
+        defer {
+            PanelController.shared.statusButtonProvider = nil
+            PanelController.shared.onTransientCategorySwapped = nil
+            cleanup(defaults: defaults, suiteName: suiteName)
+        }
+
+        // 1. Pinned Fan panel WITHOUT Temperature status item: swapToCategory(.thermal) must still open .thermal
+        let fanOnly = MenuBarItemConfig(category: .fan, style: .text)
+        prefs.menuBarItems = [fanOnly]
+        let menuController1 = MenuBarController(preferences: prefs, coordinator: coord)
+        guard let fanButton = menuController1.statusItems[fanOnly.id]?.button else {
+            XCTFail("Expected fan status button")
+            return
+        }
+        menuController1.statusItemClicked(fanButton)
+        PanelController.shared.togglePin(for: .fan)
+        XCTAssertNil(PanelController.shared.currentButton)
+        XCTAssertTrue(PanelController.shared.isPinned(for: .fan))
+
+        PanelController.shared.swapToCategory(.thermal)
+        XCTAssertTrue(PanelController.shared.isTransientPanelOpen(for: .thermal))
+
+        // 2. Transient Fan panel WITH Temperature status item: swapToCategory(.thermal) anchors to thermal button and syncs tracking
+        PanelController.shared.unpinAll(immediately: true)
+        PanelController.shared.close(immediately: true)
+
+        let fanItem = MenuBarItemConfig(category: .fan, style: .text)
+        let thermalItem = MenuBarItemConfig(category: .thermal, style: .text)
+        prefs.menuBarItems = [fanItem, thermalItem]
+        let menuController2 = MenuBarController(preferences: prefs, coordinator: coord)
+        guard let fanBtn2 = menuController2.statusItems[fanItem.id]?.button,
+              let thermalBtn2 = menuController2.statusItems[thermalItem.id]?.button else {
+            XCTFail("Expected fan and thermal status buttons")
+            return
+        }
+
+        menuController2.statusItemClicked(fanBtn2)
+        XCTAssertTrue(menuController2.currentlyShownButton === fanBtn2)
+
+        PanelController.shared.swapToCategory(.thermal)
+        XCTAssertTrue(PanelController.shared.isTransientPanelOpen(for: .thermal))
+        XCTAssertEqual(PanelController.shared.currentItemID, thermalItem.id)
+        XCTAssertTrue(PanelController.shared.currentButton === thermalBtn2)
+        XCTAssertTrue(menuController2.currentlyShownButton === thermalBtn2)
+    }
 }
