@@ -171,6 +171,8 @@ public enum NetworkConnectionThresholds {
     public static let degradedJitterMs: Double = 60.0
     /// Rolling packet loss percentage at or above this threshold is considered a bad connection.
     public static let degradedPacketLossPercent: Double = 10.0
+    /// Consecutive failed probes required to classify a satisfied path as disconnected.
+    public static let disconnectedConsecutiveFailures: Int = 2
     /// Wi-Fi signal percentage strictly below this threshold is considered weak.
     public static let weakWiFiSignalPercent: Int = 30
     /// Wi-Fi SNR strictly below this threshold (dB) is considered weak.
@@ -218,37 +220,44 @@ public enum NetworkConnectionEvaluator {
             )
         }
 
-        // 2. Active probe failed while locally associated -> Red ("Not Connected").
-        // Handles connected-to-Wi-Fi with dead router/ISP/captive portal/dropped packets.
+        // 2. Sustained probe failure while locally associated -> Red ("Not Connected").
+        // A single transient drop when prior probes in the window succeeded degrades to Yellow in Step 5.
         if let probe, !probe.isReachable {
-            let isWiFi = (primaryType == .wifi) || (wifiDetails != nil)
-            let reason: String
-            if isWiFi {
-                if primaryPacketsOutDelta > 0 && primaryPacketsInDelta == 0 {
-                    reason = "Wi-Fi connected · No packets received"
-                } else {
-                    reason = "Wi-Fi connected · No internet response"
-                }
-            } else if let iface = primaryInterface {
-                reason = "No internet response on \(iface)"
-            } else {
-                reason = probe.failureReason ?? "No packet response"
-            }
+            let isSustainedFailure =
+                probe.consecutiveFailures >= NetworkConnectionThresholds.disconnectedConsecutiveFailures
+                || (probe.windowSampleCount > 0 && probe.consecutiveFailures >= probe.windowSampleCount)
+                || (probe.consecutiveFailures == 0 && probe.packetLossPercent >= 100.0)
 
-            return NetworkConnectionHealth(
-                status: .disconnected,
-                reason: reason,
-                isPathSatisfied: true,
-                isInternetReachable: false,
-                isConstrained: isConstrained,
-                latencyMs: nil,
-                packetLossPercent: max(probe.packetLossPercent, 100.0),
-                jitterMs: probe.jitterMs,
-                interfaceErrorDelta: interfaceErrorDelta,
-                primaryPacketsInDelta: primaryPacketsInDelta,
-                primaryPacketsOutDelta: primaryPacketsOutDelta,
-                isProbing: false
-            )
+            if isSustainedFailure {
+                let isWiFi = (primaryType == .wifi) || (wifiDetails != nil)
+                let reason: String
+                if isWiFi {
+                    if primaryPacketsOutDelta > 0 && primaryPacketsInDelta == 0 {
+                        reason = "Wi-Fi connected · No packets received"
+                    } else {
+                        reason = "Wi-Fi connected · No internet response"
+                    }
+                } else if let iface = primaryInterface {
+                    reason = "No internet response on \(iface)"
+                } else {
+                    reason = probe.failureReason ?? "No packet response"
+                }
+
+                return NetworkConnectionHealth(
+                    status: .disconnected,
+                    reason: reason,
+                    isPathSatisfied: true,
+                    isInternetReachable: false,
+                    isConstrained: isConstrained,
+                    latencyMs: nil,
+                    packetLossPercent: max(probe.packetLossPercent, 100.0),
+                    jitterMs: probe.jitterMs,
+                    interfaceErrorDelta: interfaceErrorDelta,
+                    primaryPacketsInDelta: primaryPacketsInDelta,
+                    primaryPacketsOutDelta: primaryPacketsOutDelta,
+                    isProbing: false
+                )
+            }
         }
 
         // 3. No route/interface and no reachable probe -> Red.
@@ -304,10 +313,12 @@ public enum NetworkConnectionEvaluator {
             )
         }
 
-        // 5. Probe succeeded (packets sent & received). Check for degraded (Yellow) conditions.
+        // 5. Probe succeeded (or suffered a single transient drop). Check for degraded (Yellow) conditions.
         var degradationReasons: [String] = []
 
         if probe.packetLossPercent >= NetworkConnectionThresholds.degradedPacketLossPercent {
+            degradationReasons.append("Packet loss (\(Int(round(probe.packetLossPercent)))%)")
+        } else if !probe.isReachable {
             degradationReasons.append("Packet loss (\(Int(round(probe.packetLossPercent)))%)")
         }
 
@@ -352,7 +363,7 @@ public enum NetworkConnectionEvaluator {
         // 6. All checks healthy -> Green ("Connected").
         let healthyReason: String
         if let rtt = probe.latencyMs {
-            healthyReason = "\(Int(round(rtt))) ms · 0% loss"
+            healthyReason = "\(Int(round(rtt))) ms · \(Int(round(probe.packetLossPercent)))% loss"
         } else {
             healthyReason = "Connected"
         }
