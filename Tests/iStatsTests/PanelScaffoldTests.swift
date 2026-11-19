@@ -1316,4 +1316,56 @@ final class PanelScaffoldTests: XCTestCase {
         XCTAssertFalse(unavailableResult.shouldShowChip)
         XCTAssertNil(unavailableResult.probe.inlineStatusText)
     }
+
+    func testPanelScaffoldPreservesAncestorMotionPolicyAndInjectedLowPowerMode() {
+        struct PolicyReader: View {
+            @Environment(\.motionPolicy) var policy
+            let onRead: (MotionPolicy) -> Void
+            var body: some View {
+                Color.clear
+                    .frame(height: 20)
+                    .onAppear { onRead(policy) }
+                    .onChange(of: policy) { onRead($0) }
+            }
+        }
+
+        @MainActor
+        func observedPolicy(
+            ancestorPolicy: MotionPolicy?,
+            isLowPowerModeActive: Bool
+        ) -> MotionPolicy? {
+            var observed: MotionPolicy?
+            let scaffold = PanelScaffold(
+                category: .cpu,
+                glance: PanelGlance(value: 25, unit: "%", headline: "Calm"),
+                selection: .constant(.overview),
+                isLowPowerModeActive: isLowPowerModeActive
+            ) { _ in
+                PolicyReader { observed = $0 }
+            }
+
+            let root: AnyView = ancestorPolicy.map { AnyView(scaffold.motionPolicy($0)) } ?? AnyView(scaffold)
+            let window = NSWindow(
+                contentRect: NSRect(x: 0, y: 0, width: Instrument.Size.panelWidth, height: 280),
+                styleMask: [.borderless],
+                backing: .buffered,
+                defer: false
+            )
+            let hosting = NSHostingView(rootView: root)
+            hosting.frame = NSRect(x: 0, y: 0, width: Instrument.Size.panelWidth, height: 280)
+            window.contentView = hosting
+            window.orderFront(nil)
+            window.layoutIfNeeded()
+            RunLoop.main.run(until: Date().addingTimeInterval(0.03))
+            window.orderOut(nil)
+            return observed
+        }
+
+        // Explicit ancestor .motionPolicy(.reduced) must not be clobbered by PanelScaffold
+        XCTAssertEqual(observedPolicy(ancestorPolicy: .reduced, isLowPowerModeActive: false), .reduced)
+        XCTAssertEqual(observedPolicy(ancestorPolicy: .frozen, isLowPowerModeActive: false), .frozen)
+
+        // Without ancestor override, injected isLowPowerModeActive resolves to .frozen
+        XCTAssertEqual(observedPolicy(ancestorPolicy: nil, isLowPowerModeActive: true), .frozen)
+    }
 }

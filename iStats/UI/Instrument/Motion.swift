@@ -30,11 +30,31 @@ private struct MotionPolicyKey: EnvironmentKey {
     static let defaultValue: MotionPolicy = .full
 }
 
+private struct ExplicitMotionPolicyKey: EnvironmentKey {
+    static let defaultValue: MotionPolicy? = nil
+}
+
+private struct IsManagedByPanelControllerKey: EnvironmentKey {
+    static let defaultValue: Bool = false
+}
+
 extension EnvironmentValues {
     /// Active motion policy governing animations across all instrument views.
     public var motionPolicy: MotionPolicy {
         get { self[MotionPolicyKey.self] }
         set { self[MotionPolicyKey.self] = newValue }
+    }
+
+    /// Explicit ancestor `.motionPolicy(...)` override that `PanelScaffold` must preserve.
+    internal var explicitMotionPolicy: MotionPolicy? {
+        get { self[ExplicitMotionPolicyKey.self] }
+        set { self[ExplicitMotionPolicyKey.self] = newValue }
+    }
+
+    /// `true` when hosted inside `PanelController`'s `MetricPanel`.
+    internal var isManagedByPanelController: Bool {
+        get { self[IsManagedByPanelControllerKey.self] }
+        set { self[IsManagedByPanelControllerKey.self] = newValue }
     }
 }
 
@@ -42,5 +62,6 @@ extension View {
     /// Sets the motion policy for this view hierarchy.
     public func motionPolicy(_ policy: MotionPolicy) -> some View {
         environment(\.motionPolicy, policy)
+            .environment(\.explicitMotionPolicy, policy)
     }
 }

@@ -72,6 +72,7 @@ public struct FanPanel: View {
             availability: availability,
             isLoading: isLoading,
             isPaused: coordinator.isSamplingPaused,
+            isLowPowerModeActive: coordinator.isLowPowerModeActive,
             onTogglePause: {
                 coordinator.toggleSamplingPaused()
             },

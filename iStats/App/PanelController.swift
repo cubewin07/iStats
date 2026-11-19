@@ -109,7 +109,7 @@ public final class PanelController: NSObject, ObservableObject {
         panel.isPinned = false
 
         // Build content once and measure synchronously before ordering front (B5)
-        let builtView = content()
+        let builtView = content().environment(\.isManagedByPanelController, true)
         let measuredHeight = measureHeight(of: builtView)
 
         // Compute layout and placement before showing

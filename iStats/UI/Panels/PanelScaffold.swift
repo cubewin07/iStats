@@ -54,6 +54,7 @@ public struct PanelScaffold<Content: View>: View {
     public var availability: Availability? = nil
     public var isLoading: Bool = false
     public var isPaused: Bool = false
+    public var isLowPowerModeActive: Bool = false
     public var onTogglePause: (() -> Void)? = nil
     public var onPinToggle: (() -> Void)? = nil
     public var isPinned: Bool = false
@@ -68,8 +69,9 @@ public struct PanelScaffold<Content: View>: View {
     @State private var isPinHovered: Bool = false
     @State private var isCloseHovered: Bool = false
     @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
+    @Environment(\.explicitMotionPolicy) private var explicitMotionPolicy
+    @Environment(\.isManagedByPanelController) private var isManagedByPanelController
     @Environment(\.panelScaffoldProbeEnabled) private var probeEnabled
-    @ObservedObject private var coordinator = MetricsCoordinator.shared
     @ObservedObject private var panelController = PanelController.shared
 
     private var effectiveIsPinned: Bool {
@@ -77,7 +79,7 @@ public struct PanelScaffold<Content: View>: View {
     }
 
     private var isWindowVisible: Bool {
-        panelController.isPanelOpen(for: category) || (!panelController.isTransientVisible && panelController.pinnedCategories.isEmpty)
+        isManagedByPanelController ? panelController.isPanelOpen(for: category) : true
     }
 
     private var activeScrubState: ChartScrubState? {
@@ -117,6 +119,7 @@ public struct PanelScaffold<Content: View>: View {
         availability: Availability? = nil,
         isLoading: Bool = false,
         isPaused: Bool = false,
+        isLowPowerModeActive: Bool = false,
         onTogglePause: (() -> Void)? = nil,
         onPinToggle: (() -> Void)? = nil,
         isPinned: Bool = false,
@@ -134,6 +137,7 @@ public struct PanelScaffold<Content: View>: View {
         self.availability = availability
         self.isLoading = isLoading
         self.isPaused = isPaused
+        self.isLowPowerModeActive = isLowPowerModeActive
         self.onTogglePause = onTogglePause
         self.onPinToggle = onPinToggle
         self.isPinned = isPinned
@@ -142,9 +146,9 @@ public struct PanelScaffold<Content: View>: View {
     }
 
     public var body: some View {
-        let resolvedPolicy = MotionPolicy.resolve(
+        let resolvedPolicy = explicitMotionPolicy ?? MotionPolicy.resolve(
             reduceMotion: accessibilityReduceMotion,
-            lowPower: coordinator.isLowPowerModeActive,
+            lowPower: isLowPowerModeActive,
             paused: isPaused,
             visible: isWindowVisible
         )
@@ -277,7 +281,7 @@ public struct PanelScaffold<Content: View>: View {
                 )
             }
         )
-        .motionPolicy(resolvedPolicy)
+        .environment(\.motionPolicy, resolvedPolicy)
         .environment(\.chartScrubAction, ChartScrubAction(scopedHandler: { newState, sourceID in
             updateScrubState(newState, sourceID: sourceID)
         }))
@@ -859,9 +863,9 @@ public struct PanelScaffold<Content: View>: View {
     // MARK: - Keyboard Command Handling
 
     private var pageSwitchAnimation: Animation? {
-        let policy = MotionPolicy.resolve(
+        let policy = explicitMotionPolicy ?? MotionPolicy.resolve(
             reduceMotion: accessibilityReduceMotion,
-            lowPower: coordinator.isLowPowerModeActive,
+            lowPower: isLowPowerModeActive,
             paused: isPaused,
             visible: isWindowVisible
         )
