@@ -31,6 +31,34 @@ final class InstrumentKitTests: XCTestCase {
         }
     }
 
+    func testCategoryPaletteUsesSRGBMatchingPaletteContrast() {
+        let aqua = NSAppearance(named: .aqua)!
+        let dark = NSAppearance(named: .darkAqua)!
+
+        for category in MetricCategory.allCases {
+            let hex = PaletteContrast.Hex.categoryTint(for: category)
+            let dynamic = CategoryPalette.nsColor(for: category)
+
+            var lightResolved: NSColor?
+            aqua.performAsCurrentDrawingAppearance {
+                lightResolved = dynamic.usingColorSpace(.sRGB)
+            }
+            let expectedLight = RGBColor(hex: hex.light)!
+            XCTAssertEqual(Double(lightResolved!.redComponent), expectedLight.red, accuracy: 0.002)
+            XCTAssertEqual(Double(lightResolved!.greenComponent), expectedLight.green, accuracy: 0.002)
+            XCTAssertEqual(Double(lightResolved!.blueComponent), expectedLight.blue, accuracy: 0.002)
+
+            var darkResolved: NSColor?
+            dark.performAsCurrentDrawingAppearance {
+                darkResolved = dynamic.usingColorSpace(.sRGB)
+            }
+            let expectedDark = RGBColor(hex: hex.dark)!
+            XCTAssertEqual(Double(darkResolved!.redComponent), expectedDark.red, accuracy: 0.002)
+            XCTAssertEqual(Double(darkResolved!.greenComponent), expectedDark.green, accuracy: 0.002)
+            XCTAssertEqual(Double(darkResolved!.blueComponent), expectedDark.blue, accuracy: 0.002)
+        }
+    }
+
     // MARK: - 2. Section / Module v2 Integrated Header
 
     func testSectionAndModuleSourceCompatibilityAndLayout() {
