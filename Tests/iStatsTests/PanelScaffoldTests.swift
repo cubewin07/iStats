@@ -1086,6 +1086,73 @@ final class PanelScaffoldTests: XCTestCase {
         XCTAssertFalse(controller.shouldDispatch(nil))
     }
 
+    func testScrubControllerSuppressesRedundantObjectWillChangeOnSameIndex() {
+        let controller = ScrubController()
+        var changeCount = 0
+        let cancellable = controller.objectWillChange.sink { _ in
+            changeCount += 1
+        }
+        defer { cancellable.cancel() }
+
+        let base: TimeInterval = 2_000.0
+        let points = [
+            ChartPoint(timestamp: base - 20, value: 10),
+            ChartPoint(timestamp: base - 10, value: 50),
+            ChartPoint(timestamp: base, value: 30)
+        ]
+        let timeline = ChartTimeline(edge: base, sampleInterval: 1.0)
+
+        // Multiple pixel moves within the same middle sample (x = 198, 200, 202)
+        for x in [CGFloat(198), CGFloat(200), CGFloat(202)] {
+            controller.handleHover(
+                phase: .active(CGPoint(x: x, y: 20)),
+                plotWidth: 300,
+                points: points,
+                secondaryPoints: [],
+                timeline: timeline,
+                windowDuration: 30,
+                isTimestamped: true,
+                valueFormatter: nil,
+                onScrub: nil
+            )
+        }
+        XCTAssertEqual(controller.hoveredIndex, 1)
+        XCTAssertEqual(changeCount, 1, "Moving mouse within the same snapped sample must only publish once")
+    }
+
+    func testChartModelStepShortCircuitsWhenPausedWithIdenticalInputs() {
+        let model = ChartModel(sampleInterval: 1.0)
+        let base: TimeInterval = 5_000.0
+        let points = [
+            ChartPoint(timestamp: base - 2.0, value: 10),
+            ChartPoint(timestamp: base - 1.0, value: 20),
+            ChartPoint(timestamp: base, value: 30)
+        ]
+        let mode = LiveChartMode.single(points: points, color: .blue, fixedMax: 100.0)
+
+        let first = model.step(
+            now: base,
+            mode: mode,
+            category: .cpu,
+            sampleInterval: 1.0,
+            explicitWindow: 60.0,
+            isScrubbing: true,
+            motionPolicy: .full
+        )
+        let edgeAfterFirst = model.timeline.edge
+        let second = model.step(
+            now: base,
+            mode: mode,
+            category: .cpu,
+            sampleInterval: 1.0,
+            explicitWindow: 60.0,
+            isScrubbing: true,
+            motionPolicy: .full
+        )
+        XCTAssertEqual(model.timeline.edge, edgeAfterFirst)
+        XCTAssertEqual(first.primaryPoints, second.primaryPoints)
+    }
+
     // MARK: - Task 8.5.6b: Header v2, Text PageSwitcher & Inline Status Chip
 
     func testHeaderV2BadgeAndCategoryTitlesFitAllCategories() {

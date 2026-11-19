@@ -392,12 +392,27 @@ final class ChartModel: ObservableObject {
     private var lastFrameDate: TimeInterval?
     private var synthesizedLatestTimestamp: TimeInterval?
     private var lastLegacySignature: LegacySignature?
+    private var cachedStepKey: StepCacheKey?
+    private var cachedResolvedSeries: ResolvedSeries?
 
     private struct LegacySignature: Equatable {
         let count: Int
         let first: Double?
         let last: Double?
         let sum: Double
+    }
+
+    private struct StepCacheKey: Equatable {
+        let now: TimeInterval
+        let category: MetricCategory
+        let sampleInterval: TimeInterval
+        let explicitWindow: TimeInterval?
+        let isScrubbing: Bool
+        let motionPolicy: MotionPolicy
+        let count: Int
+        let firstTimestamp: TimeInterval?
+        let lastTimestamp: TimeInterval?
+        let lastValue: Double?
     }
 
     struct ResolvedSeries {
@@ -427,6 +442,19 @@ final class ChartModel: ObservableObject {
         isScrubbing: Bool,
         motionPolicy: MotionPolicy
     ) -> ResolvedSeries {
+        let stepKey = Self.makeStepCacheKey(
+            now: now,
+            mode: mode,
+            category: category,
+            sampleInterval: sampleInterval,
+            explicitWindow: explicitWindow,
+            isScrubbing: isScrubbing,
+            motionPolicy: motionPolicy
+        )
+        if let cachedStepKey, let cachedResolvedSeries, cachedStepKey == stepKey {
+            return cachedResolvedSeries
+        }
+
         let dt: TimeInterval
         if let prev = lastFrameDate {
             dt = max(0.0, min(0.5, now - prev))
@@ -484,7 +512,58 @@ final class ChartModel: ObservableObject {
             dt: scaleDt
         )
 
+        cachedStepKey = stepKey
+        cachedResolvedSeries = resolved
         return resolved
+    }
+
+    private static func makeStepCacheKey(
+        now: TimeInterval,
+        mode: LiveChartMode,
+        category: MetricCategory,
+        sampleInterval: TimeInterval,
+        explicitWindow: TimeInterval?,
+        isScrubbing: Bool,
+        motionPolicy: MotionPolicy
+    ) -> StepCacheKey {
+        switch mode.payload {
+        case .single(let pts, _, _, _, _, _),
+             .banded(let pts, _, _, _, _):
+            return StepCacheKey(
+                now: now, category: category, sampleInterval: sampleInterval,
+                explicitWindow: explicitWindow, isScrubbing: isScrubbing, motionPolicy: motionPolicy,
+                count: pts.count, firstTimestamp: pts.first?.timestamp,
+                lastTimestamp: pts.last?.timestamp, lastValue: pts.last?.value
+            )
+        case .stacked(let pts, _, _, _, _, _):
+            return StepCacheKey(
+                now: now, category: category, sampleInterval: sampleInterval,
+                explicitWindow: explicitWindow, isScrubbing: isScrubbing, motionPolicy: motionPolicy,
+                count: pts.count, firstTimestamp: pts.first?.timestamp,
+                lastTimestamp: pts.last?.timestamp, lastValue: pts.last.map { $0.primary + $0.secondary }
+            )
+        case .mirrored(let pts, _, _, _, _, _, _, _):
+            return StepCacheKey(
+                now: now, category: category, sampleInterval: sampleInterval,
+                explicitWindow: explicitWindow, isScrubbing: isScrubbing, motionPolicy: motionPolicy,
+                count: pts.count, firstTimestamp: pts.first?.timestamp,
+                lastTimestamp: pts.last?.timestamp, lastValue: pts.last.map { $0.primary + $0.secondary }
+            )
+        case .envelope(let buckets, _, _, _, _, _):
+            return StepCacheKey(
+                now: now, category: category, sampleInterval: sampleInterval,
+                explicitWindow: explicitWindow, isScrubbing: isScrubbing, motionPolicy: motionPolicy,
+                count: buckets.count, firstTimestamp: buckets.first?.timestamp,
+                lastTimestamp: buckets.last?.timestamp, lastValue: buckets.last?.max
+            )
+        case .mirroredEnvelope(let top, let bot, _, _, _, _, _, _):
+            return StepCacheKey(
+                now: now, category: category, sampleInterval: sampleInterval,
+                explicitWindow: explicitWindow, isScrubbing: isScrubbing, motionPolicy: motionPolicy,
+                count: top.count + bot.count, firstTimestamp: top.first?.timestamp,
+                lastTimestamp: top.last?.timestamp, lastValue: (top.last?.max ?? 0) + (bot.last?.max ?? 0)
+            )
+        }
     }
 
     func resolveSeries(
@@ -1567,7 +1646,7 @@ extension EnvironmentValues {
 @MainActor
 final class ScrubController: ObservableObject {
     @Published private(set) var hoveredIndex: Int?
-    @Published private(set) var hoverLocation: CGPoint?
+    private(set) var hoverLocation: CGPoint?
     private var lastHapticPeakFiredIndex: Int?
     private var lastDispatchedState: ChartScrubState?
 
@@ -1693,7 +1772,9 @@ final class ScrubController: ObservableObject {
             ) else {
                 return
             }
-            hoveredIndex = target.index
+            if hoveredIndex != target.index {
+                hoveredIndex = target.index
+            }
             let readoutValue = readoutValueForIndex?(target.index) ?? target.primaryValue
             onScrub?(target.index, readoutValue, target.secondsAgo)
             onScrubState?(target)
@@ -1719,7 +1800,9 @@ final class ScrubController: ObservableObject {
 
     func clearHover() {
         hoverLocation = nil
-        hoveredIndex = nil
+        if hoveredIndex != nil {
+            hoveredIndex = nil
+        }
         lastHapticPeakFiredIndex = nil
         CopyHoverCoordinator.shared.setHoveredText(nil)
     }
@@ -2555,13 +2638,9 @@ public struct LiveChart: View {
             let (topRange, botRange) = mirroredVerticalRanges(height: height)
             let refPts = referencePoints(for: activeSeries)
             let sampleTs = index < refPts.count ? refPts[index].timestamp : (refPts.last?.timestamp ?? 0.0)
-            let topVal = index < primaryPts.count
-                ? (ChartTimeline.interpolateValue(at: sampleTs, points: primaryPts) ?? primaryPts[index].value)
-                : 0.0
+            let topVal = Self.valueAtSnap(index: index, targetTimestamp: sampleTs, points: primaryPts)
             let botPts = activeSeries.secondary
-            let botVal = index < botPts.count
-                ? (ChartTimeline.interpolateValue(at: sampleTs, points: botPts) ?? botPts[index].value)
-                : 0.0
+            let botVal = Self.valueAtSnap(index: index, targetTimestamp: sampleTs, points: botPts)
 
             let topY = topRange.yPosition(for: topVal)
             let botY = botRange.yPosition(for: botVal)
@@ -2587,13 +2666,11 @@ public struct LiveChart: View {
                 crosshairHairline(x: x, height: height)
 
                 if isolatedChannel != 1, index < activeSeries.primary.count {
-                    let primVal = ChartTimeline.interpolateValue(at: sampleTs, points: activeSeries.primary)
-                        ?? activeSeries.primary[index].value
+                    let primVal = Self.valueAtSnap(index: index, targetTimestamp: sampleTs, points: activeSeries.primary)
                     crosshairBead(at: CGPoint(x: x, y: range.yPosition(for: primVal)), color: primaryCol)
                 }
                 if isolatedChannel != 0, index < activeSeries.total.count {
-                    let totalVal = ChartTimeline.interpolateValue(at: sampleTs, points: activeSeries.total)
-                        ?? activeSeries.total[index].value
+                    let totalVal = Self.valueAtSnap(index: index, targetTimestamp: sampleTs, points: activeSeries.total)
                     crosshairBead(at: CGPoint(x: x, y: range.yPosition(for: totalVal)), color: secondaryCol)
                 }
             }
@@ -2602,8 +2679,7 @@ public struct LiveChart: View {
         case .banded(_, let bands, _, _, _),
              .envelope(_, _, _, let bands, _, _):
             if index < primaryPts.count {
-                let sampleTs = primaryPts[index].timestamp
-                let val = ChartTimeline.interpolateValue(at: sampleTs, points: primaryPts) ?? primaryPts[index].value
+                let val = primaryPts[index].value
                 let range = singleVerticalRange(height: height)
                 let pointY = range.yPosition(for: val)
                 let baseColor = resolvedPrimaryColor
@@ -2620,8 +2696,7 @@ public struct LiveChart: View {
 
         case .single:
             if index < primaryPts.count {
-                let sampleTs = primaryPts[index].timestamp
-                let val = ChartTimeline.interpolateValue(at: sampleTs, points: primaryPts) ?? primaryPts[index].value
+                let val = primaryPts[index].value
                 let range = singleVerticalRange(height: height)
                 let pointY = range.yPosition(for: val)
 
@@ -2632,6 +2707,15 @@ public struct LiveChart: View {
                 .animation(anim, value: x)
             }
         }
+    }
+
+    private static func valueAtSnap(index: Int, targetTimestamp: TimeInterval, points: [ChartPoint]) -> Double {
+        guard !points.isEmpty else { return 0.0 }
+        if index >= 0 && index < points.count && abs(points[index].timestamp - targetTimestamp) <= 1e-6 {
+            return points[index].value
+        }
+        return ChartTimeline.interpolateValue(at: targetTimestamp, points: points)
+            ?? (index < points.count ? points[index].value : 0.0)
     }
 
     private func crosshairHairline(x: CGFloat, height: CGFloat) -> some View {
