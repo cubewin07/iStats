@@ -27,6 +27,7 @@ public struct MemoryPanel: View {
         private var cachedHasSample: Bool = false
         private var cachedSample: MemorySample?
         private var cachedStandard: Units.ByteUnitStandard?
+        private var cachedRefreshInterval: TimeInterval?
         private var cachedState: DerivedState?
         private(set) var derivationCount: Int = 0
 
@@ -34,6 +35,7 @@ public struct MemoryPanel: View {
             coordinator: MetricsCoordinator,
             reading: Sample<MemorySample>?,
             byteUnitStandard: Units.ByteUnitStandard,
+            refreshInterval: TimeInterval,
             builder: () -> DerivedState
         ) -> DerivedState {
             let coordID = ObjectIdentifier(coordinator)
@@ -46,7 +48,8 @@ public struct MemoryPanel: View {
                cachedTimestamp == timestamp,
                cachedHasSample == hasSample,
                cachedSample == sample,
-               cachedStandard == byteUnitStandard {
+               cachedStandard == byteUnitStandard,
+               cachedRefreshInterval == refreshInterval {
                 return cachedState
             }
 
@@ -56,6 +59,7 @@ public struct MemoryPanel: View {
             self.cachedHasSample = hasSample
             self.cachedSample = sample
             self.cachedStandard = byteUnitStandard
+            self.cachedRefreshInterval = refreshInterval
             self.cachedState = next
             self.derivationCount += 1
             return next
@@ -94,13 +98,21 @@ public struct MemoryPanel: View {
         let reading = coordinator.latestMemory
         let sample = reading?.value
         let standard = preferences.byteUnitStandard
+        let referenceDate = reading?.timestamp ?? Date()
+        let refreshInterval = preferences.refreshInterval
         let derived = derivedCache.resolve(
             coordinator: coordinator,
             reading: reading,
-            byteUnitStandard: standard
+            byteUnitStandard: standard,
+            refreshInterval: refreshInterval
         ) {
             DerivedStateCache.DerivedState(
-                glance: deriveGlance(sample: sample, standard: standard),
+                glance: deriveGlance(
+                    sample: sample,
+                    standard: standard,
+                    referenceDate: referenceDate,
+                    refreshInterval: refreshInterval
+                ),
                 status: deriveStatus(sample: sample),
                 ribbon: deriveRibbon(sample: sample)
             )
@@ -151,7 +163,12 @@ public struct MemoryPanel: View {
 
     // MARK: - Glance Derivation
 
-    private func deriveGlance(sample: MemorySample?, standard: Units.ByteUnitStandard) -> PanelGlance {
+    internal func deriveGlance(
+        sample: MemorySample?,
+        standard: Units.ByteUnitStandard,
+        referenceDate: Date,
+        refreshInterval: TimeInterval
+    ) -> PanelGlance {
         let divisor: Double = standard == .si ? 1_000_000_000.0 : 1_073_741_824.0
         let unitLabel = standard == .si ? "GB" : "GiB"
         let usedValue = sample.map { Double($0.used) / divisor } ?? 0.0
@@ -164,8 +181,12 @@ public struct MemoryPanel: View {
             headline = PanelHeadline.memory(sample: nil, standard: standard)
         }
 
-        let usedPoints = coordinator.timedScalarHistory(for: .memoryUsedPercent, duration: 60)
-        let insight = InsightEngine.insights(series: usedPoints.map(\.value), interval: 1.0, unit: .percent).first?.text
+        let usedPoints = coordinator.timedScalarHistory(
+            for: .memoryUsedPercent,
+            duration: 60,
+            referenceDate: referenceDate
+        )
+        let insight = InsightEngine.insights(series: usedPoints.map(\.value), interval: refreshInterval, unit: .percent).first?.text
         let bands = [
             ChartBand(threshold: 60.0, color: CategoryPalette.statusColor(for: .warning), label: "Warning"),
             ChartBand(threshold: 80.0, color: CategoryPalette.statusColor(for: .critical), label: "Critical")

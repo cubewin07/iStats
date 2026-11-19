@@ -163,7 +163,7 @@ public struct NetworkPanel: View {
         return (glance, status, ribbon)
     }
 
-    private func deriveGlance(latest: Sample<NetworkSample>?) -> PanelGlance {
+    internal func deriveGlance(latest: Sample<NetworkSample>?) -> PanelGlance {
         let currentSample = latest?.value
         let downBytes = currentSample?.totalBytesInPerSec ?? 0.0
         let upBytes = currentSample?.totalBytesOutPerSec ?? 0.0
@@ -175,7 +175,7 @@ public struct NetworkPanel: View {
 
         let headline = PanelHeadline.network(sample: currentSample, standard: std)
 
-        let refDate = max(Date(), latest?.timestamp ?? .distantPast)
+        let refDate = latest?.timestamp ?? Date()
         let dualPoints = coordinator.timedDualScalarHistory(
             primary: .networkInBytesPerSec,
             secondary: .networkOutBytesPerSec,

@@ -1435,4 +1435,57 @@ final class PanelScaffoldTests: XCTestCase {
         // Without ancestor override, injected isLowPowerModeActive resolves to .frozen
         XCTAssertEqual(observedPolicy(ancestorPolicy: nil, isLowPowerModeActive: true), .frozen)
     }
+
+    func testPanelsAnchorTimedHistoryToSampleTimestampWhenPausedOver60Seconds() {
+        let suiteName = "test.istats.panels.timestamp.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        let prefs = PreferencesStore(userDefaults: defaults)
+        let coord = MetricsCoordinator(preferencesStore: prefs)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        // Feed 10 samples ending 120 seconds ago (simulating >60s paused sampling)
+        let endTs = Date().addingTimeInterval(-120.0)
+        for i in 0..<10 {
+            let ts = endTs.addingTimeInterval(Double(i - 9))
+            let cpu = CPUSample(totalUsage: Double(20 + i), perCore: [20, 25], user: Double(12 + i), system: 8, idle: Double(80 - i))
+            let mem = MemorySample(total: 16_000_000_000, used: 8_000_000_000, free: 8_000_000_000, wired: 2_000_000_000, compressed: 1_000_000_000, cached: 1_000_000_000, swapUsed: 0, pressure: .normal)
+            let fan = FanSample(fans: [FanReading(name: "Left", rpm: 2200 + i * 20, minRPM: 1200, maxRPM: 5000)])
+            let net = NetworkSample(interfaces: [
+                InterfaceThroughput(interfaceName: "en0", bytesInPerSec: Double(1000 + i * 50), bytesOutPerSec: 500, totalBytesIn: 10_000, totalBytesOut: 5_000, ipv4Address: "192.168.1.2", type: .wifi)
+            ], primaryInterface: "en0", primaryType: .wifi, localIPv4: "192.168.1.2")
+
+            coord.handleReadings([
+                .cpu(Sample(value: cpu, timestamp: ts)),
+                .memory(Sample(value: mem, timestamp: ts)),
+                .fan(Sample(value: fan, timestamp: ts)),
+                .network(Sample(value: net, timestamp: ts))
+            ])
+        }
+
+        let cpuPanel = CPUPanel(coordinator: coord, preferences: prefs)
+        let cpuGlance = cpuPanel.deriveGlance(
+            sample: coord.latestCPU?.value,
+            referenceDate: coord.latestCPU?.timestamp ?? Date(),
+            refreshInterval: prefs.refreshInterval
+        )
+        XCTAssertEqual(cpuGlance.chartMode?.primaryValues.count, 10)
+
+        let memPanel = MemoryPanel(coordinator: coord, preferences: prefs)
+        let memGlance = memPanel.deriveGlance(
+            sample: coord.latestMemory?.value,
+            standard: prefs.byteUnitStandard,
+            referenceDate: coord.latestMemory?.timestamp ?? Date(),
+            refreshInterval: prefs.refreshInterval
+        )
+        XCTAssertEqual(memGlance.chartMode?.primaryValues.count, 10)
+
+        let fanPanel = FanPanel(coordinator: coord, preferences: prefs)
+        let fanGlance = fanPanel.deriveGlance(latest: coord.latestFan)
+        XCTAssertEqual(fanGlance.chartMode?.primaryValues.count, 10)
+
+        let netPanel = NetworkPanel(coordinator: coord, preferences: prefs)
+        let netGlance = netPanel.deriveGlance(latest: coord.latestNetwork)
+        XCTAssertEqual(netGlance.chartMode?.primaryValues.count, 10)
+    }
 }
