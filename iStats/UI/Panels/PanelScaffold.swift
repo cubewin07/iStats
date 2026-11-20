@@ -1027,18 +1027,7 @@ private struct PageBodySlot<BodyContent: View>: View {
     }
 }
 
-// MARK: - Chart Namespace Environment (unused in 8.5.6a; kept nil until 8.5.5 removes HistoryPage reference)
-
-private struct ChartNamespaceKey: EnvironmentKey {
-    static let defaultValue: Namespace.ID? = nil
-}
-
 extension EnvironmentValues {
-    public var chartNamespace: Namespace.ID? {
-        get { self[ChartNamespaceKey.self] }
-        set { self[ChartNamespaceKey.self] = newValue }
-    }
-
     internal var panelScaffoldProbeEnabled: Bool {
         get { self[PanelScaffoldProbeEnabledKey.self] }
         set { self[PanelScaffoldProbeEnabledKey.self] = newValue }

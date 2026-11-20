@@ -688,7 +688,10 @@ struct NetworkPanel_Previews: PreviewProvider {
     }
 
     private static func makeMockCoordinator(sample: NetworkSample) -> MetricsCoordinator {
-        let coordinator = MetricsCoordinator.shared
+        let suiteName = "iStats.Preview.Network.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        let prefs = PreferencesStore(userDefaults: defaults)
+        let coordinator = MetricsCoordinator(preferencesStore: prefs)
         coordinator.handleReading(.network(Sample(value: sample)))
         return coordinator
     }

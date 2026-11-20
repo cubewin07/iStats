@@ -20,6 +20,10 @@ public struct MenuBarIconRenderer {
         imageCache.removeAllObjects()
     }
 
+    internal static func hasCachedImage(forKey key: String) -> Bool {
+        imageCache.object(forKey: key as NSString) != nil
+    }
+
     /// Returns a cached `NSImage` for the given `visualKey` if present, otherwise executes `draw` and caches the result.
     private static func cachedOrDraw(visualKey: String?, draw: () -> NSImage) -> NSImage {
         if let key = visualKey, let cached = imageCache.object(forKey: key as NSString) {
@@ -316,8 +320,8 @@ public struct MenuBarIconRenderer {
         case .gauge:
             return "disk:gauge:\(qVol)"
         case .text:
-            let freeStr = primaryVol != nil ? formatCompactBytes(primaryVol!.free) : "--G"
-            return "disk:text:\(freeStr)"
+            let freeStr = primaryVol != nil ? formatCompactBytes(primaryVol!.free, standard: standard) : "--G"
+            return "disk:text:\(standard.rawValue):\(freeStr)"
         case .throughput:
             let layoutStr = throughputLayout?.rawValue ?? "stacked"
             let readStr = Units.formatCompactRate(readBytes, unit: .bytesPerSecond, standard: standard)
@@ -527,13 +531,13 @@ public struct MenuBarIconRenderer {
         case .text:
             let valColor: NSColor? = (status >= .warning) ? CategoryPalette.statusNSColor(for: status) : nil
             let img = cachedOrDraw(visualKey: visualKey) {
-                drawCategoryStackedText(title: "CPU", value: valStr, fixedWidth: 32.0, valueColor: valColor)
+                drawCategoryStackedText(title: "CPU", value: valStr, fixedWidth: 32.0, valueColor: valColor, useInternalCache: false)
             }
             return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y, visualKey: visualKey)
 
         default:
             let img = cachedOrDraw(visualKey: visualKey) {
-                drawCategoryStackedText(title: "CPU", value: valStr, fixedWidth: 32.0)
+                drawCategoryStackedText(title: "CPU", value: valStr, fixedWidth: 32.0, useInternalCache: false)
             }
             return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y, visualKey: visualKey)
         }
@@ -584,13 +588,13 @@ public struct MenuBarIconRenderer {
         case .text:
             let valColor: NSColor? = (status >= .warning) ? CategoryPalette.statusNSColor(for: status) : nil
             let img = cachedOrDraw(visualKey: visualKey) {
-                drawCategoryStackedText(title: "MEM", value: valStr, fixedWidth: 32.0, valueColor: valColor)
+                drawCategoryStackedText(title: "MEM", value: valStr, fixedWidth: 32.0, valueColor: valColor, useInternalCache: false)
             }
             return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y, visualKey: visualKey)
 
         default:
             let img = cachedOrDraw(visualKey: visualKey) {
-                drawCategoryStackedText(title: "MEM", value: valStr, fixedWidth: 32.0)
+                drawCategoryStackedText(title: "MEM", value: valStr, fixedWidth: 32.0, useInternalCache: false)
             }
             return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y, visualKey: visualKey)
         }
@@ -630,13 +634,13 @@ public struct MenuBarIconRenderer {
         case .text:
             let valColor: NSColor? = (status >= .warning) ? CategoryPalette.statusNSColor(for: status) : nil
             let img = cachedOrDraw(visualKey: visualKey) {
-                drawCategoryStackedText(title: "GPU", value: valStr, fixedWidth: 32.0, valueColor: valColor)
+                drawCategoryStackedText(title: "GPU", value: valStr, fixedWidth: 32.0, valueColor: valColor, useInternalCache: false)
             }
             return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y, visualKey: visualKey)
 
         default:
             let img = cachedOrDraw(visualKey: visualKey) {
-                drawCategoryStackedText(title: "GPU", value: valStr, fixedWidth: 32.0)
+                drawCategoryStackedText(title: "GPU", value: valStr, fixedWidth: 32.0, useInternalCache: false)
             }
             return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y, visualKey: visualKey)
         }
@@ -695,7 +699,7 @@ public struct MenuBarIconRenderer {
             let valColor: NSColor? = (status >= .warning) ? CategoryPalette.statusNSColor(for: status) : nil
             let dotColor: NSColor? = isSeriousPressure ? CategoryPalette.statusNSColor(for: status) : nil
             let img = cachedOrDraw(visualKey: visualKey) {
-                drawCategoryStackedText(title: title, value: valStr, fixedWidth: 32.0, valueColor: valColor, statusDotColor: dotColor)
+                drawCategoryStackedText(title: title, value: valStr, fixedWidth: 32.0, valueColor: valColor, statusDotColor: dotColor, useInternalCache: false)
             }
             return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y, visualKey: visualKey)
 
@@ -770,14 +774,14 @@ public struct MenuBarIconRenderer {
             let valStr = isFanless ? "—" : (primaryFan != nil ? "\(rpm)" : "--")
             let valColor: NSColor? = (status >= .warning) ? CategoryPalette.statusNSColor(for: status) : nil
             let img = cachedOrDraw(visualKey: visualKey) {
-                drawCategoryStackedText(title: "FAN", value: valStr, fixedWidth: 32.0, valueColor: valColor)
+                drawCategoryStackedText(title: "FAN", value: valStr, fixedWidth: 32.0, valueColor: valColor, useInternalCache: false)
             }
             return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y, visualKey: visualKey)
 
         case .throughput:
             let img = cachedOrDraw(visualKey: visualKey) {
                 if isFanless {
-                    return drawCategoryStackedText(title: "FAN", value: "—", fixedWidth: 32.0)
+                    return drawCategoryStackedText(title: "FAN", value: "—", fixedWidth: 32.0, useInternalCache: false)
                 } else if fans.count >= 2 {
                     return drawStackedTwoLineText(
                         prefix1: "L",
@@ -786,12 +790,12 @@ public struct MenuBarIconRenderer {
                         value2: "\(fans[1].rpm)",
                         minWidth: 36.0,
                         color1: CategoryPalette.nsColor(for: .fan),
-                        color2: CategoryPalette.nsColor(for: .disk),
+                        color2: CategoryPalette.nsDeep(for: .fan),
                         prefixColor1: CategoryPalette.nsColor(for: .fan),
-                        prefixColor2: CategoryPalette.nsColor(for: .disk)
+                        prefixColor2: CategoryPalette.nsDeep(for: .fan)
                     )
                 } else {
-                    return drawCategoryStackedText(title: "FAN", value: primaryFan != nil ? "\(primaryFan!.rpm)" : "--", fixedWidth: 32.0)
+                    return drawCategoryStackedText(title: "FAN", value: primaryFan != nil ? "\(primaryFan!.rpm)" : "--", fixedWidth: 32.0, useInternalCache: false)
                 }
             }
             return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y, visualKey: visualKey)
@@ -863,7 +867,8 @@ public struct MenuBarIconRenderer {
                         value2: outCompact,
                         fixedWidth: 82.0,
                         color1: CategoryPalette.nsColor(for: .network),
-                        color2: NSColor(CategoryPalette.Series.networkUpload)
+                        color2: NSColor(CategoryPalette.Series.networkUpload),
+                        useInternalCache: false
                     )
                 } else {
                     return drawNetworkStackedThroughput(inBytes: inBytes, outBytes: outBytes, unit: unit, standard: standard)
@@ -930,7 +935,8 @@ public struct MenuBarIconRenderer {
                         value2: wCompact,
                         fixedWidth: 82.0,
                         color1: CategoryPalette.nsColor(for: .disk),
-                        color2: NSColor(CategoryPalette.Series.diskWrite)
+                        color2: NSColor(CategoryPalette.Series.diskWrite),
+                        useInternalCache: false
                     )
                 } else {
                     return drawDiskStackedThroughput(readBytes: readBytes, writeBytes: writeBytes, standard: standard)
@@ -951,10 +957,10 @@ public struct MenuBarIconRenderer {
             return RenderResult(image: img, toolTip: tip, accessibilityLabel: String(format: "Storage %.0f percent full", volRatio), visualKey: visualKey)
 
         case .text:
-            let freeStr = primaryVol != nil ? formatCompactBytes(primaryVol!.free) : "--G"
+            let freeStr = primaryVol != nil ? formatCompactBytes(primaryVol!.free, standard: standard) : "--G"
             let valColor: NSColor? = (status >= .warning) ? CategoryPalette.statusNSColor(for: status) : nil
             let img = cachedOrDraw(visualKey: visualKey) {
-                drawCategoryStackedText(title: "SSD", value: freeStr, fixedWidth: 32.0, valueColor: valColor)
+                drawCategoryStackedText(title: "SSD", value: freeStr, fixedWidth: 32.0, valueColor: valColor, useInternalCache: false)
             }
             return RenderResult(image: img, toolTip: tip, accessibilityLabel: String(format: "Storage %.0f percent full", volRatio), visualKey: visualKey)
 
@@ -969,9 +975,9 @@ public struct MenuBarIconRenderer {
             return RenderResult(image: img, toolTip: tip, accessibilityLabel: String(format: "Storage %.0f percent full", volRatio), visualKey: visualKey)
 
         default:
-            let freeStr = primaryVol != nil ? formatCompactBytes(primaryVol!.free) : "--G"
+            let freeStr = primaryVol != nil ? formatCompactBytes(primaryVol!.free, standard: standard) : "--G"
             let img = cachedOrDraw(visualKey: visualKey) {
-                drawCategoryStackedText(title: "SSD", value: freeStr, fixedWidth: 32.0)
+                drawCategoryStackedText(title: "SSD", value: freeStr, fixedWidth: 32.0, useInternalCache: false)
             }
             return RenderResult(image: img, toolTip: tip, accessibilityLabel: a11y, visualKey: visualKey)
         }
@@ -1071,10 +1077,14 @@ public struct MenuBarIconRenderer {
     // MARK: - Core iStat Menus Instrument Drawing Primitives
 
     /// Formats raw byte counts into compact single-letter unit representations (e.g. "412G", "1.2T").
-    public static func formatCompactBytes(_ bytes: UInt64) -> String {
-        let gigabytes = Double(bytes) / 1_000_000_000.0
-        if gigabytes >= 1000.0 {
-            let terabytes = gigabytes / 1000.0
+    public static func formatCompactBytes(
+        _ bytes: UInt64,
+        standard: Units.ByteUnitStandard = .si
+    ) -> String {
+        let base: Double = (standard == .si) ? 1000.0 : 1024.0
+        let gigabytes = Double(bytes) / (base * base * base)
+        if gigabytes >= base {
+            let terabytes = gigabytes / base
             return String(format: "%.1fT", terabytes)
         } else if gigabytes >= 100.0 {
             return String(format: "%.0fG", gigabytes)
@@ -1083,7 +1093,7 @@ public struct MenuBarIconRenderer {
         } else if gigabytes >= 1.0 {
             return String(format: "%.1fG", gigabytes)
         } else {
-            let megabytes = Double(bytes) / 1_000_000.0
+            let megabytes = Double(bytes) / (base * base)
             return String(format: "%.0fM", megabytes)
         }
     }
@@ -1130,12 +1140,13 @@ public struct MenuBarIconRenderer {
         fixedWidth: CGFloat = 32.0,
         titleColor: NSColor? = nil,
         valueColor: NSColor? = nil,
-        statusDotColor: NSColor? = nil
+        statusDotColor: NSColor? = nil,
+        useInternalCache: Bool = true
     ) -> NSImage {
         let isTemplate = (titleColor == nil && valueColor == nil && statusDotColor == nil)
         let dotHash = statusDotColor?.hashValue ?? 0
         let cacheKey = "stacked:\(title):\(value):\(fixedWidth):\(isTemplate ? 0 : (titleColor?.hashValue ?? 0)):\(isTemplate ? 0 : (valueColor?.hashValue ?? 0)):\(dotHash)" as NSString
-        if let cached = imageCache.object(forKey: cacheKey) {
+        if useInternalCache, let cached = imageCache.object(forKey: cacheKey) {
             return cached
         }
 
@@ -1177,7 +1188,9 @@ public struct MenuBarIconRenderer {
             return true
         }
         image.isTemplate = isTemplate
-        imageCache.setObject(image, forKey: cacheKey)
+        if useInternalCache {
+            imageCache.setObject(image, forKey: cacheKey)
+        }
         return image
     }
 
@@ -1381,10 +1394,15 @@ public struct MenuBarIconRenderer {
         color1: NSColor? = nil,
         color2: NSColor? = nil,
         prefixColor1: NSColor? = nil,
-        prefixColor2: NSColor? = nil
+        prefixColor2: NSColor? = nil,
+        useInternalCache: Bool = true
     ) -> NSImage {
-        let cacheKey = "singleLineTp:\(prefix1):\(value1):\(prefix2):\(value2):\(fixedWidth)" as NSString
-        if let cached = imageCache.object(forKey: cacheKey) {
+        let c1Hash = color1?.hashValue ?? 0
+        let c2Hash = color2?.hashValue ?? 0
+        let p1Hash = prefixColor1?.hashValue ?? 0
+        let p2Hash = prefixColor2?.hashValue ?? 0
+        let cacheKey = "singleLineTp:\(prefix1):\(value1):\(prefix2):\(value2):\(fixedWidth):\(c1Hash):\(c2Hash):\(p1Hash):\(p2Hash)" as NSString
+        if useInternalCache, let cached = imageCache.object(forKey: cacheKey) {
             return cached
         }
 
@@ -1434,7 +1452,9 @@ public struct MenuBarIconRenderer {
             return true
         }
         image.isTemplate = (color1 == nil && color2 == nil && prefixColor1 == nil && prefixColor2 == nil)
-        imageCache.setObject(image, forKey: cacheKey)
+        if useInternalCache {
+            imageCache.setObject(image, forKey: cacheKey)
+        }
         return image
     }
 

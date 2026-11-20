@@ -664,7 +664,10 @@ struct DiskPanel_Previews: PreviewProvider {
     }
 
     private static func makeMockCoordinator(sample: DiskSample) -> MetricsCoordinator {
-        let coordinator = MetricsCoordinator.shared
+        let suiteName = "iStats.Preview.Disk.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        let prefs = PreferencesStore(userDefaults: defaults)
+        let coordinator = MetricsCoordinator(preferencesStore: prefs)
         coordinator.handleReading(.disk(Sample(value: sample)))
         return coordinator
     }

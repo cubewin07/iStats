@@ -730,7 +730,6 @@ final class PanelScaffoldTests: XCTestCase {
             XCTAssertGreaterThanOrEqual(latest, 160.0)
             XCTAssertLessThanOrEqual(latest, Instrument.Size.maxHeight)
         }
-        XCTAssertNil(EnvironmentValues().chartNamespace, "Cross-view chartNamespace must default to nil")
     }
 
     // MARK: - Task 8.5.4: ChartScrubState, Glance Header Scrub Override & Insight Caption
