@@ -114,6 +114,30 @@ Each phase ends with a runnable app (from Phase 1 on) and a written `report.md`.
 - [ ] 6.5 Finalize docs/ADRs + Phase 6 report and README
   - Detail: [`tasks/6.5-finalize-docs-readme.md`](../phases/phase-06-polish-prefs/tasks/6.5-finalize-docs-readme.md)
 
+### Phase 8.5 — Instrument 2 Polish: Time-Domain Chart Engine & Synchronized Motion ([folder](../phases/phase-08.5-instrument-polish/))
+- [ ] 8.5.0 ADR 0010 time-domain chart engine v3, synchronized panel motion, and Phase 8.5 specification package (amended for B1–B14 and reordered rollout)
+  - Detail: [`tasks/8.5.0-adr-0010.md`](../phases/phase-08.5-instrument-polish/tasks/8.5.0-adr-0010.md)
+- [ ] 8.5.6a Shell lifecycle & sizing: persistent `NSHostingView` (`sizingOptions = []`, `EmptyView()` on close), `PanelContentHeightKey` top-anchored resize, `NSHostingController.sizeThatFits` pre-open measurement, single `ScrollView`, transition generation guard + status-item hit-test exclusion, visible pinned-panel guard, remove cross-view `matchedGeometryEffect`, animated pin/unpin (fixes B1–B6, A10, A11; lands first before 8.5.1)
+  - Detail: [`tasks/8.5.6a-shell-lifecycle-and-sizing.md`](../phases/phase-08.5-instrument-polish/tasks/8.5.6a-shell-lifecycle-and-sizing.md)
+- [ ] 8.5.1 Pure chart math v3: `ChartTimeline` delayed-edge follower, `ChartScale` nice ladder & hysteresis, domain floors, `Downsampler.alignedBuckets` (min/max/mean)
+  - Detail: [`tasks/8.5.1-chart-math-v3.md`](../phases/phase-08.5-instrument-polish/tasks/8.5.1-chart-math-v3.md)
+- [ ] 8.5.2 Timestamped telemetry series (`ChartPoint`, `ChartSeries`, `BucketPoint`) in `MetricsStore` and `MetricsCoordinator` (fixes B8, B9)
+  - Detail: [`tasks/8.5.2-timestamped-series.md`](../phases/phase-08.5-instrument-polish/tasks/8.5.2-timestamped-series.md)
+- [ ] 8.5.3 `LiveChart` v3: time-domain coordinate projection, timestamp-driven glide follower (fixes B7), independent mirrored half-scales, dark-mode underlay bloom, left gutter axis, calm head bead
+  - Detail: [`tasks/8.5.3-live-chart-v3.md`](../phases/phase-08.5-instrument-polish/tasks/8.5.3-live-chart-v3.md)
+- [ ] 8.5.4 Stocks-style Glance header scrub readout (`ChartScrubState`) & spring-filtered crosshair v2 (fixes B11 crosshair ring)
+  - Detail: [`tasks/8.5.4-header-scrub-and-crosshair.md`](../phases/phase-08.5-instrument-polish/tasks/8.5.4-header-scrub-and-crosshair.md)
+- [ ] 8.5.5 `HistoryPage` v3: time-aligned min–max envelope band + mean trace, `init`-loaded range & timestamp-pinned stat scrub (fixes B10), bottom time axis, hover-revealed AVG/MAX annotations, scrub-aware stats strip
+  - Detail: [`tasks/8.5.5-history-v3-envelope.md`](../phases/phase-08.5-instrument-polish/tasks/8.5.5-history-v3-envelope.md)
+- [ ] 8.5.6b Header v2, text `PageSwitcher` & inline status chip: tinted category badge, text `PageSwitcher` (`Now · Details · History`), inline status pill
+  - Detail: [`tasks/8.5.6b-header-v2-and-switcher.md`](../phases/phase-08.5-instrument-polish/tasks/8.5.6b-header-v2-and-switcher.md)
+- [ ] 8.5.7 Instrument Kit v2: integrated `Section` card, hairline table `MetricRow` (fixes B11), unified `SegmentedControl` & `FilterChip`, `LiveNumber` decimal cadence throttle, animated `TopConsumersModule` reordering + `ProcessIconCache` miss caching (fixes B12), secondary series hues in `PaletteContrast`, remove dead `PanelHostView` & memoize panel glance (fixes B14)
+  - Detail: [`tasks/8.5.7-instrument-kit-v2.md`](../phases/phase-08.5-instrument-polish/tasks/8.5.7-instrument-kit-v2.md)
+- [ ] 8.5.8a–h Per-panel Instrument 2 polish (CPU, Memory, GPU, Thermal, Fan with real Details table fixing B13, Network, Disk, Power)
+  - Detail: [`tasks/8.5.8a-cpu-panel-polish.md`](../phases/phase-08.5-instrument-polish/tasks/8.5.8a-cpu-panel-polish.md) … [`tasks/8.5.8h-power-panel-polish.md`](../phases/phase-08.5-instrument-polish/tasks/8.5.8h-power-panel-polish.md)
+- [ ] 8.5.9 `InstrumentGalleryPreview` (synthetic 1 Hz stream), CPU/energy budget verification, accessibility pass, and `report.md`
+  - Detail: [`tasks/8.5.9-gallery-and-verification.md`](../phases/phase-08.5-instrument-polish/tasks/8.5.9-gallery-and-verification.md)
+
 ## Task Dependency Graph
 
 Phases are largely sequential: Phase 0 sets up docs/structure, Phase 1 builds the

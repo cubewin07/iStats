@@ -209,43 +209,61 @@ final class SandboxDegradationTests: XCTestCase {
 
     // MARK: - UI Graceful Unavailable State Rendering
 
-    func testThermalSummaryViewRendersUnavailableState() {
-        let viewNil = ThermalSummaryView(sample: nil)
+    @MainActor
+    func testTemperaturePopoverRendersUnavailableState() {
+        let coordNil = MetricsCoordinator(scheduler: SampleScheduler(), store: MetricsStore(), preferencesStore: PreferencesStore.shared)
+        let viewNil = TemperaturePanel(coordinator: coordNil)
         XCTAssertNotNil(viewNil.body)
 
-        let viewEmpty = ThermalSummaryView(sample: ThermalSample(sensors: [], pressure: nil))
+        let coordEmpty = MetricsCoordinator(scheduler: SampleScheduler(), store: MetricsStore(), preferencesStore: PreferencesStore.shared)
+        coordEmpty.handleReading(.thermal(Sample(value: ThermalSample(sensors: [], pressure: nil))))
+        let viewEmpty = TemperaturePanel(coordinator: coordEmpty)
         XCTAssertNotNil(viewEmpty.body)
     }
 
-    func testFanSummaryViewRendersUnavailableState() {
-        let viewNil = FanSummaryView(sample: nil)
+    @MainActor
+    func testFanPopoverRendersUnavailableState() {
+        let coordNil = MetricsCoordinator(scheduler: SampleScheduler(), store: MetricsStore(), preferencesStore: PreferencesStore.shared)
+        let viewNil = FanPanel(coordinator: coordNil)
         XCTAssertNotNil(viewNil.body)
 
-        let viewEmpty = FanSummaryView(sample: FanSample(fans: []))
+        let coordEmpty = MetricsCoordinator(scheduler: SampleScheduler(), store: MetricsStore(), preferencesStore: PreferencesStore.shared)
+        coordEmpty.handleReading(.fan(Sample(value: FanSample(fans: []))))
+        let viewEmpty = FanPanel(coordinator: coordEmpty)
         XCTAssertNotNil(viewEmpty.body)
     }
 
-    func testGPUSummaryViewRendersUnavailableState() {
-        let viewNil = GPUSummaryView(sample: nil, history: [])
+    @MainActor
+    func testGPUPopoverRendersUnavailableState() {
+        let coordNil = MetricsCoordinator(scheduler: SampleScheduler(), store: MetricsStore(), preferencesStore: PreferencesStore.shared)
+        let viewNil = GPUPanel(coordinator: coordNil)
         XCTAssertNotNil(viewNil.body)
 
-        let viewEmpty = GPUSummaryView(sample: GPUSample(), history: [])
+        let coordEmpty = MetricsCoordinator(scheduler: SampleScheduler(), store: MetricsStore(), preferencesStore: PreferencesStore.shared)
+        coordEmpty.handleReading(.gpu(Sample(value: GPUSample())))
+        let viewEmpty = GPUPanel(coordinator: coordEmpty)
         XCTAssertNotNil(viewEmpty.body)
     }
 
-    func testDetailPopoverViewRendersAllUnavailablePhase5CategoriesGracefully() {
-        let viewWithNil = DetailPopoverView(
-            gpuSample: nil,
-            thermalSample: nil,
-            fanSample: nil
-        )
-        XCTAssertNotNil(viewWithNil.body)
+    @MainActor
+    func testCategoryPopoversRenderAllUnavailablePhase5CategoriesGracefully() {
+        let coordNil = MetricsCoordinator(scheduler: SampleScheduler(), store: MetricsStore(), preferencesStore: PreferencesStore.shared)
+        let gpuPopover = GPUPanel(coordinator: coordNil)
+        let tempPopover = TemperaturePanel(coordinator: coordNil)
+        let fanPopover = FanPanel(coordinator: coordNil)
+        XCTAssertNotNil(gpuPopover.body)
+        XCTAssertNotNil(tempPopover.body)
+        XCTAssertNotNil(fanPopover.body)
 
-        let viewWithEmpty = DetailPopoverView(
-            gpuSample: GPUSample(),
-            thermalSample: ThermalSample(sensors: [], pressure: nil),
-            fanSample: FanSample(fans: [])
-        )
-        XCTAssertNotNil(viewWithEmpty.body)
+        let coordEmpty = MetricsCoordinator(scheduler: SampleScheduler(), store: MetricsStore(), preferencesStore: PreferencesStore.shared)
+        coordEmpty.handleReading(.gpu(Sample(value: GPUSample())))
+        coordEmpty.handleReading(.thermal(Sample(value: ThermalSample(sensors: [], pressure: nil))))
+        coordEmpty.handleReading(.fan(Sample(value: FanSample(fans: []))))
+        let gpuEmpty = GPUPanel(coordinator: coordEmpty)
+        let tempEmpty = TemperaturePanel(coordinator: coordEmpty)
+        let fanEmpty = FanPanel(coordinator: coordEmpty)
+        XCTAssertNotNil(gpuEmpty.body)
+        XCTAssertNotNil(tempEmpty.body)
+        XCTAssertNotNil(fanEmpty.body)
     }
 }

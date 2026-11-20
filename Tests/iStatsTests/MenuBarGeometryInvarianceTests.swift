@@ -279,33 +279,40 @@ final class MenuBarGeometryInvarianceTests: XCTestCase {
         }
     }
 
-    // MARK: - 8. CPU Per-Core Cluster Width Invariance
+    // MARK: - 8. CPU Cluster Bars Width Invariance
 
     func testCPUPerCoreBarClusterGeometry() {
-        // Multi-core cluster (>= 2 cores): fixed 41.0pt width
+        // Hybrid E/P cluster dual bars and non-hybrid User/System dual bars share 36.0pt invariant width
         let cores2 = [30.0, 50.0]
         let img2 = MenuBarIconRenderer.drawCPUBar(perCore: cores2, user: 40.0, system: 10.0)
-        XCTAssertEqual(img2.size.width, 41.0, "CPU per-core cluster for 2 cores must be 41.0pt wide")
+        XCTAssertEqual(img2.size.width, 36.0, "CPU cluster bars for 2 cores must be 36.0pt wide")
         XCTAssertEqual(img2.size.height, 22.0)
 
-        let cores4 = [20.0, 40.0, 60.0, 80.0]
-        let img4 = MenuBarIconRenderer.drawCPUBar(perCore: cores4, user: 50.0, system: 10.0)
-        XCTAssertEqual(img4.size.width, 41.0, "CPU per-core cluster for 4 cores must be 41.0pt wide")
-        XCTAssertEqual(img4.size.height, 22.0)
-
-        let cores8 = Array(repeating: 50.0, count: 8)
-        let img8 = MenuBarIconRenderer.drawCPUBar(perCore: cores8, user: 40.0, system: 10.0)
-        XCTAssertEqual(img8.size.width, 41.0, "CPU per-core cluster for 8 cores must be 41.0pt wide")
-        XCTAssertEqual(img8.size.height, 22.0)
+        let cores10Hybrid = Array(repeating: 25.0, count: 6) + Array(repeating: 80.0, count: 4)
+        let img10 = MenuBarIconRenderer.drawCPUBar(perCore: cores10Hybrid, user: 45.0, system: 10.0, eCoreCount: 6, pCoreCount: 4)
+        XCTAssertEqual(img10.size.width, 36.0, "CPU hybrid cluster bars for 10 cores must be 36.0pt wide")
+        XCTAssertEqual(img10.size.height, 22.0)
 
         let cores16 = Array(repeating: 65.0, count: 16)
         let img16 = MenuBarIconRenderer.drawCPUBar(perCore: cores16, user: 50.0, system: 15.0)
-        XCTAssertEqual(img16.size.width, 41.0, "CPU per-core cluster for 16 cores must be 41.0pt wide")
+        XCTAssertEqual(img16.size.width, 36.0, "CPU cluster bars for 16 cores must be 36.0pt wide")
         XCTAssertEqual(img16.size.height, 22.0)
 
-        // Single core / nil perCore fallback (dual or single capsule bar)
+        // Nil perCore fallback (User/System dual capsule bars)
         let imgNil = MenuBarIconRenderer.drawCPUBar(perCore: nil, user: 40.0, system: 10.0)
-        XCTAssertEqual(imgNil.size.width, 36.0, "Single-core dual bar fallback must be 36.0pt wide")
+        XCTAssertEqual(imgNil.size.width, 36.0, "User/System dual bar fallback must be 36.0pt wide")
         XCTAssertEqual(imgNil.size.height, 22.0)
+    }
+
+    // MARK: - 9. Thermometer Glyph Non-Clipping Width
+
+    func testThermometerGlyphWidthAccommodatesUnit() {
+        let twoDigit = MenuBarIconRenderer.drawThermometerGlyph(celsius: 52.0, formattedTemp: "52°C", status: .fine)
+        XCTAssertGreaterThanOrEqual(twoDigit.size.width, 42.0, "52°C thermometer glyph must be wide enough to avoid clipping °C")
+        XCTAssertEqual(twoDigit.size.height, 22.0)
+
+        let threeDigit = MenuBarIconRenderer.drawThermometerGlyph(celsius: 102.0, formattedTemp: "102°C", status: .critical)
+        XCTAssertGreaterThan(threeDigit.size.width, 42.0, "3-digit temperature must expand beyond 42pt so °C is never clipped")
+        XCTAssertEqual(threeDigit.size.height, 22.0)
     }
 }

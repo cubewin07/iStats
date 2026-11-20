@@ -90,37 +90,31 @@ final class MemoryPressureTests: XCTestCase {
 
     @MainActor
     func testMemoryPressureUIViewsRendering() {
-        let normalBadge = MemoryPressureBadgeView(pressure: .normal)
-        let warningBadge = MemoryPressureBadgeView(pressure: .warning)
-        let criticalBadge = MemoryPressureBadgeView(pressure: .critical)
+        let normalRibbon = StatusRibbon(status: .fine, message: "Pressure Nominal")
+        let warningRibbon = StatusRibbon(status: .warning, message: "Pressure Elevated")
+        let criticalRibbon = StatusRibbon(status: .critical, message: "Pressure Critical")
 
-        XCTAssertNotNil(normalBadge.body)
-        XCTAssertNotNil(warningBadge.body)
-        XCTAssertNotNil(criticalBadge.body)
+        XCTAssertNotNil(normalRibbon.body)
+        XCTAssertNotNil(warningRibbon.body)
+        XCTAssertNotNil(criticalRibbon.body)
 
-        let normalBanner = MemoryPressureAlertBanner(pressure: .normal)
-        let warningBanner = MemoryPressureAlertBanner(pressure: .warning)
-        let criticalBanner = MemoryPressureAlertBanner(pressure: .critical)
+        for pressure in [MemoryPressure.normal, MemoryPressure.warning, MemoryPressure.critical] {
+            let sample = MemorySample(
+                total: 16 * 1024 * 1024 * 1024,
+                used: 12 * 1024 * 1024 * 1024,
+                free: 4 * 1024 * 1024 * 1024,
+                wired: 3 * 1024 * 1024 * 1024,
+                compressed: 1 * 1024 * 1024 * 1024,
+                cached: 2 * 1024 * 1024 * 1024,
+                swapUsed: 0,
+                pressure: pressure
+            )
 
-        XCTAssertNotNil(normalBanner.body)
-        XCTAssertNotNil(warningBanner.body)
-        XCTAssertNotNil(criticalBanner.body)
+            let coord = MetricsCoordinator(scheduler: SampleScheduler(), store: MetricsStore(), preferencesStore: PreferencesStore.shared)
+            coord.handleReading(.memory(Sample(value: sample)))
 
-        let sample = MemorySample(
-            total: 16 * 1024 * 1024 * 1024,
-            used: 12 * 1024 * 1024 * 1024,
-            free: 4 * 1024 * 1024 * 1024,
-            wired: 3 * 1024 * 1024 * 1024,
-            compressed: 1 * 1024 * 1024 * 1024,
-            cached: 2 * 1024 * 1024 * 1024,
-            swapUsed: 0,
-            pressure: .critical
-        )
-
-        let memorySummary = MemorySummaryView(sample: sample)
-        XCTAssertNotNil(memorySummary.body)
-
-        let detailPopover = DetailPopoverView(memorySample: sample)
-        XCTAssertNotNil(detailPopover.body)
+            let memoryPanel = MemoryPanel(coordinator: coord)
+            XCTAssertNotNil(memoryPanel.body)
+        }
     }
 }
