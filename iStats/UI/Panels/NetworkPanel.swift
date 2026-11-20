@@ -115,6 +115,7 @@ public struct NetworkPanel: View {
             availability: availability,
             isLoading: isLoading,
             isPaused: coordinator.isSamplingPaused,
+            isLowPowerModeActive: coordinator.isLowPowerModeActive,
             onTogglePause: {
                 coordinator.toggleSamplingPaused()
             },
@@ -162,7 +163,7 @@ public struct NetworkPanel: View {
         return (glance, status, ribbon)
     }
 
-    private func deriveGlance(latest: Sample<NetworkSample>?) -> PanelGlance {
+    internal func deriveGlance(latest: Sample<NetworkSample>?) -> PanelGlance {
         let currentSample = latest?.value
         let downBytes = currentSample?.totalBytesInPerSec ?? 0.0
         let upBytes = currentSample?.totalBytesOutPerSec ?? 0.0
@@ -174,7 +175,7 @@ public struct NetworkPanel: View {
 
         let headline = PanelHeadline.network(sample: currentSample, standard: std)
 
-        let refDate = max(Date(), latest?.timestamp ?? .distantPast)
+        let refDate = latest?.timestamp ?? Date()
         let dualPoints = coordinator.timedDualScalarHistory(
             primary: .networkInBytesPerSec,
             secondary: .networkOutBytesPerSec,
@@ -687,7 +688,10 @@ struct NetworkPanel_Previews: PreviewProvider {
     }
 
     private static func makeMockCoordinator(sample: NetworkSample) -> MetricsCoordinator {
-        let coordinator = MetricsCoordinator.shared
+        let suiteName = "iStats.Preview.Network.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        let prefs = PreferencesStore(userDefaults: defaults)
+        let coordinator = MetricsCoordinator(preferencesStore: prefs)
         coordinator.handleReading(.network(Sample(value: sample)))
         return coordinator
     }

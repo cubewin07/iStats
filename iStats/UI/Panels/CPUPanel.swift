@@ -22,12 +22,14 @@ public struct CPUPanel: View {
         private var cachedTimestamp: Date?
         private var cachedHasSample: Bool = false
         private var cachedSample: CPUSample?
+        private var cachedRefreshInterval: TimeInterval?
         private var cachedState: DerivedState?
         private(set) var derivationCount: Int = 0
 
         func resolve(
             coordinator: MetricsCoordinator,
             reading: Sample<CPUSample>?,
+            refreshInterval: TimeInterval,
             builder: () -> DerivedState
         ) -> DerivedState {
             let coordID = ObjectIdentifier(coordinator)
@@ -39,7 +41,8 @@ public struct CPUPanel: View {
                coordinatorID == coordID,
                cachedTimestamp == timestamp,
                cachedHasSample == hasSample,
-               cachedSample == sample {
+               cachedSample == sample,
+               cachedRefreshInterval == refreshInterval {
                 return cachedState
             }
 
@@ -48,6 +51,7 @@ public struct CPUPanel: View {
             self.cachedTimestamp = timestamp
             self.cachedHasSample = hasSample
             self.cachedSample = sample
+            self.cachedRefreshInterval = refreshInterval
             self.cachedState = next
             self.derivationCount += 1
             return next
@@ -86,9 +90,15 @@ public struct CPUPanel: View {
     public var body: some View {
         let reading = coordinator.latestCPU
         let sample = reading?.value
-        let derived = derivedCache.resolve(coordinator: coordinator, reading: reading) {
+        let referenceDate = reading?.timestamp ?? Date()
+        let refreshInterval = preferences.refreshInterval
+        let derived = derivedCache.resolve(
+            coordinator: coordinator,
+            reading: reading,
+            refreshInterval: refreshInterval
+        ) {
             DerivedStateCache.DerivedState(
-                glance: deriveGlance(sample: sample),
+                glance: deriveGlance(sample: sample, referenceDate: referenceDate, refreshInterval: refreshInterval),
                 status: deriveStatus(sample: sample),
                 ribbon: deriveRibbon(sample: sample)
             )
@@ -106,6 +116,7 @@ public struct CPUPanel: View {
             availability: availability,
             isLoading: isLoading,
             isPaused: coordinator.isSamplingPaused,
+            isLowPowerModeActive: coordinator.isLowPowerModeActive,
             onTogglePause: {
                 coordinator.toggleSamplingPaused()
             },
@@ -138,16 +149,21 @@ public struct CPUPanel: View {
 
     // MARK: - Glance Derivation
 
-    private func deriveGlance(sample: CPUSample?) -> PanelGlance {
+    internal func deriveGlance(
+        sample: CPUSample?,
+        referenceDate: Date,
+        refreshInterval: TimeInterval
+    ) -> PanelGlance {
         let usage = sample?.totalUsage ?? 0.0
         let headline = PanelHeadline.cpu(sample: sample)
         let dualPoints = coordinator.timedDualScalarHistory(
             primary: .cpuUser,
             secondary: .cpuSystem,
-            duration: 60
+            duration: 60,
+            referenceDate: referenceDate
         )
         let combined = dualPoints.map { $0.primary + $0.secondary }
-        let insight = InsightEngine.insights(series: combined, interval: 1.0, unit: .percent).first?.text
+        let insight = InsightEngine.insights(series: combined, interval: refreshInterval, unit: .percent).first?.text
         let chartMode = LiveChartMode.stacked(
             points: dualPoints,
             primaryColor: CategoryPalette.tint(for: .cpu),

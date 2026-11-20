@@ -154,6 +154,95 @@ final class NetworkConnectionHealthTests: XCTestCase {
         XCTAssertTrue(health.reason.contains("Packet loss (25%)"))
     }
 
+    func testSingleTransientDroppedProbeWithPriorSuccessesIsDegradedNotDisconnected() {
+        let probe12_5 = NetworkProbeSnapshot(
+            isReachable: false,
+            latencyMs: nil,
+            packetLossPercent: 12.5,
+            jitterMs: 4.0,
+            consecutiveFailures: 1,
+            windowSampleCount: 8,
+            failureReason: "Timeout"
+        )
+
+        let health = NetworkConnectionEvaluator.evaluate(
+            isPathSatisfied: true,
+            primaryInterface: "en0",
+            primaryType: .wifi,
+            localIPv4: "192.168.1.42",
+            probe: probe12_5
+        )
+
+        XCTAssertEqual(health.status, .degraded)
+        XCTAssertEqual(health.packetLossPercent, 12.5, accuracy: 0.001)
+        XCTAssertTrue(health.reason.contains("Packet loss (13%)"))
+
+        // Even below 10% rolling threshold (1/12 = 8.33%), a single dropped latest probe is still degraded
+        let probe8_3 = NetworkProbeSnapshot(
+            isReachable: false,
+            latencyMs: nil,
+            packetLossPercent: 100.0 / 12.0,
+            jitterMs: 3.0,
+            consecutiveFailures: 1,
+            windowSampleCount: 12,
+            failureReason: "Timeout"
+        )
+        let healthLowLoss = NetworkConnectionEvaluator.evaluate(
+            isPathSatisfied: true,
+            primaryInterface: "en0",
+            primaryType: .wifi,
+            localIPv4: "192.168.1.42",
+            probe: probe8_3
+        )
+        XCTAssertEqual(healthLowLoss.status, .degraded)
+        XCTAssertEqual(healthLowLoss.packetLossPercent, 100.0 / 12.0, accuracy: 0.001)
+        XCTAssertTrue(healthLowLoss.reason.contains("Packet loss (8%)"))
+    }
+
+    func testTwoConsecutiveFailedProbesWithPriorSuccessesIsDisconnected() {
+        let probe = NetworkProbeSnapshot(
+            isReachable: false,
+            latencyMs: nil,
+            packetLossPercent: 25.0,
+            consecutiveFailures: 2,
+            windowSampleCount: 8,
+            failureReason: "Timeout"
+        )
+
+        let health = NetworkConnectionEvaluator.evaluate(
+            isPathSatisfied: true,
+            primaryInterface: "en0",
+            primaryType: .wifi,
+            localIPv4: "192.168.1.42",
+            probe: probe
+        )
+
+        XCTAssertEqual(health.status, .disconnected)
+        XCTAssertEqual(health.isInternetReachable, false)
+    }
+
+    func testHealthyReasonFormatsNonZeroRollingPacketLossUnderThreshold() {
+        let probe = NetworkProbeSnapshot(
+            isReachable: true,
+            latencyMs: 20.0,
+            packetLossPercent: 100.0 / 12.0, // ~8.3% < 10% degraded threshold
+            jitterMs: 2.0,
+            consecutiveFailures: 0,
+            windowSampleCount: 12
+        )
+
+        let health = NetworkConnectionEvaluator.evaluate(
+            isPathSatisfied: true,
+            primaryInterface: "en0",
+            primaryType: .wifi,
+            localIPv4: "192.168.1.42",
+            probe: probe
+        )
+
+        XCTAssertEqual(health.status, .connected)
+        XCTAssertEqual(health.reason, "20 ms · 8% loss")
+    }
+
     func testHighJitterIsDegraded() {
         let probe = NetworkProbeSnapshot(
             isReachable: true,

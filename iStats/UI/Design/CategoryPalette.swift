@@ -3,10 +3,10 @@ import AppKit
 import iStatsCore
 
 /// Single source of truth for category identity colors, metric series palettes, and thermal ramps.
-/// Display P3 tuned palette adhering to ADR 0009 / Phase 8 specifications.
+/// sRGB palette matching `PaletteContrast` WCAG 2.1 luminance calculations and ADR 0009 / Phase 8 specifications.
 public enum CategoryPalette {
 
-    // MARK: - Core Color Construction (Display P3)
+    // MARK: - Core Color Construction (sRGB)
 
     private static func nsColorFromHex(_ hex: String) -> NSColor {
         var c = hex.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -16,7 +16,7 @@ public enum CategoryPalette {
         let r = CGFloat((val & 0xFF0000) >> 16) / 255.0
         let g = CGFloat((val & 0x00FF00) >> 8) / 255.0
         let b = CGFloat(val & 0x0000FF) / 255.0
-        return NSColor(displayP3Red: r, green: g, blue: b, alpha: 1.0)
+        return NSColor(srgbRed: r, green: g, blue: b, alpha: 1.0)
     }
 
     public static func dynamicNSColor(lightHex: String, darkHex: String) -> NSColor {

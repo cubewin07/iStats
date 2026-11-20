@@ -449,7 +449,8 @@ public struct HistoryPage: View {
                     value: value,
                     format: seriesData.formatLiveNumber,
                     font: Instrument.Typography.value,
-                    unit: seriesData.unit.isEmpty ? nil : seriesData.unit
+                    unit: seriesData.unit.isEmpty ? nil : seriesData.unit,
+                    bypassCadenceGate: isScrubDisplay
                 )
             }
             .frame(maxWidth: .infinity, alignment: .leading)

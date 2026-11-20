@@ -67,6 +67,7 @@ public struct PowerPanel: View {
             availability: availability,
             isLoading: isLoading,
             isPaused: coordinator.isSamplingPaused,
+            isLowPowerModeActive: coordinator.isLowPowerModeActive,
             onTogglePause: {
                 coordinator.toggleSamplingPaused()
             },
@@ -718,7 +719,10 @@ struct PowerPanel_Previews: PreviewProvider {
     }
 
     private static func makeMockCoordinator(sample: PowerSample) -> MetricsCoordinator {
-        let coordinator = MetricsCoordinator.shared
+        let suiteName = "iStats.Preview.Power.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        let prefs = PreferencesStore(userDefaults: defaults)
+        let coordinator = MetricsCoordinator(preferencesStore: prefs)
         coordinator.handleReading(.power(Sample(value: sample)))
         return coordinator
     }

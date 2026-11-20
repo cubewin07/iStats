@@ -220,4 +220,67 @@ final class CoordinatorBatchingTests: XCTestCase {
         ])
         XCTAssertEqual(availabilityEmissions, 1, "Unchanged availability must not trigger redundant @Published emissions")
     }
+
+    func testCoreHistoryAndProcessHistoryEmitOncePerSample() {
+        let suiteName = "test.istats.coordinator.historyemit.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        let prefs = PreferencesStore(userDefaults: defaults)
+        let coord = MetricsCoordinator(preferencesStore: prefs)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        var coreEmissions = 0
+        let coreCanc = coord.$coreHistory.dropFirst().sink { _ in coreEmissions += 1 }
+        defer { coreCanc.cancel() }
+
+        let cpu = CPUSample(
+            totalUsage: 40,
+            perCore: [10, 20, 30, 40, 50, 60, 70, 80, 90, 100],
+            user: 20,
+            system: 20,
+            idle: 60
+        )
+        coord.handleReading(MetricReading.wrap(category: .cpu, value: cpu))
+        XCTAssertEqual(coreEmissions, 1, "10-core CPU update must emit coreHistory once, not per core")
+        XCTAssertEqual(coord.coreHistory.count, 10)
+
+        var processEmissions = 0
+        let procCanc = coord.$processCPUHistory.dropFirst().sink { _ in processEmissions += 1 }
+        defer { procCanc.cancel() }
+
+        let procs = (1...5).map { idx in
+            ProcessInfoItem(pid: Int32(idx), name: "Proc\(idx)", cpuPercent: Double(idx * 10), memoryBytes: 1024)
+        }
+        coord.applyProcessSample(ProcessSample(topCPU: procs, topMemory: procs))
+        XCTAssertEqual(processEmissions, 1, "5-process update must emit processCPUHistory once, not per process")
+        XCTAssertEqual(coord.processCPUHistory.count, 5)
+    }
+
+    func testProcessSamplingRunsInLowPowerModeWhenAutoPauseDisabled() async {
+        let suiteName = "test.istats.coordinator.lpmproc.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        let prefs = PreferencesStore(userDefaults: defaults)
+        prefs.autoPauseOnLowPowerMode = false
+        let coord = MetricsCoordinator(
+            preferencesStore: prefs,
+            lowPowerModeProvider: { true }
+        )
+        defer {
+            coord.stopProcessDemand()
+            coord.stop()
+            defaults.removePersistentDomain(forName: suiteName)
+        }
+
+        coord.evaluateLowPowerModeState()
+        coord.startProcessDemand()
+        // Allow process sampling loop to run its initial pass while Low Power Mode is active
+        let deadline = Date().addingTimeInterval(2.5)
+        while coord.latestProcesses == nil && Date() < deadline {
+            try? await Task.sleep(nanoseconds: 50_000_000)
+        }
+        XCTAssertTrue(coord.isLowPowerModeActive)
+        XCTAssertFalse(coord.isSamplingPaused)
+        XCTAssertNotNil(coord.latestProcesses, "Top Processes must still sample in Low Power Mode when not paused")
+    }
 }

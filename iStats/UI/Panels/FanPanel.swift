@@ -23,6 +23,7 @@ public struct FanPanel: View {
             let timestamp: Date?
             let sample: FanSample?
             let isFanless: Bool
+            let refreshInterval: TimeInterval
         }
 
         var key: Key?
@@ -72,6 +73,7 @@ public struct FanPanel: View {
             availability: availability,
             isLoading: isLoading,
             isPaused: coordinator.isSamplingPaused,
+            isLowPowerModeActive: coordinator.isLowPowerModeActive,
             onTogglePause: {
                 coordinator.toggleSamplingPaused()
             },
@@ -102,7 +104,8 @@ public struct FanPanel: View {
         let key = MemoCache.Key(
             timestamp: latest?.timestamp,
             sample: latest?.value,
-            isFanless: isFanless
+            isFanless: isFanless,
+            refreshInterval: preferences.refreshInterval
         )
         if memoCache.key == key, let cached = memoCache.glance {
             return cached
@@ -113,12 +116,12 @@ public struct FanPanel: View {
         return derived
     }
 
-    private func deriveGlance(latest: Sample<FanSample>?) -> PanelGlance {
+    internal func deriveGlance(latest: Sample<FanSample>?) -> PanelGlance {
         let currentSample = latest?.value
         let maxRPM = currentSample?.fans.map(\.rpm).max() ?? 0
         let headline = PanelHeadline.fan(sample: currentSample)
 
-        let refDate = max(Date(), latest?.timestamp ?? .distantPast)
+        let refDate = latest?.timestamp ?? Date()
         let rpmPoints = coordinator.timedScalarHistory(
             for: .fanMaxRPM,
             duration: 60,
@@ -133,7 +136,7 @@ public struct FanPanel: View {
             ? "Passive silent cooling"
             : InsightEngine.insights(
                 series: rpmPoints.map(\.value),
-                interval: 1.0,
+                interval: preferences.refreshInterval,
                 unit: .rpm,
                 thresholds: .fanRPM(minRPM: minRPMForInsight, maxRPM: maxSpecRPM)
             ).first?.text

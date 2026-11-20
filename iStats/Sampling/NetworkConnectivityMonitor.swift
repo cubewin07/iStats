@@ -61,6 +61,7 @@ public final class NetworkConnectivityMonitor: @unchecked Sendable {
     private let lock = NSLock()
     private let endpoints: [ProbeEndpoint]
     private let probeInterval: TimeInterval
+    private let backgroundProbeInterval: TimeInterval
     private let hedgeDelay: TimeInterval
     private let probeTimeout: TimeInterval
     private let windowCapacity: Int
@@ -75,39 +76,81 @@ public final class NetworkConnectivityMonitor: @unchecked Sendable {
     private var isConstrained: Bool = false
     private var isExpensive: Bool = false
     private var activeInterfaceName: String? = nil
+    private var isForegroundProbing: Bool = false
     private var probeInFlight: Bool = false
     private var lastProbeStart: Date = .distantPast
     private var probeWindow: [Double?] = [] // nil = failed probe, Double = RTT ms
     private var latestProbe: NetworkProbeSnapshot? = nil
     private var pathGeneration: UInt64 = 0
-    private var onPathChangedHandler: (@Sendable () -> Void)?
+    private var activeRunner: HedgedProbeRunner?
+    private var onPathChangedHandlers: [String: @Sendable () -> Void] = [:]
 
     public init(
         endpoints: [ProbeEndpoint] = NetworkConnectivityMonitor.defaultEndpoints,
-        probeInterval: TimeInterval = 2.0,
+        probeInterval: TimeInterval = 5.0,
+        backgroundProbeInterval: TimeInterval = 60.0,
         hedgeDelay: TimeInterval = 0.75,
         probeTimeout: TimeInterval = 2.0,
         windowCapacity: Int = 8,
         enableSystemPathMonitor: Bool = true,
-        enableActiveProbing: Bool = true
+        enableActiveProbing: Bool = true,
+        foregroundProbing: Bool = false
     ) {
         self.endpoints = endpoints.isEmpty ? Self.defaultEndpoints : endpoints
         self.probeInterval = max(0.5, probeInterval)
+        self.backgroundProbeInterval = max(5.0, backgroundProbeInterval)
         self.hedgeDelay = max(0.1, hedgeDelay)
         self.probeTimeout = max(0.5, probeTimeout)
         self.windowCapacity = max(1, windowCapacity)
         self.enableSystemPathMonitor = enableSystemPathMonitor
         self.enableActiveProbing = enableActiveProbing
+        self.isForegroundProbing = foregroundProbing
     }
 
     deinit {
         stop()
     }
 
-    /// Registers a callback invoked off-main-thread whenever `NWPathMonitor` reports a path change.
+    /// Enables or disables periodic active TCP probing while the Network panel is visible.
+    /// When `false`, periodic 24/7 probing is suppressed; probes only run on path transitions or stalled traffic.
+    public func setForegroundProbing(_ active: Bool) {
+        lock.lock()
+        self.isForegroundProbing = active
+        lock.unlock()
+    }
+
+    /// Registers a keyed callback invoked off-main-thread whenever `NWPathMonitor` reports a path change.
+    public func addOnPathChanged(key: String, handler: @escaping @Sendable () -> Void) {
+        lock.lock()
+        self.onPathChangedHandlers[key] = handler
+        lock.unlock()
+    }
+
+    /// Registers an anonymous path-change callback and returns its removal token.
+    @discardableResult
+    public func addOnPathChanged(_ handler: @escaping @Sendable () -> Void) -> UUID {
+        let id = UUID()
+        lock.lock()
+        self.onPathChangedHandlers[id.uuidString] = handler
+        lock.unlock()
+        return id
+    }
+
+    /// Removes a previously registered path-change callback.
+    public func removeOnPathChanged(_ id: UUID) {
+        lock.lock()
+        self.onPathChangedHandlers.removeValue(forKey: id.uuidString)
+        lock.unlock()
+    }
+
+    /// Replaces the legacy unnamed path-change callback without disturbing keyed observers.
     public func setOnPathChanged(_ handler: (@Sendable () -> Void)?) {
         lock.lock()
-        self.onPathChangedHandler = handler
+        if let handler {
+            self.onPathChangedHandlers["__legacy__"] = handler
+        } else {
+            self.onPathChangedHandlers.removeValue(forKey: "__legacy__")
+        }
         lock.unlock()
     }
 
@@ -134,19 +177,24 @@ public final class NetworkConnectivityMonitor: @unchecked Sendable {
         monitor.start(queue: queue)
     }
 
-    /// Stops the background `NWPathMonitor`.
+    /// Stops the background `NWPathMonitor` and cancels any in-flight probe connections.
     public func stop() {
         lock.lock()
         let monitor = pathMonitor
+        let runner = activeRunner
         pathMonitor = nil
+        activeRunner = nil
+        probeInFlight = false
         isStarted = false
         lock.unlock()
+        runner?.cancel()
         monitor?.cancel()
     }
 
     /// Non-blocking snapshot read for `NetworkSampler`.
-    /// Optionally dispatches an asynchronous reachability probe off the calling thread when due.
-    public func snapshot(triggerProbeIfDue: Bool = true) -> ConnectivityMonitorSnapshot {
+    /// Dispatches an asynchronous reachability probe only when `NWPathMonitor` has confirmed a satisfied
+    /// path and either the Network panel is actively open or traffic appears stalled.
+    public func snapshot(triggerProbeIfDue: Bool = true, isTrafficStalled: Bool = false) -> ConnectivityMonitorSnapshot {
         startIfNeeded()
 
         lock.lock()
@@ -158,28 +206,53 @@ public final class NetworkConnectivityMonitor: @unchecked Sendable {
             probe: latestProbe
         )
 
-        var shouldDispatchProbe = false
-        var generation: UInt64 = 0
+        var runnerToStart: HedgedProbeRunner?
         if triggerProbeIfDue && enableActiveProbing {
-            let canProbe = (pathSatisfied ?? true)
+            let canProbe = (pathSatisfied == true)
             let now = Date()
-            if canProbe && !probeInFlight && now.timeIntervalSince(lastProbeStart) >= probeInterval {
+            let requiredInterval: TimeInterval?
+            if isForegroundProbing {
+                requiredInterval = probeInterval
+            } else if isTrafficStalled {
+                requiredInterval = backgroundProbeInterval
+            } else {
+                requiredInterval = nil
+            }
+
+            if canProbe,
+               let requiredInterval,
+               !probeInFlight,
+               now.timeIntervalSince(lastProbeStart) >= requiredInterval {
                 probeInFlight = true
                 lastProbeStart = now
-                generation = pathGeneration
-                shouldDispatchProbe = true
+                let runner = makeRunner(generation: pathGeneration)
+                activeRunner = runner
+                runnerToStart = runner
             }
         }
         lock.unlock()
 
-        if shouldDispatchProbe {
-            let capturedGeneration = generation
-            queue.async { [weak self] in
-                self?.runHedgedTCPProbe(generation: capturedGeneration)
+        if let runnerToStart {
+            queue.async {
+                runnerToStart.start()
             }
         }
 
         return snap
+    }
+
+    /// Returns whether a periodic probe would be eligible to fire right now under current gating rules (for tests).
+    internal func wouldTriggerProbe(now: Date = Date(), isTrafficStalled: Bool = false) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        guard enableActiveProbing, pathSatisfied == true, !probeInFlight else { return false }
+        if isForegroundProbing {
+            return now.timeIntervalSince(lastProbeStart) >= probeInterval
+        }
+        if isTrafficStalled {
+            return now.timeIntervalSince(lastProbeStart) >= backgroundProbeInterval
+        }
+        return false
     }
 
     // MARK: - Testable State Transitions
@@ -201,13 +274,14 @@ public final class NetworkConnectivityMonitor: @unchecked Sendable {
         self.isExpensive = isExpensive
         self.activeInterfaceName = activeInterfaceName
 
-        var shouldTriggerImmediateProbe = false
-        var generation = self.pathGeneration
+        var runnerToCancel: HedgedProbeRunner?
+        var runnerToStart: HedgedProbeRunner?
 
         if !isSatisfied {
-            // Instant disconnect: clear stale probe success so UI turns red immediately.
+            // Instant disconnect: cancel any in-flight probe and clear stale probe success so UI turns red immediately.
             self.pathGeneration &+= 1
-            generation = self.pathGeneration
+            runnerToCancel = self.activeRunner
+            self.activeRunner = nil
             self.probeInFlight = false
             self.probeWindow.removeAll(keepingCapacity: true)
             self.latestProbe = NetworkProbeSnapshot(
@@ -222,28 +296,34 @@ public final class NetworkConnectivityMonitor: @unchecked Sendable {
                 timestamp: Date()
             )
         } else if changed {
-            // Newly connected or switched interface (e.g. Wi-Fi -> Ethernet): reset old window & probe immediately.
+            // Newly connected or switched interface (e.g. Wi-Fi -> Ethernet): cancel old runner, reset window & probe once.
             self.pathGeneration &+= 1
-            generation = self.pathGeneration
+            runnerToCancel = self.activeRunner
+            self.activeRunner = nil
             self.probeWindow.removeAll(keepingCapacity: true)
             self.latestProbe = nil
             self.lastProbeStart = .distantPast
             if enableActiveProbing {
                 self.probeInFlight = true
                 self.lastProbeStart = Date()
-                shouldTriggerImmediateProbe = true
+                let runner = makeRunner(generation: self.pathGeneration)
+                self.activeRunner = runner
+                runnerToStart = runner
             }
         }
 
-        let callback = changed ? onPathChangedHandler : nil
+        let callbacks = changed ? Array(onPathChangedHandlers.values) : []
         lock.unlock()
 
-        callback?()
+        runnerToCancel?.cancel()
 
-        if shouldTriggerImmediateProbe {
-            let capturedGeneration = generation
-            queue.async { [weak self] in
-                self?.runHedgedTCPProbe(generation: capturedGeneration)
+        for callback in callbacks {
+            callback()
+        }
+
+        if let runnerToStart {
+            queue.async {
+                runnerToStart.start()
             }
         }
     }
@@ -296,12 +376,10 @@ public final class NetworkConnectivityMonitor: @unchecked Sendable {
 
     // MARK: - Hedged Non-Blocking TCP Handshake Probe (Serial Queue Only)
 
-    /// Executes a lightweight TCP SYN/SYN-ACK probe on `self.queue`.
-    /// Starts primary endpoint immediately; hedges to fallback after `hedgeDelay` (or immediately on primary error).
-    private func runHedgedTCPProbe(generation: UInt64) {
+    private func makeRunner(generation: UInt64) -> HedgedProbeRunner {
         let primaryEndpoint = endpoints[0]
         let fallbackEndpoint = endpoints.count > 1 ? endpoints[1] : nil
-        let runner = HedgedProbeRunner(
+        return HedgedProbeRunner(
             monitor: self,
             queue: queue,
             primaryEndpoint: primaryEndpoint,
@@ -310,7 +388,14 @@ public final class NetworkConnectivityMonitor: @unchecked Sendable {
             probeTimeout: probeTimeout,
             generation: generation
         )
-        runner.start()
+    }
+
+    private func clearActiveRunner(_ runner: HedgedProbeRunner, generation: UInt64) {
+        lock.lock()
+        if generation == pathGeneration && activeRunner === runner {
+            activeRunner = nil
+        }
+        lock.unlock()
     }
 
     private final class HedgedProbeRunner: @unchecked Sendable {
@@ -321,11 +406,13 @@ public final class NetworkConnectivityMonitor: @unchecked Sendable {
         private let hedgeDelay: TimeInterval
         private let probeTimeout: TimeInterval
         private let generation: UInt64
+        private let stateLock = NSLock()
 
         private var finished = false
         private var primaryFailed = false
         private var fallbackStarted = false
         private var fallbackFailed = false
+        private var lastWaitingReason: String?
         private var primaryConn: NWConnection?
         private var fallbackConn: NWConnection?
         private var hedgeWorkItem: DispatchWorkItem?
@@ -350,7 +437,13 @@ public final class NetworkConnectivityMonitor: @unchecked Sendable {
         }
 
         func start() {
+            stateLock.lock()
+            if finished {
+                stateLock.unlock()
+                return
+            }
             guard let conn = makeConnection(to: primaryEndpoint) else {
+                stateLock.unlock()
                 finish(isReachable: false, latencyMs: nil, endpoint: primaryEndpoint.label, failureReason: "Invalid probe endpoint")
                 return
             }
@@ -363,12 +456,28 @@ public final class NetworkConnectivityMonitor: @unchecked Sendable {
                 case .ready:
                     let rttMs = (CFAbsoluteTimeGetCurrent() - primaryStart) * 1000.0
                     finish(isReachable: true, latencyMs: rttMs, endpoint: primaryEndpoint.label, failureReason: nil)
-                case .waiting(let err), .failed(let err):
-                    primaryFailed = true
+                case .waiting(let err):
+                    // `.waiting` is non-terminal (e.g. waiting for route/ARP readiness); do not fail or cancel here.
+                    stateLock.lock()
+                    lastWaitingReason = NetworkConnectivityMonitor.describeNWError(err)
+                    stateLock.unlock()
+                case .failed(let err):
+                    var shouldFinish = false
+                    var shouldStartFallback = false
+                    stateLock.lock()
+                    if !finished {
+                        primaryFailed = true
+                        if fallbackEndpoint == nil || fallbackFailed {
+                            shouldFinish = true
+                        } else {
+                            shouldStartFallback = true
+                        }
+                    }
+                    stateLock.unlock()
                     conn.cancel()
-                    if fallbackEndpoint == nil || fallbackFailed {
+                    if shouldFinish {
                         finish(isReachable: false, latencyMs: nil, endpoint: primaryEndpoint.label, failureReason: NetworkConnectivityMonitor.describeNWError(err))
-                    } else {
+                    } else if shouldStartFallback {
                         startFallback()
                     }
                 default:
@@ -385,19 +494,59 @@ public final class NetworkConnectivityMonitor: @unchecked Sendable {
             }
 
             let timeoutItem = DispatchWorkItem { [self] in
-                finish(isReachable: false, latencyMs: nil, endpoint: primaryEndpoint.label, failureReason: "Timeout — no packet response")
+                stateLock.lock()
+                let waitingReason = lastWaitingReason
+                stateLock.unlock()
+                finish(
+                    isReachable: false,
+                    latencyMs: nil,
+                    endpoint: primaryEndpoint.label,
+                    failureReason: waitingReason ?? "Timeout — no packet response"
+                )
             }
             timeoutWorkItem = timeoutItem
             queue.asyncAfter(deadline: .now() + probeTimeout, execute: timeoutItem)
+            stateLock.unlock()
 
             conn.start(queue: queue)
         }
 
+        func cancel() {
+            stateLock.lock()
+            guard !finished else {
+                stateLock.unlock()
+                return
+            }
+            finished = true
+            let hedge = hedgeWorkItem
+            let timeout = timeoutWorkItem
+            let pConn = primaryConn
+            let fConn = fallbackConn
+            hedgeWorkItem = nil
+            timeoutWorkItem = nil
+            primaryConn = nil
+            fallbackConn = nil
+            stateLock.unlock()
+
+            hedge?.cancel()
+            timeout?.cancel()
+            pConn?.stateUpdateHandler = nil
+            fConn?.stateUpdateHandler = nil
+            pConn?.cancel()
+            fConn?.cancel()
+        }
+
         private func startFallback() {
-            guard !finished, !fallbackStarted else { return }
+            stateLock.lock()
+            guard !finished, !fallbackStarted else {
+                stateLock.unlock()
+                return
+            }
             guard let fallback = fallbackEndpoint, let conn = makeConnection(to: fallback) else {
                 fallbackFailed = true
-                if primaryFailed {
+                let shouldFinish = primaryFailed
+                stateLock.unlock()
+                if shouldFinish {
                     finish(isReachable: false, latencyMs: nil, endpoint: primaryEndpoint.label, failureReason: "No packet response")
                 }
                 return
@@ -412,16 +561,29 @@ public final class NetworkConnectivityMonitor: @unchecked Sendable {
                 case .ready:
                     let rttMs = (CFAbsoluteTimeGetCurrent() - fallbackStart) * 1000.0
                     finish(isReachable: true, latencyMs: rttMs, endpoint: fallback.label, failureReason: nil)
-                case .waiting(let err), .failed(let err):
-                    fallbackFailed = true
+                case .waiting(let err):
+                    stateLock.lock()
+                    if lastWaitingReason == nil {
+                        lastWaitingReason = NetworkConnectivityMonitor.describeNWError(err)
+                    }
+                    stateLock.unlock()
+                case .failed(let err):
+                    var shouldFinish = false
+                    stateLock.lock()
+                    if !finished {
+                        fallbackFailed = true
+                        shouldFinish = primaryFailed
+                    }
+                    stateLock.unlock()
                     conn.cancel()
-                    if primaryFailed {
+                    if shouldFinish {
                         finish(isReachable: false, latencyMs: nil, endpoint: fallback.label, failureReason: NetworkConnectivityMonitor.describeNWError(err))
                     }
                 default:
                     break
                 }
             }
+            stateLock.unlock()
             conn.start(queue: queue)
         }
 
@@ -434,19 +596,30 @@ public final class NetworkConnectivityMonitor: @unchecked Sendable {
         }
 
         private func finish(isReachable: Bool, latencyMs: Double?, endpoint: String?, failureReason: String?) {
-            guard !finished else { return }
+            stateLock.lock()
+            guard !finished else {
+                stateLock.unlock()
+                return
+            }
             finished = true
-            hedgeWorkItem?.cancel()
-            timeoutWorkItem?.cancel()
+            let hedge = hedgeWorkItem
+            let timeout = timeoutWorkItem
+            let pConn = primaryConn
+            let fConn = fallbackConn
             hedgeWorkItem = nil
             timeoutWorkItem = nil
-            primaryConn?.stateUpdateHandler = nil
-            fallbackConn?.stateUpdateHandler = nil
-            primaryConn?.cancel()
-            fallbackConn?.cancel()
             primaryConn = nil
             fallbackConn = nil
+            stateLock.unlock()
 
+            hedge?.cancel()
+            timeout?.cancel()
+            pConn?.stateUpdateHandler = nil
+            fConn?.stateUpdateHandler = nil
+            pConn?.cancel()
+            fConn?.cancel()
+
+            monitor?.clearActiveRunner(self, generation: generation)
             monitor?.recordProbeOutcome(
                 isReachable: isReachable,
                 latencyMs: latencyMs,

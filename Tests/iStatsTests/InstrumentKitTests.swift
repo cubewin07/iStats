@@ -31,6 +31,34 @@ final class InstrumentKitTests: XCTestCase {
         }
     }
 
+    func testCategoryPaletteUsesSRGBMatchingPaletteContrast() {
+        let aqua = NSAppearance(named: .aqua)!
+        let dark = NSAppearance(named: .darkAqua)!
+
+        for category in MetricCategory.allCases {
+            let hex = PaletteContrast.Hex.categoryTint(for: category)
+            let dynamic = CategoryPalette.nsColor(for: category)
+
+            var lightResolved: NSColor?
+            aqua.performAsCurrentDrawingAppearance {
+                lightResolved = dynamic.usingColorSpace(.sRGB)
+            }
+            let expectedLight = RGBColor(hex: hex.light)!
+            XCTAssertEqual(Double(lightResolved!.redComponent), expectedLight.red, accuracy: 0.002)
+            XCTAssertEqual(Double(lightResolved!.greenComponent), expectedLight.green, accuracy: 0.002)
+            XCTAssertEqual(Double(lightResolved!.blueComponent), expectedLight.blue, accuracy: 0.002)
+
+            var darkResolved: NSColor?
+            dark.performAsCurrentDrawingAppearance {
+                darkResolved = dynamic.usingColorSpace(.sRGB)
+            }
+            let expectedDark = RGBColor(hex: hex.dark)!
+            XCTAssertEqual(Double(darkResolved!.redComponent), expectedDark.red, accuracy: 0.002)
+            XCTAssertEqual(Double(darkResolved!.greenComponent), expectedDark.green, accuracy: 0.002)
+            XCTAssertEqual(Double(darkResolved!.blueComponent), expectedDark.blue, accuracy: 0.002)
+        }
+    }
+
     // MARK: - 2. Section / Module v2 Integrated Header
 
     func testSectionAndModuleSourceCompatibilityAndLayout() {
@@ -160,6 +188,22 @@ final class InstrumentKitTests: XCTestCase {
         let jump = gate.evaluate(newValue: 9.8, formatted: "9.8", now: 12.5)
         XCTAssertTrue(jump)
         XCTAssertEqual(gate.displayedValue, 9.8, accuracy: 0.0001)
+    }
+
+    func testLiveNumberCadenceGateCommitsImmediatelyOnUnitChange() {
+        var gate = LiveNumberCadenceGate(initialValue: 1.8, initialUnit: "MB/s", now: 10.0)
+
+        // Sub-unit numeric delta (|1.5 - 1.8| = 0.3 < 1.0) with a unit jump (MB/s -> KB/s)
+        // must commit immediately so "1.8 KB/s" is never displayed.
+        let committed = gate.evaluate(newValue: 1.5, unit: "KB/s", formatted: "1.5", now: 10.5)
+        XCTAssertTrue(committed)
+        XCTAssertEqual(gate.displayedValue, 1.5, accuracy: 0.0001)
+        XCTAssertEqual(gate.displayedUnit, "KB/s")
+
+        // Subsequent small delta in the same unit IS still gated
+        let gated = gate.evaluate(newValue: 1.6, unit: "KB/s", formatted: "1.6", now: 11.0)
+        XCTAssertFalse(gated)
+        XCTAssertEqual(gate.displayedValue, 1.5, accuracy: 0.0001)
     }
 
     // MARK: - 6. ProcessIconCache Negative Caching (B12)
