@@ -22,6 +22,7 @@ final class MenuBarControllerInteractionTests: XCTestCase {
             NSStatusBar.system.removeStatusItem(item)
         }
         controller.hidePopover()
+        PreferencesWindowController.shared.close()
         defaults.removePersistentDomain(forName: suiteName)
     }
 
@@ -227,10 +228,12 @@ final class MenuBarControllerInteractionTests: XCTestCase {
             return
         }
 
-        // Click fallback button -> opens panel
+        // Click fallback button -> opens Overview destination panel
         controller.statusItemClicked(fallbackButton)
         XCTAssertTrue(controller.currentlyShownButton === fallbackButton)
         XCTAssertNotNil(PanelController.shared.activePanel)
+        XCTAssertEqual(PanelController.shared.currentDestination, .overview)
+        XCTAssertTrue(PanelController.shared.isTransientPanelOpen(for: .overview))
 
         controller.hidePopover()
         XCTAssertNil(controller.currentlyShownButton)
