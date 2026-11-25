@@ -9,11 +9,25 @@ extension MenuBarIconRenderer {
         formattedTemp: String,
         status: StatusLevel,
         minWidth: CGFloat = 42.0,
-        worstCase: String? = nil
+        worstCase: String? = nil,
+        colorRole: WidgetColorRole = .category
     ) -> NSImage {
+        let isTemplate = (colorRole == .label)
+        let statusColor: NSColor
+        let valColor: NSColor
+        switch colorRole {
+        case .label:
+            statusColor = .labelColor
+            valColor = .labelColor
+        case .status(let level):
+            let s = CategoryPalette.statusNSColor(for: level)
+            statusColor = s
+            valColor = s
+        case .category:
+            statusColor = (status >= .warning) ? CategoryPalette.statusNSColor(for: status) : CategoryPalette.nsColor(for: .thermal)
+            valColor = (status >= .warning) ? CategoryPalette.statusNSColor(for: status) : NSColor.labelColor
+        }
 
-        let statusColor = (status >= .warning) ? CategoryPalette.statusNSColor(for: status) : CategoryPalette.nsColor(for: .thermal)
-        let valColor = (status >= .warning) ? CategoryPalette.statusNSColor(for: status) : NSColor.labelColor
         let valAttr = formatCompactValueAttributedString(value: formattedTemp, color: valColor)
         let valSize = valAttr.size()
         let valX: CGFloat = 12.0
@@ -34,7 +48,7 @@ extension MenuBarIconRenderer {
             let bulbRect = NSRect(x: centerX - bulbRadius, y: bulbCenterY - bulbRadius, width: bulbRadius * 2.0, height: bulbRadius * 2.0)
             let bulbPath = NSBezierPath(ovalIn: bulbRect)
 
-            NSColor.secondaryLabelColor.withAlphaComponent(0.20).setFill()
+            (isTemplate ? NSColor.labelColor.withAlphaComponent(0.20) : NSColor.secondaryLabelColor.withAlphaComponent(0.20)).setFill()
             stemPath.fill()
             bulbPath.fill()
 
@@ -54,24 +68,38 @@ extension MenuBarIconRenderer {
 
             return true
         }
-        image.isTemplate = false
+        image.isTemplate = isTemplate
         return image
     }
 
     public static func drawFanGlyph(
         text rpmStr: String,
         isFanless: Bool = false,
-        status: StatusLevel
+        status: StatusLevel,
+        colorRole: WidgetColorRole = .category
     ) -> NSImage {
         let fixedWidth: CGFloat = 44.0
         let size = NSSize(width: fixedWidth, height: 22)
-        let iconColor = isFanless
-            ? NSColor.secondaryLabelColor.withAlphaComponent(0.50)
-            : ((status >= .warning) ? CategoryPalette.statusNSColor(for: status) : CategoryPalette.nsColor(for: .fan))
-        let valColor = (status >= .warning) ? CategoryPalette.statusNSColor(for: status) : NSColor.labelColor
+        let isTemplate = (colorRole == .label)
+        let iconColor: NSColor
+        let valColor: NSColor
+        switch colorRole {
+        case .label:
+            iconColor = isFanless ? NSColor.labelColor.withAlphaComponent(0.45) : .labelColor
+            valColor = .labelColor
+        case .status(let level):
+            let s = CategoryPalette.statusNSColor(for: level)
+            iconColor = isFanless ? NSColor.secondaryLabelColor.withAlphaComponent(0.50) : s
+            valColor = s
+        case .category:
+            iconColor = isFanless
+                ? NSColor.secondaryLabelColor.withAlphaComponent(0.50)
+                : ((status >= .warning) ? CategoryPalette.statusNSColor(for: status) : CategoryPalette.nsColor(for: .fan))
+            valColor = (status >= .warning) ? CategoryPalette.statusNSColor(for: status) : NSColor.labelColor
+        }
 
         let image = NSImage(size: size, flipped: false) { bounds in
-            if let sfSymbol = NSImage(systemSymbolName: "fan", accessibilityDescription: nil) {
+            if let sfSymbol = NSImage(systemSymbolName: isFanless ? "fan.slash" : "fan", accessibilityDescription: nil) {
                 let symConfig = NSImage.SymbolConfiguration(pointSize: 10.0, weight: .bold)
                 if let configured = sfSymbol.withSymbolConfiguration(symConfig) {
                     let iconRect = NSRect(x: 2.0, y: (bounds.height - 11.0) / 2.0, width: 11.0, height: 11.0)
@@ -93,7 +121,7 @@ extension MenuBarIconRenderer {
 
             return true
         }
-        image.isTemplate = false
+        image.isTemplate = isTemplate
         return image
     }
 
@@ -102,14 +130,16 @@ extension MenuBarIconRenderer {
         charge: Double?,
         state: BatteryState?,
         hasBattery: Bool,
-        variant: PowerStateVariant? = nil
+        variant: PowerStateVariant? = nil,
+        colorRole: WidgetColorRole = .category
     ) -> NSImage {
         let activeVariant = variant ?? PowerStateVariant.resolve(charge: charge, state: state, hasBattery: hasBattery)
+        let isTemplate = (colorRole == .label)
         let size = NSSize(width: 25, height: 16)
         let image = NSImage(size: size, flipped: false) { bounds in
             if hasBattery && activeVariant != .acDesktop {
                 let roundedCharge = round(charge ?? 0.0)
-                let isCritical = activeVariant == .lowBattery && roundedCharge <= 10.0
+                let isCritical = !isTemplate && activeVariant == .lowBattery && roundedCharge <= 10.0
 
                 // Battery Body Frame
                 let bodyRect = NSRect(x: 1.0, y: 2.0, width: 19.5, height: 12.0)
@@ -140,108 +170,153 @@ extension MenuBarIconRenderer {
                     let fillPath = NSBezierPath(roundedRect: fillRect, xRadius: 1.2, yRadius: 1.2)
 
                     let fillColor: NSColor
-                    switch activeVariant {
-                    case .lowBattery:
-                        fillColor = CategoryPalette.statusNSColor(for: .critical)
-                    case .powerDeficit:
-                        fillColor = CategoryPalette.statusNSColor(for: .warning)
-                    case .onHold:
-                        fillColor = CategoryPalette.statusNSColor(for: .fine)
-                    case .charging, .charged:
-                        fillColor = CategoryPalette.statusNSColor(for: .fine)
-                    case .discharging:
-                        let qClamped = round(clamped)
-                        fillColor = qClamped <= 20.0 ? CategoryPalette.statusNSColor(for: .critical) : (qClamped <= 40.0 ? CategoryPalette.statusNSColor(for: .elevated) : CategoryPalette.statusNSColor(for: .fine))
-                    case .acDesktop, .unavailable:
-                        fillColor = CategoryPalette.statusNSColor(for: .fine)
+                    if isTemplate {
+                        fillColor = NSColor.labelColor.withAlphaComponent(0.85)
+                    } else {
+                        switch activeVariant {
+                        case .lowBattery:
+                            fillColor = CategoryPalette.statusNSColor(for: .critical)
+                        case .powerDeficit:
+                            fillColor = CategoryPalette.statusNSColor(for: .warning)
+                        case .onHold:
+                            fillColor = CategoryPalette.statusNSColor(for: .fine)
+                        case .charging, .charged:
+                            fillColor = CategoryPalette.statusNSColor(for: .fine)
+                        case .discharging:
+                            let qClamped = round(clamped)
+                            fillColor = qClamped <= 20.0 ? CategoryPalette.statusNSColor(for: .critical) : (qClamped <= 40.0 ? CategoryPalette.statusNSColor(for: .elevated) : CategoryPalette.statusNSColor(for: .fine))
+                        case .acDesktop, .unavailable:
+                            fillColor = CategoryPalette.statusNSColor(for: .fine)
+                        }
                     }
                     fillColor.setFill()
                     fillPath.fill()
 
                     // Multi-State Overlay Badges
-                    switch activeVariant {
-                    case .charging:
-                        let bolt = NSBezierPath()
-                        bolt.move(to: NSPoint(x: 11.5, y: 13.0))
-                        bolt.line(to: NSPoint(x: 8.0, y: 8.0))
-                        bolt.line(to: NSPoint(x: 10.8, y: 8.0))
-                        bolt.line(to: NSPoint(x: 9.5, y: 3.0))
-                        bolt.line(to: NSPoint(x: 14.0, y: 9.0))
-                        bolt.line(to: NSPoint(x: 11.2, y: 9.0))
-                        bolt.close()
-                        CategoryPalette.statusNSColor(for: .elevated).setFill()
-                        bolt.fill()
-                        bolt.lineWidth = 0.5
-                        NSColor.black.withAlphaComponent(0.6).setStroke()
-                        bolt.stroke()
+                    if isTemplate {
+                        switch activeVariant {
+                        case .charging, .powerDeficit:
+                            let bolt = NSBezierPath()
+                            bolt.move(to: NSPoint(x: 11.5, y: 13.0))
+                            bolt.line(to: NSPoint(x: 8.0, y: 8.0))
+                            bolt.line(to: NSPoint(x: 10.8, y: 8.0))
+                            bolt.line(to: NSPoint(x: 9.5, y: 3.0))
+                            bolt.line(to: NSPoint(x: 14.0, y: 9.0))
+                            bolt.line(to: NSPoint(x: 11.2, y: 9.0))
+                            bolt.close()
+                            if let ctx = NSGraphicsContext.current?.cgContext {
+                                ctx.saveGState()
+                                ctx.setBlendMode(.clear)
+                                bolt.fill()
+                                ctx.restoreGState()
+                            }
+                            NSColor.labelColor.setStroke()
+                            bolt.lineWidth = 0.7
+                            bolt.stroke()
+                        case .onHold:
+                            let p1 = NSBezierPath(roundedRect: NSRect(x: 8.8, y: 5.0, width: 1.8, height: 6.0), xRadius: 0.9, yRadius: 0.9)
+                            let p2 = NSBezierPath(roundedRect: NSRect(x: 11.8, y: 5.0, width: 1.8, height: 6.0), xRadius: 0.9, yRadius: 0.9)
+                            if let ctx = NSGraphicsContext.current?.cgContext {
+                                ctx.saveGState()
+                                ctx.setBlendMode(.clear)
+                                p1.fill()
+                                p2.fill()
+                                ctx.restoreGState()
+                            }
+                        case .lowBattery:
+                            let stem = NSBezierPath(roundedRect: NSRect(x: 9.8, y: 6.8, width: 2.0, height: 4.8), xRadius: 1.0, yRadius: 1.0)
+                            let dot = NSBezierPath(ovalIn: NSRect(x: 9.8, y: 4.0, width: 2.0, height: 2.0))
+                            NSColor.labelColor.setFill()
+                            stem.fill()
+                            dot.fill()
+                        case .charged, .discharging, .acDesktop, .unavailable:
+                            break
+                        }
+                    } else {
+                        switch activeVariant {
+                        case .charging:
+                            let bolt = NSBezierPath()
+                            bolt.move(to: NSPoint(x: 11.5, y: 13.0))
+                            bolt.line(to: NSPoint(x: 8.0, y: 8.0))
+                            bolt.line(to: NSPoint(x: 10.8, y: 8.0))
+                            bolt.line(to: NSPoint(x: 9.5, y: 3.0))
+                            bolt.line(to: NSPoint(x: 14.0, y: 9.0))
+                            bolt.line(to: NSPoint(x: 11.2, y: 9.0))
+                            bolt.close()
+                            CategoryPalette.statusNSColor(for: .elevated).setFill()
+                            bolt.fill()
+                            bolt.lineWidth = 0.5
+                            NSColor.black.withAlphaComponent(0.6).setStroke()
+                            bolt.stroke()
 
-                    case .onHold:
-                        let p1 = NSBezierPath(roundedRect: NSRect(x: 8.8, y: 5.0, width: 1.8, height: 6.0), xRadius: 0.9, yRadius: 0.9)
-                        let p2 = NSBezierPath(roundedRect: NSRect(x: 11.8, y: 5.0, width: 1.8, height: 6.0), xRadius: 0.9, yRadius: 0.9)
-                        CategoryPalette.statusNSColor(for: .warning).setFill()
-                        p1.fill()
-                        p2.fill()
-                        p1.lineWidth = 0.5
-                        p2.lineWidth = 0.5
-                        NSColor.black.withAlphaComponent(0.65).setStroke()
-                        p1.stroke()
-                        p2.stroke()
+                        case .onHold:
+                            let p1 = NSBezierPath(roundedRect: NSRect(x: 8.8, y: 5.0, width: 1.8, height: 6.0), xRadius: 0.9, yRadius: 0.9)
+                            let p2 = NSBezierPath(roundedRect: NSRect(x: 11.8, y: 5.0, width: 1.8, height: 6.0), xRadius: 0.9, yRadius: 0.9)
+                            CategoryPalette.statusNSColor(for: .warning).setFill()
+                            p1.fill()
+                            p2.fill()
+                            p1.lineWidth = 0.5
+                            p2.lineWidth = 0.5
+                            NSColor.black.withAlphaComponent(0.65).setStroke()
+                            p1.stroke()
+                            p2.stroke()
 
-                    case .powerDeficit:
-                        let bolt = NSBezierPath()
-                        bolt.move(to: NSPoint(x: 9.0, y: 12.8))
-                        bolt.line(to: NSPoint(x: 6.6, y: 8.2))
-                        bolt.line(to: NSPoint(x: 8.8, y: 8.2))
-                        bolt.line(to: NSPoint(x: 7.6, y: 3.2))
-                        bolt.line(to: NSPoint(x: 11.0, y: 8.8))
-                        bolt.line(to: NSPoint(x: 8.8, y: 8.8))
-                        bolt.close()
-                        CategoryPalette.statusNSColor(for: .warning).setFill()
-                        bolt.fill()
-                        bolt.lineWidth = 0.4
-                        NSColor.black.withAlphaComponent(0.65).setStroke()
-                        bolt.stroke()
+                        case .powerDeficit:
+                            let bolt = NSBezierPath()
+                            bolt.move(to: NSPoint(x: 9.0, y: 12.8))
+                            bolt.line(to: NSPoint(x: 6.6, y: 8.2))
+                            bolt.line(to: NSPoint(x: 8.8, y: 8.2))
+                            bolt.line(to: NSPoint(x: 7.6, y: 3.2))
+                            bolt.line(to: NSPoint(x: 11.0, y: 8.8))
+                            bolt.line(to: NSPoint(x: 8.8, y: 8.8))
+                            bolt.close()
+                            CategoryPalette.statusNSColor(for: .warning).setFill()
+                            bolt.fill()
+                            bolt.lineWidth = 0.4
+                            NSColor.black.withAlphaComponent(0.65).setStroke()
+                            bolt.stroke()
 
-                        let arrow = NSBezierPath()
-                        arrow.move(to: NSPoint(x: 13.5, y: 11.8))
-                        arrow.line(to: NSPoint(x: 13.5, y: 4.8))
-                        arrow.move(to: NSPoint(x: 11.5, y: 6.8))
-                        arrow.line(to: NSPoint(x: 13.5, y: 4.2))
-                        arrow.line(to: NSPoint(x: 15.5, y: 6.8))
-                        arrow.lineWidth = 1.3
-                        arrow.lineCapStyle = .round
-                        arrow.lineJoinStyle = .round
-                        NSColor.white.setStroke()
-                        arrow.stroke()
+                            let arrow = NSBezierPath()
+                            arrow.move(to: NSPoint(x: 13.5, y: 11.8))
+                            arrow.line(to: NSPoint(x: 13.5, y: 4.8))
+                            arrow.move(to: NSPoint(x: 11.5, y: 6.8))
+                            arrow.line(to: NSPoint(x: 13.5, y: 4.2))
+                            arrow.line(to: NSPoint(x: 15.5, y: 6.8))
+                            arrow.lineWidth = 1.3
+                            arrow.lineCapStyle = .round
+                            arrow.lineJoinStyle = .round
+                            NSColor.white.setStroke()
+                            arrow.stroke()
 
-                    case .lowBattery:
-                        let stem = NSBezierPath(roundedRect: NSRect(x: 9.8, y: 6.8, width: 2.0, height: 4.8), xRadius: 1.0, yRadius: 1.0)
-                        let dot = NSBezierPath(ovalIn: NSRect(x: 9.8, y: 4.0, width: 2.0, height: 2.0))
-                        NSColor.white.setFill()
-                        stem.fill()
-                        dot.fill()
-                        stem.lineWidth = 0.5
-                        dot.lineWidth = 0.5
-                        NSColor.black.withAlphaComponent(0.7).setStroke()
-                        stem.stroke()
-                        dot.stroke()
+                        case .lowBattery:
+                            let stem = NSBezierPath(roundedRect: NSRect(x: 9.8, y: 6.8, width: 2.0, height: 4.8), xRadius: 1.0, yRadius: 1.0)
+                            let dot = NSBezierPath(ovalIn: NSRect(x: 9.8, y: 4.0, width: 2.0, height: 2.0))
+                            NSColor.white.setFill()
+                            stem.fill()
+                            dot.fill()
+                            stem.lineWidth = 0.5
+                            dot.lineWidth = 0.5
+                            NSColor.black.withAlphaComponent(0.7).setStroke()
+                            stem.stroke()
+                            dot.stroke()
 
-                    case .charged:
-                        let prong1 = NSBezierPath(rect: NSRect(x: 7.0, y: 6.0, width: 2.2, height: 1.2))
-                        let prong2 = NSBezierPath(rect: NSRect(x: 7.0, y: 8.8, width: 2.2, height: 1.2))
-                        let plugBody = NSBezierPath(roundedRect: NSRect(x: 9.2, y: 5.0, width: 4.2, height: 6.0), xRadius: 1.0, yRadius: 1.0)
-                        let stub = NSBezierPath(rect: NSRect(x: 13.4, y: 7.2, width: 1.6, height: 1.6))
-                        NSColor.white.setFill()
-                        prong1.fill()
-                        prong2.fill()
-                        plugBody.fill()
-                        stub.fill()
-                        plugBody.lineWidth = 0.5
-                        NSColor.black.withAlphaComponent(0.6).setStroke()
-                        plugBody.stroke()
+                        case .charged:
+                            let prong1 = NSBezierPath(rect: NSRect(x: 7.0, y: 6.0, width: 2.2, height: 1.2))
+                            let prong2 = NSBezierPath(rect: NSRect(x: 7.0, y: 8.8, width: 2.2, height: 1.2))
+                            let plugBody = NSBezierPath(roundedRect: NSRect(x: 9.2, y: 5.0, width: 4.2, height: 6.0), xRadius: 1.0, yRadius: 1.0)
+                            let stub = NSBezierPath(rect: NSRect(x: 13.4, y: 7.2, width: 1.6, height: 1.6))
+                            NSColor.white.setFill()
+                            prong1.fill()
+                            prong2.fill()
+                            plugBody.fill()
+                            stub.fill()
+                            plugBody.lineWidth = 0.5
+                            NSColor.black.withAlphaComponent(0.6).setStroke()
+                            plugBody.stroke()
 
-                    case .discharging, .acDesktop, .unavailable:
-                        break
+                        case .discharging, .acDesktop, .unavailable:
+                            break
+                        }
                     }
                 } else {
                     let dashLine = NSBezierPath()
@@ -250,7 +325,7 @@ extension MenuBarIconRenderer {
                     let dashes: [CGFloat] = [2.0, 2.0]
                     dashLine.setLineDash(dashes, count: 2, phase: 0.0)
                     dashLine.lineWidth = 1.0
-                    NSColor.secondaryLabelColor.withAlphaComponent(0.5).setStroke()
+                    (isTemplate ? NSColor.labelColor.withAlphaComponent(0.5) : NSColor.secondaryLabelColor.withAlphaComponent(0.5)).setStroke()
                     dashLine.stroke()
                 }
             } else {
@@ -261,18 +336,41 @@ extension MenuBarIconRenderer {
 
                 let p1 = NSBezierPath(rect: NSRect(x: 17.0, y: 5.0, width: 4.0, height: 2.0))
                 let p2 = NSBezierPath(rect: NSRect(x: 17.0, y: 9.0, width: 4.0, height: 2.0))
-                CategoryPalette.statusNSColor(for: .fine).setFill()
+                (isTemplate ? NSColor.labelColor : CategoryPalette.statusNSColor(for: .fine)).setFill()
                 p1.fill()
                 p2.fill()
             }
             return true
         }
-        image.isTemplate = false
+        image.isTemplate = isTemplate
         return image
     }
 
-    /// Draws dynamic Dual Activity Arrows (`↓` Download and `↑` Upload) with signature colors.
-    public static func drawNetworkActivityArrows(inActive: Bool, outActive: Bool) -> NSImage {
+    /// Draws dynamic Dual Activity Arrows (`↓` Download and `↑` Upload) honoring appearance mode.
+    public static func drawNetworkActivityArrows(
+        inActive: Bool,
+        outActive: Bool,
+        colorRole: WidgetColorRole = .category
+    ) -> NSImage {
+        let isTemplate = (colorRole == .label)
+        let activeInColor: NSColor
+        let activeOutColor: NSColor
+        let idleColor: NSColor
+        switch colorRole {
+        case .label:
+            activeInColor = .labelColor
+            activeOutColor = .labelColor
+            idleColor = NSColor.labelColor.withAlphaComponent(0.35)
+        case .status(let level):
+            let s = CategoryPalette.statusNSColor(for: level)
+            activeInColor = s
+            activeOutColor = s
+            idleColor = NSColor.secondaryLabelColor.withAlphaComponent(0.35)
+        case .category:
+            activeInColor = CategoryPalette.nsColor(for: .network)
+            activeOutColor = NSColor(CategoryPalette.Series.networkUpload)
+            idleColor = NSColor.secondaryLabelColor.withAlphaComponent(0.35)
+        }
 
         let size = NSSize(width: 18, height: 18)
         let image = NSImage(size: size, flipped: false) { _ in
@@ -285,7 +383,7 @@ extension MenuBarIconRenderer {
             down.lineWidth = inActive ? 2.0 : 1.3
             down.lineCapStyle = .round
             down.lineJoinStyle = .round
-            (inActive ? CategoryPalette.nsColor(for: .network) : NSColor.secondaryLabelColor.withAlphaComponent(0.35)).setStroke()
+            (inActive ? activeInColor : idleColor).setStroke()
             down.stroke()
 
             let up = NSBezierPath()
@@ -297,51 +395,70 @@ extension MenuBarIconRenderer {
             up.lineWidth = outActive ? 2.0 : 1.3
             up.lineCapStyle = .round
             up.lineJoinStyle = .round
-            (outActive ? NSColor(CategoryPalette.Series.networkUpload) : NSColor.secondaryLabelColor.withAlphaComponent(0.35)).setStroke()
+            (outActive ? activeOutColor : idleColor).setStroke()
             up.stroke()
 
             return true
         }
-        image.isTemplate = false
+        image.isTemplate = isTemplate
         return image
     }
 
-    /// Draws dynamic Disk Read / Write Activity LEDs (`R` and `W`) with signature colors.
-    public static func drawDiskActivityLeds(readActive rActive: Bool, writeActive wActive: Bool) -> NSImage {
+    /// Draws dynamic Disk Read / Write Activity LEDs (`R` and `W`) honoring appearance mode.
+    public static func drawDiskActivityLeds(
+        readActive rActive: Bool,
+        writeActive wActive: Bool,
+        colorRole: WidgetColorRole = .category
+    ) -> NSImage {
+        let isTemplate = (colorRole == .label)
+        let readColor: NSColor
+        let writeColor: NSColor
+        switch colorRole {
+        case .label:
+            readColor = .labelColor
+            writeColor = .labelColor
+        case .status(let level):
+            let s = CategoryPalette.statusNSColor(for: level)
+            readColor = s
+            writeColor = s
+        case .category:
+            readColor = CategoryPalette.nsColor(for: .disk)
+            writeColor = NSColor(CategoryPalette.Series.diskWrite)
+        }
 
         let size = NSSize(width: 20, height: 18)
-        let image = NSImage(size: size, flipped: false) { bounds in
+        let image = NSImage(size: size, flipped: false) { _ in
             let font = NSFont.systemFont(ofSize: 9.5, weight: .black)
 
-            let rBadge = NSBezierPath(roundedRect: NSRect(x: 1.0, y: 2.0, width: 8.5, height: 14.0), xRadius: 2.0, yRadius: 2.0)
-            if rActive {
-                CategoryPalette.nsColor(for: .disk).setFill()
-                rBadge.fill()
-                let attrs: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: NSColor.white]
-                ("R" as NSString).draw(at: NSPoint(x: 2.2, y: 3.0), withAttributes: attrs)
-            } else {
-                NSColor.secondaryLabelColor.withAlphaComponent(0.20).setFill()
-                rBadge.fill()
-                let attrs: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: NSColor.labelColor.withAlphaComponent(0.40)]
-                ("R" as NSString).draw(at: NSPoint(x: 2.2, y: 3.0), withAttributes: attrs)
+            let drawBadge: (NSRect, String, CGFloat, Bool, NSColor) -> Void = { rect, letter, textX, active, activeFill in
+                let badge = NSBezierPath(roundedRect: rect, xRadius: 2.0, yRadius: 2.0)
+                if active {
+                    activeFill.setFill()
+                    badge.fill()
+                    if isTemplate, let ctx = NSGraphicsContext.current?.cgContext {
+                        ctx.saveGState()
+                        ctx.setBlendMode(.clear)
+                        let attrs: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: NSColor.black]
+                        (letter as NSString).draw(at: NSPoint(x: textX, y: 3.0), withAttributes: attrs)
+                        ctx.restoreGState()
+                    } else {
+                        let attrs: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: NSColor.white]
+                        (letter as NSString).draw(at: NSPoint(x: textX, y: 3.0), withAttributes: attrs)
+                    }
+                } else {
+                    (isTemplate ? NSColor.labelColor.withAlphaComponent(0.22) : NSColor.secondaryLabelColor.withAlphaComponent(0.20)).setFill()
+                    badge.fill()
+                    let attrs: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: NSColor.labelColor.withAlphaComponent(0.45)]
+                    (letter as NSString).draw(at: NSPoint(x: textX, y: 3.0), withAttributes: attrs)
+                }
             }
 
-            let wBadge = NSBezierPath(roundedRect: NSRect(x: 10.5, y: 2.0, width: 8.5, height: 14.0), xRadius: 2.0, yRadius: 2.0)
-            if wActive {
-                NSColor(CategoryPalette.Series.diskWrite).setFill()
-                wBadge.fill()
-                let attrs: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: NSColor.white]
-                ("W" as NSString).draw(at: NSPoint(x: 11.0, y: 3.0), withAttributes: attrs)
-            } else {
-                NSColor.secondaryLabelColor.withAlphaComponent(0.20).setFill()
-                wBadge.fill()
-                let attrs: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: NSColor.labelColor.withAlphaComponent(0.40)]
-                ("W" as NSString).draw(at: NSPoint(x: 11.0, y: 3.0), withAttributes: attrs)
-            }
+            drawBadge(NSRect(x: 1.0, y: 2.0, width: 8.5, height: 14.0), "R", 2.2, rActive, readColor)
+            drawBadge(NSRect(x: 10.5, y: 2.0, width: 8.5, height: 14.0), "W", 11.0, wActive, writeColor)
 
             return true
         }
-        image.isTemplate = false
+        image.isTemplate = isTemplate
         return image
     }
 
@@ -477,24 +594,35 @@ struct GlyphWidget: WidgetRenderer {
                 fraction: model.flags.first == true ? model.fractions.first : nil,
                 formattedTemp: model.texts.first ?? "--°",
                 status: model.status,
-                minWidth: WidgetMetrics.width(model.widthClass)
+                minWidth: WidgetMetrics.width(model.widthClass),
+                colorRole: model.colorRole
             )
         case .fanGlyph:
             return MenuBarIconRenderer.drawFanGlyph(
                 text: model.texts.first ?? "--",
                 isFanless: model.flags.first == true,
-                status: model.status
+                status: model.status,
+                colorRole: model.colorRole
             )
         case .arrows:
-            return MenuBarIconRenderer.drawNetworkActivityArrows(inActive: model.flags[0], outActive: model.flags[1])
+            return MenuBarIconRenderer.drawNetworkActivityArrows(
+                inActive: model.flags[0],
+                outActive: model.flags[1],
+                colorRole: model.colorRole
+            )
         case .leds:
-            return MenuBarIconRenderer.drawDiskActivityLeds(readActive: model.flags[0], writeActive: model.flags[1])
+            return MenuBarIconRenderer.drawDiskActivityLeds(
+                readActive: model.flags[0],
+                writeActive: model.flags[1],
+                colorRole: model.colorRole
+            )
         default:
             return MenuBarIconRenderer.drawBatteryInstrument(
                 charge: model.flags.first == true ? Double(model.fractions.first ?? 0) : nil,
                 state: nil,
                 hasBattery: model.flags.count > 1 ? model.flags[1] : true,
-                variant: model.variant
+                variant: model.variant,
+                colorRole: model.colorRole
             )
         }
     }

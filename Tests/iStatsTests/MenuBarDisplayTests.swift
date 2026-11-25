@@ -8,8 +8,17 @@ import SwiftUI
 final class MenuBarDisplayTests: XCTestCase {
     // MARK: - ADR 0007 Modular Rendering & Controller Lifecycle Tests
 
-    private func widgetImage(_ category: MetricCategory, _ style: MetricDisplayStyle, _ snapshot: WidgetSnapshot = WidgetSnapshot()) -> NSImage {
-        let model = WidgetModel.make(config: MenuBarItemConfig(category: category, style: style), snapshot: snapshot, options: WidgetOptions())
+    private func widgetImage(
+        _ category: MetricCategory,
+        _ style: MetricDisplayStyle,
+        _ snapshot: WidgetSnapshot = WidgetSnapshot(),
+        appearance: MenuBarAppearance = .statusTint
+    ) -> NSImage {
+        let model = WidgetModel.make(
+            config: MenuBarItemConfig(category: category, style: style),
+            snapshot: snapshot,
+            options: WidgetOptions(appearance: appearance)
+        )
         return MenuBarIconRenderer.image(for: model)
     }
 
@@ -328,9 +337,13 @@ final class MenuBarDisplayTests: XCTestCase {
             disk: DiskSample(volumes: [VolumeCapacity(name: "HD", mountPoint: "/", total: 100, used: 72, free: 28)])
         )
         for category in [MetricCategory.memory, .gpu, .thermal, .fan, .disk] {
-            let bar = widgetImage(category, .bar, snap)
-            XCTAssertEqual(bar.size, NSSize(width: 25, height: 22), "\(category)")
-            XCTAssertFalse(bar.isTemplate, "\(category)")
+            let tintBar = widgetImage(category, .bar, snap, appearance: .statusTint)
+            XCTAssertEqual(tintBar.size, NSSize(width: 25, height: 22), "\(category)")
+            XCTAssertTrue(tintBar.isTemplate, "\(category) normal bar stays template under statusTint")
+
+            let colorBar = widgetImage(category, .bar, snap, appearance: .categoryColor)
+            XCTAssertEqual(colorBar.size, NSSize(width: 25, height: 22), "\(category)")
+            XCTAssertFalse(colorBar.isTemplate, "\(category) bar is colored under categoryColor")
         }
     }
 
@@ -502,7 +515,7 @@ final class MenuBarDisplayTests: XCTestCase {
 
     func testDiskLinearCapacityBar() {
         let disk = DiskSample(volumes: [VolumeCapacity(name: "HD", mountPoint: "/", total: 1000, used: 725, free: 275)])
-        let diskBar = widgetImage(.disk, .bar, WidgetSnapshot(disk: disk))
+        let diskBar = widgetImage(.disk, .bar, WidgetSnapshot(disk: disk), appearance: .categoryColor)
         XCTAssertEqual(diskBar.size.width, 25.0)
         XCTAssertEqual(diskBar.size.height, 22.0)
         XCTAssertFalse(diskBar.isTemplate)

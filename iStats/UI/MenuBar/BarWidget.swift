@@ -34,14 +34,22 @@ extension MenuBarIconRenderer {
         return image
     }
 
-    /// Draws authentic 3-segment Memory allocation bar (App: Blue, Wired: Red, Compressed: Gold)
-    /// with vertical "RAM" category label on the left.
-    public static func drawMemoryStackedBar(ratio: Int, app: Int, wired: Int, compressed: Int, hasSegments: Bool) -> NSImage {
+    /// Draws authentic 3-segment Memory allocation bar (App, Wired, Compressed)
+    /// with vertical "RAM" category label on the left. Honors `colorRole` for template/status/category modes.
+    public static func drawMemoryStackedBar(
+        ratio: Int,
+        app: Int,
+        wired: Int,
+        compressed: Int,
+        hasSegments: Bool,
+        colorRole: WidgetColorRole = .category
+    ) -> NSImage {
         let textWidth: CGFloat = 9.5
         let barWidth: CGFloat = 8.5
         let barHeight: CGFloat = 20.0
         let canvasWidth: CGFloat = 25.0
         let size = NSSize(width: canvasWidth, height: 22)
+        let isTemplate = (colorRole == .label)
 
         let image = NSImage(size: size, flipped: false) { bounds in
             let barY: CGFloat = (bounds.height - barHeight) / 2.0
@@ -68,12 +76,35 @@ extension MenuBarIconRenderer {
             NSGraphicsContext.saveGraphicsState()
             innerClipPath.addClip()
 
+            let appColor: NSColor
+            let wiredColor: NSColor
+            let compressedColor: NSColor
+            let fallbackColor: NSColor
+
+            switch colorRole {
+            case .label:
+                appColor = .labelColor
+                wiredColor = NSColor.labelColor.withAlphaComponent(0.65)
+                compressedColor = NSColor.labelColor.withAlphaComponent(0.38)
+                fallbackColor = .labelColor
+            case .status(let level):
+                let s = CategoryPalette.statusNSColor(for: level)
+                appColor = s
+                wiredColor = s.withAlphaComponent(0.75)
+                compressedColor = s.withAlphaComponent(0.45)
+                fallbackColor = s
+            case .category:
+                appColor = NSColor(CategoryPalette.Series.memoryApp)
+                wiredColor = NSColor(CategoryPalette.Series.memoryWired)
+                compressedColor = NSColor(CategoryPalette.Series.memoryCompressed)
+                fallbackColor = CategoryPalette.nsColor(for: .memory)
+            }
+
             if hasSegments {
-                // 3 segments only: App (Blue), Wired, Compressed
                 let segments: [(fraction: Double, color: NSColor)] = [
-                    (Double(app) / 100.0, NSColor(CategoryPalette.Series.memoryApp)),
-                    (Double(wired) / 100.0, NSColor(CategoryPalette.Series.memoryWired)),
-                    (Double(compressed) / 100.0, NSColor(CategoryPalette.Series.memoryCompressed))
+                    (Double(app) / 100.0, appColor),
+                    (Double(wired) / 100.0, wiredColor),
+                    (Double(compressed) / 100.0, compressedColor)
                 ]
 
                 var currentY = innerRect.minY
@@ -96,7 +127,7 @@ extension MenuBarIconRenderer {
                 if clamped > 0 {
                     let fillHeight = max(innerRect.height * CGFloat(clamped / 100.0), 2.0)
                     let fillRect = NSRect(x: innerRect.minX, y: innerRect.minY, width: innerRect.width, height: fillHeight)
-                    CategoryPalette.statusNSColor(for: .fine).setFill()
+                    fallbackColor.setFill()
                     fillRect.fill()
                 }
             }
@@ -104,7 +135,7 @@ extension MenuBarIconRenderer {
             NSGraphicsContext.restoreGraphicsState()
             return true
         }
-        image.isTemplate = false
+        image.isTemplate = isTemplate
         return image
     }
 
@@ -117,13 +148,18 @@ struct BarWidget: WidgetRenderer {
         let f = model.fractions
         if model.layout == .memoryAllocation {
             return MenuBarIconRenderer.drawMemoryStackedBar(
-                ratio: f[0], app: f[1], wired: f[2], compressed: f[3], hasSegments: model.flags.first == true
+                ratio: f[0],
+                app: f[1],
+                wired: f[2],
+                compressed: f[3],
+                hasSegments: model.flags.first == true,
+                colorRole: model.colorRole
             )
         }
         return MenuBarIconRenderer.drawSingleCapsuleBar(
             label: model.label ?? "",
             percentage: Double(f.first ?? 0),
-            barColor: WidgetColor.resolve(model.colorRole, category: model.category)
+            barColor: WidgetColor.optional(model.colorRole, category: model.category)
         )
     }
 }

@@ -9,16 +9,33 @@ extension MenuBarIconRenderer {
         return max(peak, floor)
     }
 
-    /// Draws mirrored duplex network history graph (Inbound indigo above midline, Outbound pink below midline).
+    /// Draws mirrored duplex network history graph (Inbound above midline, Outbound below midline).
     public static func drawNetworkSplitDuplexGraph(
         inHistory: [Double],
         outHistory: [Double],
-        label: String? = nil
+        label: String? = nil,
+        colorRole: WidgetColorRole = .category
     ) -> NSImage {
         let hasLabel = (label != nil && !label!.isEmpty)
         let canvasWidth: CGFloat = hasLabel ? 50.0 : 36.0
         let canvasHeight: CGFloat = hasLabel ? 22.0 : 16.0
         let size = NSSize(width: canvasWidth, height: canvasHeight)
+        let isTemplate = (colorRole == .label)
+
+        let inStroke: NSColor
+        let outStroke: NSColor
+        switch colorRole {
+        case .label:
+            inStroke = .labelColor
+            outStroke = NSColor.labelColor.withAlphaComponent(0.58)
+        case .status(let level):
+            let s = CategoryPalette.statusNSColor(for: level)
+            inStroke = s
+            outStroke = s.withAlphaComponent(0.68)
+        case .category:
+            inStroke = CategoryPalette.nsColor(for: .network)
+            outStroke = NSColor(CategoryPalette.Series.networkUpload)
+        }
 
         let image = NSImage(size: size, flipped: false) { bounds in
             let graphBounds: NSRect
@@ -37,7 +54,7 @@ extension MenuBarIconRenderer {
             centerLine.move(to: NSPoint(x: graphBounds.minX + 1.0, y: midY))
             centerLine.line(to: NSPoint(x: graphBounds.maxX - 1.0, y: midY))
             centerLine.lineWidth = 0.6
-            NSColor.secondaryLabelColor.withAlphaComponent(0.35).setStroke()
+            (isTemplate ? NSColor.labelColor.withAlphaComponent(0.35) : NSColor.secondaryLabelColor.withAlphaComponent(0.35)).setStroke()
             centerLine.stroke()
 
             let inMax = max(inHistory.max() ?? 1024.0, 1024.0)
@@ -46,7 +63,7 @@ extension MenuBarIconRenderer {
             let count = max(max(inHistory.count, outHistory.count), 2)
             let stepX = (graphBounds.width - 2.0) / CGFloat(count - 1)
 
-            // 1. Inbound (Download) - Waves scrolling above midline (System Indigo)
+            // 1. Inbound (Download) - Waves scrolling above midline
             if inHistory.count >= 2 {
                 let inFill = NSBezierPath()
                 let inLine = NSBezierPath()
@@ -69,16 +86,16 @@ extension MenuBarIconRenderer {
                 }
                 inFill.line(to: NSPoint(x: graphBounds.maxX - 1.0, y: midY))
                 inFill.close()
-                CategoryPalette.nsColor(for: .network).withAlphaComponent(0.28).setFill()
+                inStroke.withAlphaComponent(0.28).setFill()
                 inFill.fill()
 
                 inLine.lineWidth = 1.2
                 inLine.lineJoinStyle = .round
-                CategoryPalette.nsColor(for: .network).setStroke()
+                inStroke.setStroke()
                 inLine.stroke()
             }
 
-            // 2. Outbound (Upload) - Waves scrolling below midline (System Pink)
+            // 2. Outbound (Upload) - Waves scrolling below midline
             if outHistory.count >= 2 {
                 let outFill = NSBezierPath()
                 let outLine = NSBezierPath()
@@ -101,31 +118,48 @@ extension MenuBarIconRenderer {
                 }
                 outFill.line(to: NSPoint(x: graphBounds.maxX - 1.0, y: midY))
                 outFill.close()
-                NSColor(CategoryPalette.Series.networkUpload).withAlphaComponent(0.25).setFill()
+                outStroke.withAlphaComponent(0.25).setFill()
                 outFill.fill()
 
                 outLine.lineWidth = 1.2
                 outLine.lineJoinStyle = .round
-                NSColor(CategoryPalette.Series.networkUpload).setStroke()
+                outStroke.setStroke()
                 outLine.stroke()
             }
 
             return true
         }
-        image.isTemplate = false
+        image.isTemplate = isTemplate
         return image
     }
 
-    /// Draws mirrored duplex disk I/O history graph (Read teal above midline, Write orange below midline).
+    /// Draws mirrored duplex disk I/O history graph (Read above midline, Write below midline).
     public static func drawDiskSplitDuplexGraph(
         readHistory: [Double],
         writeHistory: [Double],
-        label: String? = nil
+        label: String? = nil,
+        colorRole: WidgetColorRole = .category
     ) -> NSImage {
         let hasLabel = (label != nil && !label!.isEmpty)
         let canvasWidth: CGFloat = hasLabel ? 50.0 : 36.0
         let canvasHeight: CGFloat = hasLabel ? 22.0 : 16.0
         let size = NSSize(width: canvasWidth, height: canvasHeight)
+        let isTemplate = (colorRole == .label)
+
+        let readStroke: NSColor
+        let writeStroke: NSColor
+        switch colorRole {
+        case .label:
+            readStroke = .labelColor
+            writeStroke = NSColor.labelColor.withAlphaComponent(0.58)
+        case .status(let level):
+            let s = CategoryPalette.statusNSColor(for: level)
+            readStroke = s
+            writeStroke = s.withAlphaComponent(0.68)
+        case .category:
+            readStroke = CategoryPalette.nsColor(for: .disk)
+            writeStroke = NSColor(CategoryPalette.Series.diskWrite)
+        }
 
         let image = NSImage(size: size, flipped: false) { bounds in
             let graphBounds: NSRect
@@ -143,7 +177,7 @@ extension MenuBarIconRenderer {
             centerLine.move(to: NSPoint(x: graphBounds.minX + 1.0, y: midY))
             centerLine.line(to: NSPoint(x: graphBounds.maxX - 1.0, y: midY))
             centerLine.lineWidth = 0.6
-            NSColor.secondaryLabelColor.withAlphaComponent(0.35).setStroke()
+            (isTemplate ? NSColor.labelColor.withAlphaComponent(0.35) : NSColor.secondaryLabelColor.withAlphaComponent(0.35)).setStroke()
             centerLine.stroke()
 
             let rMax = computeDecayMax(values: readHistory, floor: 1024.0 * 1024.0)
@@ -152,7 +186,7 @@ extension MenuBarIconRenderer {
             let count = max(max(readHistory.count, writeHistory.count), 2)
             let stepX = (graphBounds.width - 2.0) / CGFloat(count - 1)
 
-            // Read - Teal above midline
+            // Read above midline
             if readHistory.count >= 2 {
                 let rFill = NSBezierPath()
                 let rLine = NSBezierPath()
@@ -175,16 +209,16 @@ extension MenuBarIconRenderer {
                 }
                 rFill.line(to: NSPoint(x: graphBounds.maxX - 1.0, y: midY))
                 rFill.close()
-                CategoryPalette.nsColor(for: .disk).withAlphaComponent(0.28).setFill()
+                readStroke.withAlphaComponent(0.28).setFill()
                 rFill.fill()
 
                 rLine.lineWidth = 1.2
                 rLine.lineJoinStyle = .round
-                CategoryPalette.nsColor(for: .disk).setStroke()
+                readStroke.setStroke()
                 rLine.stroke()
             }
 
-            // Write - Orange below midline
+            // Write below midline
             if writeHistory.count >= 2 {
                 let wFill = NSBezierPath()
                 let wLine = NSBezierPath()
@@ -207,18 +241,18 @@ extension MenuBarIconRenderer {
                 }
                 wFill.line(to: NSPoint(x: graphBounds.maxX - 1.0, y: midY))
                 wFill.close()
-                NSColor(CategoryPalette.Series.diskWrite).withAlphaComponent(0.25).setFill()
+                writeStroke.withAlphaComponent(0.25).setFill()
                 wFill.fill()
 
                 wLine.lineWidth = 1.2
                 wLine.lineJoinStyle = .round
-                NSColor(CategoryPalette.Series.diskWrite).setStroke()
+                writeStroke.setStroke()
                 wLine.stroke()
             }
 
             return true
         }
-        image.isTemplate = false
+        image.isTemplate = isTemplate
         return image
     }
 
@@ -226,10 +260,34 @@ extension MenuBarIconRenderer {
         history: [Double],
         userHistory: [Double] = [],
         systemHistory: [Double] = [],
-        label: String? = nil
+        label: String? = nil,
+        colorRole: WidgetColorRole = .category
     ) -> NSImage {
+        let isTemplate = (colorRole == .label)
+        let userColor: NSColor
+        let sysColor: NSColor
+        switch colorRole {
+        case .label:
+            userColor = .labelColor
+            sysColor = NSColor.labelColor.withAlphaComponent(0.55)
+        case .status(let level):
+            let s = CategoryPalette.statusNSColor(for: level)
+            userColor = s
+            sysColor = s.withAlphaComponent(0.65)
+        case .category:
+            userColor = CategoryPalette.nsColor(for: .cpu)
+            sysColor = NSColor(CategoryPalette.Series.cpuSystem)
+        }
+
         guard userHistory.count == history.count && systemHistory.count == history.count && history.count >= 2 else {
-            return drawColoredSparkline(values: history, maxValue: 100.0, strokeColor: CategoryPalette.nsColor(for: .cpu), fillColor: CategoryPalette.nsColor(for: .cpu).withAlphaComponent(0.25), label: label)
+            return drawColoredSparkline(
+                values: history,
+                maxValue: 100.0,
+                strokeColor: userColor,
+                fillColor: userColor.withAlphaComponent(0.25),
+                label: label,
+                isTemplate: isTemplate
+            )
         }
 
         let hasLabel = (label != nil && !label!.isEmpty)
@@ -290,42 +348,43 @@ extension MenuBarIconRenderer {
 
             totalFill.line(to: NSPoint(x: lastTotalPt.x, y: innerBounds.minY))
             totalFill.close()
-            NSColor(CategoryPalette.Series.cpuSystem).withAlphaComponent(0.25).setFill()
+            sysColor.withAlphaComponent(0.25).setFill()
             totalFill.fill()
 
             userFill.line(to: NSPoint(x: lastUserPt.x, y: innerBounds.minY))
             userFill.close()
-            CategoryPalette.nsColor(for: .cpu).withAlphaComponent(0.35).setFill()
+            userColor.withAlphaComponent(0.35).setFill()
             userFill.fill()
 
             userLine.lineWidth = 1.2
             userLine.lineJoinStyle = .round
-            CategoryPalette.nsColor(for: .cpu).setStroke()
+            userColor.setStroke()
             userLine.stroke()
 
             totalLine.lineWidth = 1.2
             totalLine.lineJoinStyle = .round
-            NSColor(CategoryPalette.Series.cpuSystem).withAlphaComponent(0.70).setStroke()
+            sysColor.withAlphaComponent(0.70).setStroke()
             totalLine.stroke()
 
             let dotRect = NSRect(x: lastTotalPt.x - 1.4, y: lastTotalPt.y - 1.4, width: 2.8, height: 2.8)
             let dot = NSBezierPath(ovalIn: dotRect)
-            CategoryPalette.nsColor(for: .cpu).setFill()
+            userColor.setFill()
             dot.fill()
 
             return true
         }
-        image.isTemplate = false
+        image.isTemplate = isTemplate
         return image
     }
 
-    /// Draws a colored history sparkline chart with gradient area fill and glowing peak dot.
+    /// Draws a colored or template history sparkline chart with area fill and peak dot.
     public static func drawColoredSparkline(
         values: [Double],
         maxValue: Double,
         strokeColor: NSColor,
         fillColor: NSColor,
-        label: String? = nil
+        label: String? = nil,
+        isTemplate: Bool = false
     ) -> NSImage {
         let hasLabel = (label != nil && !label!.isEmpty)
         let canvasWidth: CGFloat = hasLabel ? 50.0 : 36.0
@@ -347,7 +406,7 @@ extension MenuBarIconRenderer {
                 path.move(to: NSPoint(x: sparkBounds.minX + 1.0, y: sparkBounds.minY + 2.0))
                 path.line(to: NSPoint(x: sparkBounds.maxX - 1.0, y: sparkBounds.minY + 2.0))
                 path.lineWidth = 1.0
-                NSColor.secondaryLabelColor.withAlphaComponent(0.35).setStroke()
+                (isTemplate ? NSColor.labelColor.withAlphaComponent(0.35) : NSColor.secondaryLabelColor.withAlphaComponent(0.35)).setStroke()
                 path.stroke()
                 return true
             }
@@ -396,7 +455,7 @@ extension MenuBarIconRenderer {
 
             return true
         }
-        image.isTemplate = false
+        image.isTemplate = isTemplate
         return image
     }
 
@@ -413,13 +472,24 @@ struct GraphWidget: WidgetRenderer {
                 history: series.primary,
                 userHistory: series.secondary,
                 systemHistory: series.tertiary,
-                label: model.label
+                label: model.label,
+                colorRole: model.colorRole
             )
         case .duplexGraph:
             if model.category == .network {
-                return MenuBarIconRenderer.drawNetworkSplitDuplexGraph(inHistory: series.primary, outHistory: series.secondary, label: model.label)
+                return MenuBarIconRenderer.drawNetworkSplitDuplexGraph(
+                    inHistory: series.primary,
+                    outHistory: series.secondary,
+                    label: model.label,
+                    colorRole: model.colorRole
+                )
             }
-            return MenuBarIconRenderer.drawDiskSplitDuplexGraph(readHistory: series.primary, writeHistory: series.secondary, label: model.label)
+            return MenuBarIconRenderer.drawDiskSplitDuplexGraph(
+                readHistory: series.primary,
+                writeHistory: series.secondary,
+                label: model.label,
+                colorRole: model.colorRole
+            )
         default:
             let color = WidgetColor.resolve(model.colorRole, category: model.category)
             return MenuBarIconRenderer.drawColoredSparkline(
@@ -427,7 +497,8 @@ struct GraphWidget: WidgetRenderer {
                 maxValue: series.primaryMax,
                 strokeColor: color,
                 fillColor: color.withAlphaComponent(0.25),
-                label: model.label
+                label: model.label,
+                isTemplate: model.prefersTemplate
             )
         }
     }

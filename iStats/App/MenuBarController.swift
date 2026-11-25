@@ -272,10 +272,11 @@ public final class MenuBarController: NSObject {
         }
         .store(in: &cancellables)
 
-        Publishers.Merge3(
+        Publishers.Merge4(
             preferences.$temperatureUnit.map { _ in () }.eraseToAnyPublisher(),
             preferences.$networkUnit.map { _ in () }.eraseToAnyPublisher(),
-            preferences.$byteUnitStandard.map { _ in () }.eraseToAnyPublisher()
+            preferences.$byteUnitStandard.map { _ in () }.eraseToAnyPublisher(),
+            preferences.$menuBarAppearance.map { _ in () }.eraseToAnyPublisher()
         )
         .receive(on: RunLoop.main)
         .sink { [weak self] _ in
@@ -506,30 +507,65 @@ public final class MenuBarController: NSObject {
         }
     }
 
-    /// Shows a standard macOS context menu on right-click.
-    private func showContextMenu(for button: NSStatusBarButton) {
-        let menu = NSMenu()
+    /// Notification posted after opening Preferences so Settings can deep-link to a section (cross-task contract).
+    public static let openSettingsSectionNotification = Notification.Name("iStats.openSettingsSection")
 
-        let titleItem = NSMenuItem(title: "iStats", action: nil, keyEquivalent: "")
-        titleItem.attributedTitle = NSAttributedString(string: "iStats", attributes: [.font: NSFont.boldSystemFont(ofSize: 13)])
-        menu.addItem(titleItem)
+    /// Notification posted when "Show Overview" is triggered from a status item context menu.
+    public static let showOverviewNotification = Notification.Name("iStats.showOverview")
+
+    /// Optional hook for presenting Overview from the context menu (e.g. destination-aware PanelController).
+    public var onShowOverview: ((NSStatusBarButton) -> Void)?
+
+    /// Builds the status item right-click context menu for `button` (Task 9.8).
+    public func makeContextMenu(for button: NSStatusBarButton) -> NSMenu {
+        let menu = NSMenu()
+        let rawId = button.identifier?.rawValue
+        let isFallback = (rawId == nil || rawId == Self.fallbackStatusItemId)
+        let category = rawId.flatMap { categoryForConfigId($0) }
+        let hasBattery = coordinator.latestPower?.value.hasBattery ?? true
+
+        let overviewItem = NSMenuItem(
+            title: "Show Overview",
+            action: #selector(showOverviewFromContextMenu(_:)),
+            keyEquivalent: ""
+        )
+        overviewItem.target = self
+        overviewItem.representedObject = button
+        menu.addItem(overviewItem)
+
+        let settingsTitle: String
+        if let category {
+            let name = category.identity.displayName(hasBattery: hasBattery)
+            settingsTitle = "Settings for \(name)…"
+        } else {
+            settingsTitle = "Settings…"
+        }
+        let settingsItem = NSMenuItem(
+            title: settingsTitle,
+            action: #selector(openCategorySettingsFromContextMenu(_:)),
+            keyEquivalent: ","
+        )
+        settingsItem.target = self
+        settingsItem.representedObject = category?.rawValue
+        menu.addItem(settingsItem)
+
+        if !isFallback, let itemId = rawId {
+            let hideItem = NSMenuItem(
+                title: "Hide This Widget",
+                action: #selector(hideWidgetFromContextMenu(_:)),
+                keyEquivalent: ""
+            )
+            hideItem.target = self
+            hideItem.representedObject = itemId
+            menu.addItem(hideItem)
+        }
+
         menu.addItem(NSMenuItem.separator())
 
-        let pauseTitle = preferences.isSamplingPaused
-            ? "Resume Sampling"
-            : "Pause Sampling (Save Battery)"
+        let pauseTitle = preferences.isSamplingPaused ? "Resume Sampling" : "Pause Sampling"
         let pauseItem = NSMenuItem(title: pauseTitle, action: #selector(toggleSamplingPaused), keyEquivalent: "")
         pauseItem.target = self
         menu.addItem(pauseItem)
-        menu.addItem(NSMenuItem.separator())
-
-        let prefItem = NSMenuItem(title: "Preferences...", action: #selector(openPreferences), keyEquivalent: ",")
-        prefItem.target = self
-        menu.addItem(prefItem)
-
-        let activityMonitorItem = NSMenuItem(title: "Open Activity Monitor", action: #selector(openActivityMonitor), keyEquivalent: "")
-        activityMonitorItem.target = self
-        menu.addItem(activityMonitorItem)
 
         menu.addItem(NSMenuItem.separator())
 
@@ -537,20 +573,51 @@ public final class MenuBarController: NSObject {
         quitItem.target = self
         menu.addItem(quitItem)
 
+        return menu
+    }
+
+    /// Shows a standard macOS context menu on right-click.
+    private func showContextMenu(for button: NSStatusBarButton) {
+        let menu = makeContextMenu(for: button)
         menu.popUp(positioning: nil, at: NSPoint(x: 0, y: button.bounds.height + 4), in: button)
+    }
+
+    @objc private func showOverviewFromContextMenu(_ sender: NSMenuItem) {
+        preferences.lastPanelDestination = .overview
+        guard let button = sender.representedObject as? NSStatusBarButton else {
+            NotificationCenter.default.post(name: Self.showOverviewNotification, object: nil)
+            return
+        }
+        if let onShowOverview {
+            onShowOverview(button)
+            return
+        }
+        NotificationCenter.default.post(name: Self.showOverviewNotification, object: button)
+        let rawId = button.identifier?.rawValue ?? Self.fallbackStatusItemId
+        let category = categoryForConfigId(rawId) ?? .cpu
+        showPanel(for: category, relativeTo: button)
+    }
+
+    @objc private func openCategorySettingsFromContextMenu(_ sender: NSMenuItem) {
+        PreferencesWindowController.shared.showPreferences()
+        if let sectionRaw = sender.representedObject as? String {
+            NotificationCenter.default.post(
+                name: Self.openSettingsSectionNotification,
+                object: nil,
+                userInfo: ["section": sectionRaw]
+            )
+        }
+    }
+
+    @objc private func hideWidgetFromContextMenu(_ sender: NSMenuItem) {
+        guard let itemId = sender.representedObject as? String else { return }
+        preferences.menuBarItems.removeAll { $0.id == itemId }
+        syncStatusItems()
     }
 
     @objc public func toggleSamplingPaused() {
         coordinator.toggleSamplingPaused()
         syncStatusItems()
-    }
-
-    @objc private func openPreferences() {
-        PreferencesWindowController.shared.showPreferences()
-    }
-
-    @objc private func openActivityMonitor() {
-        NSWorkspace.shared.open(URL(fileURLWithPath: "/System/Applications/Utilities/Activity Monitor.app"))
     }
 
     @objc private func quitApp() {

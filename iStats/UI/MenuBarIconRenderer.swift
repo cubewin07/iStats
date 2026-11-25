@@ -106,7 +106,8 @@ public struct MenuBarIconRenderer {
         WidgetOptions(
             temperatureUnit: preferences.temperatureUnit,
             networkUnit: preferences.networkUnit,
-            byteUnitStandard: preferences.byteUnitStandard
+            byteUnitStandard: preferences.byteUnitStandard,
+            appearance: preferences.menuBarAppearance
         )
     }
 
