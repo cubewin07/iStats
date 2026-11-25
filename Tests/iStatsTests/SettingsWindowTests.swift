@@ -181,33 +181,33 @@ final class SettingsWindowTests: XCTestCase {
     // MARK: - Alert Titles Contain No Emoji
 
     func testAlertTitlesContainNoEmoji() {
-        let cpu = AlertEvaluator.evaluateCPU(
+        let cpu = AlertMessageBuilder.evaluateCPU(
             sample: CPUSample(totalUsage: 95, perCore: [95], user: 80, system: 15, idle: 5),
             threshold: 90
         )
-        let memory = AlertEvaluator.evaluateMemory(
+        let memory = AlertMessageBuilder.evaluateMemory(
             sample: MemorySample(total: 100, used: 95, free: 5, wired: 20, compressed: 10, cached: 5, swapUsed: 0, pressure: .critical),
             threshold: 85,
             criticalPressureOnly: true
         )
-        let lowBattery = AlertEvaluator.evaluateBattery(
+        let lowBattery = AlertMessageBuilder.evaluateBattery(
             sample: PowerSample(hasBattery: true, charge: 10, state: .discharging),
             lowThreshold: 20,
             lowAlertEnabled: true,
             fullAlertEnabled: false
         )
-        let fullBattery = AlertEvaluator.evaluateBattery(
+        let fullBattery = AlertMessageBuilder.evaluateBattery(
             sample: PowerSample(hasBattery: true, charge: 100, state: .charging),
             lowThreshold: 20,
             lowAlertEnabled: false,
             fullAlertEnabled: true
         )
-        let thermal = AlertEvaluator.evaluateThermal(
+        let thermal = AlertMessageBuilder.evaluateThermal(
             sample: ThermalSample(sensors: [SensorReading(name: "CPU", celsius: 98)], pressure: .critical),
             thresholdCelsius: 90,
             unit: .celsius
         )
-        let disk = AlertEvaluator.evaluateDisk(
+        let disk = AlertMessageBuilder.evaluateDisk(
             sample: DiskSample(volumes: [VolumeCapacity(name: "Macintosh HD", mountPoint: "/", total: 100, used: 95, free: 5)]),
             threshold: 90
         )

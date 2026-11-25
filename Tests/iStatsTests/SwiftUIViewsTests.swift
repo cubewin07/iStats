@@ -156,11 +156,11 @@ final class SwiftUIViewsTests: XCTestCase {
         XCTAssertGreaterThan(fit.height, 300)
     }
 
-    func testPreferencesMenuBarPaneLayout() {
+    func testMenuBarSettingsViewLayout() {
         let (defaults, prefs, coord, suiteName) = makeContext()
         defer { cleanup(defaults: defaults, suiteName: suiteName) }
 
-        let pane = PreferencesMenuBarPane(store: prefs, coordinator: coord)
+        let pane = MenuBarSettingsView(store: prefs, coordinator: coord)
         let hosting = NSHostingView(rootView: pane)
         hosting.frame = CGRect(x: 0, y: 0, width: 700, height: 500)
         hosting.layoutSubtreeIfNeeded()
@@ -170,7 +170,7 @@ final class SwiftUIViewsTests: XCTestCase {
         XCTAssertGreaterThan(fit.height, 50)
     }
 
-    func testPreferencesMenuBarPaneWithMultiSourceThermalAndFanlessState() {
+    func testMenuBarSettingsViewWithMultiSourceThermalAndFanlessState() {
         let (defaults, prefs, coord, suiteName) = makeContext()
         defer { cleanup(defaults: defaults, suiteName: suiteName) }
 
@@ -189,7 +189,7 @@ final class SwiftUIViewsTests: XCTestCase {
             SensorReading(name: "GPU MESA", celsius: 52.0)
         ], pressure: .nominal))))
 
-        let pane = PreferencesMenuBarPane(store: prefs, coordinator: coord)
+        let pane = MenuBarSettingsView(store: prefs, coordinator: coord)
         let hosting = NSHostingView(rootView: pane)
         hosting.frame = CGRect(x: 0, y: 0, width: 700, height: 500)
         hosting.layoutSubtreeIfNeeded()
@@ -217,11 +217,11 @@ final class SwiftUIViewsTests: XCTestCase {
         XCTAssertGreaterThan(fit.height, 50)
     }
 
-    func testPreferencesAlertsPaneLayout() {
+    func testAlertsSettingsViewLayout() {
         let (defaults, prefs, coord, suiteName) = makeContext()
         defer { cleanup(defaults: defaults, suiteName: suiteName) }
 
-        let pane = PreferencesAlertsPane(store: prefs, coordinator: coord)
+        let pane = AlertsSettingsView(store: prefs, coordinator: coord, embedded: false)
         let hosting = NSHostingView(rootView: pane)
         hosting.frame = CGRect(x: 0, y: 0, width: 600, height: 500)
         hosting.layoutSubtreeIfNeeded()

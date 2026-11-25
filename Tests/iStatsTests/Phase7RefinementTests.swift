@@ -120,7 +120,7 @@ final class Phase7RefinementTests: XCTestCase {
         XCTAssertEqual(prefs.menuBarItems.count, 1)
         XCTAssertEqual(prefs.menuBarItems[0].source, .peak)
 
-        // Resolve default config as PreferencesMenuBarPane does
+        // Resolve default config as CategorySettingsView does
         let resolvedConfig = prefs.menuBarItems[0].resolvedPopoverConfig
         XCTAssertEqual(resolvedConfig.openingTab, .overview)
 

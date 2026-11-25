@@ -24,6 +24,7 @@ public struct NetworkPanel: View {
             let networkUnit: Units.NetworkUnit
             let byteUnitStandard: Units.ByteUnitStandard
             let refreshInterval: TimeInterval
+            let networkInterfaceSelection: String?
         }
 
         var key: Key?
@@ -57,7 +58,15 @@ public struct NetworkPanel: View {
         latestSample?.value
     }
 
+    private func selectedInterface(in net: NetworkSample?) -> InterfaceThroughput? {
+        guard let selected = preferences.networkInterfaceSelection, let net else { return nil }
+        return net.interfaces.first(where: { $0.interfaceName == selected })
+    }
+
     private func primaryInterfaceName(in net: NetworkSample) -> String? {
+        if let selected = selectedInterface(in: net) {
+            return selected.interfaceName
+        }
         if let explicit = net.primaryInterface {
             return explicit
         }
@@ -153,7 +162,8 @@ public struct NetworkPanel: View {
             sample: latest?.value,
             networkUnit: preferences.networkUnit,
             byteUnitStandard: preferences.byteUnitStandard,
-            refreshInterval: preferences.refreshInterval
+            refreshInterval: preferences.refreshInterval,
+            networkInterfaceSelection: preferences.networkInterfaceSelection
         )
         if memoCache.key == key, let cachedGlance = memoCache.glance {
             return (cachedGlance, memoCache.status, memoCache.ribbon)
@@ -170,8 +180,9 @@ public struct NetworkPanel: View {
 
     internal func deriveGlance(latest: Sample<NetworkSample>?) -> PanelGlance {
         let currentSample = latest?.value
-        let downBytes = currentSample?.totalBytesInPerSec ?? 0.0
-        let upBytes = currentSample?.totalBytesOutPerSec ?? 0.0
+        let chosen = selectedInterface(in: currentSample)
+        let downBytes = chosen?.bytesInPerSec ?? currentSample?.totalBytesInPerSec ?? 0.0
+        let upBytes = chosen?.bytesOutPerSec ?? currentSample?.totalBytesOutPerSec ?? 0.0
         let unit = preferences.networkUnit
         let std = preferences.byteUnitStandard
 
@@ -273,8 +284,9 @@ public struct NetworkPanel: View {
     @ViewBuilder
     private func activeLinkSection(net: NetworkSample, standard: Units.ByteUnitStandard) -> some View {
         let health = NetworkConnectionEvaluator.fallbackHealth(for: net)
+        let customIface = selectedInterface(in: net)
         let primaryName = primaryInterfaceName(in: net)
-        let primaryType = net.primaryType
+        let primaryType = (customIface?.type ?? net.primaryType)
             ?? net.interfaces.first(where: { $0.interfaceName == primaryName })?.type
             ?? (net.wifiDetails != nil ? .wifi : .other)
         let displayName = primaryName.map { "\(primaryType.displayName) (\($0))" } ?? "Offline"
@@ -282,11 +294,15 @@ public struct NetworkPanel: View {
         let linkSymbol = primaryName == nil || health.status == .disconnected
             ? "network.slash"
             : CategoryIdentity(.network).liveSymbol(LiveSymbolState(connectionType: primaryType))
+        let showWiFi = (customIface == nil || customIface?.type == .wifi) ? net.wifiDetails : nil
+        let ipAddress = customIface?.ipv4Address ?? net.localIPv4
+        let totalDown = customIface?.totalBytesIn ?? net.totalBytesIn
+        let totalUp = customIface?.totalBytesOut ?? net.totalBytesOut
 
         Section(
             "Active Link",
             trailing: {
-                if let wifi = net.wifiDetails {
+                if let wifi = showWiFi {
                     HStack(spacing: Instrument.Space.s) {
                         Text(wifi.ssid ?? "Wi-Fi")
                             .font(Instrument.Typography.caption)
@@ -319,7 +335,7 @@ public struct NetworkPanel: View {
                                 .font(Instrument.Typography.caption)
                                 .foregroundColor(pillTextColor)
                                 .lineLimit(1)
-                        } else if let wifi = net.wifiDetails {
+                        } else if let wifi = showWiFi {
                             let channelText = wifi.channel.map { "Ch \($0)" }
                             let bandDetail = [wifi.band, channelText].compactMap { $0 }.joined(separator: " · ")
                             if !bandDetail.isEmpty {
@@ -334,7 +350,7 @@ public struct NetworkPanel: View {
                 }
 
                 // Local IPv4 (copyable hairline row)
-                if let ip = net.localIPv4 {
+                if let ip = ipAddress {
                     MetricRow(
                         label: "Local IPv4",
                         valueText: ip,
@@ -351,7 +367,7 @@ public struct NetworkPanel: View {
                 HStack(spacing: Instrument.Space.m) {
                     sessionTotalCell(
                         label: "↓ Total",
-                        bytesText: Units.formatBytes(net.totalBytesIn, standard: standard),
+                        bytesText: Units.formatBytes(totalDown, standard: standard),
                         color: CategoryPalette.tint(for: .network)
                     )
 
@@ -361,7 +377,7 @@ public struct NetworkPanel: View {
 
                     sessionTotalCell(
                         label: "↑ Total",
-                        bytesText: Units.formatBytes(net.totalBytesOut, standard: standard),
+                        bytesText: Units.formatBytes(totalUp, standard: standard),
                         color: CategoryPalette.Series.networkUpload
                     )
                 }

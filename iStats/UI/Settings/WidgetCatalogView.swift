@@ -119,12 +119,33 @@ public struct WidgetCatalogView: View {
         }
     }
 
+    private var throughputLayoutBinding: Binding<ThroughputLayout> {
+        Binding(
+            get: {
+                store.item(category: category, style: .throughput)?.throughputLayout ?? selectedThroughputLayout
+            },
+            set: { newLayout in
+                selectedThroughputLayout = newLayout
+                if let existing = store.item(category: category, style: .throughput) {
+                    store.setItemEnabled(
+                        category: category,
+                        style: .throughput,
+                        source: existing.source,
+                        throughputLayout: newLayout,
+                        showLabel: existing.showLabel,
+                        isEnabled: true
+                    )
+                }
+            }
+        )
+    }
+
     private var throughputLayoutPicker: some View {
         HStack(spacing: Instrument.Space.m) {
             Text("Dual Layout")
                 .font(Instrument.Typography.captionMedium)
                 .foregroundStyle(.secondary)
-            Picker("Dual Layout", selection: $selectedThroughputLayout) {
+            Picker("Dual Layout", selection: throughputLayoutBinding) {
                 ForEach(ThroughputLayout.allCases) { layout in
                     Text(layout.displayName).tag(layout)
                 }
@@ -155,12 +176,22 @@ public struct WidgetCatalogView: View {
 
         return VStack(alignment: .leading, spacing: Instrument.Space.m) {
             HStack(alignment: .center, spacing: Instrument.Space.m) {
-                WidgetPreview(
-                    config: config,
-                    snapshot: snapshot,
-                    options: widgetOptions,
-                    scale: 2.0
-                )
+                HStack(spacing: Instrument.Space.xs) {
+                    WidgetPreview(
+                        config: config,
+                        snapshot: snapshot,
+                        options: widgetOptions,
+                        scale: 2.0,
+                        colorScheme: .light
+                    )
+                    WidgetPreview(
+                        config: config,
+                        snapshot: snapshot,
+                        options: widgetOptions,
+                        scale: 2.0,
+                        colorScheme: .dark
+                    )
+                }
 
                 Spacer(minLength: Instrument.Space.xs)
 

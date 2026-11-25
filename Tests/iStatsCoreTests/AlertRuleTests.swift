@@ -55,7 +55,7 @@ final class AlertRuleTests: XCTestCase {
         // Nothing set: factory defaults, disabled, 300s cooldown.
         XCTAssertEqual(PreferencesMigration.legacyAlertRules(defaults), AlertRule.defaults)
 
-        let keys = PreferencesStore.LegacyAlertKeys.self
+        let keys = PreferencesMigration.LegacyAlertKeys.self
         defaults.set(true, forKey: keys.cpuEnabled)
         defaults.set(75.0, forKey: keys.cpuThreshold)
         defaults.set(true, forKey: keys.batteryLowEnabled)

@@ -75,9 +75,9 @@ public struct SettingsView: View {
         case .appearance:
             AppearanceSettingsPage(store: store, hasBattery: hasBattery)
         case .menuBar:
-            PreferencesMenuBarPane(store: store, coordinator: coordinator)
+            MenuBarSettingsView(store: store, coordinator: coordinator)
         case .category(let category):
-            CategorySettingsPage(category: category, store: store, coordinator: coordinator, hasBattery: hasBattery)
+            CategorySettingsView(category: category, store: store, coordinator: coordinator, hasBattery: hasBattery)
         case .notifications:
             NotificationsSettingsPage(store: store, coordinator: coordinator)
         case .about:
