@@ -3,7 +3,7 @@ import AppKit
 import iStatsCore
 
 /// Dedicated Network Instrument Panel (Task 8.5.8f / B8, B11, B14 / ADR 0010).
-/// Features an 84 pt independent-scale mirrored LiveChart, consolidated Active Link + Routing & DNS
+/// Features a standard-height independent-scale mirrored LiveChart, consolidated Active Link + Routing & DNS
 /// sections on Now (<= 2 sections), and ranked Network Interfaces + Wi-Fi Radio Telemetry on Details.
 public struct NetworkPanel: View {
     public let initialTab: PopoverTab
@@ -210,7 +210,7 @@ public struct NetworkPanel: View {
             headline: headline,
             insight: insight,
             chartMode: chartMode,
-            chartHeight: 84,
+            chartHeight: Instrument.Size.chartHeightStandard,
             scrubFormat: { Units.formatNetworkRate($0, unit: unit, standard: std) }
         )
     }
@@ -285,7 +285,7 @@ public struct NetworkPanel: View {
             "Active Link",
             trailing: {
                 if let wifi = net.wifiDetails {
-                    HStack(spacing: 6) {
+                    HStack(spacing: Instrument.Space.s) {
                         Text(wifi.ssid ?? "Wi-Fi")
                             .font(Instrument.Typography.caption)
                             .foregroundStyle(.secondary)
@@ -303,7 +303,7 @@ public struct NetworkPanel: View {
                 // Interface identity row
                 HStack(alignment: .center, spacing: Instrument.Space.s) {
                     Image(systemName: primaryName == nil || health.status == .disconnected ? "network.slash" : primaryType.iconName)
-                        .font(.system(size: 13, weight: .medium))
+                        .font(Instrument.Typography.icon(Instrument.Icon.medium, weight: .medium))
                         .foregroundColor(primaryName == nil ? .secondary : (health.status == .connected ? CategoryPalette.tint(for: .network) : pillTextColor))
                         .frame(width: 18)
 
@@ -330,7 +330,7 @@ public struct NetworkPanel: View {
 
                     Spacer()
 
-                    HStack(spacing: 4) {
+                    HStack(spacing: Instrument.Space.xs) {
                         Circle()
                             .fill(pillDotColor)
                             .frame(width: 6, height: 6)
@@ -339,7 +339,7 @@ public struct NetworkPanel: View {
                             .foregroundColor(pillTextColor)
                     }
                     .padding(.horizontal, 7)
-                    .padding(.vertical, 2)
+                    .padding(.vertical, Instrument.Space.xxs)
                     .background(
                         Capsule(style: .continuous)
                             .fill(pillDotColor.opacity(0.14))
@@ -378,20 +378,20 @@ public struct NetworkPanel: View {
                         color: CategoryPalette.Series.networkUpload
                     )
                 }
-                .padding(.top, 2)
+                .padding(.top, Instrument.Space.xxs)
             }
         }
     }
 
     @ViewBuilder
     private func sessionTotalCell(label: String, bytesText: String, color: Color) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
+        VStack(alignment: .leading, spacing: Instrument.Space.xxs) {
             Text(label)
                 .font(Instrument.Typography.caption)
                 .foregroundColor(color)
 
             Text(bytesText)
-                .font(.system(size: 15, weight: .medium).monospacedDigit())
+                .font(Instrument.Typography.titleNumeric)
                 .foregroundColor(.primary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.85)
@@ -463,7 +463,7 @@ public struct NetworkPanel: View {
                                     Text(showAllInterfaces ? "Show active only" : "Show all (\(net.interfaces.count))")
                                         .font(Instrument.Typography.caption)
                                     Image(systemName: showAllInterfaces ? "chevron.up" : "chevron.down")
-                                        .font(.system(size: 8))
+                                        .font(Instrument.Typography.icon(Instrument.Icon.small))
                                 }
                                 .foregroundStyle(.secondary)
                             }
@@ -522,7 +522,7 @@ public struct NetworkPanel: View {
                 .frame(width: 6, height: 6)
 
             Image(systemName: iface.type.iconName)
-                .font(.system(size: 11, weight: .medium))
+                .font(Instrument.Typography.icon(Instrument.Icon.regular, weight: .medium))
                 .foregroundColor(isActive ? CategoryPalette.tint(for: .network) : .secondary)
                 .frame(width: 14)
 
@@ -538,7 +538,7 @@ public struct NetworkPanel: View {
 
             Spacer()
 
-            HStack(spacing: 8) {
+            HStack(spacing: Instrument.Space.m) {
                 Text("↓ \(Units.formatCompactRate(iface.bytesInPerSec, unit: unit, standard: standard))")
                     .font(Instrument.Typography.value)
                     .foregroundColor(CategoryPalette.tint(for: .network))

@@ -113,7 +113,7 @@ public struct NoWidgetsActiveView: View {
     public var body: some View {
         VStack(spacing: Instrument.Space.l) {
             Image(systemName: "menubar.rectangle")
-                .font(.system(size: 28))
+                .font(Instrument.Typography.icon(Instrument.Icon.hero))
                 .foregroundColor(.secondary)
 
             VStack(spacing: Instrument.Space.xs) {
@@ -597,7 +597,7 @@ public struct InstrumentGalleryPreview: View {
         return HStack(spacing: Instrument.Space.l) {
             VStack(alignment: .leading, spacing: Instrument.Space.xs) {
                 Text("Motion Lab (\(selectedMotionPolicy.rawValue))")
-                    .font(Instrument.Typography.sectionTitle)
+                    .font(Instrument.Typography.captionStrong)
                     .foregroundStyle(.secondary)
                 HStack(spacing: Instrument.Space.l) {
                     LiveNumber(

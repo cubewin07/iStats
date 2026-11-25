@@ -105,4 +105,30 @@ final class StatusThresholdsTests: XCTestCase {
         // Power deficit
         XCTAssertEqual(StatusThresholds.battery(chargePercent: 80.0, isCharging: true, powerDeficitWatts: 15.0), .warning)
     }
+
+    func testCPUPanelTables() {
+        XCTAssertEqual(StatusThresholds.cpuCore(usagePercent: 74.9), .fine)
+        XCTAssertEqual(StatusThresholds.cpuCore(usagePercent: 75.0), .elevated)
+        XCTAssertEqual(StatusThresholds.cpuCore(usagePercent: 90.0), .critical)
+        XCTAssertEqual(StatusThresholds.cpuLoad(oneMinute: 8.0, coreCount: 8), .fine)
+        XCTAssertEqual(StatusThresholds.cpuLoad(oneMinute: 8.1, coreCount: 8), .elevated)
+        XCTAssertEqual(StatusThresholds.cpuLoad(oneMinute: 12.0, coreCount: 8), .elevated)
+        XCTAssertEqual(StatusThresholds.cpuLoad(oneMinute: 12.1, coreCount: 8), .warning)
+        XCTAssertEqual(StatusThresholds.cpuLoad(oneMinute: 50, coreCount: 0), .fine)
+        XCTAssertEqual(StatusThresholds.cpuPanel(usagePercent: 95, loadOneMinute: 20, coreCount: 8), .critical)
+        XCTAssertEqual(StatusThresholds.cpuPanel(usagePercent: 80, loadOneMinute: 20, coreCount: 8), .elevated)
+        XCTAssertEqual(StatusThresholds.cpuPanel(usagePercent: 10, loadOneMinute: 20, coreCount: 8), .warning)
+        XCTAssertEqual(StatusThresholds.cpuPanel(usagePercent: 10, loadOneMinute: 9, coreCount: 8), .fine)
+        XCTAssertEqual(StatusThresholds.cpuPanel(usagePercent: 10, loadOneMinute: nil, coreCount: 8), .fine)
+    }
+
+    func testGPUPanelTables() {
+        XCTAssertEqual(StatusThresholds.gpuPanel(utilizationPercent: 79.9), .fine)
+        XCTAssertEqual(StatusThresholds.gpuPanel(utilizationPercent: 80), .elevated)
+        XCTAssertEqual(StatusThresholds.gpuPanel(utilizationPercent: 95), .critical)
+        XCTAssertEqual(StatusThresholds.gpuPanel(utilizationPercent: 5, recoveryCount: 1), .warning)
+        XCTAssertEqual(StatusThresholds.gpuMemory(allocatedRatio: 0.75), .fine)
+        XCTAssertEqual(StatusThresholds.gpuMemory(allocatedRatio: 0.76), .elevated)
+        XCTAssertEqual(StatusThresholds.gpuMemory(allocatedRatio: 0.91), .critical)
+    }
 }

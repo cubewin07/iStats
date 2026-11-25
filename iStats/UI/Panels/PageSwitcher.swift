@@ -39,7 +39,6 @@ public struct PageSwitcher: View {
         SegmentedControl(
             options: pages,
             selection: $selection,
-            fontSize: 11,
             horizontalPadding: 6,
             verticalPadding: 3,
             accessibilityLabel: { page in

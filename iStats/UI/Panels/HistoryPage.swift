@@ -109,7 +109,7 @@ public struct HistoryPage: View {
 
         VStack(spacing: Instrument.Space.l) {
             // Top Controls Bar (Unified FilterChips + SegmentedControl)
-            HStack(spacing: 8) {
+            HStack(spacing: Instrument.Space.m) {
                 leadingChips(seriesData: seriesData)
                 Spacer(minLength: 4)
                 rangeControl
@@ -122,14 +122,14 @@ public struct HistoryPage: View {
                     title: "Passive Cooling",
                     reason: "Fanless system — no cooling telemetry to record."
                 )
-                .frame(height: Instrument.Size.historyChartHeight)
+                .frame(height: Instrument.Size.chartHeightTall)
             } else if !hasSufficientData {
                 InsetEmptyState(
                     systemImage: "waveform.path.ecg",
                     title: "Collecting History",
                     reason: "History fills while iStats runs (in-memory only)."
                 )
-                .frame(height: Instrument.Size.historyChartHeight)
+                .frame(height: Instrument.Size.chartHeightTall)
             } else {
                 VStack(spacing: 0) {
                     chartContainer(
@@ -138,7 +138,7 @@ public struct HistoryPage: View {
                         showAverageLine: showAverageLine,
                         showPeakMarker: showPeakMarker
                     )
-                    .frame(height: Instrument.Size.historyChartHeight)
+                    .frame(height: Instrument.Size.chartHeightTall)
 
                     timeAxis
                 }
@@ -155,7 +155,7 @@ public struct HistoryPage: View {
                 )
             }
         }
-        .padding(.vertical, 2)
+        .padding(.vertical, Instrument.Space.xxs)
         .onChange(of: resolvedPinnedIndex) { newIdx in
             if newIdx == nil && pinnedScrub != nil {
                 pinnedScrub = nil
@@ -197,14 +197,13 @@ public struct HistoryPage: View {
     private func leadingChips(seriesData: SeriesData) -> some View {
         if category == .thermal {
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 4) {
+                HStack(spacing: Instrument.Space.xs) {
                     ForEach(availableThermalSources, id: \.self) { src in
                         let isSelected = (selectedThermalSource == src)
                         FilterChip(
                             title: src.shortLabel,
                             isSelected: isSelected,
-                            tint: CategoryPalette.tint(for: .thermal),
-                            fontSize: 10.5
+                            tint: CategoryPalette.tint(for: .thermal)
                         ) {
                             selectedThermalSource = src
                             if selectedRange != .oneMinute && src != .peak {
@@ -217,13 +216,12 @@ public struct HistoryPage: View {
                 }
             }
         } else if category == .power && hasBattery {
-            HStack(spacing: 6) {
+            HStack(spacing: Instrument.Space.s) {
                 ForEach(PowerSeriesFilter.allCases, id: \.self) { filter in
                     FilterChip(
                         title: filter.rawValue,
                         isSelected: selectedPowerSeries == filter,
-                        tint: CategoryPalette.tint(for: .power),
-                        fontSize: 10.5
+                        tint: CategoryPalette.tint(for: .power)
                     ) {
                         selectedPowerSeries = filter
                         clearScrubState()
@@ -232,7 +230,7 @@ public struct HistoryPage: View {
             }
         } else if let chA = seriesData.channelA, let chB = seriesData.channelB,
                   let colA = seriesData.channelAColor, let colB = seriesData.channelBColor {
-            HStack(spacing: 6) {
+            HStack(spacing: Instrument.Space.s) {
                 channelChip(label: chA, color: colA, channelIndex: 0)
                 channelChip(label: chB, color: colB, channelIndex: 1)
             }
@@ -256,8 +254,7 @@ public struct HistoryPage: View {
             isSelected: isSelected,
             isDimmed: isDimmed,
             dotColor: color,
-            tint: color,
-            fontSize: 10.5
+            tint: color
         ) {
             if isolatedChannel == channelIndex {
                 isolatedChannel = nil
@@ -287,7 +284,6 @@ public struct HistoryPage: View {
         return SegmentedControl(
             options: HistoryTimeRange.allCases,
             selection: selectionBinding,
-            fontSize: 10.5,
             horizontalPadding: 7,
             verticalPadding: 3,
             accessibilityLabel: { range in
@@ -313,7 +309,7 @@ public struct HistoryPage: View {
         LiveChart(
             category: category,
             mode: seriesData.mode,
-            height: Instrument.Size.historyChartHeight,
+            height: Instrument.Size.chartHeightTall,
             sampleIntervalSeconds: seriesData.sampleInterval,
             windowDuration: selectedRange.durationSeconds,
             showAverageLine: showAverageLine,
@@ -346,7 +342,7 @@ public struct HistoryPage: View {
             ZStack(alignment: .leading) {
                 ForEach(Array(ticks.enumerated()), id: \.offset) { idx, tick in
                     let label = Text(tick.label)
-                        .font(.system(size: 9.5, weight: .regular).monospacedDigit())
+                        .font(Instrument.Typography.micro)
                         .foregroundStyle(.tertiary)
                         .lineLimit(1)
                         .fixedSize()
@@ -379,7 +375,7 @@ public struct HistoryPage: View {
     ) -> some View {
         let targets = Self.statTargets(stats: stats, seriesData: seriesData)
 
-        return HStack(spacing: 6) {
+        return HStack(spacing: Instrument.Space.s) {
             statCell(
                 kind: .min,
                 label: StatCellKind.min.rawValue,
@@ -410,7 +406,7 @@ public struct HistoryPage: View {
                 isScrubDisplay: isScrubbing
             )
         }
-        .padding(.top, 2)
+        .padding(.top, Instrument.Space.xxs)
     }
 
     private func statCell(

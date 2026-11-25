@@ -45,7 +45,7 @@ public struct SignalBarsView: View {
 #if DEBUG
 struct SignalBarsView_Previews: PreviewProvider {
     static var previews: some View {
-        HStack(spacing: 16) {
+        HStack(spacing: Instrument.Space.xl) {
             SignalBarsView(signalPercent: 95)
             SignalBarsView(signalPercent: 65)
             SignalBarsView(signalPercent: 35)

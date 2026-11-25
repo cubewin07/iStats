@@ -26,9 +26,10 @@ public struct BatteryGlyph: View {
     }
 
     private var fillColor: Color {
-        if statusLevel == .critical || (charge != nil && charge! <= 10.0) {
+        let chargeLevel = charge.map { StatusThresholds.battery(chargePercent: $0, isCharging: false) } ?? .fine
+        if statusLevel == .critical || chargeLevel == .critical {
             return .red
-        } else if statusLevel == .warning || (charge != nil && charge! <= 20.0) {
+        } else if statusLevel == .warning || chargeLevel == .warning {
             return .orange
         } else {
             return CategoryPalette.color(for: .power)
@@ -40,10 +41,10 @@ public struct BatteryGlyph: View {
             // Main battery body: 80×40 pt
             ZStack(alignment: .leading) {
                 // Outline border
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                RoundedRectangle(cornerRadius: Instrument.Radius.control, style: .continuous)
                     .stroke(Color.secondary.opacity(0.35), lineWidth: 2)
                     .background(
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        RoundedRectangle(cornerRadius: Instrument.Radius.control, style: .continuous)
                             .fill(Color.primary.opacity(0.04))
                     )
 
@@ -52,7 +53,7 @@ public struct BatteryGlyph: View {
                 let fillWidth = max(4.0, availableWidth * fillFraction)
 
                 ZStack(alignment: .leading) {
-                    RoundedRectangle(cornerRadius: 5, style: .continuous)
+                    RoundedRectangle(cornerRadius: Instrument.Radius.chip, style: .continuous)
                         .fill(
                             LinearGradient(
                                 colors: [fillColor, fillColor.opacity(0.85)],
@@ -76,7 +77,7 @@ public struct BatteryGlyph: View {
                         .frame(width: 28, height: 40 - 6)
                         .offset(x: shimmerPhase * (fillWidth + 28) - 14)
                         .mask(
-                            RoundedRectangle(cornerRadius: 5, style: .continuous)
+                            RoundedRectangle(cornerRadius: Instrument.Radius.chip, style: .continuous)
                                 .frame(width: fillWidth, height: 40 - 6)
                         )
                     }
@@ -88,7 +89,7 @@ public struct BatteryGlyph: View {
                     Spacer()
                     if isCharging {
                         Image(systemName: "bolt.fill")
-                            .font(.system(size: 14, weight: .bold))
+                            .font(Instrument.Typography.icon(14, weight: .bold))
                             .foregroundColor((charge ?? 0) > 45 ? .white : .primary)
                             .shadow(color: (charge ?? 0) > 45 ? Color.black.opacity(0.4) : Color.clear, radius: 1, x: 0, y: 1)
                     } else if let c = charge {
@@ -143,7 +144,7 @@ public struct BatteryGlyph: View {
 #if DEBUG
 struct BatteryGlyph_Previews: PreviewProvider {
     static var previews: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: Instrument.Space.xl) {
             BatteryGlyph(charge: 85, isCharging: true)
             BatteryGlyph(charge: 54, isCharging: false)
             BatteryGlyph(charge: 18, isCharging: false, statusLevel: .warning)

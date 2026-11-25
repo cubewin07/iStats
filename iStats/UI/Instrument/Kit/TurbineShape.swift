@@ -163,7 +163,7 @@ public struct TurbineView: View {
 #if DEBUG
 struct TurbineView_Previews: PreviewProvider {
     static var previews: some View {
-        HStack(spacing: 24) {
+        HStack(spacing: Instrument.Space.xxxl) {
             TurbineView(rpm: 1200, minRPM: 1200, maxRPM: 6000)
             TurbineView(rpm: 4500, minRPM: 1200, maxRPM: 6000)
             TurbineView(rpm: 0, minRPM: 1200, maxRPM: 6000)

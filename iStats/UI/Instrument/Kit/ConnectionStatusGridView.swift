@@ -92,7 +92,7 @@ public struct ConnectionStatusGridView: View {
         ) {
             VStack(alignment: .leading, spacing: Instrument.Space.m) {
                 // Diagnostic summary line (or hovered cell detail)
-                HStack(spacing: 6) {
+                HStack(spacing: Instrument.Space.s) {
                     Text(hoveredPoint?.reason ?? health.reason)
                         .font(Instrument.Typography.caption)
                         .foregroundStyle(.secondary)
@@ -143,12 +143,12 @@ public struct ConnectionStatusGridView: View {
         let dotColor: Color = isProbing ? .secondary : Self.cellColor(for: health.status)
         let label = isProbing ? "Checking…" : health.status.displayName
 
-        return HStack(spacing: 4) {
+        return HStack(spacing: Instrument.Space.xs) {
             Circle()
                 .fill(dotColor)
                 .frame(width: 6, height: 6)
             Text(label)
-                .font(.system(size: 10.5, weight: .semibold))
+                .font(Instrument.Typography.eyebrow)
                 .foregroundColor(textColor)
         }
         .padding(.horizontal, 7)
@@ -186,7 +186,7 @@ public struct ConnectionStatusGridView: View {
                 gridCell(point: point, isLatest: isLatest)
             }
         }
-        .padding(6)
+        .padding(Instrument.Space.s)
         .background(
             RoundedRectangle(cornerRadius: Instrument.Radius.control, style: .continuous)
                 .fill(Instrument.Surface.inset.opacity(0.55))
@@ -224,7 +224,7 @@ public struct ConnectionStatusGridView: View {
     }
 
     private func legendItem(color: Color, label: String) -> some View {
-        HStack(spacing: 4) {
+        HStack(spacing: Instrument.Space.xs) {
             RoundedRectangle(cornerRadius: 1.5, style: .continuous)
                 .fill(color)
                 .frame(width: 7, height: 7)
@@ -363,7 +363,7 @@ public struct ConnectionStatusGridView: View {
         .padding(.horizontal, 7)
         .padding(.vertical, 5)
         .background(
-            RoundedRectangle(cornerRadius: 6, style: .continuous)
+            RoundedRectangle(cornerRadius: Instrument.Radius.chip, style: .continuous)
                 .fill(Instrument.Surface.inset.opacity(0.6))
         )
         .accessibilityElement(children: .combine)

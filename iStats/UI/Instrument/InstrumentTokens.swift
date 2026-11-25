@@ -19,6 +19,8 @@ public enum Instrument {
         public static let modulePadding: CGFloat = l
         public static let eyebrowGap: CGFloat = s
         public static let stackSpacing: CGFloat = m
+        /// Gap between page sections (signature instrument, consumers, ...).
+        public static let sectionGap: CGFloat = l
     }
 
     // MARK: - Corner Radii
@@ -26,6 +28,10 @@ public enum Instrument {
         public static let panel: CGFloat = 16
         public static let module: CGFloat = 12
         public static let control: CGFloat = 8
+        /// Small inline shapes: pills, chips, row highlights.
+        public static let chip: CGFloat = 6
+        /// Smallest rounded shape (hairline badges).
+        public static let inline: CGFloat = 4
         public static let capsule: CGFloat = 999
     }
 
@@ -34,39 +40,63 @@ public enum Instrument {
         public static let panelWidth: CGFloat = 352
         public static let contentWidth: CGFloat = 320
         public static let maxHeight: CGFloat = 560
-        public static let chartHeight: CGFloat = 72
-        public static let historyChartHeight: CGFloat = 140
-        public static let eyebrowHeight: CGFloat = 28
+        /// Header strip / title row band at the top of a panel.
+        public static let headerStripHeight: CGFloat = 28
+        /// Slim footer band at the bottom of a panel.
+        public static let footerHeight: CGFloat = 24
+        /// Chart height variants: compact (scaffold default), standard (Fans, Network, Disk), tall (History).
+        public static let chartHeightCompact: CGFloat = 72
+        public static let chartHeightStandard: CGFloat = 84
+        public static let chartHeightTall: CGFloat = 140
     }
 
-    // MARK: - Typography Scale (All SF Pro with tabular digits; SF Mono for IDs)
+    // MARK: - Typography Scale (semantic ramp; SF Pro with tabular digits, SF Mono for identifiers)
+    // Panels and the Kit never go below 10 pt (ADR 0011 rule 4). Use these tokens, not literal sizes.
     public enum Typography {
-        /// Glance display numeral (44 pt, regular, monospaced digits, tracking -1.2)
+        /// Glance display numeral (44 pt, regular, monospaced digits)
         public static let display = Font.system(size: 44, weight: .regular).monospacedDigit()
         /// Unit symbol on baseline (17 pt, medium)
         public static let unit = Font.system(size: 17, weight: .medium)
         /// Secondary hero value / compact ticker (30 pt, regular, monospaced digits)
         public static let displayCompact = Font.system(size: 30, weight: .regular).monospacedDigit()
-        /// Detached window title / modal title (15 pt, semibold)
+        /// Panel title / modal title (15 pt, semibold)
         public static let title = Font.system(size: 15, weight: .semibold)
+        /// Prominent numeric readout (15 pt, medium, monospaced digits)
+        public static let titleNumeric = Font.system(size: 15, weight: .medium).monospacedDigit()
         /// Glance headline / verdict summary (13 pt, regular)
         public static let headline = Font.system(size: 13, weight: .regular)
+        /// Emphasized headline (13 pt, semibold)
+        public static let headlineStrong = Font.system(size: 13, weight: .semibold)
         /// Table and row labels (12 pt, regular)
         public static let body = Font.system(size: 12, weight: .regular)
         /// Table and row values (12 pt, medium, monospaced digits)
         public static let value = Font.system(size: 12, weight: .medium).monospacedDigit()
-        /// Insights and helper captions (11 pt, regular)
+        /// Insights, helper captions, section titles (11 pt, regular)
         public static let caption = Font.system(size: 11, weight: .regular)
-        /// Integrated card section headers (11.5 pt, semibold, sentence-case)
-        public static let sectionTitle = Font.system(size: 11.5, weight: .semibold)
-        /// Compact chip and segmented control labels (11 pt, regular/semibold)
-        public static let control = Font.system(size: 11, weight: .regular)
+        /// Emphasized caption: section titles, selected chips (11 pt, medium)
+        public static let captionMedium = Font.system(size: 11, weight: .medium)
+        /// Strong caption: selected chip/segment, ribbon title (11 pt, semibold)
+        public static let captionStrong = Font.system(size: 11, weight: .semibold)
         /// Section headers and category labels (10 pt, semibold, uppercase)
         public static let eyebrow = Font.system(size: 10, weight: .semibold)
-        /// Axis ticks and core matrix indices (9 pt, medium, monospaced digits)
-        public static let micro = Font.system(size: 9, weight: .medium).monospacedDigit()
+        /// Axis ticks and compact matrix indices (10 pt, medium, monospaced digits)
+        public static let micro = Font.system(size: 10, weight: .medium).monospacedDigit()
         /// Monospaced identifiers: IP, MAC, BSD interfaces (11 pt SF Mono)
         public static let mono = Font.system(size: 11, weight: .regular, design: .monospaced)
+
+        /// SF Symbol glyph size (not text). Use the `Icon` presets where one fits.
+        public static func icon(_ size: CGFloat, weight: Font.Weight = .regular) -> Font {
+            Font.system(size: size, weight: weight)
+        }
+    }
+
+    /// Standard SF Symbol glyph sizes.
+    public enum Icon {
+        public static let small: CGFloat = 10
+        public static let regular: CGFloat = 11
+        public static let medium: CGFloat = 13
+        public static let large: CGFloat = 22
+        public static let hero: CGFloat = 28
     }
 
     /// Convenience alias

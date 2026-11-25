@@ -40,7 +40,7 @@ extension SectionEyebrow where Trailing == EmptyView {
 #if DEBUG
 struct SectionEyebrow_Previews: PreviewProvider {
     static var previews: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: Instrument.Space.l) {
             SectionEyebrow("CORES & CLUSTERS")
             SectionEyebrow("TOP PROCESSES") {
                 Button("Show All") {}

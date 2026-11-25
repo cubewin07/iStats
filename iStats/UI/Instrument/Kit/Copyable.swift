@@ -48,7 +48,7 @@ public struct CopyableContentModifier: ViewModifier {
             if isCopied {
                 HStack(spacing: 3) {
                     Image(systemName: "checkmark")
-                        .font(.system(size: 10, weight: .semibold))
+                        .font(Instrument.Typography.icon(Instrument.Icon.small, weight: .semibold))
                     Text("Copied")
                         .font(Instrument.Typography.micro)
                 }
@@ -105,7 +105,7 @@ struct Copyable_Previews: PreviewProvider {
     static var previews: some View {
         Text("192.168.1.104")
             .font(Instrument.Typography.value)
-            .padding(8)
+            .padding(Instrument.Space.m)
             .background(Instrument.Surface.module)
             .copyable(text: "192.168.1.104")
             .padding()

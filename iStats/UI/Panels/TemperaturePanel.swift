@@ -22,8 +22,8 @@ public struct TemperaturePanel: View {
 
     private static let spectrumMinCelsius: Double = 30.0
     private static let spectrumMaxCelsius: Double = 110.0
-    private static let warningCelsius: Double = 85.0
-    private static let criticalCelsius: Double = 98.0
+    private static let warningCelsius: Double = StatusThresholds.temperatureChartWarningCelsius
+    private static let criticalCelsius: Double = StatusThresholds.temperatureChartCriticalCelsius
     private static let spectrumBarWidth: Double = Double(Instrument.Size.panelWidth - 2 * Instrument.Space.xl - 2 * Instrument.Space.modulePadding)
 
     private struct MemoKey: Equatable {
@@ -334,7 +334,7 @@ public struct TemperaturePanel: View {
         ) {
             VStack(alignment: .leading, spacing: Instrument.Space.m) {
                 // Top: 8 pt continuous thermal ramp (30°–110°C) with 10° tick marks and SpectrumLayout sensor pins
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: Instrument.Space.xs) {
                     ZStack(alignment: .topLeading) {
                         Capsule()
                             .fill(ThermalRamp.linearGradient)
@@ -437,7 +437,7 @@ public struct TemperaturePanel: View {
                                     .frame(width: 56, alignment: .trailing)
                             }
                             .frame(height: 26)
-                            .padding(.horizontal, 4)
+                            .padding(.horizontal, Instrument.Space.xs)
                             .overlay(alignment: .bottom) {
                                 if index < derived.rankedSources.count - 1 {
                                     Rectangle()
@@ -524,7 +524,7 @@ public struct TemperaturePanel: View {
             } label: {
                 HStack(alignment: .firstTextBaseline, spacing: Instrument.Space.m) {
                     Text(group.source.displayName)
-                        .font(Instrument.Typography.sectionTitle)
+                        .font(Instrument.Typography.captionStrong)
                         .foregroundStyle(isHovered ? .primary : .secondary)
                         .accessibilityAddTraits(.isHeader)
 
@@ -537,15 +537,15 @@ public struct TemperaturePanel: View {
                             .monospacedDigit()
 
                         Image(systemName: "chevron.right")
-                            .font(.system(size: 10, weight: .semibold))
+                            .font(Instrument.Typography.icon(Instrument.Icon.small, weight: .semibold))
                             .foregroundStyle(isHovered ? .primary : .secondary)
                             .rotationEffect(.degrees(isExpanded ? 90 : 0))
                     }
                 }
-                .padding(.horizontal, 4)
-                .padding(.vertical, 2)
+                .padding(.horizontal, Instrument.Space.xs)
+                .padding(.vertical, Instrument.Space.xxs)
                 .background(
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    RoundedRectangle(cornerRadius: Instrument.Radius.chip, style: .continuous)
                         .fill(isHovered ? Instrument.Surface.moduleHover : .clear)
                 )
                 .contentShape(Rectangle())
@@ -586,7 +586,7 @@ public struct TemperaturePanel: View {
                                 .foregroundStyle(.primary)
                         }
                         .frame(height: 26)
-                        .padding(.horizontal, 4)
+                        .padding(.horizontal, Instrument.Space.xs)
                         .overlay(alignment: .bottom) {
                             if index < group.sensors.count - 1 {
                                 Rectangle()

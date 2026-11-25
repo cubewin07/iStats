@@ -41,12 +41,12 @@ public struct MetricRow: View {
     }
 
     public var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: Instrument.Space.m) {
             // Optional status dot (only when >= elevated, per Principle 3)
             if let level = statusLevel, !level.isQuiet {
                 if differentiateWithoutColor {
                     Image(systemName: level.symbolName)
-                        .font(.system(size: 8, weight: .semibold))
+                        .font(Instrument.Typography.icon(Instrument.Icon.small, weight: .semibold))
                         .foregroundColor(level.color)
                 } else {
                     Circle()
@@ -71,7 +71,7 @@ public struct MetricRow: View {
             HStack(spacing: 5) {
                 if isCopyable && isHovered {
                     Image(systemName: "doc.on.doc")
-                        .font(.system(size: 9.5, weight: .medium))
+                        .font(Instrument.Typography.icon(Instrument.Icon.small, weight: .medium))
                         .foregroundStyle(.tertiary)
                         .transition(.opacity)
                 }
@@ -79,7 +79,7 @@ public struct MetricRow: View {
                 if let val = valueDouble {
                     LiveNumber(value: val, font: Instrument.Typography.value, unit: unit)
                 } else {
-                    HStack(alignment: .firstTextBaseline, spacing: 2) {
+                    HStack(alignment: .firstTextBaseline, spacing: Instrument.Space.xxs) {
                         Text(valueText)
                             .font(Instrument.Typography.value)
                             .foregroundColor(.primary)
@@ -96,10 +96,10 @@ public struct MetricRow: View {
             }
         }
         .frame(height: 26)
-        .padding(.horizontal, 4)
+        .padding(.horizontal, Instrument.Space.xs)
         .background {
             if isCopyable {
-                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                RoundedRectangle(cornerRadius: Instrument.Radius.inline, style: .continuous)
                     .fill(isHovered ? Instrument.Surface.moduleHover : Color.clear)
             }
         }
@@ -164,7 +164,7 @@ private extension View {
 #if DEBUG
 struct MetricRow_Previews: PreviewProvider {
     static var previews: some View {
-        VStack(spacing: 4) {
+        VStack(spacing: Instrument.Space.xs) {
             MetricRow(
                 label: "Memory Pressure",
                 valueText: "Warning",

@@ -188,8 +188,8 @@ public struct MemoryPanel: View {
         )
         let insight = InsightEngine.insights(series: usedPoints.map(\.value), interval: refreshInterval, unit: .percent).first?.text
         let bands = [
-            ChartBand(threshold: 60.0, color: CategoryPalette.statusColor(for: .warning), label: "Warning"),
-            ChartBand(threshold: 80.0, color: CategoryPalette.statusColor(for: .critical), label: "Critical")
+            ChartBand(threshold: StatusThresholds.memoryChartWarningPercent, color: CategoryPalette.statusColor(for: .warning), label: "Warning"),
+            ChartBand(threshold: StatusThresholds.memoryChartCriticalPercent, color: CategoryPalette.statusColor(for: .critical), label: "Critical")
         ]
         let chartMode = LiveChartMode.banded(
             points: usedPoints,
@@ -336,7 +336,7 @@ public struct MemoryPanel: View {
                 // 2-column tabular legend: swatch · label · bytes · %
                 LazyVGrid(columns: legendColumns, alignment: .leading, spacing: 5) {
                     ForEach(legendItems) { item in
-                        HStack(spacing: 4) {
+                        HStack(spacing: Instrument.Space.xs) {
                             Circle()
                                 .fill(item.color)
                                 .overlay(
@@ -392,31 +392,31 @@ public struct MemoryPanel: View {
     private func pressurePill(active: MemoryPressure) -> some View {
         let levels: [MemoryPressure] = [.normal, .warning, .critical]
 
-        return HStack(spacing: 2) {
+        return HStack(spacing: Instrument.Space.xxs) {
             ForEach(levels, id: \.self) { level in
                 let isActive = (level == active)
                 let tint = pressureTint(for: level)
 
                 Text(level.displayName)
-                    .font(.system(size: 10, weight: isActive ? .semibold : .regular))
+                    .font(isActive ? Instrument.Typography.eyebrow : Instrument.Typography.micro)
                     .foregroundColor(isActive ? tint : .secondary.opacity(0.65))
-                    .padding(.horizontal, 6)
+                    .padding(.horizontal, Instrument.Space.s)
                     .padding(.vertical, 2.5)
                     .background {
                         if isActive {
-                            RoundedRectangle(cornerRadius: 5, style: .continuous)
+                            RoundedRectangle(cornerRadius: Instrument.Radius.chip, style: .continuous)
                                 .fill(tint.opacity(0.16))
                                 .overlay(
-                                    RoundedRectangle(cornerRadius: 5, style: .continuous)
+                                    RoundedRectangle(cornerRadius: Instrument.Radius.chip, style: .continuous)
                                         .strokeBorder(tint.opacity(0.45), lineWidth: 0.5)
                                 )
                         }
                     }
             }
         }
-        .padding(2)
+        .padding(Instrument.Space.xxs)
         .background(
-            RoundedRectangle(cornerRadius: 7, style: .continuous)
+            RoundedRectangle(cornerRadius: Instrument.Radius.chip, style: .continuous)
                 .fill(Color.primary.opacity(0.05))
         )
         .accessibilityElement(children: .ignore)

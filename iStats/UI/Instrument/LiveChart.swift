@@ -1327,7 +1327,7 @@ enum ChartRenderer {
 
             context.draw(
                 Text(label)
-                    .font(.system(size: 9.5, weight: .regular).monospacedDigit())
+                    .font(Instrument.Typography.micro)
                     .foregroundColor(.secondary.opacity(0.65)),
                 at: labelPoint,
                 anchor: anchor
@@ -1375,7 +1375,7 @@ enum ChartRenderer {
 
         let topText = "\(topLabel) \(valueFormatter?(topScale.displayedCeiling) ?? String(format: "%.0f", topScale.displayedCeiling))"
         let botText = "\(bottomLabel) \(valueFormatter?(bottomScale.displayedCeiling) ?? String(format: "%.0f", bottomScale.displayedCeiling))"
-        let gutterFont = Font.system(size: 9.5, weight: .regular).monospacedDigit()
+        let gutterFont = Instrument.Typography.micro
 
         context.draw(
             Text(topText)
@@ -1859,7 +1859,7 @@ public struct LiveChart: View {
     public init(
         category: MetricCategory,
         mode: LiveChartMode,
-        height: CGFloat = 84,
+        height: CGFloat = Instrument.Size.chartHeightStandard,
         sampleIntervalSeconds: Double = 1.0,
         windowDuration: TimeInterval? = nil,
         showAverageLine: Bool = false,
@@ -2828,7 +2828,7 @@ struct LiveChart_Previews: PreviewProvider {
             return BucketPoint(timestamp: now - Double(39 - i) * 7.5, min: max(0, mean - 12), max: min(100, mean + 15), mean: mean)
         }
 
-        VStack(spacing: 20) {
+        VStack(spacing: Instrument.Space.xxl) {
             LiveChart(
                 category: .cpu,
                 mode: .single(values: Array(repeating: 25.0, count: 60), color: .blue),

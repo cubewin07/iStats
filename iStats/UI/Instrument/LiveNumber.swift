@@ -93,7 +93,7 @@ public struct LiveNumber: View {
     }
 
     public var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 2) {
+        HStack(alignment: .firstTextBaseline, spacing: Instrument.Space.xxs) {
             numberView
             if let shownUnit = (bypassCadenceGate ? unit : gate.displayedUnit) ?? unit {
                 Text(shownUnit)
@@ -233,20 +233,20 @@ extension View {
 // MARK: - Previews
 
 #Preview("LiveNumber Policies") {
-    VStack(spacing: 24) {
-        VStack(alignment: .leading, spacing: 4) {
+    VStack(spacing: Instrument.Space.xxxl) {
+        VStack(alignment: .leading, spacing: Instrument.Space.xs) {
             Text("POLICY: FULL").font(Instrument.Typography.eyebrow).foregroundStyle(.secondary)
             LiveNumber(value: 84.0, format: { "\(Int($0))" }, unit: "%")
                 .motionPolicy(.full)
         }
 
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: Instrument.Space.xs) {
             Text("POLICY: REDUCED").font(Instrument.Typography.eyebrow).foregroundStyle(.secondary)
             LiveNumber(value: 84.0, format: { "\(Int($0))" }, unit: "%")
                 .motionPolicy(.reduced)
         }
 
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: Instrument.Space.xs) {
             Text("POLICY: FROZEN").font(Instrument.Typography.eyebrow).foregroundStyle(.secondary)
             LiveNumber(value: 84.0, format: { "\(Int($0))" }, unit: "%")
                 .motionPolicy(.frozen)

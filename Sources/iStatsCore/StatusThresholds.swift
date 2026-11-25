@@ -202,4 +202,55 @@ public enum StatusThresholds {
         }
         return .fine
     }
+
+    // MARK: - Panel-level tables
+    // Panels previously carried these cutoffs inline. They differ from the menu bar tables above on purpose
+    // (panels stay quiet below 75 %), so they live here with tests instead of in views.
+
+    /// Per-core tile and panel usage: quiet below 75 %.
+    public static func cpuCore(usagePercent: Double) -> StatusLevel {
+        if usagePercent >= 90.0 { return .critical }
+        if usagePercent >= 75.0 { return .elevated }
+        return .fine
+    }
+
+    /// Load average versus core count: above 1x the cores is elevated, above 1.5x is a warning.
+    public static func cpuLoad(oneMinute: Double, coreCount: Int) -> StatusLevel {
+        guard coreCount > 0 else { return .fine }
+        let cores = Double(coreCount)
+        if oneMinute > cores * 1.5 { return .warning }
+        if oneMinute > cores { return .elevated }
+        return .fine
+    }
+
+    /// CPU panel status: usage first (critical, then elevated), then an overloaded run queue.
+    public static func cpuPanel(usagePercent: Double, loadOneMinute: Double?, coreCount: Int) -> StatusLevel {
+        let usage = cpuCore(usagePercent: usagePercent)
+        if usage != .fine { return usage }
+        if let load = loadOneMinute, cpuLoad(oneMinute: load, coreCount: coreCount) == .warning { return .warning }
+        return .fine
+    }
+
+    /// GPU panel status: a GPU recovery is always a warning; otherwise utilization alone.
+    public static func gpuPanel(utilizationPercent: Double, recoveryCount: Int = 0) -> StatusLevel {
+        if recoveryCount > 0 { return .warning }
+        if utilizationPercent >= 95.0 { return .critical }
+        if utilizationPercent >= 80.0 { return .elevated }
+        return .fine
+    }
+
+    /// GPU allocated memory over the recommended working set.
+    public static func gpuMemory(allocatedRatio: Double) -> StatusLevel {
+        if allocatedRatio > 0.90 { return .critical }
+        if allocatedRatio > 0.75 { return .elevated }
+        return .fine
+    }
+
+    /// Chart reference lines for the Temperature panel (Celsius).
+    public static let temperatureChartWarningCelsius: Double = 85.0
+    public static let temperatureChartCriticalCelsius: Double = 98.0
+
+    /// Chart reference lines for the Memory used-% chart.
+    public static let memoryChartWarningPercent: Double = 60.0
+    public static let memoryChartCriticalPercent: Double = 80.0
 }

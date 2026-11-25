@@ -167,7 +167,7 @@ public struct DiskPanel: View {
             headline: headline,
             insight: insight,
             chartMode: chartMode,
-            chartHeight: 84,
+            chartHeight: Instrument.Size.chartHeightStandard,
             scrubFormat: { Units.formatCompactRate($0, standard: std) }
         )
 
@@ -358,13 +358,13 @@ public struct DiskPanel: View {
                         GridItem(.flexible(), spacing: Instrument.Space.l)
                     ],
                     alignment: .leading,
-                    spacing: 6
+                    spacing: Instrument.Space.s
                 ) {
                     ForEach(breakdown.legendItems) { item in
                         storageLegendCell(item: item, std: std)
                     }
                 }
-                .padding(.top, 2)
+                .padding(.top, Instrument.Space.xxs)
             }
         }
     }
@@ -490,7 +490,7 @@ public struct DiskPanel: View {
                 VStack(spacing: 0) {
                     ForEach(Array(s.volumes.enumerated()), id: \.element.mountPoint) { index, vol in
                         volumeRow(vol: vol, std: std)
-                            .padding(.vertical, 8)
+                            .padding(.vertical, Instrument.Space.m)
 
                         if index < s.volumes.count - 1 {
                             Rectangle()
@@ -519,11 +519,11 @@ public struct DiskPanel: View {
         let volStatus = StatusThresholds.disk(usedPercent: usedPct)
         let meterTint = volStatus.isQuiet ? CategoryPalette.color(for: .disk) : volStatus.color
 
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: Instrument.Space.s) {
             // Header: icon + mount name + role badge + Finder button / % used
-            HStack(spacing: 6) {
+            HStack(spacing: Instrument.Space.s) {
                 Image(systemName: isBoot ? "internaldrive.fill" : "externaldrive.fill")
-                    .font(.system(size: 11, weight: .medium))
+                    .font(Instrument.Typography.icon(Instrument.Icon.regular, weight: .medium))
                     .foregroundColor(CategoryPalette.color(for: .disk))
 
                 Text(vol.name)
@@ -549,7 +549,7 @@ public struct DiskPanel: View {
                         NSWorkspace.shared.activateFileViewerSelecting([url])
                     } label: {
                         Image(systemName: "arrow.up.right.square")
-                            .font(.system(size: 11))
+                            .font(Instrument.Typography.icon(Instrument.Icon.regular))
                             .foregroundColor(CategoryPalette.color(for: .disk))
                     }
                     .buttonStyle(.plain)
@@ -569,7 +569,7 @@ public struct DiskPanel: View {
             )
 
             // Tabular Used / Available / Total summary
-            HStack(spacing: 8) {
+            HStack(spacing: Instrument.Space.m) {
                 volumeCapacityStat(label: "Used", value: Units.formatBytes(vol.used, standard: std, fractionDigits: 1))
                 Spacer(minLength: 4)
                 volumeCapacityStat(label: "Available", value: Units.formatBytes(vol.free, standard: std, fractionDigits: 1))

@@ -212,7 +212,7 @@ public struct PowerFlowView: View {
                     .frame(width: 32, height: 32)
 
                 Image(systemName: icon)
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(Instrument.Typography.icon(Instrument.Icon.medium, weight: .semibold))
                     .foregroundColor(isActive ? activeColor : .secondary)
             }
 
@@ -238,7 +238,7 @@ public struct PowerFlowView: View {
 #if DEBUG
 struct PowerFlowView_Previews: PreviewProvider {
     static var previews: some View {
-        VStack(spacing: 24) {
+        VStack(spacing: Instrument.Space.xxxl) {
             // Gentle low-draw charging
             PowerFlowView(
                 flow: PowerFlow(adapterToMac: 5.2, adapterToBattery: 18.0, batteryToMac: nil, batteryNetWatts: 18.0),

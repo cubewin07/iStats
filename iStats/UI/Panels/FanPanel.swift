@@ -156,7 +156,7 @@ public struct FanPanel: View {
             headline: headline,
             insight: insight,
             chartMode: chartMode,
-            chartHeight: 84,
+            chartHeight: Instrument.Size.chartHeightStandard,
             scrubFormat: { "\(Int(round($0))) RPM" }
         )
     }
@@ -242,7 +242,7 @@ public struct FanPanel: View {
                                             .font(Instrument.Typography.value)
                                             .foregroundStyle(.secondary)
                                     }
-                                    .padding(.bottom, 4)
+                                    .padding(.bottom, Instrument.Space.xs)
 
                                     fanHardwareRows(fan: fan)
                                 }

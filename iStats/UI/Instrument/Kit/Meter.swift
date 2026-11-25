@@ -78,7 +78,7 @@ public struct Meter: View {
 #if DEBUG
 struct Meter_Previews: PreviewProvider {
     static var previews: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: Instrument.Space.xl) {
             Meter(progress: 0.25, height: .small, tint: .green)
             Meter(progress: 0.68, height: .medium, tint: .blue, deepTint: .teal, thresholdTick: 0.8)
             Meter(progress: 0.92, height: .large, tint: .orange, deepTint: .red, thresholdTick: 0.85)

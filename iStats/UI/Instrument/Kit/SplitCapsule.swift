@@ -83,7 +83,7 @@ public struct SplitCapsule: View {
 #if DEBUG
 struct SplitCapsule_Previews: PreviewProvider {
     static var previews: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: Instrument.Space.xl) {
             // Memory composition preview
             SplitCapsule(
                 segments: [

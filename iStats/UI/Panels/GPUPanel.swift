@@ -159,16 +159,10 @@ public struct GPUPanel: View {
     }
 
     private func deriveStatus(sample: GPUSample?) -> StatusLevel {
-        if let recoveries = sample?.recoveryCount, recoveries > 0 {
-            return .warning
-        }
-        let util = sample?.utilization ?? 0.0
-        if util >= 95.0 {
-            return .critical
-        } else if util >= 80.0 {
-            return .elevated
-        }
-        return .fine
+        StatusThresholds.gpuPanel(
+            utilizationPercent: sample?.utilization ?? 0.0,
+            recoveryCount: sample?.recoveryCount ?? 0
+        )
     }
 
     private func deriveRibbon(sample: GPUSample?) -> String? {
@@ -222,7 +216,7 @@ public struct GPUPanel: View {
                     ringGap: 4
                 )
 
-                VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: Instrument.Space.m) {
                     engineLegendRow(
                         label: "Device",
                         value: util,
@@ -295,11 +289,12 @@ public struct GPUPanel: View {
                     let ratio = Double(allocated) / Double(maxMem)
                     let formattedAlloc = Units.formatBytes(allocated, standard: preferences.byteUnitStandard)
                     let formattedMax = Units.formatBytes(maxMem, standard: preferences.byteUnitStandard)
-                    let vramTint = ratio > 0.90
-                        ? CategoryPalette.statusColor(for: .critical)
-                        : (ratio > 0.75 ? CategoryPalette.statusColor(for: .elevated) : CategoryPalette.tint(for: .gpu))
+                    let vramLevel = StatusThresholds.gpuMemory(allocatedRatio: ratio)
+                    let vramTint = vramLevel == .fine
+                        ? CategoryPalette.tint(for: .gpu)
+                        : CategoryPalette.statusColor(for: vramLevel)
 
-                    VStack(alignment: .leading, spacing: 6) {
+                    VStack(alignment: .leading, spacing: Instrument.Space.s) {
                         HStack {
                             Text("VRAM Working Set")
                                 .font(Instrument.Typography.body)
@@ -317,8 +312,8 @@ public struct GPUPanel: View {
                             interval: preferences.refreshInterval
                         )
                     }
-                    .padding(.horizontal, 4)
-                    .padding(.vertical, 6)
+                    .padding(.horizontal, Instrument.Space.xs)
+                    .padding(.vertical, Instrument.Space.s)
                     .overlay(alignment: .bottom) {
                         if hasTelemetry {
                             Rectangle()
@@ -439,14 +434,14 @@ public struct GPUPanel: View {
                     Text("Per-engine hardware telemetry is synthesized via IOKit on this architecture.")
                         .font(Instrument.Typography.caption)
                         .foregroundStyle(.secondary)
-                        .padding(.top, 2)
+                        .padding(.top, Instrument.Space.xxs)
                 }
             }
         }
     }
 
     private func engineMeterBlock(label: String, value: Double, tint: Color) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: Instrument.Space.xs) {
             MetricRow(
                 label: label,
                 valueText: String(format: "%.0f", value),

@@ -24,7 +24,7 @@ public struct PanelGlance: Sendable {
         headline: String = "",
         insight: String? = nil,
         chartMode: LiveChartMode? = nil,
-        chartHeight: CGFloat = 72,
+        chartHeight: CGFloat = Instrument.Size.chartHeightCompact,
         scrubFormat: (@Sendable (Double) -> String)? = nil
     ) {
         self.value = value
@@ -158,7 +158,7 @@ public struct PanelScaffold<Content: View>: View {
             VStack(alignment: .leading, spacing: 0) {
                 // Zone ①: Eyebrow row (28 pt)
                 eyebrowRow
-                    .frame(height: 28)
+                    .frame(height: Instrument.Size.headerStripHeight)
                     .background(
                         Group {
                             if probeEnabled {
@@ -175,13 +175,13 @@ public struct PanelScaffold<Content: View>: View {
                             }
                         }
                     )
-                    .padding(.bottom, 8)
+                    .padding(.bottom, Instrument.Space.m)
                     .accessibilityElement(children: .contain)
                     .accessibilityLabel("\(category.displayName) Header")
 
                 // Zone ②: Glance (display numeral + headline)
                 glanceHeader
-                    .padding(.bottom, 6)
+                    .padding(.bottom, Instrument.Space.s)
                     .background(
                         Group {
                             if probeEnabled {
@@ -248,7 +248,7 @@ public struct PanelScaffold<Content: View>: View {
                         actionTitle: "Resume",
                         action: onTogglePause
                     )
-                    .padding(.top, 6)
+                    .padding(.top, Instrument.Space.s)
                     .accessibilityElement(children: .combine)
                 } else if let message = ribbon, !message.isEmpty,
                           let actionTitle = ribbonActionTitle, !actionTitle.isEmpty,
@@ -259,7 +259,7 @@ public struct PanelScaffold<Content: View>: View {
                         actionTitle: actionTitle,
                         action: action
                     )
-                    .padding(.top, 6)
+                    .padding(.top, Instrument.Space.s)
                     .accessibilityElement(children: .combine)
                 }
             }
@@ -304,20 +304,20 @@ public struct PanelScaffold<Content: View>: View {
     private var eyebrowRow: some View {
         let tint = CategoryPalette.tint(for: category)
 
-        return HStack(spacing: 4) {
+        return HStack(spacing: Instrument.Space.xs) {
             // 18×18 Tinted Category Badge + 13 pt Semibold Sentence-Case Title
-            HStack(spacing: 6) {
+            HStack(spacing: Instrument.Space.s) {
                 ZStack {
                     Circle()
                         .fill(tint.opacity(0.16))
                     Image(systemName: category.symbolName)
-                        .font(.system(size: 10, weight: .semibold))
+                        .font(Instrument.Typography.icon(Instrument.Icon.small, weight: .semibold))
                         .foregroundColor(tint)
                 }
                 .frame(width: 18, height: 18)
 
                 Text(category.displayName)
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(Instrument.Typography.headlineStrong)
                     .foregroundColor(.primary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.85)
@@ -334,7 +334,7 @@ public struct PanelScaffold<Content: View>: View {
                 )
             }
 
-            HStack(spacing: 2) {
+            HStack(spacing: Instrument.Space.xxs) {
                 // Ellipsis Menu (plain button menu + hidden indicator prevents chevron overlap)
                 Menu {
                     if let (title, icon, action) = contextUtilityAction() {
@@ -463,20 +463,20 @@ public struct PanelScaffold<Content: View>: View {
         pillFill: Color
     ) -> some View {
         Image(systemName: systemName)
-            .font(.system(size: size, weight: weight))
+            .font(Instrument.Typography.icon(size, weight: weight))
             .foregroundColor(foreground)
             .frame(width: 21, height: 21)
             .background(
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                RoundedRectangle(cornerRadius: Instrument.Radius.chip, style: .continuous)
                     .fill(pillFill)
             )
-            .contentShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+            .contentShape(RoundedRectangle(cornerRadius: Instrument.Radius.chip, style: .continuous))
     }
 
     // MARK: - Zone ②: Glance Header
 
     private var glanceHeader: some View {
-        VStack(alignment: .leading, spacing: 2) {
+        VStack(alignment: .leading, spacing: Instrument.Space.xxs) {
             HStack(alignment: .firstTextBaseline) {
                 // Value Display
                 if isLoading {
@@ -492,7 +492,7 @@ public struct PanelScaffold<Content: View>: View {
                 } else if let sec = glance.secondaryGlance {
                     // Dual Ticker (e.g. Network Download ↓ / Upload ↑)
                     HStack(alignment: .firstTextBaseline, spacing: 14) {
-                        HStack(alignment: .firstTextBaseline, spacing: 2) {
+                        HStack(alignment: .firstTextBaseline, spacing: Instrument.Space.xxs) {
                             Text("↓")
                                 .font(Instrument.Typography.body)
                                 .foregroundColor(CategoryPalette.tint(for: category))
@@ -504,7 +504,7 @@ public struct PanelScaffold<Content: View>: View {
                             )
                         }
 
-                        HStack(alignment: .firstTextBaseline, spacing: 2) {
+                        HStack(alignment: .firstTextBaseline, spacing: Instrument.Space.xxs) {
                             Text("↑")
                                 .font(Instrument.Typography.body)
                                 .foregroundColor(sec.color)
@@ -587,13 +587,13 @@ public struct PanelScaffold<Content: View>: View {
     private func scrubValueDisplay(_ scrub: ChartScrubState) -> some View {
         if let sec = scrub.secondaryReadout {
             HStack(alignment: .firstTextBaseline, spacing: 14) {
-                HStack(alignment: .firstTextBaseline, spacing: 2) {
+                HStack(alignment: .firstTextBaseline, spacing: Instrument.Space.xxs) {
                     if let primaryLbl = scrub.primaryLabel, !primaryLbl.isEmpty {
                         Text(primaryLbl)
                             .font(Instrument.Typography.body)
                             .foregroundColor(CategoryPalette.tint(for: category))
                     }
-                    HStack(alignment: .firstTextBaseline, spacing: 2) {
+                    HStack(alignment: .firstTextBaseline, spacing: Instrument.Space.xxs) {
                         Text(scrub.formattedPrimary)
                             .font(Instrument.Typography.displayCompact)
                             .tracking(-0.6)
@@ -607,13 +607,13 @@ public struct PanelScaffold<Content: View>: View {
                     .minimumScaleFactor(0.7)
                 }
 
-                HStack(alignment: .firstTextBaseline, spacing: 2) {
+                HStack(alignment: .firstTextBaseline, spacing: Instrument.Space.xxs) {
                     if let secLbl = sec.label, !secLbl.isEmpty {
                         Text(secLbl)
                             .font(Instrument.Typography.body)
                             .foregroundColor(sec.color)
                     }
-                    HStack(alignment: .firstTextBaseline, spacing: 2) {
+                    HStack(alignment: .firstTextBaseline, spacing: Instrument.Space.xxs) {
                         Text(sec.text)
                             .font(Instrument.Typography.displayCompact)
                             .tracking(-0.6)
@@ -629,7 +629,7 @@ public struct PanelScaffold<Content: View>: View {
             }
             .frame(minHeight: glance.secondaryGlance == nil ? 52 : nil, alignment: .bottomLeading)
         } else {
-            HStack(alignment: .firstTextBaseline, spacing: 2) {
+            HStack(alignment: .firstTextBaseline, spacing: Instrument.Space.xxs) {
                 Text(scrub.formattedPrimary)
                     .font(Instrument.Typography.display)
                     .tracking(-1.2)
@@ -645,7 +645,7 @@ public struct PanelScaffold<Content: View>: View {
     }
 
     private func scrubHeadline(_ scrub: ChartScrubState) -> some View {
-        HStack(spacing: 4) {
+        HStack(spacing: Instrument.Space.xs) {
             Text(scrub.relativeTimeText)
                 .fontWeight(.medium)
                 .foregroundColor(.primary)
@@ -655,17 +655,17 @@ public struct PanelScaffold<Content: View>: View {
             }
         }
         .font(Instrument.Typography.headline.monospacedDigit())
-        .padding(.horizontal, 6)
+        .padding(.horizontal, Instrument.Space.s)
         .padding(.vertical, 1.5)
         .background(
-            RoundedRectangle(cornerRadius: 4, style: .continuous)
+            RoundedRectangle(cornerRadius: Instrument.Radius.inline, style: .continuous)
                 .fill(Color.secondary.opacity(0.12))
         )
         .lineLimit(1)
     }
 
     private func insightCaptionRow(_ insight: String) -> some View {
-        HStack(spacing: 4) {
+        HStack(spacing: Instrument.Space.xs) {
             Text(insight)
                 .font(Instrument.Typography.caption)
                 .foregroundColor(.secondary)
@@ -673,7 +673,7 @@ public struct PanelScaffold<Content: View>: View {
                 .truncationMode(.tail)
             Spacer(minLength: 0)
         }
-        .padding(.top, 6)
+        .padding(.top, Instrument.Space.s)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(category.displayName) Insight")
         .accessibilityValue(insight)
@@ -805,7 +805,7 @@ public struct PanelScaffold<Content: View>: View {
             )
             .padding(.top, 14)
         } else if isLoading {
-            VStack(spacing: 8) {
+            VStack(spacing: Instrument.Space.m) {
                 ProgressView()
                     .scaleEffect(0.8)
                 Text("Acquiring telemetry...")
@@ -856,7 +856,7 @@ public struct PanelScaffold<Content: View>: View {
                 guard height > 0, abs((measuredBodyHeight ?? -1) - height) > 0.5 else { return }
                 measuredBodyHeight = height
             }
-            .padding(.top, 8)
+            .padding(.top, Instrument.Space.m)
         }
     }
 
@@ -1015,7 +1015,7 @@ private struct PageBodySlot<BodyContent: View>: View {
 
     var body: some View {
         bodyContent()
-            .padding(.vertical, 2)
+            .padding(.vertical, Instrument.Space.xxs)
             .background(
                 GeometryReader { proxy in
                     Color.clear.preference(

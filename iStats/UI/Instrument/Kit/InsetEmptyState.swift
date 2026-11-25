@@ -20,7 +20,7 @@ public struct InsetEmptyState<ActionView: View>: View {
     }
 
     public var body: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: Instrument.Space.l) {
             // 44 pt Surface.inset circle with 22 pt symbol
             ZStack {
                 Circle()
@@ -28,11 +28,11 @@ public struct InsetEmptyState<ActionView: View>: View {
                     .frame(width: 44, height: 44)
 
                 Image(systemName: systemImage)
-                    .font(.system(size: 22))
+                    .font(Instrument.Typography.icon(Instrument.Icon.large))
                     .foregroundColor(.secondary)
             }
 
-            VStack(spacing: 4) {
+            VStack(spacing: Instrument.Space.xs) {
                 Text(title)
                     .font(Instrument.Typography.headline)
                     .foregroundColor(.primary)
@@ -45,7 +45,7 @@ public struct InsetEmptyState<ActionView: View>: View {
 
             action
         }
-        .padding(20)
+        .padding(Instrument.Space.xxl)
         .frame(maxWidth: .infinity)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(title). \(reason)")
@@ -68,7 +68,7 @@ extension InsetEmptyState where ActionView == EmptyView {
 #if DEBUG
 struct InsetEmptyState_Previews: PreviewProvider {
     static var previews: some View {
-        VStack(spacing: 20) {
+        VStack(spacing: Instrument.Space.xxl) {
             InsetEmptyState(
                 systemImage: "fan.slash",
                 title: "No Fans Detected",

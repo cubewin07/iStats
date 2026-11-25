@@ -40,11 +40,11 @@ public struct InlineStatusChip: View {
         let tint = CategoryPalette.statusColor(for: status)
         let titleText = Self.title(for: status)
 
-        HStack(spacing: 4) {
+        HStack(spacing: Instrument.Space.xs) {
             Text(Self.glyph(for: status))
-                .font(.system(size: 8, weight: .bold))
+                .font(Instrument.Typography.eyebrow)
             Text(titleText)
-                .font(.system(size: 10.5, weight: .semibold))
+                .font(Instrument.Typography.eyebrow)
         }
         .foregroundColor(tint)
         .padding(.horizontal, 7)
@@ -93,9 +93,9 @@ public struct StatusRibbon: View {
     public var body: some View {
         let tint = statusColor(for: status)
 
-        HStack(spacing: 8) {
+        HStack(spacing: Instrument.Space.m) {
             Image(systemName: status.symbolNameFilled)
-                .font(.system(size: 11, weight: .semibold))
+                .font(Instrument.Typography.icon(Instrument.Icon.regular, weight: .semibold))
                 .foregroundColor(tint)
 
             Text(message)
@@ -109,11 +109,11 @@ public struct StatusRibbon: View {
                 let baseAlpha: Double = colorSchemeContrast == .increased ? 0.26 : 0.18
                 Button(action: action) {
                     Text(title)
-                        .font(.system(size: 10, weight: .semibold))
+                        .font(Instrument.Typography.eyebrow)
                         .padding(.horizontal, 7)
                         .padding(.vertical, 2.5)
                         .background(
-                            RoundedRectangle(cornerRadius: 4, style: .continuous)
+                            RoundedRectangle(cornerRadius: Instrument.Radius.inline, style: .continuous)
                                 .fill(tint.opacity(isActionHovered ? min(1.0, baseAlpha + 0.10) : baseAlpha))
                         )
                         .foregroundColor(tint)
@@ -127,14 +127,14 @@ public struct StatusRibbon: View {
             }
         }
         .padding(.horizontal, 10)
-        .padding(.vertical, 6)
+        .padding(.vertical, Instrument.Space.s)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
+            RoundedRectangle(cornerRadius: Instrument.Radius.control, style: .continuous)
                 .fill(tint.opacity(colorSchemeContrast == .increased ? 0.18 : 0.12))
                 .overlay {
                     if colorSchemeContrast == .increased {
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        RoundedRectangle(cornerRadius: Instrument.Radius.control, style: .continuous)
                             .strokeBorder(tint.opacity(0.55), lineWidth: 0.75)
                     }
                 }

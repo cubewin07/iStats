@@ -165,7 +165,7 @@ public struct PowerPanel: View {
                     headline: headline,
                     insight: insight,
                     chartMode: chartMode,
-                    chartHeight: Instrument.Size.chartHeight,
+                    chartHeight: Instrument.Size.chartHeightCompact,
                     scrubFormat: { String(format: "%.1f W", $0) }
                 )
             } else {
@@ -176,7 +176,7 @@ public struct PowerPanel: View {
                     headline: headline,
                     insight: insight,
                     chartMode: chartMode,
-                    chartHeight: Instrument.Size.chartHeight,
+                    chartHeight: Instrument.Size.chartHeightCompact,
                     scrubFormat: { String(format: "%.1f W", $0) }
                 )
             }
@@ -190,7 +190,7 @@ public struct PowerPanel: View {
                     headline: headline,
                     insight: insight,
                     chartMode: chartMode,
-                    chartHeight: Instrument.Size.chartHeight,
+                    chartHeight: Instrument.Size.chartHeightCompact,
                     scrubFormat: { String(format: "%.1f W", $0) }
                 )
             } else {
@@ -201,7 +201,7 @@ public struct PowerPanel: View {
                     headline: headline,
                     insight: insight,
                     chartMode: chartMode,
-                    chartHeight: Instrument.Size.chartHeight,
+                    chartHeight: Instrument.Size.chartHeightCompact,
                     scrubFormat: { String(format: "%.1f W", $0) }
                 )
             }
@@ -223,7 +223,7 @@ public struct PowerPanel: View {
         }
 
         if s.isLowBattery, let charge = s.charge {
-            if charge <= 10.0 {
+            if StatusThresholds.battery(chargePercent: charge, isCharging: false) == .critical {
                 return (.critical, "Battery critically low: connect charger immediately")
             } else {
                 return (.warning, "Battery low: connect power soon")
@@ -278,7 +278,7 @@ public struct PowerPanel: View {
                             statusLevel: status
                         )
 
-                        VStack(alignment: .leading, spacing: 2) {
+                        VStack(alignment: .leading, spacing: Instrument.Space.xxs) {
                             Text(batteryHeaderSummary(for: sample))
                                 .font(Instrument.Typography.headline)
                                 .foregroundColor(.primary)
@@ -300,7 +300,7 @@ public struct PowerPanel: View {
                     }
 
                     PowerFlowView(flow: flow, variant: sample.variant)
-                        .padding(.vertical, 2)
+                        .padding(.vertical, Instrument.Space.xxs)
                 }
             }
 
@@ -562,7 +562,7 @@ public struct PowerPanel: View {
                             deepTint: CategoryPalette.tintDeep(for: .power)
                         )
                     }
-                    .padding(.top, 2)
+                    .padding(.top, Instrument.Space.xxs)
                 } else {
                     MetricRow(
                         label: "Design vs Current",

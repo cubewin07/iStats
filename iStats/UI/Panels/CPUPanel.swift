@@ -183,22 +183,23 @@ public struct CPUPanel: View {
 
     private func deriveStatus(sample: CPUSample?) -> StatusLevel {
         guard let s = sample else { return .fine }
-        if s.totalUsage >= 90.0 { return .critical }
-        if s.totalUsage >= 75.0 { return .elevated }
-        if let load = s.loadAverage?.oneMinute, s.perCore.count > 0, load > Double(s.perCore.count) * 1.5 {
-            return .warning
-        }
-        return .fine
+        return StatusThresholds.cpuPanel(
+            usagePercent: s.totalUsage,
+            loadOneMinute: s.loadAverage?.oneMinute,
+            coreCount: s.perCore.count
+        )
     }
 
     private func deriveRibbon(sample: CPUSample?) -> String? {
         guard let s = sample else { return nil }
-        if s.totalUsage >= 90.0 { return "Sustained high CPU load" }
-        if s.totalUsage >= 75.0 { return "Elevated processor demand" }
-        if let load = s.loadAverage?.oneMinute, s.perCore.count > 0, load > Double(s.perCore.count) * 1.5 {
+        switch deriveStatus(sample: s) {
+        case .critical: return "Sustained high CPU load"
+        case .elevated: return "Elevated processor demand"
+        case .warning:
+            let load = s.loadAverage?.oneMinute ?? 0
             return "Load average (\(String(format: "%.1f", load))) exceeds core capacity (\(s.perCore.count))"
+        case .fine: return nil
         }
-        return nil
     }
 
     // MARK: - Now Page (Cores + Top Apps, Max 3 Sections)
@@ -233,7 +234,7 @@ public struct CPUPanel: View {
         return Section(
             hoveredCoreInfo ?? "Cores",
             trailing: {
-                HStack(spacing: 8) {
+                HStack(spacing: Instrument.Space.m) {
                     if let load = sample.loadAverage?.oneMinute {
                         Text("Load \(String(format: "%.2f", load))")
                             .font(Instrument.Typography.micro)
@@ -376,7 +377,7 @@ public struct CPUPanel: View {
         let maxLoad = max(oneMin, max(fiveMin, fifteenMin))
         let capacity = Double(max(1, coreCount))
         let scaleMax = max(1.0, max(capacity * 1.5, maxLoad * 1.1))
-        let isElevated = coreCount > 0 && oneMin > Double(coreCount)
+        let isElevated = StatusThresholds.cpuLoad(oneMinute: oneMin, coreCount: coreCount) >= .elevated
 
         let oneMinColor = isElevated ? CategoryPalette.statusColor(for: .elevated) : CategoryPalette.tint(for: .cpu)
         let fiveMinColor = CategoryPalette.Series.cpuEfficiency
@@ -392,7 +393,7 @@ public struct CPUPanel: View {
                 }
             }
         ) {
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: Instrument.Space.s) {
                 GeometryReader { proxy in
                     let totalWidth = max(1.0, proxy.size.width)
                     let inset: CGFloat = 6.0
@@ -441,7 +442,7 @@ public struct CPUPanel: View {
 
                     Spacer()
 
-                    HStack(spacing: 8) {
+                    HStack(spacing: Instrument.Space.m) {
                         dotLegendItem(label: "1m", color: oneMinColor)
                         dotLegendItem(label: "5m", color: fiveMinColor)
                         dotLegendItem(label: "15m", color: fifteenMinColor)
@@ -496,7 +497,7 @@ public struct CPUPanel: View {
                     .foregroundStyle(.secondary)
             }
         ) {
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: Instrument.Space.m) {
                 SplitCapsule(
                     segments: [
                         CapsuleSegment(value: sample.user, color: CategoryPalette.tint(for: .cpu), label: "User"),
@@ -550,9 +551,9 @@ public struct CPUPanel: View {
         history: [Double],
         color: Color
     ) -> some View {
-        let status: StatusLevel = usage >= 90.0 ? .critical : (usage >= 75.0 ? .elevated : .fine)
+        let status = StatusThresholds.cpuCore(usagePercent: usage)
 
-        return HStack(spacing: 4) {
+        return HStack(spacing: Instrument.Space.xs) {
             Text(label)
                 .font(Instrument.Typography.caption)
                 .foregroundStyle(.secondary)
@@ -569,10 +570,10 @@ public struct CPUPanel: View {
                 .foregroundColor(status.isQuiet ? .primary : status.color)
                 .frame(minWidth: 30, alignment: .trailing)
         }
-        .padding(.horizontal, 6)
+        .padding(.horizontal, Instrument.Space.s)
         .padding(.vertical, 5)
         .background(
-            RoundedRectangle(cornerRadius: 6, style: .continuous)
+            RoundedRectangle(cornerRadius: Instrument.Radius.chip, style: .continuous)
                 .fill(Instrument.Surface.inset.opacity(0.6))
         )
         .accessibilityElement(children: .combine)

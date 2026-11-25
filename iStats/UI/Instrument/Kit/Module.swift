@@ -47,7 +47,7 @@ public struct Section<Content: View, Trailing: View>: View {
                 HStack(alignment: .firstTextBaseline, spacing: Instrument.Space.m) {
                     if let title {
                         Text(title)
-                            .font(Instrument.Typography.sectionTitle)
+                            .font(Instrument.Typography.captionStrong)
                             .foregroundStyle(.secondary)
                             .accessibilityAddTraits(.isHeader)
                     }
@@ -120,7 +120,7 @@ public typealias Module = Section
 #if DEBUG
 struct Module_Previews: PreviewProvider {
     static var previews: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: Instrument.Space.xl) {
             Section("Processor Overview") {
                 Text("Content inside section")
                     .font(Instrument.Typography.body)

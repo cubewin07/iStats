@@ -46,7 +46,7 @@ public struct ClusterStrip: View {
         let cornerRadius = min(barWidth / 2.0, 4.0)
         let barSpacing: CGFloat = bars.count > 16 ? 3 : 4
 
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: Instrument.Space.s) {
             if let title = title {
                 Text(title)
                     .font(Instrument.Typography.caption.monospacedDigit())
@@ -109,7 +109,7 @@ public struct ClusterStrip: View {
 #if DEBUG
 struct ClusterStrip_Previews: PreviewProvider {
     static var previews: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: Instrument.Space.xl) {
             ClusterStrip(
                 title: "PERFORMANCE CORES (P-CLUSTER)",
                 bars: (0..<8).map { i in

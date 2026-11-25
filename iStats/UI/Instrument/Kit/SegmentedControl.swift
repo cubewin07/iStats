@@ -7,7 +7,6 @@ public struct SegmentedControl<Option: Hashable>: View {
     public let options: [Option]
     @Binding public var selection: Option
     public let label: (Option) -> String
-    public let fontSize: CGFloat
     public let horizontalPadding: CGFloat
     public let verticalPadding: CGFloat
     public let accessibilityLabelProvider: ((Option) -> String)?
@@ -19,7 +18,6 @@ public struct SegmentedControl<Option: Hashable>: View {
     public init(
         options: [Option],
         selection: Binding<Option>,
-        fontSize: CGFloat = 11,
         horizontalPadding: CGFloat = 8,
         verticalPadding: CGFloat = 3,
         accessibilityLabel: ((Option) -> String)? = nil,
@@ -27,7 +25,6 @@ public struct SegmentedControl<Option: Hashable>: View {
     ) {
         self.options = options
         self._selection = selection
-        self.fontSize = fontSize
         self.horizontalPadding = horizontalPadding
         self.verticalPadding = verticalPadding
         self.accessibilityLabelProvider = accessibilityLabel
@@ -35,7 +32,7 @@ public struct SegmentedControl<Option: Hashable>: View {
     }
 
     public var body: some View {
-        HStack(spacing: 2) {
+        HStack(spacing: Instrument.Space.xxs) {
             ForEach(options, id: \.self) { option in
                 let isSelected = (selection == option)
                 let title = label(option)
@@ -56,7 +53,7 @@ public struct SegmentedControl<Option: Hashable>: View {
                         }
 
                         Text(title)
-                            .font(.system(size: fontSize, weight: isSelected ? .semibold : .regular))
+                            .font(isSelected ? Instrument.Typography.captionStrong : Instrument.Typography.caption)
                             .foregroundColor(isSelected ? .primary : .secondary)
                             .padding(.horizontal, horizontalPadding)
                             .padding(.vertical, verticalPadding)
@@ -68,7 +65,7 @@ public struct SegmentedControl<Option: Hashable>: View {
                 .accessibilityAddTraits(isSelected ? [.isSelected] : [])
             }
         }
-        .padding(2)
+        .padding(Instrument.Space.xxs)
         .background(
             RoundedRectangle(cornerRadius: Instrument.Radius.control, style: .continuous)
                 .fill(Color.primary.opacity(0.05))
@@ -83,10 +80,10 @@ public struct SegmentedControl<Option: Hashable>: View {
 
     @ViewBuilder
     private var puckView: some View {
-        let shape = RoundedRectangle(cornerRadius: 6, style: .continuous)
+        let shape = RoundedRectangle(cornerRadius: Instrument.Radius.chip, style: .continuous)
             .fill(Color.primary.opacity(0.12))
             .overlay(
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                RoundedRectangle(cornerRadius: Instrument.Radius.chip, style: .continuous)
                     .strokeBorder(
                         colorSchemeContrast == .increased
                             ? Color.primary.opacity(0.35)

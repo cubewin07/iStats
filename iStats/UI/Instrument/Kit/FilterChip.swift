@@ -8,7 +8,6 @@ public struct FilterChip: View {
     public let isDimmed: Bool
     public let dotColor: Color?
     public let tint: Color
-    public let fontSize: CGFloat
     public let action: () -> Void
 
     @Environment(\.motionPolicy) private var motionPolicy
@@ -20,7 +19,6 @@ public struct FilterChip: View {
         isDimmed: Bool = false,
         dotColor: Color? = nil,
         tint: Color = .accentColor,
-        fontSize: CGFloat = 10.5,
         action: @escaping () -> Void
     ) {
         self.title = title
@@ -28,7 +26,6 @@ public struct FilterChip: View {
         self.isDimmed = isDimmed
         self.dotColor = dotColor
         self.tint = tint
-        self.fontSize = fontSize
         self.action = action
     }
 
@@ -51,10 +48,10 @@ public struct FilterChip: View {
                 }
 
                 Text(title)
-                    .font(.system(size: fontSize, weight: isSelected ? .semibold : .regular))
+                    .font(isSelected ? Instrument.Typography.captionStrong : Instrument.Typography.caption)
                     .foregroundColor(labelColor)
             }
-            .padding(.horizontal, 8)
+            .padding(.horizontal, Instrument.Space.m)
             .padding(.vertical, 3.5)
             .background(
                 Capsule()
@@ -93,7 +90,7 @@ public struct FilterChip: View {
 #if DEBUG
 struct FilterChip_Previews: PreviewProvider {
     static var previews: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: Instrument.Space.s) {
             FilterChip(title: "User", isSelected: true, dotColor: .blue, tint: .blue) {}
             FilterChip(title: "System", isSelected: false, isDimmed: true, dotColor: .orange, tint: .orange) {}
             FilterChip(title: "Peak", isSelected: true, tint: .orange) {}

@@ -123,7 +123,7 @@ public struct ArcGauge: View {
 #if DEBUG
 struct ArcGauge_Previews: PreviewProvider {
     static var previews: some View {
-        HStack(spacing: 20) {
+        HStack(spacing: Instrument.Space.xxl) {
             ArcGauge(
                 value: 45,
                 range: 0...100,

@@ -85,7 +85,7 @@ public struct ProcessIconView: View {
                 .cornerRadius(3)
         } else {
             Image(systemName: "gearshape")
-                .font(.system(size: 11, weight: .regular))
+                .font(Instrument.Typography.icon(Instrument.Icon.regular, weight: .regular))
                 .foregroundColor(.secondary)
                 .frame(width: 16, height: 16)
         }
@@ -136,13 +136,13 @@ public struct TopConsumersModule: View {
                         Text("Activity Monitor")
                             .font(Instrument.Typography.caption)
                         Image(systemName: "arrow.up.forward.app")
-                            .font(.system(size: 9))
+                            .font(Instrument.Typography.icon(Instrument.Icon.small))
                     }
                     .foregroundColor(accentTint)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
+                    .padding(.horizontal, Instrument.Space.s)
+                    .padding(.vertical, Instrument.Space.xxs)
                     .background(
-                        RoundedRectangle(cornerRadius: 5, style: .continuous)
+                        RoundedRectangle(cornerRadius: Instrument.Radius.chip, style: .continuous)
                             .fill(isActivityMonitorHovered ? accentTint.opacity(0.12) : Color.clear)
                     )
                 }
@@ -159,11 +159,11 @@ public struct TopConsumersModule: View {
                 Text("Analyzing process activity...")
                     .font(Instrument.Typography.caption)
                     .foregroundColor(.secondary)
-                    .padding(.vertical, 4)
+                    .padding(.vertical, Instrument.Space.xs)
             } else {
-                VStack(spacing: 6) {
+                VStack(spacing: Instrument.Space.s) {
                     ForEach(processes.prefix(5)) { item in
-                        HStack(spacing: 8) {
+                        HStack(spacing: Instrument.Space.m) {
                             ProcessIconView(pid: item.pid, bundleID: item.bundleID)
 
                             Text(item.name)
