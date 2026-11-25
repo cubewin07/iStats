@@ -130,7 +130,7 @@ public struct GPUPanel: View {
 
     private func deriveGlance(sample: GPUSample?, referenceDate: Date) -> PanelGlance {
         let util = sample?.utilization ?? 0.0
-        let headline = PanelHeadline.gpu(sample: sample)
+        let headline = GPUPageContent.headline(sample: sample)
         let utilPoints = coordinator.timedScalarHistory(
             for: .gpuUtilization,
             duration: 60,
@@ -172,19 +172,13 @@ public struct GPUPanel: View {
         return nil
     }
 
-    // MARK: - Now Page (Max 2 Sections)
+    // MARK: - Now Page (Engine Activity only; telemetry lives on Details)
 
     @ViewBuilder
     private func nowPage(sample: GPUSample?, rings: [RingData]) -> some View {
         if let s = sample {
-            let hasMemoryOrTelemetry = hasMemoryTelemetrySection(sample: s)
-
-            VStack(alignment: .leading, spacing: Instrument.Space.m) {
+            VStack(alignment: .leading, spacing: Instrument.Space.sectionGap) {
                 engineActivitySection(sample: s, rings: rings)
-
-                if hasMemoryOrTelemetry {
-                    memoryAndTelemetrySection(sample: s)
-                }
             }
         }
     }
@@ -385,74 +379,22 @@ public struct GPUPanel: View {
         return rings
     }
 
-    // MARK: - Detail Page (Max 2 Sections)
+    // MARK: - Detail Page (Telemetry + Device Architecture)
 
     @ViewBuilder
     private func detailPage(sample: GPUSample?) -> some View {
         if let s = sample {
             let specs = architectureSpecRows(sample: s)
 
-            VStack(alignment: .leading, spacing: Instrument.Space.m) {
-                engineBreakdownSection(sample: s)
+            VStack(alignment: .leading, spacing: Instrument.Space.sectionGap) {
+                if hasMemoryTelemetrySection(sample: s) {
+                    memoryAndTelemetrySection(sample: s)
+                }
 
                 if !specs.isEmpty {
                     deviceArchitectureSection(rows: specs)
                 }
             }
-        }
-    }
-
-    private func engineBreakdownSection(sample: GPUSample) -> some View {
-        let util = sample.utilization ?? 0.0
-        let enginesTitle = PopoverTab.detail.title(for: .gpu, hasDetailedGPUEngines: hasDetailedEngines)
-
-        return Section("\(enginesTitle) Breakdown") {
-            VStack(alignment: .leading, spacing: 10) {
-                engineMeterBlock(
-                    label: "Device Utilization",
-                    value: util,
-                    tint: CategoryPalette.tint(for: .gpu)
-                )
-
-                if let renderer = sample.rendererUtilization {
-                    engineMeterBlock(
-                        label: "3D Renderer Engine",
-                        value: renderer,
-                        tint: CategoryPalette.tintDeep(for: .gpu)
-                    )
-                }
-
-                if let tiler = sample.tilerUtilization {
-                    engineMeterBlock(
-                        label: "Geometry / Tiler Engine",
-                        value: tiler,
-                        tint: CategoryPalette.tint(for: .gpu).opacity(0.65)
-                    )
-                }
-
-                if !hasDetailedEngines {
-                    Text("Per-engine hardware telemetry is synthesized via IOKit on this architecture.")
-                        .font(Instrument.Typography.caption)
-                        .foregroundStyle(.secondary)
-                        .padding(.top, Instrument.Space.xxs)
-                }
-            }
-        }
-    }
-
-    private func engineMeterBlock(label: String, value: Double, tint: Color) -> some View {
-        VStack(alignment: .leading, spacing: Instrument.Space.xs) {
-            MetricRow(
-                label: label,
-                valueText: String(format: "%.0f", value),
-                unit: "%"
-            )
-            Meter(
-                progress: value / 100.0,
-                height: .medium,
-                tint: tint,
-                interval: preferences.refreshInterval
-            )
         }
     }
 
@@ -531,6 +473,18 @@ public struct GPUPanel: View {
                 }
             }
         }
+    }
+}
+
+/// Pure content rules for the GPU panel (Task 9.5), kept testable without rendering.
+enum GPUPageContent {
+    /// State word only: utilization is the hero and die temperature sits on Details.
+    static func headline(sample: GPUSample?) -> String {
+        guard let sample else { return "GPU telemetry unavailable" }
+        let util = sample.utilization ?? 0.0
+        if util >= 80.0 { return "Heavy GPU load" }
+        if util >= 25.0 { return "Active" }
+        return "Idle"
     }
 }
 
