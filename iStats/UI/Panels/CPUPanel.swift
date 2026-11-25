@@ -207,7 +207,7 @@ public struct CPUPanel: View {
     @ViewBuilder
     private func nowPage(sample: CPUSample?) -> some View {
         if let s = sample {
-            VStack(spacing: Instrument.Space.m) {
+            VStack(alignment: .leading, spacing: Instrument.Space.sectionGap) {
                 coreMapModule(sample: s)
                 topConsumersModule
             }
@@ -232,19 +232,17 @@ public struct CPUPanel: View {
         let hasTopology = (pCount > 0 || eCount > 0) && (pCount + eCount == sample.perCore.count)
 
         return Section(
-            hoveredCoreInfo ?? "Cores",
+            "Cores",
             trailing: {
-                HStack(spacing: Instrument.Space.m) {
-                    if let load = sample.loadAverage?.oneMinute {
-                        Text("Load \(String(format: "%.2f", load))")
-                            .font(Instrument.Typography.micro)
-                            .foregroundColor(.secondary)
-                    }
-                    if let freq = sample.frequencyHz, freq > 0 {
-                        Text(Units.formatFrequencyHz(freq))
-                            .font(Instrument.Typography.micro)
-                            .foregroundColor(.secondary)
-                    }
+                // Hover detail lives in the accessory so the section title stays fixed.
+                if let info = hoveredCoreInfo {
+                    Text(info)
+                        .font(Instrument.Typography.micro.monospacedDigit())
+                        .foregroundColor(.secondary)
+                } else if let freq = sample.frequencyHz, freq > 0 {
+                    Text(Units.formatFrequencyHz(freq))
+                        .font(Instrument.Typography.micro)
+                        .foregroundColor(.secondary)
                 }
             }
         ) {
@@ -360,7 +358,7 @@ public struct CPUPanel: View {
     @ViewBuilder
     private func detailPage(sample: CPUSample?) -> some View {
         if let s = sample {
-            VStack(spacing: Instrument.Space.m) {
+            VStack(alignment: .leading, spacing: Instrument.Space.sectionGap) {
                 loadAverageModule(sample: s)
                 compositionModule(sample: s)
                 perCoreGridModule(sample: s)
@@ -443,9 +441,9 @@ public struct CPUPanel: View {
                     Spacer()
 
                     HStack(spacing: Instrument.Space.m) {
-                        dotLegendItem(label: "1m", color: oneMinColor)
-                        dotLegendItem(label: "5m", color: fiveMinColor)
-                        dotLegendItem(label: "15m", color: fifteenMinColor)
+                        dotLegendItem(label: CPUPageContent.loadLegend(window: "1m", value: load?.oneMinute), color: oneMinColor)
+                        dotLegendItem(label: CPUPageContent.loadLegend(window: "5m", value: load?.fiveMinute), color: fiveMinColor)
+                        dotLegendItem(label: CPUPageContent.loadLegend(window: "15m", value: load?.fifteenMinute), color: fifteenMinColor)
                     }
 
                     Spacer()
@@ -455,14 +453,6 @@ public struct CPUPanel: View {
                         .foregroundStyle(.tertiary)
                 }
 
-                MetricRow(
-                    label: "1m · 5m · 15m",
-                    valueText: load != nil
-                        ? String(format: "%.2f · %.2f · %.2f", oneMin, fiveMin, fifteenMin)
-                        : "Unavailable",
-                    statusLevel: isElevated ? .elevated : .fine,
-                    isCopyable: load != nil
-                )
             }
         }
     }
@@ -489,14 +479,7 @@ public struct CPUPanel: View {
     }
 
     private func compositionModule(sample: CPUSample) -> some View {
-        Section(
-            "Composition",
-            trailing: {
-                Text("Uptime \(Units.formatUptime(ProcessInfo.processInfo.systemUptime))")
-                    .font(Instrument.Typography.caption.monospacedDigit())
-                    .foregroundStyle(.secondary)
-            }
-        ) {
+        Section("Composition") {
             VStack(alignment: .leading, spacing: Instrument.Space.m) {
                 SplitCapsule(
                     segments: [
@@ -636,5 +619,14 @@ public struct CPUPanel: View {
         case .standard:
             return "Core \(index + 1)"
         }
+    }
+}
+
+/// Pure content rules for the CPU panel (Task 9.5), kept testable without rendering.
+enum CPUPageContent {
+    /// Load windows are labelled with their value once, in the dot-plot legend.
+    static func loadLegend(window: String, value: Double?) -> String {
+        guard let value else { return "\(window) --" }
+        return "\(window) \(String(format: "%.2f", value))"
     }
 }
