@@ -3,59 +3,46 @@ import XCTest
 
 final class PopoverConfigTests: XCTestCase {
 
-    // MARK: - 1. Exhaustive 33 Legacy PopoverStyle Migration Tests
+    // MARK: - 1. Exhaustive Legacy PopoverStyle Raw Value Migration Tests
 
-    func testAll33LegacyPopoverStyleValuesMigration() {
-        let all33LegacyCases = PopoverStyle.allCases
-        XCTAssertEqual(all33LegacyCases.count, 29, "Expected 29 total legacy PopoverStyle cases")
+    /// The removed `PopoverStyle` enum's raw values: still decoded from pre-v2 data.
+    private static let legacyOverview = [
+        "categoryDefault", "cpuUserSystem", "memoryComposition", "memoryAllocation",
+        "gpuLoadRing", "thermalRing", "fanDualRPM", "fanTachometer", "fanBlades", "fanBars",
+        "networkBars", "diskStorageRing", "diskActivityLEDs", "powerBudget", "powerWattage",
+        "powerChargeRing", "powerBar"
+    ]
+    private static let legacyDetail = [
+        "cpuCluster", "memoryPressure", "gpuEngine", "gpuDie", "networkDiagnostics", "diskStorageTanks"
+    ]
+    private static let legacyThermalFocus: [String: MetricSource] = [
+        "thermalCPU": .cpu, "thermalGPU": .gpu, "thermalMemory": .memory,
+        "thermalStorage": .ssd, "thermalBattery": .battery
+    ]
 
-        for legacy in all33LegacyCases {
-            let migrated = PopoverConfig.migrated(fromLegacyRawValue: legacy.rawValue, category: .cpu)
-            switch legacy {
-            case .categoryDefault, .cpuUserSystem, .memoryComposition, .memoryAllocation,
-                 .gpuLoadRing, .thermalRing, .fanDualRPM, .fanTachometer, .fanBlades, .fanBars,
-                 .networkBars, .diskStorageRing, .diskActivityLEDs, .powerBudget, .powerWattage,
-                 .powerChargeRing, .powerBar:
-                XCTAssertEqual(migrated.openingTab, .overview, "\(legacy.rawValue) must migrate to .overview")
-                if legacy.rawValue.starts(with: "thermal") && legacy != .thermalRing {
-                    // component focus
-                } else {
-                    XCTAssertNil(migrated.focusSource)
-                }
+    func testAllLegacyPopoverStyleValuesMigration() {
+        let total = Self.legacyOverview.count + Self.legacyDetail.count + Self.legacyThermalFocus.count + 1
+        XCTAssertEqual(total, 29, "Expected 29 total legacy PopoverStyle raw values")
 
-            case .thermalCPU:
-                XCTAssertEqual(migrated.openingTab, .overview)
-                XCTAssertEqual(migrated.focusSource, .cpu)
-
-            case .thermalGPU:
-                XCTAssertEqual(migrated.openingTab, .overview)
-                XCTAssertEqual(migrated.focusSource, .gpu)
-
-            case .thermalMemory:
-                XCTAssertEqual(migrated.openingTab, .overview)
-                XCTAssertEqual(migrated.focusSource, .memory)
-
-            case .thermalStorage:
-                XCTAssertEqual(migrated.openingTab, .overview)
-                XCTAssertEqual(migrated.focusSource, .ssd)
-
-            case .thermalBattery:
-                XCTAssertEqual(migrated.openingTab, .overview)
-                XCTAssertEqual(migrated.focusSource, .battery)
-
-            case .cpuCluster, .memoryPressure, .gpuEngine, .gpuDie, .networkDiagnostics, .diskStorageTanks:
-                XCTAssertEqual(migrated.openingTab, .detail, "\(legacy.rawValue) must migrate to .detail")
-
-            case .history:
-                XCTAssertEqual(migrated.openingTab, .history, "history must migrate to .history")
-            }
+        for raw in Self.legacyOverview {
+            let migrated = PopoverConfig.migrated(fromLegacyRawValue: raw, category: .cpu)
+            XCTAssertEqual(migrated.openingTab, .overview, "\(raw) must migrate to .overview")
+            XCTAssertNil(migrated.focusSource)
         }
+        for raw in Self.legacyDetail {
+            XCTAssertEqual(PopoverConfig.migrated(fromLegacyRawValue: raw, category: .cpu).openingTab, .detail, "\(raw) must migrate to .detail")
+        }
+        for (raw, source) in Self.legacyThermalFocus {
+            let migrated = PopoverConfig.migrated(fromLegacyRawValue: raw, category: .thermal)
+            XCTAssertEqual(migrated.openingTab, .overview)
+            XCTAssertEqual(migrated.focusSource, source)
+        }
+        XCTAssertEqual(PopoverConfig.migrated(fromLegacyRawValue: "history", category: .cpu).openingTab, .history)
     }
 
     func testUnknownLegacyRawStringFallsBackToOverview() {
         let unknown = PopoverConfig.migrated(fromLegacyRawValue: "futurePopoverStyleXYZ", category: .memory)
         XCTAssertEqual(unknown.openingTab, .overview)
-        XCTAssertTrue(unknown.rememberLastTab)
     }
 
     // MARK: - 2. PopoverTab Titles
@@ -129,7 +116,10 @@ final class PopoverConfigTests: XCTestCase {
         XCTAssertEqual(item.style, .text)
         XCTAssertEqual(item.source, .gpu)
         XCTAssertEqual(item.popover?.openingTab, .overview)
-        XCTAssertEqual(item.popover?.rememberLastTab, false)
+
+        // `rememberLastTab` is decoded-and-ignored; it is never written back.
+        let encoded = try JSONEncoder().encode(item.popover)
+        XCTAssertFalse(String(decoding: encoded, as: UTF8.self).contains("rememberLastTab"))
         XCTAssertEqual(item.popover?.focusSource, .gpu)
     }
 }

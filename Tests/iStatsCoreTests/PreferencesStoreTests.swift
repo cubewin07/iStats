@@ -31,7 +31,6 @@ final class PreferencesStoreTests: XCTestCase {
         XCTAssertEqual(store.byteUnitStandard, .iec)
         XCTAssertFalse(store.showDockIcon)
         XCTAssertFalse(store.launchAtLogin)
-        XCTAssertEqual(store.menuBarDisplayMode, .cpu)
     }
 
     func testRefreshIntervalClampingLowerBound() {
@@ -108,11 +107,8 @@ final class PreferencesStoreTests: XCTestCase {
         store.setCategory(.cpu, isEnabled: false)
         XCTAssertFalse(store.isCategoryEnabled(.cpu))
 
-        store.toggleCategory(.cpu)
+        store.setCategory(.cpu, isEnabled: true)
         XCTAssertTrue(store.isCategoryEnabled(.cpu))
-
-        store.toggleCategory(.cpu)
-        XCTAssertFalse(store.isCategoryEnabled(.cpu))
     }
 
     func testUnitsDisplayNamesAndSymbols() {
@@ -147,49 +143,101 @@ final class PreferencesStoreTests: XCTestCase {
         XCTAssertEqual(store.byteUnitStandard, .iec)
         XCTAssertFalse(store.showDockIcon)
         XCTAssertFalse(store.launchAtLogin)
-        XCTAssertEqual(store.menuBarDisplayMode, .cpu)
     }
 
-    func testMenuBarDisplayModePersistenceAndReset() {
-        let store1 = PreferencesStore(userDefaults: testDefaults)
-        store1.menuBarDisplayMode = .both
-        XCTAssertEqual(store1.menuBarDisplayMode, .both)
+    func testSchemaV2DefaultsAndPersistence() {
+        let store = PreferencesStore(userDefaults: testDefaults)
+        XCTAssertFalse(store.hasCompletedOnboarding)
+        XCTAssertEqual(store.lastPanelDestination, .overview)
+        XCTAssertNil(store.lastSettingsSection)
+        XCTAssertEqual(store.menuBarAppearance, .statusTint)
+        XCTAssertNil(store.networkInterfaceSelection)
+        XCTAssertEqual(store.alertRules, AlertRule.defaults)
 
-        let store2 = PreferencesStore(userDefaults: testDefaults)
-        XCTAssertEqual(store2.menuBarDisplayMode, .both)
+        store.hasCompletedOnboarding = true
+        store.lastPanelDestination = .category(.network)
+        store.lastSettingsSection = "alerts"
+        store.menuBarAppearance = .categoryColor
+        store.networkInterfaceSelection = "en0"
 
-        store2.menuBarDisplayMode = .memory
-        let store3 = PreferencesStore(userDefaults: testDefaults)
-        XCTAssertEqual(store3.menuBarDisplayMode, .memory)
+        let reloaded = PreferencesStore(userDefaults: testDefaults)
+        XCTAssertTrue(reloaded.hasCompletedOnboarding)
+        XCTAssertEqual(reloaded.lastPanelDestination, .category(.network))
+        XCTAssertEqual(reloaded.lastSettingsSection, "alerts")
+        XCTAssertEqual(reloaded.menuBarAppearance, .categoryColor)
+        XCTAssertEqual(reloaded.networkInterfaceSelection, "en0")
 
-        store3.menuBarDisplayMode = .network
-        let store4 = PreferencesStore(userDefaults: testDefaults)
-        XCTAssertEqual(store4.menuBarDisplayMode, .network)
+        reloaded.lastSettingsSection = nil
+        reloaded.networkInterfaceSelection = nil
+        let cleared = PreferencesStore(userDefaults: testDefaults)
+        XCTAssertNil(cleared.lastSettingsSection)
+        XCTAssertNil(cleared.networkInterfaceSelection)
 
-        store4.menuBarDisplayMode = .battery
-        let store5 = PreferencesStore(userDefaults: testDefaults)
-        XCTAssertEqual(store5.menuBarDisplayMode, .battery)
+        // Reset restores the defaults but keeps the onboarding flag.
+        cleared.resetToDefaults()
+        XCTAssertEqual(cleared.lastPanelDestination, .overview)
+        XCTAssertEqual(cleared.menuBarAppearance, .statusTint)
+        XCTAssertTrue(cleared.hasCompletedOnboarding)
+    }
 
-        store5.menuBarDisplayMode = .thermal
-        let store6 = PreferencesStore(userDefaults: testDefaults)
-        XCTAssertEqual(store6.menuBarDisplayMode, .thermal)
+    func testInvalidV2ValuesFallBackToDefaults() {
+        testDefaults.set("bogus", forKey: PreferencesStore.Keys.lastPanelDestination)
+        testDefaults.set("bogus", forKey: PreferencesStore.Keys.menuBarAppearance)
+        let store = PreferencesStore(userDefaults: testDefaults)
+        XCTAssertEqual(store.lastPanelDestination, .overview)
+        XCTAssertEqual(store.menuBarAppearance, .statusTint)
+    }
 
-        store6.menuBarDisplayMode = .gpu
-        let store7 = PreferencesStore(userDefaults: testDefaults)
-        XCTAssertEqual(store7.menuBarDisplayMode, .gpu)
+    func testLegacyAlertAccessorsBridgeToAlertRules() {
+        let store = PreferencesStore(userDefaults: testDefaults)
+        store.cpuAlertEnabled = true
+        store.cpuAlertThreshold = 75
+        store.batteryLowThreshold = 3 // clamps to 5
+        store.thermalAlertThreshold = 200 // clamps to 105
+        store.alertCooldownInterval = 10 // clamps to 30
 
-        store7.menuBarDisplayMode = .icon
-        let store8 = PreferencesStore(userDefaults: testDefaults)
-        XCTAssertEqual(store8.menuBarDisplayMode, .icon)
+        XCTAssertEqual(store.alertRules.first { $0.kind == .cpu }?.threshold, 75)
+        XCTAssertEqual(store.batteryLowThreshold, 5)
+        XCTAssertEqual(store.thermalAlertThreshold, 105)
+        XCTAssertEqual(store.alertCooldownInterval, 30)
+        XCTAssertTrue(store.alertRules.allSatisfy { $0.cooldownSeconds == 30 })
 
-        XCTAssertEqual(PreferencesStore.MenuBarDisplayMode.icon.displayName, "Icon Only")
-        XCTAssertEqual(PreferencesStore.MenuBarDisplayMode.cpu.displayName, "CPU Usage")
-        XCTAssertEqual(PreferencesStore.MenuBarDisplayMode.memory.displayName, "Memory Usage")
-        XCTAssertEqual(PreferencesStore.MenuBarDisplayMode.both.displayName, "CPU & Memory")
-        XCTAssertEqual(PreferencesStore.MenuBarDisplayMode.network.displayName, "Network Rate")
-        XCTAssertEqual(PreferencesStore.MenuBarDisplayMode.battery.displayName, "Battery Level")
-        XCTAssertEqual(PreferencesStore.MenuBarDisplayMode.thermal.displayName, "SoC Temperature")
-        XCTAssertEqual(PreferencesStore.MenuBarDisplayMode.gpu.displayName, "GPU Usage")
+        let reloaded = PreferencesStore(userDefaults: testDefaults)
+        XCTAssertTrue(reloaded.cpuAlertEnabled)
+        XCTAssertEqual(reloaded.cpuAlertThreshold, 75)
+        XCTAssertEqual(reloaded.alertRules.map(\.kind), AlertKind.allCases)
+
+        reloaded.resetToDefaults()
+        XCTAssertEqual(reloaded.alertRules, AlertRule.defaults)
+    }
+
+    func testPinnedOriginsKeyedByDestination() {
+        let store = PreferencesStore(userDefaults: testDefaults)
+        XCTAssertNil(store.pinnedOrigin(for: .overview))
+
+        store.setPinnedOrigin(CGPoint(x: 10, y: 20), for: .overview)
+        store.setPinnedOrigin(CGPoint(x: 30, y: 40), for: MetricCategory.cpu)
+        XCTAssertEqual(store.pinnedOrigin(forDestinationKey: "overview"), CGPoint(x: 10, y: 20))
+        XCTAssertEqual(store.pinnedOrigin(forDestinationKey: "cpu"), CGPoint(x: 30, y: 40))
+        XCTAssertEqual(store.pinnedOrigin(for: PanelDestination.category(.cpu)), CGPoint(x: 30, y: 40))
+
+        let reloaded = PreferencesStore(userDefaults: testDefaults)
+        XCTAssertEqual(reloaded.pinnedOrigin(for: .overview), CGPoint(x: 10, y: 20))
+        XCTAssertEqual(reloaded.pinnedOrigin(for: MetricCategory.cpu), CGPoint(x: 30, y: 40))
+
+        reloaded.setPinnedOrigin(nil, for: .overview)
+        XCTAssertNil(reloaded.pinnedOrigin(forDestinationKey: "overview"))
+        XCTAssertNotNil(reloaded.pinnedOrigin(forDestinationKey: "cpu"))
+    }
+
+    func testCategoryLastTabIsPerCategory() {
+        let store = PreferencesStore(userDefaults: testDefaults)
+        store.setLastSelectedTab(.history, for: .cpu)
+        store.setLastSelectedTab(.detail, for: .memory)
+        XCTAssertEqual(store.lastSelectedTab(for: .cpu), .history)
+        XCTAssertEqual(store.lastSelectedTab(for: .memory), .detail)
+        XCTAssertNil(store.lastSelectedTab(for: .gpu))
+        XCTAssertEqual(PreferencesStore(userDefaults: testDefaults).lastSelectedTab(for: .cpu), .history)
     }
 
     func testSamplingPausedPersistenceActiveMenuBarItemsAndReset() {
@@ -199,7 +247,7 @@ final class PreferencesStoreTests: XCTestCase {
         let savedItems = store1.menuBarItems
 
         // Pause sampling -> activeMenuBarItems collapses to empty while preserving menuBarItems
-        store1.setSamplingPaused(true)
+        store1.isSamplingPaused = true
         XCTAssertTrue(store1.isSamplingPaused)
         XCTAssertTrue(store1.activeMenuBarItems.isEmpty)
         XCTAssertEqual(store1.menuBarItems, savedItems)
@@ -210,12 +258,12 @@ final class PreferencesStoreTests: XCTestCase {
         XCTAssertTrue(store2.activeMenuBarItems.isEmpty)
 
         // Toggle back to active
-        store2.toggleSamplingPaused()
+        store2.isSamplingPaused.toggle()
         XCTAssertFalse(store2.isSamplingPaused)
         XCTAssertEqual(store2.activeMenuBarItems, savedItems)
 
         // Reset to defaults clears pause state and restores autoPauseOnLowPowerMode
-        store2.setSamplingPaused(true)
+        store2.isSamplingPaused = true
         store2.isAutoPausedByLowPowerMode = true
         store2.autoPauseOnLowPowerMode = false
         let store3 = PreferencesStore(userDefaults: testDefaults)
@@ -224,10 +272,10 @@ final class PreferencesStoreTests: XCTestCase {
         XCTAssertFalse(store3.autoPauseOnLowPowerMode)
 
         // Resuming automatically clears isAutoPausedByLowPowerMode
-        store3.setSamplingPaused(false)
+        store3.isSamplingPaused = false
         XCTAssertFalse(store3.isAutoPausedByLowPowerMode)
 
-        store3.setSamplingPaused(true)
+        store3.isSamplingPaused = true
         store3.isAutoPausedByLowPowerMode = true
         store3.resetToDefaults()
         XCTAssertFalse(store3.isSamplingPaused)

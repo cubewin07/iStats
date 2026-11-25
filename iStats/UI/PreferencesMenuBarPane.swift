@@ -12,7 +12,6 @@ public struct PreferencesMenuBarPane: View {
 
     @State private var selectedCategory: MetricCategory = .cpu
     @State private var selectedWidgetStyle: MetricDisplayStyle = .bar
-    @State private var selectedPopoverStyle: PopoverStyle = .cpuCluster
     @State private var selectedThermalSource: MetricSource = .peak
 
     public init(
@@ -88,9 +87,6 @@ public struct PreferencesMenuBarPane: View {
         .onChange(of: selectedCategory) { _ in
             syncSelectedStyles()
         }
-        .onChange(of: store.widgetPopoverStyles) { _ in
-            syncSelectedStyles()
-        }
         .onChange(of: store.menuBarItems) { _ in
             syncSelectedStyles()
         }
@@ -101,7 +97,6 @@ public struct PreferencesMenuBarPane: View {
         if !styles.contains(selectedWidgetStyle) {
             selectedWidgetStyle = styles.first ?? .text
         }
-        selectedPopoverStyle = store.resolvedPopoverStyle(for: selectedCategory, widgetStyle: selectedWidgetStyle, hasBattery: hasBattery)
     }
 
     // MARK: - Live Menu Bar Strip Header
@@ -251,7 +246,6 @@ public struct PreferencesMenuBarPane: View {
             if let src = item.source {
                 selectedThermalSource = src
             }
-            selectedPopoverStyle = store.resolvedPopoverStyle(for: item.category, widgetStyle: item.style)
         }
     }
 
@@ -426,8 +420,6 @@ public struct PreferencesMenuBarPane: View {
         let effectiveSource: MetricSource? = isThermalMultiSource ? selectedThermalSource : nil
         let isItemEnabled = store.isExactItemEnabled(category: selectedCategory, style: style, source: effectiveSource)
         let activeConfig = store.item(category: selectedCategory, style: style, source: effectiveSource)
-        let customPopover = store.popoverStyle(for: selectedCategory, widgetStyle: style)
-        let resolvedPopover = store.resolvedPopoverStyle(for: selectedCategory, widgetStyle: style)
 
         let previewConfig = MenuBarItemConfig(
             category: selectedCategory,
@@ -471,15 +463,6 @@ public struct PreferencesMenuBarPane: View {
                             MetricSourceBadge(source: src)
                         }
 
-                        if customPopover != nil {
-                            Text("Custom Popover")
-                                .font(.system(size: 8.5, weight: .bold))
-                                .foregroundColor(.accentColor)
-                                .padding(.horizontal, 5)
-                                .padding(.vertical, 1.5)
-                                .background(Color.accentColor.opacity(0.12))
-                                .clipShape(Capsule())
-                        }
                     }
 
                     if let reason = disabledReason, isDisabled {
@@ -500,7 +483,6 @@ public struct PreferencesMenuBarPane: View {
                     // Selection Preview Button
                     Button(action: {
                         selectedWidgetStyle = style
-                        selectedPopoverStyle = resolvedPopover
                     }) {
                         Image(systemName: isSelected ? "eye.fill" : "eye")
                             .font(.system(size: 12))
@@ -634,7 +616,6 @@ public struct PreferencesMenuBarPane: View {
         .onTapGesture {
             if !isDisabled {
                 selectedWidgetStyle = style
-                selectedPopoverStyle = resolvedPopover
             }
         }
     }
@@ -686,20 +667,6 @@ public struct PreferencesMenuBarPane: View {
                 }
                 .disabled(activeItem == nil)
 
-                // "Remember last tab" Toggle
-                Toggle("Remember last tab", isOn: Binding<Bool>(
-                    get: { resolvedConfig.rememberLastTab },
-                    set: { remember in
-                        var updated = resolvedConfig
-                        updated.rememberLastTab = remember
-                        if let activeId = activeItem?.id, let idx = store.menuBarItems.firstIndex(where: { $0.id == activeId }) {
-                            store.menuBarItems[idx].popover = updated
-                        }
-                    }
-                ))
-                .font(.system(size: 11))
-                .controlSize(.small)
-                .disabled(activeItem == nil)
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 10)

@@ -26,9 +26,7 @@ public final class PreferencesStore: ObservableObject, @unchecked Sendable {
         public static let byteUnitStandard = "iStats.byteUnitStandard"
         public static let showDockIcon = "iStats.showDockIcon"
         public static let launchAtLogin = "iStats.launchAtLogin"
-        public static let menuBarDisplayMode = "iStats.menuBarDisplayMode"
         public static let menuBarItems = "iStats.menuBarItems"
-        public static let widgetPopoverStyles = "iStats.widgetPopoverStyles"
         public static let categoryLastTabs = "iStats.categoryLastTabs"
         public static let categoryHistoryRanges = "iStats.categoryHistoryRanges"
         public static let pinnedPanelOrigins = "iStats.pinnedPanelOrigins"
@@ -36,48 +34,34 @@ public final class PreferencesStore: ObservableObject, @unchecked Sendable {
         public static let isAutoPausedByLowPowerMode = "iStats.isAutoPausedByLowPowerMode"
         public static let autoPauseOnLowPowerMode = "iStats.autoPauseOnLowPowerMode"
 
-        // Notification & Alert Keys
+        // Schema v2 (Phase 9)
+        public static let schemaVersion = PreferencesMigration.Keys.schemaVersion
+        public static let hasCompletedOnboarding = PreferencesMigration.Keys.hasCompletedOnboarding
+        public static let alertRules = PreferencesMigration.Keys.alertRules
+        public static let lastPanelDestination = "iStats.lastPanelDestination"
+        public static let lastSettingsSection = "iStats.lastSettingsSection"
+        public static let menuBarAppearance = "iStats.menuBarAppearance"
+        public static let networkInterfaceSelection = "iStats.networkInterfaceSelection"
+
+        // Notification keys that are not part of an `AlertRule`
         public static let notificationsEnabled = "iStats.notificationsEnabled"
-        public static let cpuAlertEnabled = "iStats.cpuAlertEnabled"
-        public static let cpuAlertThreshold = "iStats.cpuAlertThreshold"
-        public static let memoryAlertEnabled = "iStats.memoryAlertEnabled"
-        public static let memoryAlertThreshold = "iStats.memoryAlertThreshold"
         public static let memoryAlertCriticalPressureOnly = "iStats.memoryAlertCriticalPressureOnly"
-        public static let batteryLowAlertEnabled = "iStats.batteryLowAlertEnabled"
-        public static let batteryLowThreshold = "iStats.batteryLowThreshold"
-        public static let batteryFullAlertEnabled = "iStats.batteryFullAlertEnabled"
-        public static let thermalAlertEnabled = "iStats.thermalAlertEnabled"
-        public static let thermalAlertThreshold = "iStats.thermalAlertThreshold"
-        public static let diskAlertEnabled = "iStats.diskAlertEnabled"
-        public static let diskAlertThreshold = "iStats.diskAlertThreshold"
-        public static let alertCooldownInterval = "iStats.alertCooldownInterval"
     }
 
-    /// The metric representation shown directly in the macOS menu bar status item (Requirement 9.4).
-    public enum MenuBarDisplayMode: String, CaseIterable, Identifiable, Codable, Sendable {
-        case icon = "icon"
-        case cpu = "cpu"
-        case memory = "memory"
-        case both = "both"
-        case network = "network"
-        case battery = "battery"
-        case thermal = "thermal"
-        case gpu = "gpu"
-
-        public var id: String { rawValue }
-
-        public var displayName: String {
-            switch self {
-            case .icon: return "Icon Only"
-            case .cpu: return "CPU Usage"
-            case .memory: return "Memory Usage"
-            case .both: return "CPU & Memory"
-            case .network: return "Network Rate"
-            case .battery: return "Battery Level"
-            case .thermal: return "SoC Temperature"
-            case .gpu: return "GPU Usage"
-            }
-        }
+    /// v1 per-alert keys. Read only by `PreferencesMigration`; the store no longer writes them.
+    public enum LegacyAlertKeys {
+        public static let cpuEnabled = "iStats.cpuAlertEnabled"
+        public static let cpuThreshold = "iStats.cpuAlertThreshold"
+        public static let memoryEnabled = "iStats.memoryAlertEnabled"
+        public static let memoryThreshold = "iStats.memoryAlertThreshold"
+        public static let batteryLowEnabled = "iStats.batteryLowAlertEnabled"
+        public static let batteryLowThreshold = "iStats.batteryLowThreshold"
+        public static let batteryFullEnabled = "iStats.batteryFullAlertEnabled"
+        public static let thermalEnabled = "iStats.thermalAlertEnabled"
+        public static let thermalThreshold = "iStats.thermalAlertThreshold"
+        public static let diskEnabled = "iStats.diskAlertEnabled"
+        public static let diskThreshold = "iStats.diskAlertThreshold"
+        public static let cooldown = "iStats.alertCooldownInterval"
     }
 
     // MARK: - Singleton
@@ -147,13 +131,6 @@ public final class PreferencesStore: ObservableObject, @unchecked Sendable {
         }
     }
 
-    /// The metric display mode active in the macOS menu bar status item (Legacy fallback, Requirement 9.4).
-    @Published public var menuBarDisplayMode: MenuBarDisplayMode {
-        didSet {
-            userDefaults.set(menuBarDisplayMode.rawValue, forKey: Keys.menuBarDisplayMode)
-        }
-    }
-
     /// User-configured modular menu bar items/widgets (ADR 0007).
     @Published public var menuBarItems: [MenuBarItemConfig] {
         didSet {
@@ -163,16 +140,7 @@ public final class PreferencesStore: ObservableObject, @unchecked Sendable {
         }
     }
 
-    /// User-selected popover style overrides mapped by widget config ID (e.g. "cpu.gauge").
-    @Published public var widgetPopoverStyles: [String: PopoverStyle] {
-        didSet {
-            if let data = try? JSONEncoder().encode(widgetPopoverStyles) {
-                userDefaults.set(data, forKey: Keys.widgetPopoverStyles)
-            }
-        }
-    }
-
-    /// Remembered active tab per category when rememberLastTab is true (ADR 0008).
+    /// Remembered active tab, one per category (ADR 0008; per-item "remember last tab" was removed in schema v2).
     @Published public var categoryLastTabs: [String: String] {
         didSet {
             userDefaults.set(categoryLastTabs, forKey: Keys.categoryLastTabs)
@@ -186,7 +154,8 @@ public final class PreferencesStore: ObservableObject, @unchecked Sendable {
         }
     }
 
-    /// Remembered pinned window origins per category (ADR 0009 / Task 8.3).
+    /// Remembered pinned window origins keyed by `PanelDestination.storageKey`
+    /// ("overview" or a category raw value, so pre-v2 entries remain valid).
     @Published public var pinnedPanelOrigins: [String: [Double]] {
         didSet {
             userDefaults.set(pinnedPanelOrigins, forKey: Keys.pinnedPanelOrigins)
@@ -228,44 +197,6 @@ public final class PreferencesStore: ObservableObject, @unchecked Sendable {
         }
     }
 
-    /// Whether CPU high-usage alert notifications are enabled.
-    @Published public var cpuAlertEnabled: Bool {
-        didSet {
-            userDefaults.set(cpuAlertEnabled, forKey: Keys.cpuAlertEnabled)
-        }
-    }
-
-    /// CPU usage percentage threshold for triggering an alert (50.0 - 100.0).
-    @Published public var cpuAlertThreshold: Double {
-        didSet {
-            let clamped = min(max(cpuAlertThreshold, 50.0), 100.0)
-            if clamped != cpuAlertThreshold {
-                cpuAlertThreshold = clamped
-                return
-            }
-            userDefaults.set(clamped, forKey: Keys.cpuAlertThreshold)
-        }
-    }
-
-    /// Whether memory pressure alert notifications are enabled.
-    @Published public var memoryAlertEnabled: Bool {
-        didSet {
-            userDefaults.set(memoryAlertEnabled, forKey: Keys.memoryAlertEnabled)
-        }
-    }
-
-    /// Memory usage percentage threshold for triggering an alert (50.0 - 100.0).
-    @Published public var memoryAlertThreshold: Double {
-        didSet {
-            let clamped = min(max(memoryAlertThreshold, 50.0), 100.0)
-            if clamped != memoryAlertThreshold {
-                memoryAlertThreshold = clamped
-                return
-            }
-            userDefaults.set(clamped, forKey: Keys.memoryAlertThreshold)
-        }
-    }
-
     /// If true, only trigger memory alert on kernel critical pressure; if false, trigger on custom % threshold.
     @Published public var memoryAlertCriticalPressureOnly: Bool {
         didSet {
@@ -273,80 +204,123 @@ public final class PreferencesStore: ObservableObject, @unchecked Sendable {
         }
     }
 
-    /// Whether low battery alert notifications are enabled.
-    @Published public var batteryLowAlertEnabled: Bool {
+    /// One rule per `AlertKind` (always all kinds, in `AlertKind.allCases` order).
+    @Published public var alertRules: [AlertRule] {
         didSet {
-            userDefaults.set(batteryLowAlertEnabled, forKey: Keys.batteryLowAlertEnabled)
-        }
-    }
-
-    /// Low battery percentage threshold (5 - 50%).
-    @Published public var batteryLowThreshold: Int {
-        didSet {
-            let clamped = min(max(batteryLowThreshold, 5), 50)
-            if clamped != batteryLowThreshold {
-                batteryLowThreshold = clamped
+            let normalized = Self.normalizedRules(alertRules)
+            if normalized != alertRules {
+                alertRules = normalized
                 return
             }
-            userDefaults.set(clamped, forKey: Keys.batteryLowThreshold)
-        }
-    }
-
-    /// Whether full battery (100% charged) alert notifications are enabled.
-    @Published public var batteryFullAlertEnabled: Bool {
-        didSet {
-            userDefaults.set(batteryFullAlertEnabled, forKey: Keys.batteryFullAlertEnabled)
-        }
-    }
-
-    /// Whether thermal high temperature alert notifications are enabled.
-    @Published public var thermalAlertEnabled: Bool {
-        didSet {
-            userDefaults.set(thermalAlertEnabled, forKey: Keys.thermalAlertEnabled)
-        }
-    }
-
-    /// Thermal temperature threshold in Celsius (60.0 - 105.0 °C).
-    @Published public var thermalAlertThreshold: Double {
-        didSet {
-            let clamped = min(max(thermalAlertThreshold, 60.0), 105.0)
-            if clamped != thermalAlertThreshold {
-                thermalAlertThreshold = clamped
-                return
+            if let data = try? JSONEncoder().encode(normalized) {
+                userDefaults.set(data, forKey: Keys.alertRules)
             }
-            userDefaults.set(clamped, forKey: Keys.thermalAlertThreshold)
         }
     }
 
-    /// Whether low disk space alert notifications are enabled.
-    @Published public var diskAlertEnabled: Bool {
-        didSet {
-            userDefaults.set(diskAlertEnabled, forKey: Keys.diskAlertEnabled)
+    // MARK: - Schema v2 settings
+
+    /// False until the first-run walkthrough completes; migration sets it true for existing users.
+    @Published public var hasCompletedOnboarding: Bool {
+        didSet { userDefaults.set(hasCompletedOnboarding, forKey: Keys.hasCompletedOnboarding) }
+    }
+
+    /// The popover destination last shown (restored when the popover reopens).
+    @Published public var lastPanelDestination: PanelDestination {
+        didSet { userDefaults.set(lastPanelDestination.storageKey, forKey: Keys.lastPanelDestination) }
+    }
+
+    /// Identifier of the Settings section last shown, if any.
+    @Published public var lastSettingsSection: String? {
+        didSet { Self.setOptionalString(lastSettingsSection, forKey: Keys.lastSettingsSection, in: userDefaults) }
+    }
+
+    @Published public var menuBarAppearance: MenuBarAppearance {
+        didSet { userDefaults.set(menuBarAppearance.rawValue, forKey: Keys.menuBarAppearance) }
+    }
+
+    /// Network interface to chart (BSD name such as "en0"); nil means automatic.
+    @Published public var networkInterfaceSelection: String? {
+        didSet { Self.setOptionalString(networkInterfaceSelection, forKey: Keys.networkInterfaceSelection, in: userDefaults) }
+    }
+
+    // MARK: - Legacy alert accessors (bridge over `alertRules`)
+
+    private func rule(_ kind: AlertKind) -> AlertRule {
+        alertRules.first { $0.kind == kind } ?? .default(for: kind)
+    }
+
+    private func updateRule(_ kind: AlertKind, _ change: (inout AlertRule) -> Void) {
+        var rules = alertRules
+        guard let index = rules.firstIndex(where: { $0.kind == kind }) else { return }
+        change(&rules[index])
+        alertRules = rules
+    }
+
+    public var cpuAlertEnabled: Bool {
+        get { rule(.cpu).enabled }
+        set { updateRule(.cpu) { $0.enabled = newValue } }
+    }
+    /// CPU usage percentage threshold (50 - 100).
+    public var cpuAlertThreshold: Double {
+        get { rule(.cpu).threshold }
+        set { updateRule(.cpu) { $0.threshold = newValue } }
+    }
+    public var memoryAlertEnabled: Bool {
+        get { rule(.memory).enabled }
+        set { updateRule(.memory) { $0.enabled = newValue } }
+    }
+    /// Memory usage percentage threshold (50 - 100).
+    public var memoryAlertThreshold: Double {
+        get { rule(.memory).threshold }
+        set { updateRule(.memory) { $0.threshold = newValue } }
+    }
+    public var batteryLowAlertEnabled: Bool {
+        get { rule(.batteryLow).enabled }
+        set { updateRule(.batteryLow) { $0.enabled = newValue } }
+    }
+    /// Low battery percentage threshold (5 - 50).
+    public var batteryLowThreshold: Int {
+        get { Int(rule(.batteryLow).threshold.rounded()) }
+        set { updateRule(.batteryLow) { $0.threshold = Double(newValue) } }
+    }
+    public var batteryFullAlertEnabled: Bool {
+        get { rule(.batteryFull).enabled }
+        set { updateRule(.batteryFull) { $0.enabled = newValue } }
+    }
+    public var thermalAlertEnabled: Bool {
+        get { rule(.temperature).enabled }
+        set { updateRule(.temperature) { $0.enabled = newValue } }
+    }
+    /// Temperature threshold in Celsius (60 - 105).
+    public var thermalAlertThreshold: Double {
+        get { rule(.temperature).threshold }
+        set { updateRule(.temperature) { $0.threshold = newValue } }
+    }
+    public var diskAlertEnabled: Bool {
+        get { rule(.disk).enabled }
+        set { updateRule(.disk) { $0.enabled = newValue } }
+    }
+    /// Primary disk usage percentage threshold (70 - 98).
+    public var diskAlertThreshold: Double {
+        get { rule(.disk).threshold }
+        set { updateRule(.disk) { $0.threshold = newValue } }
+    }
+    /// Cooldown between repeat alerts in seconds (minimum 30); applied to every rule.
+    public var alertCooldownInterval: TimeInterval {
+        get { rule(.cpu).cooldownSeconds }
+        set { alertRules = alertRules.map { var r = $0; r.cooldownSeconds = newValue; return r } }
+    }
+
+    /// Ensures exactly one clamped rule per kind, in `AlertKind.allCases` order.
+    static func normalizedRules(_ rules: [AlertRule]) -> [AlertRule] {
+        AlertKind.allCases.map { kind in
+            (rules.first { $0.kind == kind } ?? .default(for: kind)).clamped()
         }
     }
 
-    /// Primary disk usage percentage threshold (70.0 - 98.0%).
-    @Published public var diskAlertThreshold: Double {
-        didSet {
-            let clamped = min(max(diskAlertThreshold, 70.0), 98.0)
-            if clamped != diskAlertThreshold {
-                diskAlertThreshold = clamped
-                return
-            }
-            userDefaults.set(clamped, forKey: Keys.diskAlertThreshold)
-        }
-    }
-
-    /// Cooldown debounce interval in seconds between alerts for the same category (e.g. 300s = 5m).
-    @Published public var alertCooldownInterval: TimeInterval {
-        didSet {
-            let clamped = max(alertCooldownInterval, 30.0)
-            if clamped != alertCooldownInterval {
-                alertCooldownInterval = clamped
-                return
-            }
-            userDefaults.set(clamped, forKey: Keys.alertCooldownInterval)
-        }
+    private static func setOptionalString(_ value: String?, forKey key: String, in defaults: UserDefaults) {
+        if let value { defaults.set(value, forKey: key) } else { defaults.removeObject(forKey: key) }
     }
 
     // MARK: - Initialization
@@ -355,6 +329,7 @@ public final class PreferencesStore: ObservableObject, @unchecked Sendable {
     /// - Parameter userDefaults: The `UserDefaults` suite to persist settings to.
     public init(userDefaults: UserDefaults = .standard) {
         self.userDefaults = userDefaults
+        PreferencesMigration.migrate(defaults: userDefaults)
 
         // Load refreshInterval
         let storedInterval = userDefaults.object(forKey: Keys.refreshInterval) as? Double
@@ -398,70 +373,19 @@ public final class PreferencesStore: ObservableObject, @unchecked Sendable {
         // Load launchAtLogin
         self.launchAtLogin = userDefaults.bool(forKey: Keys.launchAtLogin)
 
-        // Load menuBarDisplayMode (default: .cpu)
-        if let storedMode = userDefaults.string(forKey: Keys.menuBarDisplayMode),
-           let mode = MenuBarDisplayMode(rawValue: storedMode) {
-            self.menuBarDisplayMode = mode
-        } else {
-            self.menuBarDisplayMode = .cpu
-        }
-
-        // Load widgetPopoverStyles
-        var loadedPopoverStyles: [String: PopoverStyle] = [:]
-        if let data = userDefaults.data(forKey: Keys.widgetPopoverStyles),
-           let styles = try? JSONDecoder().decode([String: PopoverStyle].self, from: data) {
-            for (key, popStyle) in styles {
-                let parts = key.components(separatedBy: ".")
-                if let catRaw = parts.first,
-                   let category = MetricCategory(rawValue: catRaw),
-                   PopoverStyle.supportedPopovers(for: category).contains(popStyle) {
-                    let widgetRaw = parts.dropFirst().joined(separator: ".")
-                    if let widgetStyle = MetricDisplayStyle(rawValue: widgetRaw),
-                       PopoverStyle.defaultStyle(for: category, widgetStyle: widgetStyle) == popStyle {
-                        // Matches default; no override needed
-                        continue
-                    }
-                    loadedPopoverStyles[key] = popStyle
-                }
-            }
-        }
-
         // Load modular menuBarItems (ADR 0007)
         let baseItems: [MenuBarItemConfig]
         if let data = userDefaults.data(forKey: Keys.menuBarItems),
            let items = try? JSONDecoder().decode([MenuBarItemConfig].self, from: data) {
-            // Deduplicate items resulting from migration (e.g. if tachometer & gauge both present)
-            // and filter out styles that are no longer supported for that category.
-            let deduplicatedItems = MenuBarItemConfig.deduplicated(items)
-            var sanitized: [MenuBarItemConfig] = []
-            for var item in deduplicatedItems {
-                let supported = MetricDisplayStyle.supportedStyles(for: item.category)
-                if supported.contains(item.style) {
-                    if let pop = item.popoverStyle {
-                        let validPopovers = PopoverStyle.supportedPopovers(for: item.category)
-                        let defaultPop = PopoverStyle.defaultStyle(for: item.category, widgetStyle: item.style)
-                        if validPopovers.contains(pop) && pop != defaultPop {
-                            loadedPopoverStyles[item.id] = pop
-                        } else {
-                            item.popoverStyle = nil
-                        }
-                    }
-                    sanitized.append(item)
-                }
+            // Deduplicate migrated items and drop styles no longer supported for the category.
+            let sanitized = MenuBarItemConfig.deduplicated(items).filter {
+                MetricDisplayStyle.supportedStyles(for: $0.category).contains($0.style)
             }
             baseItems = sanitized.isEmpty ? MenuBarItemConfig.defaultConfigs() : sanitized
         } else {
             baseItems = MenuBarItemConfig.defaultConfigs()
         }
-
-        self.menuBarItems = baseItems.map { item in
-            var copy = item
-            if copy.popoverStyle == nil, let savedStyle = loadedPopoverStyles[copy.id] {
-                copy.popoverStyle = savedStyle
-            }
-            return copy
-        }
-        self.widgetPopoverStyles = loadedPopoverStyles
+        self.menuBarItems = baseItems
         self.categoryLastTabs = userDefaults.dictionary(forKey: Keys.categoryLastTabs) as? [String: String] ?? [:]
         self.categoryHistoryRanges = userDefaults.dictionary(forKey: Keys.categoryHistoryRanges) as? [String: String] ?? [:]
         self.pinnedPanelOrigins = userDefaults.dictionary(forKey: Keys.pinnedPanelOrigins) as? [String: [Double]] ?? [:]
@@ -474,30 +398,20 @@ public final class PreferencesStore: ObservableObject, @unchecked Sendable {
 
         // Load notifications and alert preferences
         self.notificationsEnabled = userDefaults.bool(forKey: Keys.notificationsEnabled)
-        self.cpuAlertEnabled = userDefaults.bool(forKey: Keys.cpuAlertEnabled)
-        let storedCPUThreshold = userDefaults.object(forKey: Keys.cpuAlertThreshold) as? Double
-        self.cpuAlertThreshold = storedCPUThreshold ?? 90.0
-
-        self.memoryAlertEnabled = userDefaults.bool(forKey: Keys.memoryAlertEnabled)
-        let storedMemThreshold = userDefaults.object(forKey: Keys.memoryAlertThreshold) as? Double
-        self.memoryAlertThreshold = storedMemThreshold ?? 85.0
         self.memoryAlertCriticalPressureOnly = userDefaults.object(forKey: Keys.memoryAlertCriticalPressureOnly) as? Bool ?? true
 
-        self.batteryLowAlertEnabled = userDefaults.bool(forKey: Keys.batteryLowAlertEnabled)
-        let storedBatteryThreshold = userDefaults.object(forKey: Keys.batteryLowThreshold) as? Int
-        self.batteryLowThreshold = storedBatteryThreshold ?? 20
-        self.batteryFullAlertEnabled = userDefaults.bool(forKey: Keys.batteryFullAlertEnabled)
+        let storedRules = userDefaults.data(forKey: Keys.alertRules)
+            .flatMap { try? JSONDecoder().decode([AlertRule].self, from: $0) } ?? []
+        self.alertRules = Self.normalizedRules(storedRules)
 
-        self.thermalAlertEnabled = userDefaults.bool(forKey: Keys.thermalAlertEnabled)
-        let storedThermalThreshold = userDefaults.object(forKey: Keys.thermalAlertThreshold) as? Double
-        self.thermalAlertThreshold = storedThermalThreshold ?? 90.0
-
-        self.diskAlertEnabled = userDefaults.bool(forKey: Keys.diskAlertEnabled)
-        let storedDiskThreshold = userDefaults.object(forKey: Keys.diskAlertThreshold) as? Double
-        self.diskAlertThreshold = storedDiskThreshold ?? 90.0
-
-        let storedCooldown = userDefaults.object(forKey: Keys.alertCooldownInterval) as? Double
-        self.alertCooldownInterval = storedCooldown ?? 300.0
+        // Schema v2 settings
+        self.hasCompletedOnboarding = userDefaults.bool(forKey: Keys.hasCompletedOnboarding)
+        self.lastPanelDestination = userDefaults.string(forKey: Keys.lastPanelDestination)
+            .flatMap(PanelDestination.init(storageKey:)) ?? .overview
+        self.lastSettingsSection = userDefaults.string(forKey: Keys.lastSettingsSection)
+        self.menuBarAppearance = userDefaults.string(forKey: Keys.menuBarAppearance)
+            .flatMap(MenuBarAppearance.init(rawValue:)) ?? .statusTint
+        self.networkInterfaceSelection = userDefaults.string(forKey: Keys.networkInterfaceSelection)
     }
 
     // MARK: - Helpers
@@ -521,39 +435,14 @@ public final class PreferencesStore: ObservableObject, @unchecked Sendable {
         }
     }
 
-    /// Toggles the enablement status of a specific metric category.
-    public func toggleCategory(_ category: MetricCategory) {
-        if isCategoryEnabled(category) {
-            enabledCategories.remove(category)
-        } else {
-            enabledCategories.insert(category)
-        }
-    }
-
     // MARK: - Menu Bar Item Management (ADR 0007 / ADR 0008)
     
-    /// Returns whether a specific menu bar widget (category + style + optional source) is enabled.
-    public func isItemEnabled(category: MetricCategory, style: MetricDisplayStyle, source: MetricSource? = nil) -> Bool {
-        menuBarItems.contains { item in
-            guard item.category == category && item.style == style else { return false }
-            if let src = source {
-                return (item.source ?? .peak) == src
-            }
-            return true
-        }
-    }
-
     /// Returns whether an exact menu bar config matching category, style, and source is enabled.
     public func isExactItemEnabled(category: MetricCategory, style: MetricDisplayStyle, source: MetricSource? = nil) -> Bool {
         menuBarItems.contains { item in
             guard item.category == category && item.style == style else { return false }
             return item.source == source
         }
-    }
-
-    /// Returns whether a specific menu bar config is enabled.
-    public func isItemEnabled(_ item: MenuBarItemConfig) -> Bool {
-        menuBarItems.contains { $0.id == item.id }
     }
 
     /// Returns the active item matching category, style, and optional source.
@@ -576,12 +465,10 @@ public final class PreferencesStore: ObservableObject, @unchecked Sendable {
         showLabel: Bool = false,
         isEnabled: Bool
     ) {
-        let popover = popoverStyle(for: category, widgetStyle: style)
         if isEnabled {
             if let idx = menuBarItems.firstIndex(where: {
                 $0.category == category && $0.style == style && $0.source == source
             }) {
-                menuBarItems[idx].popoverStyle = popover
                 if let layout = throughputLayout {
                     menuBarItems[idx].throughputLayout = layout
                 }
@@ -590,7 +477,6 @@ public final class PreferencesStore: ObservableObject, @unchecked Sendable {
                 let config = MenuBarItemConfig(
                     category: category,
                     style: style,
-                    popoverStyle: popover,
                     source: source,
                     throughputLayout: throughputLayout,
                     showLabel: showLabel
@@ -601,67 +487,6 @@ public final class PreferencesStore: ObservableObject, @unchecked Sendable {
             menuBarItems.removeAll {
                 $0.category == category && $0.style == style && $0.source == source
             }
-        }
-    }
-
-    /// Updates options (throughput layout, show label, etc.) on an enabled item.
-    public func updateItemOptions(
-        category: MetricCategory,
-        style: MetricDisplayStyle,
-        source: MetricSource? = nil,
-        throughputLayout: ThroughputLayout? = nil,
-        showLabel: Bool? = nil
-    ) {
-        if let idx = menuBarItems.firstIndex(where: {
-            $0.category == category && $0.style == style && $0.source == source
-        }) {
-            if let layout = throughputLayout {
-                menuBarItems[idx].throughputLayout = layout
-            }
-            if let label = showLabel {
-                menuBarItems[idx].showLabel = label
-            }
-        }
-    }
-
-    /// Toggles the enablement status of a specific menu bar widget.
-    public func toggleItem(category: MetricCategory, style: MetricDisplayStyle, source: MetricSource? = nil) {
-        let currentlyEnabled = isExactItemEnabled(category: category, style: style, source: source)
-        setItemEnabled(category: category, style: style, source: source, isEnabled: !currentlyEnabled)
-    }
-
-    // MARK: - Popover Style Management (ADR 0007 Decoupled Popover Customization)
-
-    /// Returns the explicitly configured popover style for a widget, or nil if unset.
-    public func popoverStyle(for category: MetricCategory, widgetStyle: MetricDisplayStyle) -> PopoverStyle? {
-        let id = "\(category.rawValue).\(widgetStyle.rawValue)"
-        if let item = menuBarItems.first(where: { $0.category == category && $0.style == widgetStyle }) {
-            return item.popoverStyle ?? widgetPopoverStyles[id]
-        }
-        return widgetPopoverStyles[id]
-    }
-
-    /// Returns the resolved effective popover style for a widget, falling back to its natural default style if unset.
-    public func resolvedPopoverStyle(for category: MetricCategory, widgetStyle: MetricDisplayStyle, hasBattery: Bool = true) -> PopoverStyle {
-        popoverStyle(for: category, widgetStyle: widgetStyle)
-            ?? PopoverStyle.defaultStyle(for: category, widgetStyle: widgetStyle, hasBattery: hasBattery)
-    }
-
-    /// Sets or clears the custom popover style for a specific menu bar widget.
-    public func setPopoverStyle(_ popoverStyle: PopoverStyle?, for category: MetricCategory, widgetStyle: MetricDisplayStyle, hasBattery: Bool = true) {
-        let id = "\(category.rawValue).\(widgetStyle.rawValue)"
-        let defaultStyle = PopoverStyle.defaultStyle(for: category, widgetStyle: widgetStyle, hasBattery: hasBattery)
-        let supported = PopoverStyle.supportedPopovers(for: category, hasBattery: hasBattery)
-        let normalized: PopoverStyle?
-        if let style = popoverStyle, style != defaultStyle, supported.contains(style) {
-            normalized = style
-            widgetPopoverStyles[id] = style
-        } else {
-            normalized = nil
-            widgetPopoverStyles.removeValue(forKey: id)
-        }
-        if let idx = menuBarItems.firstIndex(where: { $0.category == category && $0.style == widgetStyle }) {
-            menuBarItems[idx].popoverStyle = normalized
         }
     }
 
@@ -693,21 +518,39 @@ public final class PreferencesStore: ObservableObject, @unchecked Sendable {
         categoryHistoryRanges[category.rawValue] = range.rawValue
     }
 
-    /// Returns the remembered pinned origin for a category panel, if any.
-    public func pinnedOrigin(for category: MetricCategory) -> CGPoint? {
-        guard let coords = pinnedPanelOrigins[category.rawValue], coords.count >= 2 else {
+    /// Returns the remembered pinned origin for a destination, keyed by `PanelDestination.storageKey`.
+    public func pinnedOrigin(forDestinationKey key: String) -> CGPoint? {
+        guard let coords = pinnedPanelOrigins[key], coords.count >= 2 else {
             return nil
         }
         return CGPoint(x: coords[0], y: coords[1])
     }
 
+    /// Sets or clears the remembered pinned origin for a destination key.
+    public func setPinnedOrigin(_ origin: CGPoint?, forDestinationKey key: String) {
+        if let origin = origin {
+            pinnedPanelOrigins[key] = [Double(origin.x), Double(origin.y)]
+        } else {
+            pinnedPanelOrigins.removeValue(forKey: key)
+        }
+    }
+
+    public func pinnedOrigin(for destination: PanelDestination) -> CGPoint? {
+        pinnedOrigin(forDestinationKey: destination.storageKey)
+    }
+
+    public func setPinnedOrigin(_ origin: CGPoint?, for destination: PanelDestination) {
+        setPinnedOrigin(origin, forDestinationKey: destination.storageKey)
+    }
+
+    /// Returns the remembered pinned origin for a category panel, if any.
+    public func pinnedOrigin(for category: MetricCategory) -> CGPoint? {
+        pinnedOrigin(for: PanelDestination.category(category))
+    }
+
     /// Sets or clears the remembered pinned origin for a category panel.
     public func setPinnedOrigin(_ origin: CGPoint?, for category: MetricCategory) {
-        if let origin = origin {
-            pinnedPanelOrigins[category.rawValue] = [Double(origin.x), Double(origin.y)]
-        } else {
-            pinnedPanelOrigins.removeValue(forKey: category.rawValue)
-        }
+        setPinnedOrigin(origin, for: PanelDestination.category(category))
     }
 
     /// Returns all active menu bar items whose parent category is currently enabled.
@@ -716,16 +559,6 @@ public final class PreferencesStore: ObservableObject, @unchecked Sendable {
     public var activeMenuBarItems: [MenuBarItemConfig] {
         guard !isSamplingPaused else { return [] }
         return menuBarItems.filter { isCategoryEnabled($0.category) }
-    }
-
-    /// Sets whether background sampling is paused.
-    public func setSamplingPaused(_ paused: Bool) {
-        isSamplingPaused = paused
-    }
-
-    /// Toggles whether background sampling is paused.
-    public func toggleSamplingPaused() {
-        isSamplingPaused.toggle()
     }
 
     /// Applies a full left-to-right order to the active items. Ignored unless `ids` is exactly the active set.
@@ -751,9 +584,7 @@ public final class PreferencesStore: ObservableObject, @unchecked Sendable {
         self.byteUnitStandard = .iec
         self.showDockIcon = false
         self.launchAtLogin = false
-        self.menuBarDisplayMode = .cpu
         self.menuBarItems = MenuBarItemConfig.defaultConfigs()
-        self.widgetPopoverStyles = [:]
         self.categoryLastTabs = [:]
         self.categoryHistoryRanges = [:]
         self.pinnedPanelOrigins = [:]
@@ -762,19 +593,13 @@ public final class PreferencesStore: ObservableObject, @unchecked Sendable {
         self.autoPauseOnLowPowerMode = true
 
         self.notificationsEnabled = false
-        self.cpuAlertEnabled = false
-        self.cpuAlertThreshold = 90.0
-        self.memoryAlertEnabled = false
-        self.memoryAlertThreshold = 85.0
         self.memoryAlertCriticalPressureOnly = true
-        self.batteryLowAlertEnabled = false
-        self.batteryLowThreshold = 20
-        self.batteryFullAlertEnabled = false
-        self.thermalAlertEnabled = false
-        self.thermalAlertThreshold = 90.0
-        self.diskAlertEnabled = false
-        self.diskAlertThreshold = 90.0
-        self.alertCooldownInterval = 300.0
+        self.alertRules = AlertRule.defaults
+
+        self.lastPanelDestination = .overview
+        self.lastSettingsSection = nil
+        self.menuBarAppearance = .statusTint
+        self.networkInterfaceSelection = nil
     }
 }
 
