@@ -24,7 +24,7 @@ public struct TemperaturePanel: View {
     private static let spectrumMaxCelsius: Double = 110.0
     private static let warningCelsius: Double = StatusThresholds.temperatureChartWarningCelsius
     private static let criticalCelsius: Double = StatusThresholds.temperatureChartCriticalCelsius
-    private static let spectrumBarWidth: Double = Double(Instrument.Size.panelWidth - 2 * Instrument.Space.xl - 2 * Instrument.Space.modulePadding)
+    private static let spectrumBarWidth: Double = TemperaturePageContent.spectrumBarWidth
 
     private struct MemoKey: Equatable {
         let sampleTimestamp: Date?
@@ -320,18 +320,8 @@ public struct TemperaturePanel: View {
         let tierSpacing: CGFloat = 18.0
         let topPadding = CGFloat(maxTier) * tierSpacing + 14.0
         let barCenterY = topPadding + 10.0
-        let minLabel = Units.formatTemperature(Self.spectrumMinCelsius, unit: unit, fractionDigits: 0)
-        let maxLabel = Units.formatTemperature(Self.spectrumMaxCelsius, unit: unit, fractionDigits: 0)
 
-        return Section(
-            "Thermal Spectrum",
-            trailing: {
-                Text("\(minLabel)–\(maxLabel)")
-                    .font(Instrument.Typography.caption)
-                    .foregroundStyle(.secondary)
-                    .monospacedDigit()
-            }
-        ) {
+        return Section("Thermal Spectrum") {
             VStack(alignment: .leading, spacing: Instrument.Space.m) {
                 // Top: 8 pt continuous thermal ramp (30°–110°C) with 10° tick marks and SpectrumLayout sensor pins
                 VStack(alignment: .leading, spacing: Instrument.Space.xs) {
@@ -498,7 +488,7 @@ public struct TemperaturePanel: View {
                     reason: "Thermal pressure telemetry is active, but per-sensor channels are unavailable."
                 )
             } else {
-                VStack(alignment: .leading, spacing: Instrument.Space.m) {
+                VStack(alignment: .leading, spacing: Instrument.Space.sectionGap) {
                     ForEach(groups) { group in
                         collapsibleSensorGroupSection(group: group, unit: unit)
                     }
@@ -510,7 +500,6 @@ public struct TemperaturePanel: View {
     private func collapsibleSensorGroupSection(group: SensorGroup, unit: Units.TemperatureUnit) -> some View {
         let isExpanded = expandedGroups.contains(group.source)
         let isHovered = (hoveredGroup == group.source)
-        let peakFormatted = Units.formatTemperature(group.peak, unit: unit, fractionDigits: 1)
 
         return Section {
             Button {
@@ -531,7 +520,7 @@ public struct TemperaturePanel: View {
                     Spacer(minLength: Instrument.Space.m)
 
                     HStack(spacing: Instrument.Space.s) {
-                        Text("\(group.sensors.count) · \(peakFormatted)")
+                        Text(TemperaturePageContent.groupSummary(sensorCount: group.sensors.count))
                             .font(Instrument.Typography.caption)
                             .foregroundStyle(.secondary)
                             .monospacedDigit()
@@ -560,7 +549,7 @@ public struct TemperaturePanel: View {
                     }
                 }
             }
-            .accessibilityLabel("\(group.source.displayName), \(group.sensors.count) sensors, peak \(peakFormatted)")
+            .accessibilityLabel("\(group.source.displayName), \(group.sensors.count) sensors")
             .accessibilityValue(isExpanded ? "Expanded" : "Collapsed")
 
             if isExpanded {
@@ -618,6 +607,18 @@ public struct TemperaturePanel: View {
                 return SensorGroup(source: src, peak: peak, sensors: sorted)
             }
             .sorted(by: { $0.peak > $1.peak })
+    }
+}
+
+/// Pure content rules for the Temperature panel (Task 9.5), kept testable without rendering.
+enum TemperaturePageContent {
+    /// Spectrum bar width: the shared content width minus the Section card's own
+    /// horizontal padding, so the bar fills the card interior exactly.
+    static let spectrumBarWidth: Double = Double(Instrument.Size.contentWidth - 2 * Instrument.Space.modulePadding)
+
+    /// Group headers state only how many sensors; peaks are shown once on the Now ranking.
+    static func groupSummary(sensorCount: Int) -> String {
+        sensorCount == 1 ? "1 sensor" : "\(sensorCount) sensors"
     }
 }
 

@@ -114,7 +114,8 @@ public struct MemoryPanel: View {
                     refreshInterval: refreshInterval
                 ),
                 status: deriveStatus(sample: sample),
-                ribbon: deriveRibbon(sample: sample)
+                // Pressure is shown once (pill on Now, chip in the header); no ribbon copy.
+                ribbon: nil
             )
         }
         let availability = coordinator.categoryAvailability[.memory]
@@ -169,17 +170,10 @@ public struct MemoryPanel: View {
         referenceDate: Date,
         refreshInterval: TimeInterval
     ) -> PanelGlance {
-        let divisor: Double = standard == .si ? 1_000_000_000.0 : 1_073_741_824.0
-        let unitLabel = standard == .si ? "GB" : "GiB"
+        let (divisor, unitLabel) = MemoryPageContent.heroUnit(standard: standard)
+        let totalBytes = sample?.total ?? 0
         let usedValue = sample.map { Double($0.used) / divisor } ?? 0.0
-        let headline: String
-        if let s = sample {
-            let totalStr = formatTotalBytes(s.total, standard: standard)
-            let baseHeadline = PanelHeadline.memory(sample: s, standard: standard)
-            headline = "of \(totalStr) · \(baseHeadline)"
-        } else {
-            headline = PanelHeadline.memory(sample: nil, standard: standard)
-        }
+        let headline = MemoryPageContent.headline(sample: sample, standard: standard)
 
         let usedPoints = coordinator.timedScalarHistory(
             for: .memoryUsedPercent,
@@ -203,13 +197,8 @@ public struct MemoryPanel: View {
             headline: headline,
             insight: insight,
             chartMode: chartMode,
-            scrubFormat: { "\(Int(round($0)))% used" }
+            scrubFormat: { MemoryPageContent.scrubReadout(percentUsed: $0, totalBytes: totalBytes, standard: standard) }
         )
-    }
-
-    private func formatTotalBytes(_ bytes: UInt64, standard: Units.ByteUnitStandard) -> String {
-        let isWholeGiB = (standard == .iec && bytes >= 1_073_741_824 && bytes % 1_073_741_824 == 0)
-        return Units.formatBytes(bytes, standard: standard, fractionDigits: isWholeGiB ? 0 : 1)
     }
 
     private func deriveStatus(sample: MemorySample?) -> StatusLevel {
@@ -224,27 +213,12 @@ public struct MemoryPanel: View {
         }
     }
 
-    private func deriveRibbon(sample: MemorySample?) -> String? {
-        guard let s = sample else { return nil }
-        switch s.pressure {
-        case .critical:
-            return "Memory pressure critical: system may page heavily"
-        case .warning:
-            return "Elevated memory pressure: swap active"
-        case .normal:
-            if s.swapUsed > 1_000_000_000 {
-                return "Significant swap usage: \(Units.formatBytesIEC(Int64(s.swapUsed), fractionDigits: 1))"
-            }
-            return nil
-        }
-    }
-
     // MARK: - Now Page (Memory Allocation + Top Apps, Max 2 Sections)
 
     @ViewBuilder
     private func nowPage(sample: MemorySample?) -> some View {
         if let s = sample {
-            VStack(spacing: Instrument.Space.m) {
+            VStack(alignment: .leading, spacing: Instrument.Space.sectionGap) {
                 allocationModule(sample: s)
                 topConsumersModule
             }
@@ -311,10 +285,12 @@ public struct MemoryPanel: View {
         return Section(
             "Memory Allocation",
             trailing: {
-                Text(hoveredSegmentSummary ?? formatTotalBytes(sample.total, standard: standard))
-                    .font(Instrument.Typography.caption.monospacedDigit())
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                if let hovered = hoveredSegmentSummary {
+                    Text(hovered)
+                        .font(Instrument.Typography.caption.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
             }
         ) {
             VStack(alignment: .leading, spacing: Instrument.Space.m) {
@@ -373,17 +349,6 @@ public struct MemoryPanel: View {
 
                 HStack(alignment: .center, spacing: Instrument.Space.m) {
                     pressurePill(active: sample.pressure)
-
-                    Spacer(minLength: 4)
-
-                    Text(
-                        sample.swapUsed > 0
-                            ? "Swap \(Units.formatBytes(sample.swapUsed, standard: standard, fractionDigits: 1))"
-                            : "Swap 0 B"
-                    )
-                    .font(Instrument.Typography.caption.monospacedDigit())
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
                 }
             }
         }
@@ -440,7 +405,7 @@ public struct MemoryPanel: View {
     @ViewBuilder
     private func detailPage(sample: MemorySample?) -> some View {
         if let s = sample {
-            VStack(spacing: Instrument.Space.m) {
+            VStack(alignment: .leading, spacing: Instrument.Space.sectionGap) {
                 swapAllocationModule(sample: s)
                 virtualMemoryPagesModule(sample: s)
             }
@@ -490,37 +455,63 @@ public struct MemoryPanel: View {
         }
     }
 
+    @ViewBuilder
     private func virtualMemoryPagesModule(sample: MemorySample) -> some View {
         let standard = preferences.byteUnitStandard
-        let appBytes: UInt64 = sample.appMemory
-            ?? (sample.used > sample.wired + sample.compressed
-                ? sample.used - sample.wired - sample.compressed
-                : 0)
+        let rows = MemoryPageContent.virtualMemoryRows(sample: sample, standard: standard)
+        // Page-ins/outs, faults and compressions are not sampled yet; only the
+        // page classes absent from the Now page appear here.
+        if !rows.isEmpty {
+            Section("Virtual Memory") {
+                VStack(spacing: 0) {
+                    ForEach(Array(rows.enumerated()), id: \.offset) { index, row in
+                        MetricRow(
+                            label: row.label,
+                            valueText: row.value,
+                            showHairline: index < rows.count - 1
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
 
-        var rows: [(label: String, value: String)] = [
-            ("App Memory", Units.formatBytes(appBytes, standard: standard)),
-            ("Wired", Units.formatBytes(sample.wired, standard: standard)),
-            ("Compressed", Units.formatBytes(sample.compressed, standard: standard)),
-            ("Cached", Units.formatBytes(sample.cached, standard: standard))
-        ]
+/// Pure content rules for the Memory panel (Task 9.5), kept testable without rendering.
+enum MemoryPageContent {
+    /// Hero value divisor and unit label (single source for hero and scrub readout).
+    static func heroUnit(standard: Units.ByteUnitStandard) -> (divisor: Double, label: String) {
+        standard == .si ? (1_000_000_000.0, "GB") : (1_073_741_824.0, "GiB")
+    }
+
+    /// Scrub readout in the same unit and precision as the hero numeral.
+    static func scrubReadout(percentUsed: Double, totalBytes: UInt64, standard: Units.ByteUnitStandard) -> String {
+        let unit = heroUnit(standard: standard)
+        let used = percentUsed / 100.0 * Double(totalBytes) / unit.divisor
+        return String(format: "%.1f %@", used, unit.label)
+    }
+
+    /// "of 16 GiB" plus swap when active. Pressure and compression live in the
+    /// pill and legend on Now, so the headline does not repeat them.
+    static func headline(sample: MemorySample?, standard: Units.ByteUnitStandard) -> String {
+        guard let s = sample else { return PanelHeadline.memory(sample: nil, standard: standard) }
+        let isWholeGiB = (standard == .iec && s.total >= 1_073_741_824 && s.total % 1_073_741_824 == 0)
+        var text = "of \(Units.formatBytes(s.total, standard: standard, fractionDigits: isWholeGiB ? 0 : 1))"
+        if s.swapUsed > 0 {
+            text += " · \(Units.formatBytes(s.swapUsed, standard: standard, fractionDigits: 1)) swap"
+        }
+        return text
+    }
+
+    /// Details rows that the Now allocation legend does not already show.
+    static func virtualMemoryRows(sample: MemorySample, standard: Units.ByteUnitStandard) -> [(label: String, value: String)] {
+        var rows: [(label: String, value: String)] = []
         if let active = sample.active {
             rows.append(("Active Pages", Units.formatBytes(active, standard: standard)))
         }
         if let inactive = sample.inactive {
             rows.append(("Inactive Pages", Units.formatBytes(inactive, standard: standard)))
         }
-        rows.append(("Free", Units.formatBytes(sample.free, standard: standard)))
-
-        return Section("Virtual Memory Pages") {
-            VStack(spacing: 0) {
-                ForEach(Array(rows.enumerated()), id: \.offset) { index, row in
-                    MetricRow(
-                        label: row.label,
-                        valueText: row.value,
-                        showHairline: index < rows.count - 1
-                    )
-                }
-            }
-        }
+        return rows
     }
 }

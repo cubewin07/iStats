@@ -58,6 +58,7 @@
 		1100000000000000000001DF /* AccessibilityAppearanceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000001DE /* AccessibilityAppearanceTests.swift */; };
 		110000000000000000000239 /* TokenLintTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000238 /* TokenLintTests.swift */; };
 		110000000000000000000237 /* SymbolAvailabilityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000236 /* SymbolAvailabilityTests.swift */; };
+		110000000000000000000ff2 /* PanelContentPassATests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000ff1 /* PanelContentPassATests.swift */; };
 		110000000000000000000193 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000192 /* Assets.xcassets */; };
 		11000000000000000000001F /* PreferencesWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11000000000000000000001E /* PreferencesWindowController.swift */; };
 		110000000000000000000031 /* CPUSampler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000030 /* CPUSampler.swift */; };
@@ -176,6 +177,7 @@
 		1100000000000000000001DE /* AccessibilityAppearanceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccessibilityAppearanceTests.swift; sourceTree = "<group>"; };
 		110000000000000000000238 /* TokenLintTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TokenLintTests.swift; sourceTree = "<group>"; };
 		110000000000000000000236 /* SymbolAvailabilityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SymbolAvailabilityTests.swift; sourceTree = "<group>"; };
+		110000000000000000000ff1 /* PanelContentPassATests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PanelContentPassATests.swift; sourceTree = "<group>"; };
 		110000000000000000000192 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		11000000000000000000001E /* PreferencesWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferencesWindowController.swift; sourceTree = "<group>"; };
 		110000000000000000000030 /* CPUSampler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CPUSampler.swift; sourceTree = "<group>"; };
@@ -411,6 +413,7 @@
 				1100000000000000000001DE /* AccessibilityAppearanceTests.swift */,
 				110000000000000000000238 /* TokenLintTests.swift */,
 				110000000000000000000236 /* SymbolAvailabilityTests.swift */,
+				110000000000000000000ff1 /* PanelContentPassATests.swift */,
 				110000000000000000000224 /* InstrumentKitTests.swift */,
 				110000000000000000000234 /* ConnectionStatusTests.swift */,
 			);
@@ -635,6 +638,7 @@
 				1100000000000000000001DF /* AccessibilityAppearanceTests.swift in Sources */,
 				110000000000000000000239 /* TokenLintTests.swift in Sources */,
 				110000000000000000000237 /* SymbolAvailabilityTests.swift in Sources */,
+				110000000000000000000ff2 /* PanelContentPassATests.swift in Sources */,
 				110000000000000000000225 /* InstrumentKitTests.swift in Sources */,
 				110000000000000000000235 /* ConnectionStatusTests.swift in Sources */,
 			);
