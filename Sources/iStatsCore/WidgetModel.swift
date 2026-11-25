@@ -95,10 +95,10 @@ public enum WidgetWidthClass: String, Hashable, Sendable {
     public var worstCase: String? {
         switch self {
         case .stackedPercent: return "100%"
-        case .stackedTemperature: return "212°F"
+        case .stackedTemperature: return "199 °C"  // formatTemperature emits "<n> °C"; °C is wider than °F
         case .stackedRPM: return "9999"
         case .stackedBytes: return "999G"
-        case .thermometer: return "212°F"
+        case .thermometer: return "199 °C"
         case .twoLinePower: return "100% ⚡"
         case .fanGlyph: return "9999"
         default: return nil

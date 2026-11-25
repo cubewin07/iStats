@@ -493,7 +493,7 @@ final class MenuBarDisplayTests: XCTestCase {
         let configThroughput = MenuBarItemConfig(category: .power, style: .throughput)
         let res = MenuBarIconRenderer.render(config: configThroughput, coordinator: coord, preferences: prefs)
         XCTAssertNotNil(res.image)
-        XCTAssertEqual(res.image?.size.width, 34.0)
+        XCTAssertEqual(res.image?.size.width, WidgetMetrics.width(.twoLinePower))
         XCTAssertEqual(res.image?.size.height, 22.0)
 
 

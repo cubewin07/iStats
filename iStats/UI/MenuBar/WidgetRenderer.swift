@@ -48,8 +48,12 @@ enum WidgetMetrics {
     /// Worst-case (prefix, value) pairs of the two-line classes, measured with the two-line fonts.
     private static func twoLineSamples(_ widthClass: WidgetWidthClass) -> [(String, String)] {
         switch widthClass {
-        case .twoLineRate: return [("\u{2191}", "999 MB/s")]
-        case .twoLineFan: return [("L", "9999")]
+        case .twoLineRate:
+            // Every prefix (network arrows, disk R/W) against the widest value strings (IEC suffixes, one decimal, bits).
+            let prefixes = ["\u{2191}", "\u{2193}", "R", "W"]
+            let values = ["999 MiB/s", "9.9 MiB/s", "999 Mbps", "9.9 Mbps"]
+            return prefixes.flatMap { p in values.map { (p, $0) } }
+        case .twoLineFan: return [("L", "9999"), ("R", "9999")]
         case .twoLinePower: return [("", "100% \u{26A1}"), ("", "Charging")]
         default: return []
         }

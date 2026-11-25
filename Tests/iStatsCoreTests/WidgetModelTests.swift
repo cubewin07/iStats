@@ -63,7 +63,7 @@ final class WidgetModelTests: XCTestCase {
         let b = make(.thermal, .glyph, WidgetSnapshot(thermal: ThermalSample(sensors: [SensorReading(name: "CPU die", celsius: 105)])))
         XCTAssertEqual(a.widthClass, b.widthClass)
         XCTAssertEqual(a.widthClass, .thermometer)
-        XCTAssertEqual(WidgetWidthClass.thermometer.worstCase, "212°F")
+        XCTAssertEqual(WidgetWidthClass.thermometer.worstCase, "199 °C")
         XCTAssertEqual(WidgetWidthClass.twoLineRate.minWidth, 60)
     }
 
