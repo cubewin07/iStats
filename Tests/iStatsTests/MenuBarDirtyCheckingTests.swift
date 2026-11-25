@@ -531,4 +531,68 @@ final class MenuBarDirtyCheckingTests: XCTestCase {
             "Fan .throughput visualKey must still update on exact RPM change"
         )
     }
+
+    func testDiskTextRespectsSIAndIECStandard() {
+        let bytes: UInt64 = 500_000_000_000
+        XCTAssertEqual(MenuBarIconRenderer.formatCompactBytes(bytes, standard: .si), "500G")
+        XCTAssertEqual(MenuBarIconRenderer.formatCompactBytes(bytes, standard: .iec), "466G")
+
+        let disk = DiskSample(volumes: [
+            VolumeCapacity(name: "Macintosh HD", mountPoint: "/", total: 1_000_000_000_000, used: 500_000_000_000, free: bytes)
+        ])
+        let siKey = MenuBarIconRenderer.visualKeyForDisk(style: .text, disk: disk, standard: .si)
+        let iecKey = MenuBarIconRenderer.visualKeyForDisk(style: .text, disk: disk, standard: .iec)
+        XCTAssertNotEqual(siKey, iecKey)
+        XCTAssertTrue(siKey?.contains("500G") == true)
+        XCTAssertTrue(iecKey?.contains("466G") == true)
+    }
+
+    func testRenderDoesNotDoubleCacheStackedOrSingleLineThroughput() {
+        let (defaults, prefs, coord, _, suiteName) = makeContext()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        MenuBarIconRenderer.clearImageCache()
+
+        let cpu = CPUSample(totalUsage: 42, perCore: [42], user: 22, system: 20, idle: 58)
+        coord.handleReading(MetricReading.wrap(category: .cpu, value: cpu))
+        let cpuConfig = MenuBarItemConfig(category: .cpu, style: .text)
+        let cpuResult = MenuBarIconRenderer.render(config: cpuConfig, coordinator: coord, preferences: prefs)
+        XCTAssertNotNil(cpuResult.visualKey)
+        XCTAssertTrue(MenuBarIconRenderer.hasCachedImage(forKey: cpuResult.visualKey!))
+        XCTAssertFalse(MenuBarIconRenderer.hasCachedImage(forKey: "stacked:CPU:42%:32.0:0:0:0"))
+
+        let net = NetworkSample(interfaces: [
+            InterfaceThroughput(interfaceName: "en0", bytesInPerSec: 1024 * 50, bytesOutPerSec: 1024 * 10, totalBytesIn: 1000, totalBytesOut: 500)
+        ])
+        coord.handleReading(MetricReading.wrap(category: .network, value: net))
+        var netConfig = MenuBarItemConfig(category: .network, style: .throughput)
+        netConfig.throughputLayout = .singleLine
+        let netResult = MenuBarIconRenderer.render(config: netConfig, coordinator: coord, preferences: prefs)
+        XCTAssertNotNil(netResult.visualKey)
+        XCTAssertTrue(MenuBarIconRenderer.hasCachedImage(forKey: netResult.visualKey!))
+        let inStr = Units.formatCompactRate(1024 * 50, unit: prefs.networkUnit, standard: prefs.byteUnitStandard)
+        let outStr = Units.formatCompactRate(1024 * 10, unit: prefs.networkUnit, standard: prefs.byteUnitStandard)
+        XCTAssertFalse(MenuBarIconRenderer.hasCachedImage(forKey: "singleLineTp:↓:\(inStr):↑:\(outStr):82.0"))
+    }
+
+    func testDrawSingleLineThroughputCacheKeyIncludesColors() {
+        MenuBarIconRenderer.clearImageCache()
+        let img1 = MenuBarIconRenderer.drawSingleLineThroughput(
+            prefix1: "↓",
+            value1: "10 KB/s",
+            prefix2: "↑",
+            value2: "5 KB/s",
+            color1: .systemBlue,
+            color2: .systemGreen
+        )
+        let img2 = MenuBarIconRenderer.drawSingleLineThroughput(
+            prefix1: "↓",
+            value1: "10 KB/s",
+            prefix2: "↑",
+            value2: "5 KB/s",
+            color1: .systemRed,
+            color2: .systemOrange
+        )
+        XCTAssertFalse(img1 === img2, "drawSingleLineThroughput must not return stale cached image when colors differ")
+    }
 }

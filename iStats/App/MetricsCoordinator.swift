@@ -431,15 +431,17 @@ public final class MetricsCoordinator: ObservableObject {
         switch category {
         case .cpu:
             self.latestCPU = store.latestCPU()
-            if let perCore = self.latestCPU?.value.perCore {
+            if let perCore = self.latestCPU?.value.perCore, !perCore.isEmpty {
+                var updatedCoreHistory = self.coreHistory
                 for (idx, val) in perCore.enumerated() {
-                    var ring = self.coreHistory[idx] ?? []
+                    var ring = updatedCoreHistory[idx] ?? []
                     ring.append(val)
                     if ring.count > 60 {
                         ring.removeFirst(ring.count - 60)
                     }
-                    self.coreHistory[idx] = ring
+                    updatedCoreHistory[idx] = ring
                 }
+                self.coreHistory = updatedCoreHistory
             }
         case .memory:
             self.latestMemory = store.latestMemory()
@@ -570,9 +572,12 @@ public final class MetricsCoordinator: ObservableObject {
         processSamplingTask?.cancel()
         processSamplingTask = Task.detached(priority: .utility) { [weak self, processSampler] in
             while !Task.isCancelled {
-                // Check pause/low-power state and snapshot GUI apps on MainActor
-                let loopContext = await MainActor.run { [weak self] () -> (isPaused: Bool, isLowPower: Bool, appMap: [pid_t: (name: String, bundleID: String?)])? in
+                // Check pause state (already accounts for Low Power Mode auto-pause/override) and snapshot GUI apps on MainActor
+                let loopContext = await MainActor.run { [weak self] () -> (isPaused: Bool, appMap: [pid_t: (name: String, bundleID: String?)])? in
                     guard let self = self else { return nil }
+                    if self.preferencesStore.isSamplingPaused {
+                        return (true, [:])
+                    }
                     let runningApps = NSWorkspace.shared.runningApplications
                     var map: [pid_t: (name: String, bundleID: String?)] = [:]
                     for app in runningApps {
@@ -580,12 +585,12 @@ public final class MetricsCoordinator: ObservableObject {
                             map[app.processIdentifier] = (name, app.bundleIdentifier)
                         }
                     }
-                    return (self.preferencesStore.isSamplingPaused, self.isLowPowerModeActive, map)
+                    return (false, map)
                 }
 
                 guard let context = loopContext else { break }
 
-                if context.isPaused || context.isLowPower {
+                if context.isPaused {
                     do {
                         try await Task.sleep(nanoseconds: 2_000_000_000)
                     } catch {
@@ -596,24 +601,7 @@ public final class MetricsCoordinator: ObservableObject {
 
                 let sample = processSampler.sample(appMap: context.appMap)
                 await MainActor.run { [weak self] in
-                    guard let self = self else { return }
-                    self.latestProcesses = Sample(value: sample)
-
-                    // Track rolling 30-sample history for top processes
-                    let currentTopPIDs = Set(sample.topCPU.map(\.pid))
-                    for item in sample.topCPU {
-                        var history = self.processCPUHistory[item.pid] ?? []
-                        history.append(item.cpuPercent)
-                        if history.count > 30 {
-                            history.removeFirst(history.count - 30)
-                        }
-                        self.processCPUHistory[item.pid] = history
-                    }
-
-                    // Prune old PIDs if dictionary exceeds 32 items to bound memory
-                    if self.processCPUHistory.count > 32 {
-                        self.processCPUHistory = self.processCPUHistory.filter { currentTopPIDs.contains($0.key) }
-                    }
+                    self?.applyProcessSample(sample)
                 }
                 do {
                     try await Task.sleep(nanoseconds: 2_000_000_000)
@@ -622,6 +610,28 @@ public final class MetricsCoordinator: ObservableObject {
                 }
             }
         }
+    }
+
+    internal func applyProcessSample(_ sample: ProcessSample) {
+        self.latestProcesses = Sample(value: sample)
+
+        // Track rolling 30-sample history for top processes in a single @Published assignment
+        var updatedProcessHistory = self.processCPUHistory
+        let currentTopPIDs = Set(sample.topCPU.map(\.pid))
+        for item in sample.topCPU {
+            var history = updatedProcessHistory[item.pid] ?? []
+            history.append(item.cpuPercent)
+            if history.count > 30 {
+                history.removeFirst(history.count - 30)
+            }
+            updatedProcessHistory[item.pid] = history
+        }
+
+        // Prune old PIDs if dictionary exceeds 32 items to bound memory
+        if updatedProcessHistory.count > 32 {
+            updatedProcessHistory = updatedProcessHistory.filter { currentTopPIDs.contains($0.key) }
+        }
+        self.processCPUHistory = updatedProcessHistory
     }
 
     // MARK: - Power Source Notifications

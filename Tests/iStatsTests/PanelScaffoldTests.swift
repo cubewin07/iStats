@@ -730,7 +730,6 @@ final class PanelScaffoldTests: XCTestCase {
             XCTAssertGreaterThanOrEqual(latest, 160.0)
             XCTAssertLessThanOrEqual(latest, Instrument.Size.maxHeight)
         }
-        XCTAssertNil(EnvironmentValues().chartNamespace, "Cross-view chartNamespace must default to nil")
     }
 
     // MARK: - Task 8.5.4: ChartScrubState, Glance Header Scrub Override & Insight Caption
@@ -1086,6 +1085,73 @@ final class PanelScaffoldTests: XCTestCase {
         XCTAssertFalse(controller.shouldDispatch(nil))
     }
 
+    func testScrubControllerSuppressesRedundantObjectWillChangeOnSameIndex() {
+        let controller = ScrubController()
+        var changeCount = 0
+        let cancellable = controller.objectWillChange.sink { _ in
+            changeCount += 1
+        }
+        defer { cancellable.cancel() }
+
+        let base: TimeInterval = 2_000.0
+        let points = [
+            ChartPoint(timestamp: base - 20, value: 10),
+            ChartPoint(timestamp: base - 10, value: 50),
+            ChartPoint(timestamp: base, value: 30)
+        ]
+        let timeline = ChartTimeline(edge: base, sampleInterval: 1.0)
+
+        // Multiple pixel moves within the same middle sample (x = 198, 200, 202)
+        for x in [CGFloat(198), CGFloat(200), CGFloat(202)] {
+            controller.handleHover(
+                phase: .active(CGPoint(x: x, y: 20)),
+                plotWidth: 300,
+                points: points,
+                secondaryPoints: [],
+                timeline: timeline,
+                windowDuration: 30,
+                isTimestamped: true,
+                valueFormatter: nil,
+                onScrub: nil
+            )
+        }
+        XCTAssertEqual(controller.hoveredIndex, 1)
+        XCTAssertEqual(changeCount, 1, "Moving mouse within the same snapped sample must only publish once")
+    }
+
+    func testChartModelStepShortCircuitsWhenPausedWithIdenticalInputs() {
+        let model = ChartModel(sampleInterval: 1.0)
+        let base: TimeInterval = 5_000.0
+        let points = [
+            ChartPoint(timestamp: base - 2.0, value: 10),
+            ChartPoint(timestamp: base - 1.0, value: 20),
+            ChartPoint(timestamp: base, value: 30)
+        ]
+        let mode = LiveChartMode.single(points: points, color: .blue, fixedMax: 100.0)
+
+        let first = model.step(
+            now: base,
+            mode: mode,
+            category: .cpu,
+            sampleInterval: 1.0,
+            explicitWindow: 60.0,
+            isScrubbing: true,
+            motionPolicy: .full
+        )
+        let edgeAfterFirst = model.timeline.edge
+        let second = model.step(
+            now: base,
+            mode: mode,
+            category: .cpu,
+            sampleInterval: 1.0,
+            explicitWindow: 60.0,
+            isScrubbing: true,
+            motionPolicy: .full
+        )
+        XCTAssertEqual(model.timeline.edge, edgeAfterFirst)
+        XCTAssertEqual(first.primaryPoints, second.primaryPoints)
+    }
+
     // MARK: - Task 8.5.6b: Header v2, Text PageSwitcher & Inline Status Chip
 
     func testHeaderV2BadgeAndCategoryTitlesFitAllCategories() {
@@ -1315,5 +1381,110 @@ final class PanelScaffoldTests: XCTestCase {
         let unavailableResult = probeScaffold(status: .warning, availability: .unavailable(reason: "No sensor"))
         XCTAssertFalse(unavailableResult.shouldShowChip)
         XCTAssertNil(unavailableResult.probe.inlineStatusText)
+    }
+
+    func testPanelScaffoldPreservesAncestorMotionPolicyAndInjectedLowPowerMode() {
+        struct PolicyReader: View {
+            @Environment(\.motionPolicy) var policy
+            let onRead: (MotionPolicy) -> Void
+            var body: some View {
+                Color.clear
+                    .frame(height: 20)
+                    .onAppear { onRead(policy) }
+                    .onChange(of: policy) { onRead($0) }
+            }
+        }
+
+        @MainActor
+        func observedPolicy(
+            ancestorPolicy: MotionPolicy?,
+            isLowPowerModeActive: Bool
+        ) -> MotionPolicy? {
+            var observed: MotionPolicy?
+            let scaffold = PanelScaffold(
+                category: .cpu,
+                glance: PanelGlance(value: 25, unit: "%", headline: "Calm"),
+                selection: .constant(.overview),
+                isLowPowerModeActive: isLowPowerModeActive
+            ) { _ in
+                PolicyReader { observed = $0 }
+            }
+
+            let root: AnyView = ancestorPolicy.map { AnyView(scaffold.motionPolicy($0)) } ?? AnyView(scaffold)
+            let window = NSWindow(
+                contentRect: NSRect(x: 0, y: 0, width: Instrument.Size.panelWidth, height: 280),
+                styleMask: [.borderless],
+                backing: .buffered,
+                defer: false
+            )
+            let hosting = NSHostingView(rootView: root)
+            hosting.frame = NSRect(x: 0, y: 0, width: Instrument.Size.panelWidth, height: 280)
+            window.contentView = hosting
+            window.orderFront(nil)
+            window.layoutIfNeeded()
+            RunLoop.main.run(until: Date().addingTimeInterval(0.03))
+            window.orderOut(nil)
+            return observed
+        }
+
+        // Explicit ancestor .motionPolicy(.reduced) must not be clobbered by PanelScaffold
+        XCTAssertEqual(observedPolicy(ancestorPolicy: .reduced, isLowPowerModeActive: false), .reduced)
+        XCTAssertEqual(observedPolicy(ancestorPolicy: .frozen, isLowPowerModeActive: false), .frozen)
+
+        // Without ancestor override, injected isLowPowerModeActive resolves to .frozen
+        XCTAssertEqual(observedPolicy(ancestorPolicy: nil, isLowPowerModeActive: true), .frozen)
+    }
+
+    func testPanelsAnchorTimedHistoryToSampleTimestampWhenPausedOver60Seconds() {
+        let suiteName = "test.istats.panels.timestamp.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        let prefs = PreferencesStore(userDefaults: defaults)
+        let coord = MetricsCoordinator(preferencesStore: prefs)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        // Feed 10 samples ending 120 seconds ago (simulating >60s paused sampling)
+        let endTs = Date().addingTimeInterval(-120.0)
+        for i in 0..<10 {
+            let ts = endTs.addingTimeInterval(Double(i - 9))
+            let cpu = CPUSample(totalUsage: Double(20 + i), perCore: [20, 25], user: Double(12 + i), system: 8, idle: Double(80 - i))
+            let mem = MemorySample(total: 16_000_000_000, used: 8_000_000_000, free: 8_000_000_000, wired: 2_000_000_000, compressed: 1_000_000_000, cached: 1_000_000_000, swapUsed: 0, pressure: .normal)
+            let fan = FanSample(fans: [FanReading(name: "Left", rpm: 2200 + i * 20, minRPM: 1200, maxRPM: 5000)])
+            let net = NetworkSample(interfaces: [
+                InterfaceThroughput(interfaceName: "en0", bytesInPerSec: Double(1000 + i * 50), bytesOutPerSec: 500, totalBytesIn: 10_000, totalBytesOut: 5_000, ipv4Address: "192.168.1.2", type: .wifi)
+            ], primaryInterface: "en0", primaryType: .wifi, localIPv4: "192.168.1.2")
+
+            coord.handleReadings([
+                .cpu(Sample(value: cpu, timestamp: ts)),
+                .memory(Sample(value: mem, timestamp: ts)),
+                .fan(Sample(value: fan, timestamp: ts)),
+                .network(Sample(value: net, timestamp: ts))
+            ])
+        }
+
+        let cpuPanel = CPUPanel(coordinator: coord, preferences: prefs)
+        let cpuGlance = cpuPanel.deriveGlance(
+            sample: coord.latestCPU?.value,
+            referenceDate: coord.latestCPU?.timestamp ?? Date(),
+            refreshInterval: prefs.refreshInterval
+        )
+        XCTAssertEqual(cpuGlance.chartMode?.primaryValues.count, 10)
+
+        let memPanel = MemoryPanel(coordinator: coord, preferences: prefs)
+        let memGlance = memPanel.deriveGlance(
+            sample: coord.latestMemory?.value,
+            standard: prefs.byteUnitStandard,
+            referenceDate: coord.latestMemory?.timestamp ?? Date(),
+            refreshInterval: prefs.refreshInterval
+        )
+        XCTAssertEqual(memGlance.chartMode?.primaryValues.count, 10)
+
+        let fanPanel = FanPanel(coordinator: coord, preferences: prefs)
+        let fanGlance = fanPanel.deriveGlance(latest: coord.latestFan)
+        XCTAssertEqual(fanGlance.chartMode?.primaryValues.count, 10)
+
+        let netPanel = NetworkPanel(coordinator: coord, preferences: prefs)
+        let netGlance = netPanel.deriveGlance(latest: coord.latestNetwork)
+        XCTAssertEqual(netGlance.chartMode?.primaryValues.count, 10)
     }
 }

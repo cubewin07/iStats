@@ -98,7 +98,7 @@ public struct HostNetworkInfoProvider: NetworkInfoProvider {
 
     public init(connectivityMonitor: NetworkConnectivityMonitor = .shared) {
         self.connectivityMonitor = connectivityMonitor
-        connectivityMonitor.setOnPathChanged {
+        connectivityMonitor.addOnPathChanged(key: "HostNetworkInfoProvider.invalidateWiFiCache") {
             Self.invalidateWiFiCache()
         }
     }
@@ -233,7 +233,14 @@ public struct HostNetworkInfoProvider: NetworkInfoProvider {
 
     /// Reads active network routing, local IP addresses, Wi-Fi link parameters, and non-blocking reachability probe state.
     public func networkConnectivity() throws -> RawNetworkConnectivity {
-        let monitorSnapshot = connectivityMonitor.snapshot(triggerProbeIfDue: true)
+        try networkConnectivity(isTrafficStalled: false)
+    }
+
+    public func networkConnectivity(isTrafficStalled: Bool) throws -> RawNetworkConnectivity {
+        let monitorSnapshot = connectivityMonitor.snapshot(
+            triggerProbeIfDue: true,
+            isTrafficStalled: isTrafficStalled
+        )
 
         var primaryInterface: String? = nil
         var routerIPv4: String? = nil
@@ -444,6 +451,9 @@ public final class NetworkSampler: Sampler, @unchecked Sendable {
 
     private var previousStates: [String: InterfaceState] = [:]
     private var sessionTotals: [String: InterfaceSessionTotal] = [:]
+    private var consecutivePrimaryRxIntervals: Int = 0
+    private var lastPrimaryInterface: String?
+    private var lastTrafficStalled: Bool = false
 
     public init(
         provider: any NetworkInfoProvider = HostNetworkInfoProvider(),
@@ -456,24 +466,46 @@ public final class NetworkSampler: Sampler, @unchecked Sendable {
     /// Samples network metrics. Runs off the main thread.
     public func sample() throws -> NetworkSample {
         let currentCounters = try provider.interfaceCounters()
-        let connectivity = (try? provider.networkConnectivity()) ?? RawNetworkConnectivity()
-        let currentTimestamp = Date()
 
         lock.lock()
+        let stalled = lastTrafficStalled
         let prev = previousStates
         let totals = sessionTotals
+        let priorRxStreak = consecutivePrimaryRxIntervals
+        let prevPrimary = lastPrimaryInterface
+        lock.unlock()
 
+        let connectivity: RawNetworkConnectivity
+        if let hostProvider = provider as? HostNetworkInfoProvider {
+            connectivity = (try? hostProvider.networkConnectivity(isTrafficStalled: stalled)) ?? RawNetworkConnectivity()
+        } else {
+            connectivity = (try? provider.networkConnectivity()) ?? RawNetworkConnectivity()
+        }
+        let currentTimestamp = Date()
+
+        let effectivePriorStreak = (prevPrimary == nil || prevPrimary == connectivity.primaryInterface) ? priorRxStreak : 0
         let (sample, newPrev, newTotals) = Self.calculateSample(
             previous: prev,
             current: currentCounters,
             currentTimestamp: currentTimestamp,
             sessionTotals: totals,
             includeLoopback: includeLoopback,
-            connectivity: connectivity
+            connectivity: connectivity,
+            priorPrimaryTrafficIntervals: effectivePriorStreak
         )
 
+        lock.lock()
         self.previousStates = newPrev
         self.sessionTotals = newTotals
+        let rxDelta = sample.connectionHealth?.primaryPacketsInDelta ?? 0
+        let txDelta = sample.connectionHealth?.primaryPacketsOutDelta ?? 0
+        if rxDelta > 0 && txDelta > 0 {
+            self.consecutivePrimaryRxIntervals = effectivePriorStreak + 1
+        } else {
+            self.consecutivePrimaryRxIntervals = 0
+        }
+        self.lastPrimaryInterface = sample.primaryInterface
+        self.lastTrafficStalled = (txDelta > 0 && rxDelta == 0)
         lock.unlock()
 
         return sample
@@ -486,7 +518,8 @@ public final class NetworkSampler: Sampler, @unchecked Sendable {
         currentTimestamp: Date,
         sessionTotals: [String: InterfaceSessionTotal]?,
         includeLoopback: Bool = false,
-        connectivity: RawNetworkConnectivity = RawNetworkConnectivity()
+        connectivity: RawNetworkConnectivity = RawNetworkConnectivity(),
+        priorPrimaryTrafficIntervals: Int = 0
     ) -> (sample: NetworkSample, newPrevious: [String: InterfaceState], newSessionTotals: [String: InterfaceSessionTotal]) {
         var newPrevious = previous ?? [:]
         var newSessionTotals = sessionTotals ?? [:]
@@ -570,6 +603,8 @@ public final class NetworkSampler: Sampler, @unchecked Sendable {
         let primaryIP = primaryIface != nil ? connectivity.interfaceIPs[primaryIface!] : nil
         let primaryType = primaryIface != nil ? NetworkConnectionType.infer(from: primaryIface!) : nil
         let resolvedPathSatisfied = connectivity.isPathSatisfied ?? (primaryIface != nil && primaryIP != nil)
+        let isPrimaryTrafficFlowing = (priorPrimaryTrafficIntervals >= 1)
+            && (primaryPacketsInDelta > 0 && primaryPacketsOutDelta > 0)
 
         let connectionHealth = NetworkConnectionEvaluator.evaluate(
             isPathSatisfied: resolvedPathSatisfied,
@@ -581,7 +616,8 @@ public final class NetworkSampler: Sampler, @unchecked Sendable {
             probe: connectivity.probeSnapshot,
             primaryPacketsInDelta: primaryPacketsInDelta,
             primaryPacketsOutDelta: primaryPacketsOutDelta,
-            interfaceErrorDelta: primaryErrorDelta
+            interfaceErrorDelta: primaryErrorDelta,
+            isPrimaryTrafficFlowing: isPrimaryTrafficFlowing
         )
 
         let sample = NetworkSample(

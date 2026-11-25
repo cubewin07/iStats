@@ -171,6 +171,8 @@ public enum NetworkConnectionThresholds {
     public static let degradedJitterMs: Double = 60.0
     /// Rolling packet loss percentage at or above this threshold is considered a bad connection.
     public static let degradedPacketLossPercent: Double = 10.0
+    /// Consecutive failed probes required to classify a satisfied path as disconnected.
+    public static let disconnectedConsecutiveFailures: Int = 2
     /// Wi-Fi signal percentage strictly below this threshold is considered weak.
     public static let weakWiFiSignalPercent: Int = 30
     /// Wi-Fi SNR strictly below this threshold (dB) is considered weak.
@@ -195,7 +197,8 @@ public enum NetworkConnectionEvaluator {
         probe: NetworkProbeSnapshot? = nil,
         primaryPacketsInDelta: UInt64 = 0,
         primaryPacketsOutDelta: UInt64 = 0,
-        interfaceErrorDelta: UInt64 = 0
+        interfaceErrorDelta: UInt64 = 0,
+        isPrimaryTrafficFlowing: Bool = false
     ) -> NetworkConnectionHealth {
         // 1. OS path unsatisfied (Wi-Fi off, not associated, Ethernet unplugged) -> Red immediately.
         if !isPathSatisfied {
@@ -218,37 +221,46 @@ public enum NetworkConnectionEvaluator {
             )
         }
 
-        // 2. Active probe failed while locally associated -> Red ("Not Connected").
-        // Handles connected-to-Wi-Fi with dead router/ISP/captive portal/dropped packets.
-        if let probe, !probe.isReachable {
-            let isWiFi = (primaryType == .wifi) || (wifiDetails != nil)
-            let reason: String
-            if isWiFi {
-                if primaryPacketsOutDelta > 0 && primaryPacketsInDelta == 0 {
-                    reason = "Wi-Fi connected · No packets received"
-                } else {
-                    reason = "Wi-Fi connected · No internet response"
-                }
-            } else if let iface = primaryInterface {
-                reason = "No internet response on \(iface)"
-            } else {
-                reason = probe.failureReason ?? "No packet response"
-            }
+        // 2. Sustained probe failure while locally associated -> Red ("Not Connected"),
+        // unless primary interface traffic is actively flowing (e.g. corporate/VPN firewall blocking 1.1.1.1/8.8.8.8).
+        // A single transient drop when prior probes in the window succeeded degrades to Yellow in Step 5.
+        let probeBlockedByFirewallWithActiveTraffic = (probe?.isReachable == false) && isPrimaryTrafficFlowing
+        if let probe, !probe.isReachable, !probeBlockedByFirewallWithActiveTraffic {
+            let isSustainedFailure =
+                probe.consecutiveFailures >= NetworkConnectionThresholds.disconnectedConsecutiveFailures
+                || (probe.windowSampleCount > 0 && probe.consecutiveFailures >= probe.windowSampleCount)
+                || (probe.consecutiveFailures == 0 && probe.packetLossPercent >= 100.0)
 
-            return NetworkConnectionHealth(
-                status: .disconnected,
-                reason: reason,
-                isPathSatisfied: true,
-                isInternetReachable: false,
-                isConstrained: isConstrained,
-                latencyMs: nil,
-                packetLossPercent: max(probe.packetLossPercent, 100.0),
-                jitterMs: probe.jitterMs,
-                interfaceErrorDelta: interfaceErrorDelta,
-                primaryPacketsInDelta: primaryPacketsInDelta,
-                primaryPacketsOutDelta: primaryPacketsOutDelta,
-                isProbing: false
-            )
+            if isSustainedFailure {
+                let isWiFi = (primaryType == .wifi) || (wifiDetails != nil)
+                let reason: String
+                if isWiFi {
+                    if primaryPacketsOutDelta > 0 && primaryPacketsInDelta == 0 {
+                        reason = "Wi-Fi connected · No packets received"
+                    } else {
+                        reason = "Wi-Fi connected · No internet response"
+                    }
+                } else if let iface = primaryInterface {
+                    reason = "No internet response on \(iface)"
+                } else {
+                    reason = probe.failureReason ?? "No packet response"
+                }
+
+                return NetworkConnectionHealth(
+                    status: .disconnected,
+                    reason: reason,
+                    isPathSatisfied: true,
+                    isInternetReachable: false,
+                    isConstrained: isConstrained,
+                    latencyMs: nil,
+                    packetLossPercent: max(probe.packetLossPercent, 100.0),
+                    jitterMs: probe.jitterMs,
+                    interfaceErrorDelta: interfaceErrorDelta,
+                    primaryPacketsInDelta: primaryPacketsInDelta,
+                    primaryPacketsOutDelta: primaryPacketsOutDelta,
+                    isProbing: false
+                )
+            }
         }
 
         // 3. No route/interface and no reachable probe -> Red.
@@ -304,18 +316,26 @@ public enum NetworkConnectionEvaluator {
             )
         }
 
-        // 5. Probe succeeded (packets sent & received). Check for degraded (Yellow) conditions.
+        // 5. Probe succeeded (or suffered a single transient drop, or direct probe blocked while traffic flows).
+        // Check for degraded (Yellow) conditions.
         var degradationReasons: [String] = []
+        let effectiveLossPercent = probeBlockedByFirewallWithActiveTraffic ? 0.0 : probe.packetLossPercent
+        let effectiveLatencyMs = probeBlockedByFirewallWithActiveTraffic ? nil : probe.latencyMs
+        let effectiveJitterMs = probeBlockedByFirewallWithActiveTraffic ? nil : probe.jitterMs
 
-        if probe.packetLossPercent >= NetworkConnectionThresholds.degradedPacketLossPercent {
-            degradationReasons.append("Packet loss (\(Int(round(probe.packetLossPercent)))%)")
+        if !probeBlockedByFirewallWithActiveTraffic {
+            if probe.packetLossPercent >= NetworkConnectionThresholds.degradedPacketLossPercent {
+                degradationReasons.append("Packet loss (\(Int(round(probe.packetLossPercent)))%)")
+            } else if !probe.isReachable {
+                degradationReasons.append("Packet loss (\(Int(round(probe.packetLossPercent)))%)")
+            }
         }
 
-        if let rtt = probe.latencyMs, rtt >= NetworkConnectionThresholds.degradedLatencyMs {
+        if let rtt = effectiveLatencyMs, rtt >= NetworkConnectionThresholds.degradedLatencyMs {
             degradationReasons.append("High latency (\(Int(round(rtt))) ms)")
         }
 
-        if let jitter = probe.jitterMs, jitter >= NetworkConnectionThresholds.degradedJitterMs {
+        if let jitter = effectiveJitterMs, jitter >= NetworkConnectionThresholds.degradedJitterMs {
             degradationReasons.append("Unstable latency (\(Int(round(jitter))) ms jitter)")
         }
 
@@ -339,9 +359,9 @@ public enum NetworkConnectionEvaluator {
                 isPathSatisfied: true,
                 isInternetReachable: true,
                 isConstrained: isConstrained,
-                latencyMs: probe.latencyMs,
-                packetLossPercent: probe.packetLossPercent,
-                jitterMs: probe.jitterMs,
+                latencyMs: effectiveLatencyMs,
+                packetLossPercent: effectiveLossPercent,
+                jitterMs: effectiveJitterMs,
                 interfaceErrorDelta: interfaceErrorDelta,
                 primaryPacketsInDelta: primaryPacketsInDelta,
                 primaryPacketsOutDelta: primaryPacketsOutDelta,
@@ -351,8 +371,10 @@ public enum NetworkConnectionEvaluator {
 
         // 6. All checks healthy -> Green ("Connected").
         let healthyReason: String
-        if let rtt = probe.latencyMs {
-            healthyReason = "\(Int(round(rtt))) ms · 0% loss"
+        if probeBlockedByFirewallWithActiveTraffic {
+            healthyReason = "Active traffic (probe blocked)"
+        } else if let rtt = effectiveLatencyMs {
+            healthyReason = "\(Int(round(rtt))) ms · \(Int(round(effectiveLossPercent)))% loss"
         } else {
             healthyReason = "Connected"
         }
@@ -363,9 +385,9 @@ public enum NetworkConnectionEvaluator {
             isPathSatisfied: true,
             isInternetReachable: true,
             isConstrained: false,
-            latencyMs: probe.latencyMs,
-            packetLossPercent: probe.packetLossPercent,
-            jitterMs: probe.jitterMs,
+            latencyMs: effectiveLatencyMs,
+            packetLossPercent: effectiveLossPercent,
+            jitterMs: effectiveJitterMs,
             interfaceErrorDelta: interfaceErrorDelta,
             primaryPacketsInDelta: primaryPacketsInDelta,
             primaryPacketsOutDelta: primaryPacketsOutDelta,

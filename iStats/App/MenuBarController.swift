@@ -84,6 +84,22 @@ public final class MenuBarController: NSObject {
                 self?.currentlyShownButton = nil
             }
         }
+        PanelController.shared.statusButtonProvider = { [weak self] category in
+            guard let self else { return nil }
+            for config in self.preferences.activeMenuBarItems where config.category == category {
+                if let button = self.statusItems[config.id]?.button {
+                    return (button, config.id)
+                }
+            }
+            return nil
+        }
+        PanelController.shared.onTransientCategorySwapped = { [weak self] _, button in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                self.currentlyShownButton = button
+                self.startScrubbingMonitor()
+            }
+        }
 
         syncStatusItems()
         setupSubscriptions()

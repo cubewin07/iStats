@@ -175,6 +175,121 @@ final class ConnectionStatusTests: XCTestCase {
         XCTAssertNil(upSnap.probe)
     }
 
+    func testMonitorGatesProbingBeforePathSatisfiedAndWhenBackgrounded() {
+        let monitor = NetworkConnectivityMonitor(
+            probeInterval: 5.0,
+            backgroundProbeInterval: 60.0,
+            enableSystemPathMonitor: false,
+            enableActiveProbing: true,
+            foregroundProbing: false
+        )
+
+        // Before NWPathMonitor reports pathSatisfied == true, periodic probing must NOT fire (gen-0 race fix)
+        XCTAssertFalse(monitor.wouldTriggerProbe())
+
+        // Once satisfied in background mode (panel closed), path transition fires 1 initial probe;
+        // once that finishes, periodic 2s/5s probing stays suppressed unless stalled.
+        monitor.handlePathUpdate(isSatisfied: true, activeInterfaceName: "en0")
+        monitor.recordProbeOutcome(isReachable: true, latencyMs: 12.0)
+        let future = Date().addingTimeInterval(10.0)
+        XCTAssertFalse(monitor.wouldTriggerProbe(now: future, isTrafficStalled: false))
+        XCTAssertFalse(monitor.wouldTriggerProbe(now: future, isTrafficStalled: true))
+        XCTAssertTrue(monitor.wouldTriggerProbe(now: Date().addingTimeInterval(120.0), isTrafficStalled: true))
+
+        // Opening Network panel enables foreground probing at probeInterval
+        monitor.setForegroundProbing(true)
+        XCTAssertTrue(monitor.wouldTriggerProbe(now: future, isTrafficStalled: false))
+        monitor.stop()
+    }
+
+    func testHostNetworkInfoProviderDoesNotClobberExistingPathObservers() {
+        final class CounterBox: @unchecked Sendable {
+            let lock = NSLock()
+            var count = 0
+            func increment() {
+                lock.lock()
+                count += 1
+                lock.unlock()
+            }
+            func value() -> Int {
+                lock.lock()
+                defer { lock.unlock() }
+                return count
+            }
+        }
+
+        let monitor = NetworkConnectivityMonitor(
+            enableSystemPathMonitor: false,
+            enableActiveProbing: false
+        )
+        let box = CounterBox()
+        let token = monitor.addOnPathChanged {
+            box.increment()
+        }
+
+        // Initializing HostNetworkInfoProvider must not overwrite our registered observer
+        _ = HostNetworkInfoProvider(connectivityMonitor: monitor)
+        monitor.handlePathUpdate(isSatisfied: true, activeInterfaceName: "en0")
+
+        XCTAssertEqual(box.value(), 1)
+
+        monitor.removeOnPathChanged(token)
+    }
+
+    func testSustainedBidirectionalTrafficFallsBackWhenDirectTCPProbeBlocked() {
+        let t0 = Date(timeIntervalSince1970: 4000.0)
+        let t1 = Date(timeIntervalSince1970: 4001.0)
+        let t2 = Date(timeIntervalSince1970: 4002.0)
+
+        let c0 = [RawInterfaceCounters(name: "en0", bytesIn: 10_000, bytesOut: 10_000, packetsIn: 100, packetsOut: 100)]
+        let c1 = [RawInterfaceCounters(name: "en0", bytesIn: 15_000, bytesOut: 12_000, packetsIn: 120, packetsOut: 115)]
+        let c2 = [RawInterfaceCounters(name: "en0", bytesIn: 25_000, bytesOut: 16_000, packetsIn: 160, packetsOut: 140)]
+
+        let blockedProbeConn = RawNetworkConnectivity(
+            primaryInterface: "en0",
+            routerIPv4: "10.0.0.1",
+            primaryDNS: "10.0.0.2",
+            interfaceIPs: ["en0": "10.0.1.5"],
+            isPathSatisfied: true,
+            probeSnapshot: NetworkProbeSnapshot(
+                isReachable: false,
+                packetLossPercent: 100.0,
+                consecutiveFailures: 2,
+                windowSampleCount: 2,
+                failureReason: "Connection refused"
+            )
+        )
+
+        let (_, prev0, totals0) = NetworkSampler.calculateSample(
+            previous: nil,
+            current: c0,
+            currentTimestamp: t0,
+            sessionTotals: nil,
+            connectivity: blockedProbeConn,
+            priorPrimaryTrafficIntervals: 0
+        )
+        let (_, prev1, totals1) = NetworkSampler.calculateSample(
+            previous: prev0,
+            current: c1,
+            currentTimestamp: t1,
+            sessionTotals: totals0,
+            connectivity: blockedProbeConn,
+            priorPrimaryTrafficIntervals: 0
+        )
+        let (sample2, _, _) = NetworkSampler.calculateSample(
+            previous: prev1,
+            current: c2,
+            currentTimestamp: t2,
+            sessionTotals: totals1,
+            connectivity: blockedProbeConn,
+            priorPrimaryTrafficIntervals: 1
+        )
+
+        XCTAssertEqual(sample2.connectionHealth?.status, .connected)
+        XCTAssertEqual(sample2.connectionHealth?.isInternetReachable, true)
+        XCTAssertEqual(sample2.connectionHealth?.reason, "Active traffic (probe blocked)")
+    }
+
     // MARK: - ConnectionStatusGridView & NetworkPanel Rendering
 
     @MainActor
