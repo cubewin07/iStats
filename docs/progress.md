@@ -13,8 +13,8 @@ The only status file. Agent specs (`AGENTS.md`, `CLAUDE.md`) and phase plans do 
 | Field | Value |
 |-------|--------|
 | Phase | **9** — Native-premium redesign (identity, panel shell v3, widgets, Settings, alerts, onboarding) |
-| Next task | **9.2** Preferences model v2 and migration |
-| Last closed | **9.1** Identity and design-system foundation |
+| Next task | **9.2**, **9.6**, **9.7** (in progress in parallel) |
+| Last closed | **9.5** Panel content pass A |
 | Blocked by | — |
 
 ---
@@ -134,6 +134,7 @@ Copy a row from [`docs/specs/tasks.md`](./specs/tasks.md) when you start it. Lea
 | 8.5.9 | `InstrumentGalleryPreview`, performance/accessibility verification & Phase 8.5 `report.md` | **done** | [`docs/handoffs/08.5-8.5.9-summary.md`](./handoffs/08.5-8.5.9-summary.md), [`docs/phases/phase-08.5-instrument-polish/report.md`](./phases/phase-08.5-instrument-polish/report.md), `swift test` (654 passed: 278 core + 376 app), `xcodebuild test` (368 passed), `swift build -c release` passed |
 | 9.0 | ADR 0011 native-premium redesign and Phase 9 spec package (docs only) | **done** | [`docs/handoffs/09-9.0-summary.md`](./handoffs/09-9.0-summary.md), [`docs/architecture/adr/0011-native-premium-redesign.md`](./architecture/adr/0011-native-premium-redesign.md), [`docs/phases/phase-09-native-premium/`](./phases/phase-09-native-premium/) |
 | 9.1 | Identity and design-system foundation (`CategoryIdentity`, stable-hue palette, unified `StatusLevel` symbols, token consolidation, panel threshold tables) | **done** | [`docs/handoffs/09-9.1-summary.md`](./handoffs/09-9.1-summary.md), `swift test` (716 passed: 311 core + 405 app), `xcodebuild test -scheme iStatsApp` (397 passed), `xcodebuild -scheme iStats -configuration Debug build` passed |
+| 9.5 | Panel content pass A (CPU, Memory, GPU, Temperature one-value-once pages) | **done** | [`docs/handoffs/09-9.5-summary.md`](./handoffs/09-9.5-summary.md), `swift test` (311 core + 415 app passed), `xcodebuild -scheme iStats -configuration Debug build` passed |
 
 When a task is done, set Status to `done` and put the handoff summary path (or test command) in Evidence.
 
