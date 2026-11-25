@@ -29,7 +29,7 @@ final class PreferencesPersistenceTests: XCTestCase {
         firstLaunchStore.byteUnitStandard = .si
         firstLaunchStore.showDockIcon = true
         firstLaunchStore.launchAtLogin = true
-        firstLaunchStore.menuBarDisplayMode = .network
+        firstLaunchStore.menuBarAppearance = .monochrome
 
         // 2. Simulate App Termination & Subsequent Launch
         let secondLaunchStore = PreferencesStore(userDefaults: testDefaults)
@@ -41,7 +41,7 @@ final class PreferencesPersistenceTests: XCTestCase {
         XCTAssertEqual(secondLaunchStore.byteUnitStandard, .si)
         XCTAssertTrue(secondLaunchStore.showDockIcon)
         XCTAssertTrue(secondLaunchStore.launchAtLogin)
-        XCTAssertEqual(secondLaunchStore.menuBarDisplayMode, .network)
+        XCTAssertEqual(secondLaunchStore.menuBarAppearance, .monochrome)
     }
 
     // MARK: - Clamping & Boundary Handling
@@ -63,7 +63,7 @@ final class PreferencesPersistenceTests: XCTestCase {
         testDefaults.set("invalid_temperature_unit", forKey: PreferencesStore.Keys.temperatureUnit)
         testDefaults.set("invalid_network_unit", forKey: PreferencesStore.Keys.networkUnit)
         testDefaults.set("invalid_byte_standard", forKey: PreferencesStore.Keys.byteUnitStandard)
-        testDefaults.set("invalid_mode", forKey: PreferencesStore.Keys.menuBarDisplayMode)
+        testDefaults.set("invalid_mode", forKey: PreferencesStore.Keys.menuBarAppearance)
         testDefaults.set(["nonexistent_category", "invalid_enum"], forKey: PreferencesStore.Keys.enabledCategories)
 
         let store = PreferencesStore(userDefaults: testDefaults)
@@ -71,7 +71,7 @@ final class PreferencesPersistenceTests: XCTestCase {
         XCTAssertEqual(store.temperatureUnit, .celsius)
         XCTAssertEqual(store.networkUnit, .bytesPerSecond)
         XCTAssertEqual(store.byteUnitStandard, .iec)
-        XCTAssertEqual(store.menuBarDisplayMode, .cpu)
+        XCTAssertEqual(store.menuBarAppearance, .statusTint)
         XCTAssertTrue(store.enabledCategories.isEmpty)
     }
 
@@ -81,7 +81,7 @@ final class PreferencesPersistenceTests: XCTestCase {
         let store = PreferencesStore(userDefaults: testDefaults)
         store.refreshInterval = 3.0
         store.temperatureUnit = .celsius
-        store.menuBarDisplayMode = .both
+        store.menuBarAppearance = .categoryColor
 
         let persistentDict = testDefaults.dictionaryRepresentation()
         let allowedKeys: Set<String> = [
@@ -92,8 +92,11 @@ final class PreferencesPersistenceTests: XCTestCase {
             PreferencesStore.Keys.byteUnitStandard,
             PreferencesStore.Keys.showDockIcon,
             PreferencesStore.Keys.launchAtLogin,
-            PreferencesStore.Keys.menuBarDisplayMode,
-            PreferencesStore.Keys.menuBarItems
+            PreferencesStore.Keys.menuBarAppearance,
+            PreferencesStore.Keys.menuBarItems,
+            PreferencesStore.Keys.schemaVersion,
+            PreferencesStore.Keys.hasCompletedOnboarding,
+            PreferencesStore.Keys.alertRules
         ]
 
         for (key, _) in persistentDict where key.hasPrefix("iStats.") {
@@ -110,7 +113,7 @@ final class PreferencesPersistenceTests: XCTestCase {
         let store1 = PreferencesStore(userDefaults: testDefaults)
         store1.refreshInterval = 10.0
         store1.temperatureUnit = .fahrenheit
-        store1.menuBarDisplayMode = .battery
+        store1.menuBarAppearance = .monochrome
         store1.resetToDefaults()
 
         let store2 = PreferencesStore(userDefaults: testDefaults)
@@ -118,7 +121,7 @@ final class PreferencesPersistenceTests: XCTestCase {
         XCTAssertEqual(store2.temperatureUnit, .celsius)
         XCTAssertEqual(store2.networkUnit, .bytesPerSecond)
         XCTAssertEqual(store2.byteUnitStandard, .iec)
-        XCTAssertEqual(store2.menuBarDisplayMode, .cpu)
+        XCTAssertEqual(store2.menuBarAppearance, .statusTint)
         XCTAssertFalse(store2.showDockIcon)
         XCTAssertFalse(store2.launchAtLogin)
         XCTAssertEqual(store2.enabledCategories, Set(MetricCategory.allCases))

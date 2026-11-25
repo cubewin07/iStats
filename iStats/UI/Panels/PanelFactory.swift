@@ -14,13 +14,14 @@ public enum PanelFactory {
         preferences: PreferencesStore = .shared
     ) -> some View {
         let popConfig = config.resolvedPopoverConfig
-        let openingTab = (popConfig.rememberLastTab ? preferences.lastSelectedTab(for: config.category) : nil) ?? popConfig.openingTab
+        // Tab memory is per category; the per-item "remember last tab" option no longer exists.
+        let openingTab = preferences.lastSelectedTab(for: config.category) ?? popConfig.openingTab
         let focusSource = config.source ?? popConfig.focusSource
 
         makeCategoryPanelView(
             category: config.category,
             initialTab: openingTab,
-            rememberLastTab: popConfig.rememberLastTab,
+            rememberLastTab: true,
             focusSource: focusSource,
             coordinator: coordinator,
             preferences: preferences

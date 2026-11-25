@@ -180,171 +180,6 @@ public enum MetricDisplayStyle: String, CaseIterable, Identifiable, Codable, Sen
     }
 }
 
-// MARK: - Popover Presentation Style (ADR 0007 / ADR 0008 Decoupled Popover Customization)
-
-/// Selectable popover designs that can be bound to any menu bar widget.
-public enum PopoverStyle: String, CaseIterable, Identifiable, Codable, Sendable {
-    case categoryDefault = "categoryDefault"
-    case history = "history"
-
-    // CPU
-    case cpuUserSystem = "cpuUserSystem"
-    case cpuCluster = "cpuCluster"
-
-    // Memory
-    case memoryComposition = "memoryComposition"
-    case memoryAllocation = "memoryAllocation"
-    case memoryPressure = "memoryPressure"
-
-    // Thermal
-    case thermalCPU = "thermalCPU"
-    case thermalGPU = "thermalGPU"
-    case thermalMemory = "thermalMemory"
-    case thermalStorage = "thermalStorage"
-    case thermalBattery = "thermalBattery"
-    case thermalRing = "thermalRing"
-
-    // Fans
-    case fanDualRPM = "fanDualRPM"
-    case fanTachometer = "fanTachometer"
-    case fanBlades = "fanBlades"
-    case fanBars = "fanBars"
-
-    // GPU
-    case gpuLoadRing = "gpuLoadRing"
-    case gpuEngine = "gpuEngine"
-    case gpuDie = "gpuDie"
-
-    // Network
-    case networkBars = "networkBars"
-    case networkDiagnostics = "networkDiagnostics"
-
-    // Disk
-    case diskStorageRing = "diskStorageRing"
-    case diskStorageTanks = "diskStorageTanks"
-    case diskActivityLEDs = "diskActivityLEDs"
-
-    // Power
-    case powerBudget = "powerBudget"
-    case powerWattage = "powerWattage"
-    case powerChargeRing = "powerChargeRing"
-    case powerBar = "powerBar"
-
-    public var id: String { rawValue }
-
-    public func displayName(for category: MetricCategory) -> String {
-        switch self {
-        case .categoryDefault:
-            return "\(category.displayName) Overview"
-        case .history:
-            return "History"
-        case .cpuUserSystem: return "User / System"
-        case .cpuCluster: return "Core Cluster"
-        case .memoryComposition: return "Composition Donut"
-        case .memoryAllocation: return "Allocation Bars"
-        case .memoryPressure: return "Pressure & Swap"
-        case .thermalCPU: return "CPU Thermals"
-        case .thermalGPU: return "GPU Thermals"
-        case .thermalMemory: return "Memory Thermals"
-        case .thermalStorage: return "SSD Thermals"
-        case .thermalBattery: return "Battery Thermals"
-        case .thermalRing: return "Thermal Ring"
-        case .fanDualRPM: return "Dual RPM"
-        case .fanTachometer: return "Tachometers"
-        case .fanBlades: return "Fan Blades"
-        case .fanBars: return "Speed Bars"
-        case .gpuLoadRing: return "Load Ring"
-        case .gpuEngine: return "Render & Compute"
-        case .gpuDie: return "GPU Die"
-        case .networkBars: return "Bandwidth Bars"
-        case .networkDiagnostics: return "Diagnostics"
-        case .diskStorageRing: return "Storage Ring"
-        case .diskStorageTanks: return "Storage Tanks"
-        case .diskActivityLEDs: return "Activity LEDs"
-        case .powerBudget: return "Power Budget"
-        case .powerWattage: return "Draw & Adapter W"
-        case .powerChargeRing: return "Charge Ring"
-        case .powerBar: return "Charge Bar"
-        }
-    }
-
-    public static func supportedPopovers(for category: MetricCategory, hasBattery: Bool = true) -> [PopoverStyle] {
-        switch category {
-        case .cpu:
-            return [.categoryDefault, .cpuUserSystem, .cpuCluster, .history]
-        case .memory:
-            return [.categoryDefault, .memoryComposition, .memoryAllocation, .memoryPressure, .history]
-        case .thermal:
-            return hasBattery
-                ? [.categoryDefault, .thermalCPU, .thermalGPU, .thermalMemory, .thermalStorage, .thermalBattery, .thermalRing, .history]
-                : [.categoryDefault, .thermalCPU, .thermalGPU, .thermalMemory, .thermalStorage, .thermalRing, .history]
-        case .fan:
-            return [.categoryDefault, .fanDualRPM, .fanTachometer, .fanBlades, .fanBars, .history]
-        case .gpu:
-            return [.categoryDefault, .gpuLoadRing, .gpuEngine, .gpuDie, .history]
-        case .network:
-            return [.categoryDefault, .networkBars, .networkDiagnostics, .history]
-        case .disk:
-            return [.categoryDefault, .diskStorageRing, .diskStorageTanks, .diskActivityLEDs, .history]
-        case .power:
-            return hasBattery
-                ? [.categoryDefault, .powerBudget, .powerWattage, .powerChargeRing, .powerBar, .history]
-                : [.categoryDefault, .powerWattage, .history]
-        }
-    }
-
-    public static func defaultStyle(for category: MetricCategory, widgetStyle: MetricDisplayStyle, hasBattery: Bool = true) -> PopoverStyle {
-        switch (category, widgetStyle) {
-        case (.cpu, .gauge): return .cpuUserSystem
-        case (.cpu, .bar): return .cpuCluster
-        case (.cpu, .sparkline): return .history
-
-        case (.memory, .gauge): return .memoryComposition
-        case (.memory, .bar): return .memoryAllocation
-        case (.memory, .symbol): return .memoryPressure
-        case (.memory, .sparkline): return .history
-
-        case (.gpu, .gauge): return .gpuLoadRing
-        case (.gpu, .bar): return .gpuEngine
-        case (.gpu, .symbol): return .gpuDie
-        case (.gpu, .sparkline): return .history
-
-        case (.thermal, .cpuTemp): return .thermalCPU
-        case (.thermal, .gpuTemp): return .thermalGPU
-        case (.thermal, .memoryTemp): return .thermalMemory
-        case (.thermal, .storageTemp): return .thermalStorage
-        case (.thermal, .batteryTemp): return hasBattery ? .thermalBattery : .categoryDefault
-        case (.thermal, .gauge): return .thermalRing
-        case (.thermal, .sparkline): return .history
-
-        case (.fan, .throughput): return .fanDualRPM
-        case (.fan, .gauge): return .fanTachometer
-        case (.fan, .symbol): return .fanBlades
-        case (.fan, .bar): return .fanBars
-        case (.fan, .sparkline): return .history
-
-        case (.network, .bar): return .networkBars
-        case (.network, .sparkline): return .history
-        case (.network, .symbol): return .networkDiagnostics
-
-        case (.disk, .gauge): return .diskStorageRing
-        case (.disk, .bar): return .diskStorageTanks
-        case (.disk, .sparkline): return .history
-        case (.disk, .symbol): return .diskActivityLEDs
-
-        case (.power, .text): return hasBattery ? .powerBudget : .powerWattage
-        case (.power, .throughput): return .powerWattage
-        case (.power, .gauge): return hasBattery ? .powerChargeRing : .powerWattage
-        case (.power, .bar): return hasBattery ? .powerBar : .powerWattage
-        case (.power, .sparkline): return .history
-        case (.power, .symbol): return .categoryDefault
-
-        default:
-            return .categoryDefault
-        }
-    }
-}
-
 // MARK: - Menu Bar Item Configuration
 
 /// A user-configured metric item/widget to be displayed in the macOS menu bar.
@@ -354,8 +189,6 @@ public struct MenuBarItemConfig: Identifiable, Codable, Hashable, Equatable, Sen
     public var style: MetricDisplayStyle
     /// Tabbed popover configuration (ADR 0008).
     public var popover: PopoverConfig?
-    /// Legacy popover style assigned to this widget (ADR 0007 compatibility).
-    public var popoverStyle: PopoverStyle?
     /// Specific hardware subcomponent source for multi-source categories (e.g. Temperature).
     public var source: MetricSource?
     /// Layout option for throughput widgets.
@@ -374,7 +207,6 @@ public struct MenuBarItemConfig: Identifiable, Codable, Hashable, Equatable, Sen
         category: MetricCategory,
         style: MetricDisplayStyle,
         popover: PopoverConfig? = nil,
-        popoverStyle: PopoverStyle? = nil,
         source: MetricSource? = nil,
         throughputLayout: ThroughputLayout? = nil,
         showLabel: Bool = false
@@ -382,7 +214,6 @@ public struct MenuBarItemConfig: Identifiable, Codable, Hashable, Equatable, Sen
         self.category = category
         self.style = style
         self.popover = popover
-        self.popoverStyle = popoverStyle
         self.source = source ?? (category == .thermal && (style == .text || style == .glyph) ? .peak : nil)
         self.throughputLayout = throughputLayout
         self.showLabel = showLabel
@@ -394,6 +225,7 @@ public struct MenuBarItemConfig: Identifiable, Codable, Hashable, Equatable, Sen
         case category
         case style
         case popover
+        /// Decode-only: the pre-v2 `PopoverStyle` raw string, folded into `popover`.
         case popoverStyle
         case source
         case throughputLayout
@@ -451,13 +283,13 @@ public struct MenuBarItemConfig: Identifiable, Codable, Hashable, Equatable, Sen
         self.showLabel = try container.decodeIfPresent(Bool.self, forKey: .showLabel) ?? false
 
         let decodedPopover = try container.decodeIfPresent(PopoverConfig.self, forKey: .popover)
-        let decodedPopoverStyle = try container.decodeIfPresent(PopoverStyle.self, forKey: .popoverStyle)
-        self.popoverStyle = decodedPopoverStyle
+        // Pre-v2 data may carry a `popoverStyle` raw string; fold it into `popover` and never write it back.
+        let legacyPopoverStyle = try container.decodeIfPresent(String.self, forKey: .popoverStyle)
 
         if let p = decodedPopover {
             self.popover = p
-        } else if let ps = decodedPopoverStyle {
-            self.popover = PopoverConfig.migrated(fromLegacyRawValue: ps.rawValue, category: cat, widgetSource: self.source)
+        } else if let legacy = legacyPopoverStyle {
+            self.popover = PopoverConfig.migrated(fromLegacyRawValue: legacy, category: cat, widgetSource: self.source)
         } else {
             self.popover = nil
         }
@@ -468,7 +300,6 @@ public struct MenuBarItemConfig: Identifiable, Codable, Hashable, Equatable, Sen
         try container.encode(category, forKey: .category)
         try container.encode(style, forKey: .style)
         try container.encodeIfPresent(popover, forKey: .popover)
-        try container.encodeIfPresent(popoverStyle, forKey: .popoverStyle)
         try container.encodeIfPresent(source, forKey: .source)
         try container.encodeIfPresent(throughputLayout, forKey: .throughputLayout)
         try container.encode(showLabel, forKey: .showLabel)
@@ -477,16 +308,8 @@ public struct MenuBarItemConfig: Identifiable, Codable, Hashable, Equatable, Sen
     /// Resolves the effective popover configuration for this widget.
     public var resolvedPopoverConfig: PopoverConfig {
         if let p = popover { return p }
-        if let legacy = popoverStyle {
-            return PopoverConfig.migrated(fromLegacyRawValue: legacy.rawValue, category: category, widgetSource: source)
-        }
         let defaultTab: PopoverTab = (style == .sparkline) ? .history : .overview
-        return PopoverConfig(openingTab: defaultTab, rememberLastTab: true, focusSource: source)
-    }
-
-    /// Resolves legacy popover style for backward-compatibility.
-    public var resolvedPopoverStyle: PopoverStyle {
-        popoverStyle ?? PopoverStyle.defaultStyle(for: category, widgetStyle: style)
+        return PopoverConfig(openingTab: defaultTab, focusSource: source)
     }
 
     /// Deduplicates active menu bar items while strictly preserving first-occurrence order.

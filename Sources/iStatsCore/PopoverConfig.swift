@@ -43,17 +43,21 @@ public enum PopoverTab: String, Codable, CaseIterable, Identifiable, Sendable {
 /// Configuration specifying the opening behavior and initial focus of a category popover.
 public struct PopoverConfig: Codable, Hashable, Equatable, Sendable {
     public var openingTab: PopoverTab
-    public var rememberLastTab: Bool
     public var focusSource: MetricSource?
 
+    /// Tab memory is per category (`PreferencesStore.categoryLastTabs`), never per item.
+    /// Pre-v2 data may still contain a `rememberLastTab` key; it is ignored on decode and not re-encoded.
     public init(
         openingTab: PopoverTab = .overview,
-        rememberLastTab: Bool = true,
         focusSource: MetricSource? = nil
     ) {
         self.openingTab = openingTab
-        self.rememberLastTab = rememberLastTab
         self.focusSource = focusSource
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case openingTab
+        case focusSource
     }
 
     /// Migrates a legacy Phase 6 `PopoverStyle` raw string into a modern `PopoverConfig`.

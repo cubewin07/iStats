@@ -63,50 +63,6 @@ final class DetailViewGraphsTests: XCTestCase {
         XCTAssertEqual(coordinator.memoryHistory.count, 1)
     }
 
-    // MARK: - MenuBarController Title & Tooltip Formatting
-
-    func testMenuBarFormatting() {
-        let cpu = CPUSample(
-            totalUsage: 14.2,
-            perCore: [10, 18],
-            user: 8,
-            system: 6,
-            idle: 86
-        )
-        let mem = MemorySample(
-            total: 1000,
-            used: 650,
-            free: 350,
-            wired: 200,
-            compressed: 100,
-            cached: 150,
-            swapUsed: 0,
-            pressure: .normal
-        )
-
-        // Icon mode
-        XCTAssertEqual(MenuBarController.formatTitle(mode: .icon, cpu: cpu, memory: mem), "")
-
-        // CPU mode
-        XCTAssertEqual(MenuBarController.formatTitle(mode: .cpu, cpu: cpu, memory: mem), "CPU 14%")
-        XCTAssertEqual(MenuBarController.formatTitle(mode: .cpu, cpu: nil, memory: mem), "CPU --%")
-
-        // Memory mode
-        XCTAssertEqual(MenuBarController.formatTitle(mode: .memory, cpu: cpu, memory: mem), "RAM 65%")
-        XCTAssertEqual(MenuBarController.formatTitle(mode: .memory, cpu: cpu, memory: nil), "RAM --%")
-
-        // Both mode
-        XCTAssertEqual(MenuBarController.formatTitle(mode: .both, cpu: cpu, memory: mem), "CPU 14%  RAM 65%")
-        XCTAssertEqual(MenuBarController.formatTitle(mode: .both, cpu: nil, memory: mem), "CPU --%  RAM 65%")
-
-        // Tooltip
-        let tooltip = MenuBarController.formatToolTip(cpu: cpu, memory: mem)
-        XCTAssertTrue(tooltip.contains("CPU: 14.2%"))
-        XCTAssertTrue(tooltip.contains("RAM: 65.0% (Normal)"))
-    }
-
-    // MARK: - SwiftUI View Instantiation & Hierarchy Tests
-
     func testCPUPopoverRendering() {
         let sample = CPUSample(
             totalUsage: 45.0,

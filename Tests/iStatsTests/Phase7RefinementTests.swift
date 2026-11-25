@@ -28,7 +28,7 @@ final class Phase7RefinementTests: XCTestCase {
 
         for category in MetricCategory.allCases {
             var item = MenuBarItemConfig(category: category, style: .text)
-            item.popover = PopoverConfig(openingTab: .overview, rememberLastTab: false)
+            item.popover = PopoverConfig(openingTab: .overview)
 
             let view = PanelFactory.makePanelView(config: item, coordinator: coord, preferences: prefs)
             let hosting = NSHostingView(rootView: AnyView(view))
@@ -124,16 +124,13 @@ final class Phase7RefinementTests: XCTestCase {
         // Resolve default config as PreferencesMenuBarPane does
         let resolvedConfig = prefs.menuBarItems[0].resolvedPopoverConfig
         XCTAssertEqual(resolvedConfig.openingTab, .overview)
-        XCTAssertTrue(resolvedConfig.rememberLastTab)
 
-        // Update opening tab and tab persistence
+        // Update opening tab
         var updated = resolvedConfig
         updated.openingTab = .detail
-        updated.rememberLastTab = false
         prefs.menuBarItems[0].popover = updated
 
         XCTAssertEqual(prefs.menuBarItems[0].popover?.openingTab, .detail)
-        XCTAssertEqual(prefs.menuBarItems[0].popover?.rememberLastTab, false)
     }
 
     // MARK: - 5. Fan Idle Ratio and Thermal Cause Attribution

@@ -261,11 +261,9 @@ public final class MenuBarController: NSObject {
 
     private func setupSubscriptions() {
         // Observe configuration, pause state, and display formatting changes
-        Publishers.Merge5(
+        Publishers.Merge3(
             preferences.$menuBarItems.map { _ in () }.eraseToAnyPublisher(),
-            preferences.$widgetPopoverStyles.map { _ in () }.eraseToAnyPublisher(),
             preferences.$enabledCategories.map { _ in () }.eraseToAnyPublisher(),
-            preferences.$menuBarDisplayMode.map { _ in () }.eraseToAnyPublisher(),
             preferences.$isSamplingPaused.map { _ in () }.eraseToAnyPublisher()
         )
         .receive(on: RunLoop.main)
@@ -660,119 +658,6 @@ public final class MenuBarController: NSObject {
             NSEvent.removeMonitor(monitor)
             localMouseMonitor = nil
         }
-    }
-
-    // MARK: - Legacy Formatting Helpers (Preserved for compatibility)
-
-    public static func formatTitle(
-        mode: PreferencesStore.MenuBarDisplayMode,
-        cpu: CPUSample? = nil,
-        memory: MemorySample? = nil,
-        network: NetworkSample? = nil,
-        power: PowerSample? = nil,
-        thermal: ThermalSample? = nil,
-        gpu: GPUSample? = nil,
-        temperatureUnit: Units.TemperatureUnit = .celsius,
-        networkUnit: Units.NetworkUnit = .bytesPerSecond,
-        byteUnitStandard: Units.ByteUnitStandard = .iec
-    ) -> String {
-        switch mode {
-        case .icon:
-            return ""
-        case .cpu:
-            return cpu != nil ? String(format: "CPU %.0f%%", cpu!.totalUsage) : "CPU --%"
-        case .memory:
-            if let mem = memory, mem.total > 0 {
-                let ratio = (Double(mem.used) / Double(mem.total)) * 100.0
-                return String(format: "RAM %.0f%%", ratio)
-            } else {
-                return "RAM --%"
-            }
-        case .both:
-            let cpuStr = cpu != nil ? String(format: "%.0f%%", cpu!.totalUsage) : "--%"
-            let memStr: String
-            if let mem = memory, mem.total > 0 {
-                let ratio = (Double(mem.used) / Double(mem.total)) * 100.0
-                memStr = String(format: "%.0f%%", ratio)
-            } else {
-                memStr = "--%"
-            }
-            return "CPU \(cpuStr)  RAM \(memStr)"
-        case .network:
-            if let net = network {
-                let inStr = Units.formatNetworkRate(net.totalBytesInPerSec, unit: networkUnit, standard: byteUnitStandard, fractionDigits: 0)
-                let outStr = Units.formatNetworkRate(net.totalBytesOutPerSec, unit: networkUnit, standard: byteUnitStandard, fractionDigits: 0)
-                return "↓ \(inStr)  ↑ \(outStr)"
-            } else {
-                return "Net --"
-            }
-        case .battery:
-            if let pwr = power {
-                if !pwr.hasBattery {
-                    return "AC Power"
-                } else if let charge = pwr.charge {
-                    let bolt = (pwr.state == .charging) ? " ⚡" : ""
-                    return String(format: "%.0f%%%@", charge, bolt)
-                } else {
-                    return "Bat --%"
-                }
-            } else {
-                return "Bat --%"
-            }
-        case .thermal:
-            if let th = thermal, let sensor = th.sensors.first(where: { $0.name.contains("Package") || $0.name.contains("CPU") || $0.name.contains("SoC") }) ?? th.sensors.first {
-                return Units.formatTemperature(sensor.celsius, unit: temperatureUnit, fractionDigits: 0)
-            } else {
-                return temperatureUnit == .celsius ? "--°C" : "--°F"
-            }
-        case .gpu:
-            if let g = gpu, let util = g.utilization {
-                return String(format: "GPU %.0f%%", util)
-            } else {
-                return "GPU --%"
-            }
-        }
-    }
-
-    public static func formatToolTip(
-        cpu: CPUSample? = nil,
-        memory: MemorySample? = nil,
-        network: NetworkSample? = nil,
-        power: PowerSample? = nil,
-        thermal: ThermalSample? = nil,
-        gpu: GPUSample? = nil,
-        temperatureUnit: Units.TemperatureUnit = .celsius,
-        networkUnit: Units.NetworkUnit = .bytesPerSecond,
-        byteUnitStandard: Units.ByteUnitStandard = .iec
-    ) -> String {
-        var parts: [String] = ["iStats"]
-        if let cpu = cpu {
-            parts.append(String(format: "CPU: %.1f%%", cpu.totalUsage))
-        }
-        if let mem = memory, mem.total > 0 {
-            let ratio = (Double(mem.used) / Double(mem.total)) * 100.0
-            parts.append(String(format: "RAM: %.1f%% (%@)", ratio, mem.pressure.displayName))
-        }
-        if let g = gpu, let util = g.utilization {
-            parts.append(String(format: "GPU: %.1f%%", util))
-        }
-        if let net = network {
-            let inStr = Units.formatNetworkRate(net.totalBytesInPerSec, unit: networkUnit, standard: byteUnitStandard, fractionDigits: 1)
-            let outStr = Units.formatNetworkRate(net.totalBytesOutPerSec, unit: networkUnit, standard: byteUnitStandard, fractionDigits: 1)
-            parts.append("Net: ↓ \(inStr) ↑ \(outStr)")
-        }
-        if let th = thermal, let sensor = th.sensors.first(where: { $0.name.contains("Package") || $0.name.contains("CPU") }) ?? th.sensors.first {
-            parts.append("Temp: \(Units.formatTemperature(sensor.celsius, unit: temperatureUnit, fractionDigits: 1))")
-        }
-        if let pwr = power {
-            if pwr.hasBattery, let charge = pwr.charge {
-                let stateStr = pwr.state == .charging ? " (Charging)" : ""
-                parts.append(String(format: "Bat: %.0f%%%@", charge, stateStr))
-            } else if !pwr.hasBattery {
-                parts.append("Power: AC Connected")
-            }
-        }
-        return parts.joined(separator: " • ")
     }
 }
 
