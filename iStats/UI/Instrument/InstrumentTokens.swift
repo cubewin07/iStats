@@ -59,6 +59,8 @@ public enum Instrument {
         public static let unit = Font.system(size: 17, weight: .medium)
         /// Secondary hero value / compact ticker (30 pt, regular, monospaced digits)
         public static let displayCompact = Font.system(size: 30, weight: .regular).monospacedDigit()
+        /// Overview tile primary readout (22 pt, medium, monospaced digits)
+        public static let tileValue = Font.system(size: 22, weight: .medium).monospacedDigit()
         /// Panel title / modal title (15 pt, semibold)
         public static let title = Font.system(size: 15, weight: .semibold)
         /// Prominent numeric readout (15 pt, medium, monospaced digits)

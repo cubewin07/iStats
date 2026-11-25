@@ -466,12 +466,23 @@ public final class MenuBarController: NSObject {
         return MetricCategory(rawValue: parts.first ?? rawId)
     }
 
+    public func destinationForConfigId(_ rawId: String) -> PanelDestination {
+        if rawId == Self.fallbackStatusItemId {
+            return .overview
+        }
+        return .category(categoryForConfigId(rawId) ?? .cpu)
+    }
+
     public func makePanelContentView(forConfigId rawId: String) -> AnyView {
         if rawId == Self.fallbackStatusItemId {
             return AnyView(
-                NoWidgetsActiveView()
-                    .environmentObject(preferences)
-                    .environmentObject(coordinator)
+                PanelFactory.makePanelView(
+                    destination: .overview,
+                    coordinator: coordinator,
+                    preferences: preferences
+                )
+                .environmentObject(preferences)
+                .environmentObject(coordinator)
             )
         }
         if let config = preferences.menuBarItems.first(where: { $0.id == rawId }) {
@@ -507,12 +518,12 @@ public final class MenuBarController: NSObject {
             return
         }
 
-        let category = categoryForConfigId(rawId) ?? .cpu
+        let destination = destinationForConfigId(rawId)
         currentlyShownButton = button
-        PanelController.shared.toggle(category: category, itemID: rawId, relativeTo: button) {
+        PanelController.shared.toggle(destination: destination, itemID: rawId, relativeTo: button) {
             self.makePanelContentView(forConfigId: rawId)
         }
-        if PanelController.shared.isTransientPanelOpen(for: category) {
+        if PanelController.shared.isTransientPanelOpen(for: destination) {
             startScrubbingMonitor()
         } else {
             stopScrubbingMonitor()
@@ -627,11 +638,11 @@ public final class MenuBarController: NSObject {
             let buttonScreenRect = window.convertToScreen(button.convert(button.bounds, to: nil))
             let hitRect = buttonScreenRect.insetBy(dx: 0, dy: -6)
             if hitRect.contains(mouseLocation) {
-                let category = categoryForConfigId(id) ?? .cpu
-                PanelController.shared.handleStatusItemHover(category: category, itemID: id, button: button) {
+                let destination = destinationForConfigId(id)
+                PanelController.shared.handleStatusItemHover(destination: destination, itemID: id, button: button) {
                     self.makePanelContentView(forConfigId: id)
                 }
-                if PanelController.shared.isTransientPanelOpen(for: category) {
+                if PanelController.shared.isTransientPanelOpen(for: destination) {
                     currentlyShownButton = button
                 }
                 break

@@ -118,10 +118,10 @@ final class DetailViewGraphsTests: XCTestCase {
         XCTAssertNotNil(hostingIntel)
     }
 
-    func testNoWidgetsActiveViewRendering() {
-        let view = NoWidgetsActiveView()
-        let hosting = NSHostingView(rootView: view)
-        hosting.frame = CGRect(x: 0, y: 0, width: 330, height: 180)
+    func testFallbackOverviewViewRendering() {
+        let view = PanelFactory.makePanelView(destination: .overview)
+        let hosting = NSHostingView(rootView: AnyView(view))
+        hosting.frame = CGRect(x: 0, y: 0, width: Instrument.Size.panelWidth, height: Instrument.Size.maxHeight)
         XCTAssertNotNil(hosting)
     }
 
