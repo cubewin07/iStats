@@ -2,44 +2,6 @@ import SwiftUI
 import AppKit
 import iStatsCore
 
-// MARK: - Preferences Section Navigation
-
-public enum PreferencesSection: String, CaseIterable, Identifiable, Sendable {
-    case menuBar = "menuBar"
-    case general = "general"
-    case alerts = "alerts"
-    case about = "about"
-
-    public var id: String { rawValue }
-
-    public var title: String {
-        switch self {
-        case .menuBar: return "Menu Bar"
-        case .general: return "General"
-        case .alerts: return "Notifications"
-        case .about: return "About"
-        }
-    }
-
-    public var icon: String {
-        switch self {
-        case .menuBar: return "menubar.rectangle"
-        case .general: return "slider.horizontal.3"
-        case .alerts: return "bell.badge"
-        case .about: return "info.circle"
-        }
-    }
-
-    public var shortcutNumber: KeyEquivalent {
-        switch self {
-        case .menuBar: return "1"
-        case .general: return "2"
-        case .alerts: return "3"
-        case .about: return "4"
-        }
-    }
-}
-
 // MARK: - AppKit Translucent Sidebar Visual Effect
 
 public struct SidebarVisualEffectView: NSViewRepresentable {

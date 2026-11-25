@@ -140,13 +140,13 @@ final class SwiftUIViewsTests: XCTestCase {
         }
     }
 
-    // MARK: - 4. PreferencesView and Panes Layout
+    // MARK: - 4. SettingsView and Panes Layout
 
-    func testPreferencesViewLayout() {
+    func testSettingsViewLayout() {
         let (defaults, prefs, coord, suiteName) = makeContext()
         defer { cleanup(defaults: defaults, suiteName: suiteName) }
 
-        let prefsView = PreferencesView(store: prefs, coordinator: coord)
+        let prefsView = SettingsView(store: prefs, coordinator: coord, navigation: SettingsNavigationModel(store: prefs))
         let hosting = NSHostingView(rootView: prefsView)
         hosting.frame = CGRect(x: 0, y: 0, width: 880, height: 600)
         hosting.layoutSubtreeIfNeeded()
@@ -203,11 +203,11 @@ final class SwiftUIViewsTests: XCTestCase {
         XCTAssertTrue(prefs.isExactItemEnabled(category: .thermal, style: .glyph, source: .gpu))
     }
 
-    func testPreferencesGeneralPaneLayout() {
+    func testGeneralSettingsPageLayout() {
         let (defaults, prefs, coord, suiteName) = makeContext()
         defer { cleanup(defaults: defaults, suiteName: suiteName) }
 
-        let pane = PreferencesGeneralPane(store: prefs, coordinator: coord)
+        let pane = GeneralSettingsPage(store: prefs, coordinator: coord)
         let hosting = NSHostingView(rootView: pane)
         hosting.frame = CGRect(x: 0, y: 0, width: 600, height: 500)
         hosting.layoutSubtreeIfNeeded()
@@ -231,11 +231,11 @@ final class SwiftUIViewsTests: XCTestCase {
         XCTAssertGreaterThan(fit.height, 50)
     }
 
-    func testPreferencesAboutPaneLayout() {
-        let (defaults, prefs, coord, suiteName) = makeContext()
+    func testAboutSettingsPageLayout() {
+        let (defaults, _, coord, suiteName) = makeContext()
         defer { cleanup(defaults: defaults, suiteName: suiteName) }
 
-        let pane = PreferencesAboutPane(store: prefs, coordinator: coord)
+        let pane = AboutSettingsPage(coordinator: coord)
         let hosting = NSHostingView(rootView: pane)
         hosting.frame = CGRect(x: 0, y: 0, width: 600, height: 500)
         hosting.layoutSubtreeIfNeeded()

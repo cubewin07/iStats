@@ -12,12 +12,16 @@
 		110000000000000000000015 /* DockIconManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000014 /* DockIconManager.swift */; };
 		110000000000000000000017 /* iStatsCore in Frameworks */ = {isa = PBXBuildFile; productRef = 110000000000000000000005 /* iStatsCore */; };
 		110000000000000000000019 /* MenuBarController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000018 /* MenuBarController.swift */; };
-		11000000000000000000001D /* PreferencesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11000000000000000000001C /* PreferencesView.swift */; };
 		110000000000000000000141 /* PreferencesComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000140 /* PreferencesComponents.swift */; };
 		110000000000000000000143 /* PreferencesMenuBarPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000142 /* PreferencesMenuBarPane.swift */; };
-		110000000000000000000145 /* PreferencesGeneralPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000144 /* PreferencesGeneralPane.swift */; };
 		110000000000000000000147 /* PreferencesAlertsPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000146 /* PreferencesAlertsPane.swift */; };
-		110000000000000000000149 /* PreferencesAboutPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000148 /* PreferencesAboutPane.swift */; };
+		990000000000000000000002 /* SettingsSidebar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 990000000000000000000001 /* SettingsSidebar.swift */; };
+		990000000000000000000004 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 990000000000000000000003 /* SettingsView.swift */; };
+		990000000000000000000006 /* GeneralSettingsPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 990000000000000000000005 /* GeneralSettingsPage.swift */; };
+		990000000000000000000008 /* AppearanceSettingsPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 990000000000000000000007 /* AppearanceSettingsPage.swift */; };
+		99000000000000000000000A /* CategorySettingsPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 990000000000000000000009 /* CategorySettingsPage.swift */; };
+		99000000000000000000000C /* NotificationsSettingsPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99000000000000000000000B /* NotificationsSettingsPage.swift */; };
+		99000000000000000000000E /* AboutSettingsPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99000000000000000000000D /* AboutSettingsPage.swift */; };
 		110000000000000000000153 /* CategoryPalette.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000152 /* CategoryPalette.swift */; };
 		110000000000000000000191 /* InstrumentTokens.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000190 /* InstrumentTokens.swift */; };
 		110000000000000000000195 /* Motion.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000194 /* Motion.swift */; };
@@ -100,6 +104,7 @@
 		110000000000000000000127 /* MenuBarGeometryInvarianceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000126 /* MenuBarGeometryInvarianceTests.swift */; };
 		110000000000000000000129 /* MenuBarControllerInteractionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000128 /* MenuBarControllerInteractionTests.swift */; };
 		11000000000000000000012B /* SwiftUIViewsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11000000000000000000012A /* SwiftUIViewsTests.swift */; };
+		990000000000000000000010 /* SettingsWindowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99000000000000000000000F /* SettingsWindowTests.swift */; };
 		110000000000000000000131 /* AppleSMCClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000130 /* AppleSMCClient.swift */; };
 		110000000000000000000133 /* PersistentSMCAndHardwareCachingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000132 /* PersistentSMCAndHardwareCachingTests.swift */; };
 		110000000000000000000135 /* MenuBarDirtyCheckingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000134 /* MenuBarDirtyCheckingTests.swift */; };
@@ -132,12 +137,16 @@
 		110000000000000000000014 /* DockIconManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DockIconManager.swift; sourceTree = "<group>"; };
 		110000000000000000000016 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		110000000000000000000018 /* MenuBarController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarController.swift; sourceTree = "<group>"; };
-		11000000000000000000001C /* PreferencesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferencesView.swift; sourceTree = "<group>"; };
 		110000000000000000000140 /* PreferencesComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferencesComponents.swift; sourceTree = "<group>"; };
 		110000000000000000000142 /* PreferencesMenuBarPane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferencesMenuBarPane.swift; sourceTree = "<group>"; };
-		110000000000000000000144 /* PreferencesGeneralPane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferencesGeneralPane.swift; sourceTree = "<group>"; };
 		110000000000000000000146 /* PreferencesAlertsPane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferencesAlertsPane.swift; sourceTree = "<group>"; };
-		110000000000000000000148 /* PreferencesAboutPane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferencesAboutPane.swift; sourceTree = "<group>"; };
+		990000000000000000000001 /* SettingsSidebar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Settings/SettingsSidebar.swift; sourceTree = "<group>"; };
+		990000000000000000000003 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Settings/SettingsView.swift; sourceTree = "<group>"; };
+		990000000000000000000005 /* GeneralSettingsPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Settings/GeneralSettingsPage.swift; sourceTree = "<group>"; };
+		990000000000000000000007 /* AppearanceSettingsPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Settings/AppearanceSettingsPage.swift; sourceTree = "<group>"; };
+		990000000000000000000009 /* CategorySettingsPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Settings/CategorySettingsPage.swift; sourceTree = "<group>"; };
+		99000000000000000000000B /* NotificationsSettingsPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Settings/NotificationsSettingsPage.swift; sourceTree = "<group>"; };
+		99000000000000000000000D /* AboutSettingsPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Settings/AboutSettingsPage.swift; sourceTree = "<group>"; };
 		110000000000000000000152 /* CategoryPalette.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Design/CategoryPalette.swift; sourceTree = "<group>"; };
 		110000000000000000000190 /* InstrumentTokens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Instrument/InstrumentTokens.swift; sourceTree = "<group>"; };
 		110000000000000000000194 /* Motion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Instrument/Motion.swift; sourceTree = "<group>"; };
@@ -220,6 +229,7 @@
 		110000000000000000000126 /* MenuBarGeometryInvarianceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarGeometryInvarianceTests.swift; sourceTree = "<group>"; };
 		110000000000000000000128 /* MenuBarControllerInteractionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarControllerInteractionTests.swift; sourceTree = "<group>"; };
 		11000000000000000000012A /* SwiftUIViewsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftUIViewsTests.swift; sourceTree = "<group>"; };
+		99000000000000000000000F /* SettingsWindowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsWindowTests.swift; sourceTree = "<group>"; };
 		110000000000000000000130 /* AppleSMCClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleSMCClient.swift; sourceTree = "<group>"; };
 		110000000000000000000132 /* PersistentSMCAndHardwareCachingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersistentSMCAndHardwareCachingTests.swift; sourceTree = "<group>"; };
 		110000000000000000000134 /* MenuBarDirtyCheckingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarDirtyCheckingTests.swift; sourceTree = "<group>"; };
@@ -316,12 +326,16 @@
 		11000000000000000000000E /* UI */ = {
 			isa = PBXGroup;
 			children = (
-				11000000000000000000001C /* PreferencesView.swift */,
 				110000000000000000000140 /* PreferencesComponents.swift */,
 				110000000000000000000142 /* PreferencesMenuBarPane.swift */,
-				110000000000000000000144 /* PreferencesGeneralPane.swift */,
 				110000000000000000000146 /* PreferencesAlertsPane.swift */,
-				110000000000000000000148 /* PreferencesAboutPane.swift */,
+				990000000000000000000001 /* SettingsSidebar.swift */,
+				990000000000000000000003 /* SettingsView.swift */,
+				990000000000000000000005 /* GeneralSettingsPage.swift */,
+				990000000000000000000007 /* AppearanceSettingsPage.swift */,
+				990000000000000000000009 /* CategorySettingsPage.swift */,
+				99000000000000000000000B /* NotificationsSettingsPage.swift */,
+				99000000000000000000000D /* AboutSettingsPage.swift */,
 				110000000000000000000152 /* CategoryPalette.swift */,
 				110000000000000000000190 /* InstrumentTokens.swift */,
 				110000000000000000000194 /* Motion.swift */,
@@ -405,6 +419,7 @@
 				110000000000000000000126 /* MenuBarGeometryInvarianceTests.swift */,
 				110000000000000000000128 /* MenuBarControllerInteractionTests.swift */,
 				11000000000000000000012A /* SwiftUIViewsTests.swift */,
+				99000000000000000000000F /* SettingsWindowTests.swift */,
 				110000000000000000000132 /* PersistentSMCAndHardwareCachingTests.swift */,
 				110000000000000000000134 /* MenuBarDirtyCheckingTests.swift */,
 				110000000000000000000136 /* CoordinatorBatchingTests.swift */,
@@ -540,12 +555,16 @@
 				110000000000000000000015 /* DockIconManager.swift in Sources */,
 				1100000000000000000000E3 /* LaunchAtLoginManager.swift in Sources */,
 				110000000000000000000019 /* MenuBarController.swift in Sources */,
-				11000000000000000000001D /* PreferencesView.swift in Sources */,
 				110000000000000000000141 /* PreferencesComponents.swift in Sources */,
 				110000000000000000000143 /* PreferencesMenuBarPane.swift in Sources */,
-				110000000000000000000145 /* PreferencesGeneralPane.swift in Sources */,
 				110000000000000000000147 /* PreferencesAlertsPane.swift in Sources */,
-				110000000000000000000149 /* PreferencesAboutPane.swift in Sources */,
+				990000000000000000000002 /* SettingsSidebar.swift in Sources */,
+				990000000000000000000004 /* SettingsView.swift in Sources */,
+				990000000000000000000006 /* GeneralSettingsPage.swift in Sources */,
+				990000000000000000000008 /* AppearanceSettingsPage.swift in Sources */,
+				99000000000000000000000A /* CategorySettingsPage.swift in Sources */,
+				99000000000000000000000C /* NotificationsSettingsPage.swift in Sources */,
+				99000000000000000000000E /* AboutSettingsPage.swift in Sources */,
 				110000000000000000000153 /* CategoryPalette.swift in Sources */,
 				110000000000000000000191 /* InstrumentTokens.swift in Sources */,
 				110000000000000000000195 /* Motion.swift in Sources */,
@@ -631,6 +650,7 @@
 				110000000000000000000127 /* MenuBarGeometryInvarianceTests.swift in Sources */,
 				110000000000000000000129 /* MenuBarControllerInteractionTests.swift in Sources */,
 				11000000000000000000012B /* SwiftUIViewsTests.swift in Sources */,
+				990000000000000000000010 /* SettingsWindowTests.swift in Sources */,
 				110000000000000000000133 /* PersistentSMCAndHardwareCachingTests.swift in Sources */,
 				110000000000000000000135 /* MenuBarDirtyCheckingTests.swift in Sources */,
 				110000000000000000000137 /* CoordinatorBatchingTests.swift in Sources */,

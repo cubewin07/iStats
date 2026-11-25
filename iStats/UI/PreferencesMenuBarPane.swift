@@ -348,6 +348,7 @@ public struct PreferencesMenuBarPane: View {
                 .toggleStyle(.switch)
                 .controlSize(.small)
                 .labelsHidden()
+                .accessibilityLabel("Enable \(selectedCategory.displayName) monitoring")
                 .help("Enable or disable background telemetry sampling for \(selectedCategory.displayName)")
             }
         }
@@ -508,6 +509,7 @@ public struct PreferencesMenuBarPane: View {
                     .toggleStyle(.switch)
                     .controlSize(.small)
                     .labelsHidden()
+                    .accessibilityLabel("Show \(selectedCategory.displayName) \(style.displayName(for: selectedCategory)) in menu bar")
                     .help("Toggle visibility in macOS menu bar")
                 }
             }

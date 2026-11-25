@@ -2,28 +2,24 @@ import SwiftUI
 import AppKit
 import iStatsCore
 
-/// Modern, calibrated Notifications & Alerts preferences pane.
+/// Per-metric alert thresholds, hosted by the Notifications Settings page until 9.10 replaces it.
+/// (The master switch, permission banner, cooldown and test alert live in `NotificationsSettingsPage`.)
 /// Features non-intrusive permission alerts, anti-spam debounce controls,
 /// live telemetry context, and stable slider rows without layout jumping.
 public struct PreferencesAlertsPane: View {
     @ObservedObject public var store: PreferencesStore
     @ObservedObject public var coordinator: MetricsCoordinator
     @ObservedObject private var notificationManager = NotificationManager.shared
-
-    private let cooldownOptions: [(label: String, seconds: TimeInterval)] = [
-        ("1 minute", 60.0),
-        ("5 minutes", 300.0),
-        ("15 minutes", 900.0),
-        ("30 minutes", 1800.0),
-        ("1 hour", 3600.0)
-    ]
+    private let embedded: Bool
 
     public init(
         store: PreferencesStore = .shared,
-        coordinator: MetricsCoordinator = .shared
+        coordinator: MetricsCoordinator = .shared,
+        embedded: Bool = false
     ) {
         self.store = store
         self.coordinator = coordinator
+        self.embedded = embedded
     }
 
     private var hasBattery: Bool {
@@ -31,131 +27,23 @@ public struct PreferencesAlertsPane: View {
     }
 
     public var body: some View {
-        ScrollView {
-            HStack(spacing: 0) {
-                Spacer(minLength: 20)
-                VStack(alignment: .leading, spacing: 20) {
-                    if !notificationManager.isAuthorized {
-                        permissionBanner
+        if embedded {
+            thresholdRows
+                .disabled(!store.notificationsEnabled)
+                .opacity(store.notificationsEnabled ? 1.0 : 0.5)
+        } else {
+            ScrollView {
+                HStack(spacing: 0) {
+                    Spacer(minLength: 20)
+                    VStack(alignment: .leading, spacing: 20) {
+                        thresholdsCard
                     }
-
-                    masterAlertsCard
-                    thresholdsCard
+                    .frame(maxWidth: 640)
+                    Spacer(minLength: 20)
                 }
-                .frame(maxWidth: 640)
-                Spacer(minLength: 20)
+                .padding(.vertical, 24)
             }
-            .padding(.vertical, 24)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-
-    // MARK: - Permission Banner (Only shown if unauthorized)
-
-    @ViewBuilder
-    private var permissionBanner: some View {
-        SettingsCard {
-            HStack(spacing: 12) {
-                if notificationManager.authorizationStatus == .denied {
-                    SettingsBadge(icon: "exclamationmark.triangle.fill", color: .red)
-
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Notifications Disabled in System Settings")
-                            .font(.system(size: 12.5, weight: .semibold))
-                        Text("macOS has blocked notifications for iStats. Please enable them in System Settings.")
-                            .font(.system(size: 11))
-                            .foregroundColor(.secondary)
-                    }
-
-                    Spacer()
-
-                    Button("Open System Settings") {
-                        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.notifications") {
-                            NSWorkspace.shared.open(url)
-                        }
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.small)
-                } else {
-                    SettingsBadge(icon: "bell.badge", color: .orange)
-
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Notification Permission Needed")
-                            .font(.system(size: 12.5, weight: .semibold))
-                        Text("Permission is required to display alert banners when thresholds are crossed.")
-                            .font(.system(size: 11))
-                            .foregroundColor(.secondary)
-                    }
-
-                    Spacer()
-
-                    Button("Allow Notifications") {
-                        Task {
-                            await notificationManager.requestAuthorization()
-                        }
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.small)
-                }
-            }
-            .padding(14)
-        }
-    }
-
-    // MARK: - Master Alerts Card
-
-    private var masterAlertsCard: some View {
-        SettingsCard(title: "System Notifications") {
-            // Master Switch
-            SettingsRow(
-                leading: {
-                    SettingsBadge(icon: "bell.fill", color: store.notificationsEnabled ? .blue : .secondary)
-                },
-                title: "Hardware Alerts",
-                subtitle: "Post notification banners when thresholds are exceeded"
-            ) {
-                HStack(spacing: 10) {
-                    if notificationManager.isAuthorized {
-                        Button("Send Test Alert") {
-                            Task {
-                                await AlertCoordinator.shared.sendTestNotification()
-                            }
-                        }
-                        .buttonStyle(.bordered)
-                        .controlSize(.small)
-                    }
-
-                    Toggle("", isOn: Binding(
-                        get: { store.notificationsEnabled && notificationManager.isAuthorized },
-                        set: { newValue in
-                            updatePermissionGuardedSetting(newValue: newValue) { granted in
-                                store.notificationsEnabled = granted
-                            }
-                        }
-                    ))
-                    .toggleStyle(.switch)
-                    .labelsHidden()
-                }
-            }
-
-            Divider().padding(.horizontal, 14)
-
-            // Alert Cooldown
-            SettingsRow(
-                leading: {
-                    SettingsBadge(icon: "clock.arrow.circlepath", color: .purple)
-                },
-                title: "Alert Cooldown",
-                subtitle: "Minimum wait before repeating an alert for the same category"
-            ) {
-                Picker("", selection: $store.alertCooldownInterval) {
-                    ForEach(cooldownOptions, id: \.seconds) { option in
-                        Text(option.label).tag(option.seconds)
-                    }
-                }
-                .frame(width: 120)
-                .disabled(!store.notificationsEnabled || !notificationManager.isAuthorized)
-            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
 
@@ -163,33 +51,38 @@ public struct PreferencesAlertsPane: View {
 
     private var thresholdsCard: some View {
         SettingsCard(title: "Alert Thresholds") {
-            // CPU Alert
-            cpuAlertSection
-
-            Divider().padding(.horizontal, 14)
-
-            // Memory Alert
-            memoryAlertSection
-
-            Divider().padding(.horizontal, 14)
-
-            // Thermal Alert
-            thermalAlertSection
-
-            Divider().padding(.horizontal, 14)
-
-            // Disk Alert
-            diskAlertSection
-
-            if hasBattery {
-                Divider().padding(.horizontal, 14)
-
-                // Battery Alert
-                batteryAlertSection
-            }
+            thresholdRows
         }
-        .disabled(!store.notificationsEnabled || !notificationManager.isAuthorized)
-        .opacity((!store.notificationsEnabled || !notificationManager.isAuthorized) ? 0.5 : 1.0)
+        .disabled(!store.notificationsEnabled)
+        .opacity(store.notificationsEnabled ? 1.0 : 0.5)
+    }
+
+    @ViewBuilder
+    private var thresholdRows: some View {
+        // CPU Alert
+        cpuAlertSection
+
+        Divider().padding(.horizontal, 14)
+
+        // Memory Alert
+        memoryAlertSection
+
+        Divider().padding(.horizontal, 14)
+
+        // Thermal Alert
+        thermalAlertSection
+
+        Divider().padding(.horizontal, 14)
+
+        // Disk Alert
+        diskAlertSection
+
+        if hasBattery {
+            Divider().padding(.horizontal, 14)
+
+            // Battery Alert
+            batteryAlertSection
+        }
     }
 
     // MARK: - Metric Threshold Sections (Stable layout, no height jumping)
@@ -215,13 +108,12 @@ public struct PreferencesAlertsPane: View {
                 Toggle("", isOn: Binding(
                     get: { store.cpuAlertEnabled },
                     set: { newValue in
-                        updatePermissionGuardedSetting(newValue: newValue) { granted in
-                            store.cpuAlertEnabled = granted
-                        }
+                        updateAlertToggle(newValue: newValue) { store.cpuAlertEnabled = $0 }
                     }
                 ))
                 .toggleStyle(.switch)
                 .labelsHidden()
+                .accessibilityLabel("CPU usage alert")
             }
 
             HStack(spacing: 12) {
@@ -265,19 +157,19 @@ public struct PreferencesAlertsPane: View {
                 Toggle("", isOn: Binding(
                     get: { store.memoryAlertEnabled },
                     set: { newValue in
-                        updatePermissionGuardedSetting(newValue: newValue) { granted in
-                            store.memoryAlertEnabled = granted
-                        }
+                        updateAlertToggle(newValue: newValue) { store.memoryAlertEnabled = $0 }
                     }
                 ))
                 .toggleStyle(.switch)
                 .labelsHidden()
+                .accessibilityLabel("Memory pressure alert")
             }
 
             VStack(alignment: .leading, spacing: 6) {
                 Toggle("Notify on Critical Pressure only", isOn: $store.memoryAlertCriticalPressureOnly)
                     .font(.system(size: 11))
                     .foregroundColor(.secondary)
+                    .accessibilityLabel("Notify on critical memory pressure only")
 
                 if !store.memoryAlertCriticalPressureOnly {
                     HStack(spacing: 12) {
@@ -323,17 +215,31 @@ public struct PreferencesAlertsPane: View {
                 Toggle("", isOn: Binding(
                     get: { store.thermalAlertEnabled },
                     set: { newValue in
-                        updatePermissionGuardedSetting(newValue: newValue) { granted in
-                            store.thermalAlertEnabled = granted
-                        }
+                        updateAlertToggle(newValue: newValue) { store.thermalAlertEnabled = $0 }
                     }
                 ))
                 .toggleStyle(.switch)
                 .labelsHidden()
+                .accessibilityLabel("High temperature alert")
             }
 
             HStack(spacing: 12) {
-                Slider(value: $store.thermalAlertThreshold, in: 60.0...105.0, step: 5.0)
+                Slider(
+                    value: Binding(
+                        get: {
+                            TemperatureThresholdScale.displayValue(
+                                celsius: store.thermalAlertThreshold, unit: store.temperatureUnit
+                            )
+                        },
+                        set: { display in
+                            store.thermalAlertThreshold = TemperatureThresholdScale.celsius(
+                                fromDisplay: display, unit: store.temperatureUnit
+                            )
+                        }
+                    ),
+                    in: TemperatureThresholdScale.range(unit: store.temperatureUnit),
+                    step: TemperatureThresholdScale.step(unit: store.temperatureUnit)
+                )
                 Text(Units.formatTemperature(store.thermalAlertThreshold, unit: store.temperatureUnit))
                     .font(.system(size: 12, weight: .bold, design: .monospaced))
                     .frame(width: 60, alignment: .trailing)
@@ -375,13 +281,12 @@ public struct PreferencesAlertsPane: View {
                 Toggle("", isOn: Binding(
                     get: { store.diskAlertEnabled },
                     set: { newValue in
-                        updatePermissionGuardedSetting(newValue: newValue) { granted in
-                            store.diskAlertEnabled = granted
-                        }
+                        updateAlertToggle(newValue: newValue) { store.diskAlertEnabled = $0 }
                     }
                 ))
                 .toggleStyle(.switch)
                 .labelsHidden()
+                .accessibilityLabel("Low disk space alert")
             }
 
             HStack(spacing: 12) {
@@ -426,13 +331,12 @@ public struct PreferencesAlertsPane: View {
                     Toggle("", isOn: Binding(
                         get: { store.batteryLowAlertEnabled },
                         set: { newValue in
-                            updatePermissionGuardedSetting(newValue: newValue) { granted in
-                                store.batteryLowAlertEnabled = granted
-                            }
+                            updateAlertToggle(newValue: newValue) { store.batteryLowAlertEnabled = $0 }
                         }
                     ))
                     .toggleStyle(.switch)
                     .labelsHidden()
+                    .accessibilityLabel("Low battery alert")
                 }
 
                 HStack(spacing: 12) {
@@ -463,13 +367,12 @@ public struct PreferencesAlertsPane: View {
                 Toggle("", isOn: Binding(
                     get: { store.batteryFullAlertEnabled },
                     set: { newValue in
-                        updatePermissionGuardedSetting(newValue: newValue) { granted in
-                            store.batteryFullAlertEnabled = granted
-                        }
+                        updateAlertToggle(newValue: newValue) { store.batteryFullAlertEnabled = $0 }
                     }
                 ))
                 .toggleStyle(.switch)
                 .labelsHidden()
+                .accessibilityLabel("Battery fully charged alert")
             }
 
             if !store.isCategoryEnabled(.power) {
@@ -508,30 +411,17 @@ public struct PreferencesAlertsPane: View {
         .cornerRadius(6)
     }
 
-    // MARK: - Permission Guard Handler
+    // MARK: - Alert Toggle Handler
 
-    private func updatePermissionGuardedSetting(
+    private func updateAlertToggle(
         newValue: Bool,
-        completion: @escaping (Bool) -> Void
+        apply: (Bool) -> Void
     ) {
-        if newValue {
-            if notificationManager.isAuthorized {
-                completion(true)
-                store.notificationsEnabled = true
-            } else {
-                Task {
-                    let granted = await notificationManager.requestAuthorization()
-                    if granted {
-                        completion(true)
-                        store.notificationsEnabled = true
-                    } else {
-                        completion(false)
-                        store.notificationsEnabled = false
-                    }
-                }
+        apply(newValue)
+        if newValue && notificationManager.authorizationStatus == .notDetermined {
+            Task {
+                await notificationManager.requestAuthorization()
             }
-        } else {
-            completion(false)
         }
     }
 }
