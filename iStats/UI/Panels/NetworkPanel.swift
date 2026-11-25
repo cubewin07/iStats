@@ -246,20 +246,16 @@ public struct NetworkPanel: View {
         return (.fine, nil)
     }
 
-    // MARK: - Now Page (Max 2 Sections: Active Link + Routing & DNS)
+    // MARK: - Now Page (single Active Link section)
 
     @ViewBuilder
     private func nowPage(sample: NetworkSample?) -> some View {
         if let net = sample {
             let std = preferences.byteUnitStandard
 
-            VStack(alignment: .leading, spacing: Instrument.Space.l) {
-                // Section 1: Active Link (interface identity, SSID + SignalBarsView, Local IPv4, Session Totals)
-                activeLinkSection(net: net, standard: std)
-
-                // Section 2: Routing & DNS
-                routingSection(net: net)
-            }
+            // One section: Active Link (interface, SSID + signal, IPv4, session totals).
+            // Routing & DNS lives on Details.
+            activeLinkSection(net: net, standard: std)
         } else {
             InsetEmptyState(
                 systemImage: "network.slash",
@@ -277,9 +273,10 @@ public struct NetworkPanel: View {
             ?? net.interfaces.first(where: { $0.interfaceName == primaryName })?.type
             ?? (net.wifiDetails != nil ? .wifi : .other)
         let displayName = primaryName.map { "\(primaryType.displayName) (\($0))" } ?? "Offline"
-        let pillDotColor: Color = health.isProbing ? .secondary : ConnectionStatusGridView.cellColor(for: health.status)
         let pillTextColor: Color = health.isProbing ? .secondary : ConnectionStatusGridView.badgeTextColor(for: health.status)
-        let pillLabel: String = health.isProbing ? "Checking…" : health.status.displayName
+        let linkSymbol = primaryName == nil || health.status == .disconnected
+            ? "network.slash"
+            : CategoryIdentity(.network).liveSymbol(LiveSymbolState(connectionType: primaryType))
 
         Section(
             "Active Link",
@@ -302,7 +299,7 @@ public struct NetworkPanel: View {
             VStack(alignment: .leading, spacing: Instrument.Space.s) {
                 // Interface identity row
                 HStack(alignment: .center, spacing: Instrument.Space.s) {
-                    Image(systemName: primaryName == nil || health.status == .disconnected ? "network.slash" : primaryType.iconName)
+                    Image(systemName: linkSymbol)
                         .font(Instrument.Typography.icon(Instrument.Icon.medium, weight: .medium))
                         .foregroundColor(primaryName == nil ? .secondary : (health.status == .connected ? CategoryPalette.tint(for: .network) : pillTextColor))
                         .frame(width: 18)
@@ -329,21 +326,6 @@ public struct NetworkPanel: View {
                     }
 
                     Spacer()
-
-                    HStack(spacing: Instrument.Space.xs) {
-                        Circle()
-                            .fill(pillDotColor)
-                            .frame(width: 6, height: 6)
-                        Text(pillLabel)
-                            .font(Instrument.Typography.caption)
-                            .foregroundColor(pillTextColor)
-                    }
-                    .padding(.horizontal, 7)
-                    .padding(.vertical, Instrument.Space.xxs)
-                    .background(
-                        Capsule(style: .continuous)
-                            .fill(pillDotColor.opacity(0.14))
-                    )
                 }
 
                 // Local IPv4 (copyable hairline row)
@@ -427,7 +409,7 @@ public struct NetworkPanel: View {
         }
     }
 
-    // MARK: - Details Page (Connection Status Grid + Network Interfaces + Wi-Fi Radio Telemetry)
+    // MARK: - Details Page (Interfaces, Wi-Fi telemetry, Routing & DNS, connection status)
 
     @ViewBuilder
     private func connectionPage(sample: NetworkSample?) -> some View {
@@ -439,17 +421,7 @@ public struct NetworkPanel: View {
             let primaryName = primaryInterfaceName(in: net)
             let health = NetworkConnectionEvaluator.fallbackHealth(for: net)
 
-            VStack(alignment: .leading, spacing: Instrument.Space.l) {
-                // Section 1: Connection Status Grid (Green = Connected, Yellow = Bad, Red = Not Connected)
-                ConnectionStatusGridView(
-                    health: health,
-                    history: coordinator.networkConnectionHistory,
-                    primaryInterface: primaryName,
-                    primaryType: net.primaryType,
-                    wifiDetails: net.wifiDetails
-                )
-
-                // Section 2: Network Interfaces
+            VStack(alignment: .leading, spacing: Instrument.Space.sectionGap) {
                 Section(
                     "Network Interfaces",
                     trailing: {
@@ -494,10 +466,19 @@ public struct NetworkPanel: View {
                     }
                 }
 
-                // Section 2: Wi-Fi Radio Telemetry
                 if let wifi = net.wifiDetails {
                     wifiTelemetrySection(wifi: wifi)
                 }
+
+                routingSection(net: net)
+
+                ConnectionStatusGridView(
+                    health: health,
+                    history: coordinator.networkConnectionHistory,
+                    primaryInterface: primaryName,
+                    primaryType: net.primaryType,
+                    wifiDetails: net.wifiDetails
+                )
             }
         } else {
             InsetEmptyState(
@@ -561,7 +542,6 @@ public struct NetworkPanel: View {
     @ViewBuilder
     private func wifiTelemetrySection(wifi: WiFiLinkTelemetry) -> some View {
         let rows: [(label: String, value: String, copyable: Bool)] = [
-            wifi.ssid.map { ("SSID", $0, true) },
             wifi.signalPercent.map { pct in
                 let qual = wifi.qualityRating ?? "Good"
                 return ("Signal Quality", "\(pct)% (\(qual))", false)

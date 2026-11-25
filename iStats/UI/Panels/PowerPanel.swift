@@ -129,86 +129,98 @@ public struct PowerPanel: View {
 
     private func computeDerivedState(sampleWrapper: Sample<PowerSample>?) -> DerivedState {
         let currentSample = sampleWrapper?.value
-        let headline = PanelHeadline.power(sample: currentSample)
+        let showsBattery = currentSample?.hasBattery ?? true
+        let headline = Self.headline(sample: currentSample)
 
-        // B8 + B9: Query only the timestamped `.powerWatts` scalar buffer (never mix battery %).
+        // Battery Macs plot charge % (matches the hero); desktops plot watts.
+        let seriesKey: ScalarSeriesKey = showsBattery ? .powerChargePercent : .powerWatts
         let refDate = sampleWrapper?.timestamp ?? Date()
-        let wattsPoints = coordinator.timedScalarHistory(
-            for: .powerWatts,
+        let points = coordinator.timedScalarHistory(
+            for: seriesKey,
             duration: 60.0,
             referenceDate: refDate
         )
 
-        let insight = InsightEngine.best(
-            series: wattsPoints.map(\.value),
-            interval: preferences.refreshInterval,
-            unit: .watts,
-            thresholds: .powerWatts
-        )?.text
+        let insight = showsBattery
+            ? nil
+            : InsightEngine.best(
+                series: points.map(\.value),
+                interval: preferences.refreshInterval,
+                unit: .watts,
+                thresholds: .powerWatts
+            )?.text
 
-        // fixedMax: nil delegates ceiling calculation to ChartScale.niceCeiling inside LiveChart.
         let chartMode = LiveChartMode.single(
-            points: wattsPoints,
+            points: points,
             color: CategoryPalette.color(for: .power),
             deepColor: CategoryPalette.tintDeep(for: .power),
             domainFloor: 0.0,
-            fixedMax: nil
+            fixedMax: showsBattery ? 100.0 : nil
         )
 
-        let glance: PanelGlance
-        if currentSample?.hasBattery ?? true {
-            if let charge = currentSample?.charge {
-                glance = PanelGlance(
-                    value: charge,
-                    format: "%.0f",
-                    unit: "%",
-                    headline: headline,
-                    insight: insight,
-                    chartMode: chartMode,
-                    chartHeight: Instrument.Size.chartHeightCompact,
-                    scrubFormat: { String(format: "%.1f W", $0) }
-                )
-            } else {
-                glance = PanelGlance(
-                    value: nil,
-                    formattedValue: "—",
-                    unit: "",
-                    headline: headline,
-                    insight: insight,
-                    chartMode: chartMode,
-                    chartHeight: Instrument.Size.chartHeightCompact,
-                    scrubFormat: { String(format: "%.1f W", $0) }
-                )
-            }
-        } else {
-            // Desktop Mac
-            if let watts = currentSample?.powerDrawWatts {
-                glance = PanelGlance(
-                    value: watts,
-                    format: "%.1f",
-                    unit: "W",
-                    headline: headline,
-                    insight: insight,
-                    chartMode: chartMode,
-                    chartHeight: Instrument.Size.chartHeightCompact,
-                    scrubFormat: { String(format: "%.1f W", $0) }
-                )
-            } else {
-                glance = PanelGlance(
-                    value: nil,
-                    formattedValue: "—",
-                    unit: "",
-                    headline: headline,
-                    insight: insight,
-                    chartMode: chartMode,
-                    chartHeight: Instrument.Size.chartHeightCompact,
-                    scrubFormat: { String(format: "%.1f W", $0) }
-                )
-            }
-        }
+        let heroValue = showsBattery ? currentSample?.charge : currentSample?.powerDrawWatts
+        let glance = Self.makeGlance(
+            hasBattery: showsBattery,
+            heroValue: heroValue,
+            headline: headline,
+            insight: insight,
+            chartMode: chartMode
+        )
 
         let (status, ribbon) = deriveStatusAndRibbon(sample: currentSample)
         return DerivedState(glance: glance, status: status, ribbon: ribbon)
+    }
+
+    /// One glance builder for battery and desktop. Hero unit and scrub unit always agree:
+    /// battery Macs read percent, desktops read watts.
+    static func makeGlance(
+        hasBattery: Bool,
+        heroValue: Double?,
+        headline: String,
+        insight: String?,
+        chartMode: LiveChartMode?
+    ) -> PanelGlance {
+        let unit = hasBattery ? "%" : "W"
+        let format = hasBattery ? "%.0f" : "%.1f"
+        let scrubFormat: String = hasBattery ? "%.0f%%" : "%.1f W"
+        let hasValue = heroValue != nil
+        let formatted: String? = hasValue ? nil : "—"
+        return PanelGlance(
+            value: heroValue,
+            formattedValue: formatted,
+            format: format,
+            unit: hasValue ? unit : "",
+            headline: headline,
+            insight: insight,
+            chartMode: chartMode,
+            chartHeight: Instrument.Size.chartHeightCompact,
+            scrubFormat: { String(format: scrubFormat, $0) }
+        )
+    }
+
+    /// "Discharging 12.4 W · 3h 40m left". Watts live here and in Power Flow, not in the hero.
+    static func headline(sample: PowerSample?) -> String {
+        guard let s = sample else { return "Power telemetry unavailable" }
+        let state: String
+        var timeSuffix: String?
+        switch s.variant {
+        case .charging: state = "Charging"; timeSuffix = "to full"
+        case .discharging: state = "Discharging"; timeSuffix = "left"
+        case .lowBattery: state = "Low battery"; timeSuffix = "left"
+        case .onHold: state = "Charging on hold"
+        case .powerDeficit: state = "Power deficit"
+        case .charged: state = "Fully charged"
+        case .acDesktop: state = "On AC power"
+        case .unavailable: state = "Power unmetered"
+        }
+        var parts = [state]
+        if let watts = s.powerDrawWatts, watts > 0 {
+            parts[0] += String(format: " %.1f W", watts)
+        }
+        if let secs = s.timeRemaining, secs > 0, let suffix = timeSuffix {
+            parts.append("\(Self.formatDurationHM(seconds: secs)) \(suffix)")
+        }
+        return parts.joined(separator: " · ")
     }
 
     private func deriveStatusAndRibbon(sample: PowerSample?) -> (StatusLevel, String?) {
@@ -263,7 +275,7 @@ public struct PowerPanel: View {
             amperageMilliAmps: sample.amperageMilliAmps
         )
 
-        VStack(alignment: .leading, spacing: Instrument.Space.m) {
+        VStack(alignment: .leading, spacing: Instrument.Space.sectionGap) {
             // Section 1: Power Flow with embedded BatteryGlyph + state summary header
             Section("Power Flow") {
                 Text(sample.variant.displayName)
@@ -284,10 +296,12 @@ public struct PowerPanel: View {
                                 .foregroundColor(.primary)
                                 .lineLimit(1)
 
-                            Text(batteryHeaderDetail(for: sample))
-                                .font(Instrument.Typography.caption)
-                                .foregroundColor(.secondary)
-                                .lineLimit(1)
+                            if let detail = batteryHeaderDetail(for: sample) {
+                                Text(detail)
+                                    .font(Instrument.Typography.caption)
+                                    .foregroundColor(.secondary)
+                                    .lineLimit(1)
+                            }
                         }
 
                         Spacer(minLength: 0)
@@ -304,15 +318,9 @@ public struct PowerPanel: View {
                 }
             }
 
-            // Section 2: Charge & Time Remaining
-            Section("Charge & Time Remaining") {
+            // Section 2: Time & Source
+            Section("Time & Source") {
                 VStack(spacing: 0) {
-                    MetricRow(
-                        label: "Charge",
-                        valueText: sample.charge.map { "\(Int(round($0)))%" } ?? "Unavailable",
-                        showHairline: true
-                    )
-
                     MetricRow(
                         label: sample.state == .charging ? "Time to Full" : "Time Remaining",
                         valueText: formattedTimeRemaining(for: sample),
@@ -403,30 +411,23 @@ public struct PowerPanel: View {
         }
     }
 
+    /// Power Flow caption: live watts (also in the headline) with direction.
     private func batteryHeaderSummary(for sample: PowerSample) -> String {
-        if let watts = sample.powerDrawWatts, watts > 0 {
-            return "\(sample.variant.displayName) · \(String(format: "%.1f W", watts))"
-        }
-        return sample.variant.displayName
+        guard let watts = sample.powerDrawWatts, watts > 0 else { return sample.variant.displayName }
+        return String(format: "%.1f W", watts)
     }
 
-    private func batteryHeaderDetail(for sample: PowerSample) -> String {
-        if let secs = sample.timeRemaining, secs > 0 {
-            let suffix = sample.state == .charging ? "to full" : "remaining"
-            return "\(formatDurationHM(seconds: secs)) \(suffix)"
+    private func batteryHeaderDetail(for sample: PowerSample) -> String? {
+        switch sample.variant {
+        case .charged: return "Connected to AC power"
+        case .onHold: return "Optimized Battery Charging active"
+        default: return nil
         }
-        if sample.variant == .charged {
-            return "Connected to AC power"
-        }
-        if sample.variant == .onHold {
-            return "Optimized Battery Charging active"
-        }
-        return sample.condition ?? "Condition Normal"
     }
 
     private func formattedTimeRemaining(for sample: PowerSample) -> String {
         if let secs = sample.timeRemaining, secs > 0 {
-            return formatDurationHM(seconds: secs)
+            return Self.formatDurationHM(seconds: secs)
         }
         switch sample.variant {
         case .charged:
@@ -442,7 +443,7 @@ public struct PowerPanel: View {
         }
     }
 
-    private func formatDurationHM(seconds: TimeInterval) -> String {
+    private static func formatDurationHM(seconds: TimeInterval) -> String {
         let mins = max(1, Int(seconds / 60))
         let h = mins / 60
         let m = mins % 60
@@ -478,7 +479,7 @@ public struct PowerPanel: View {
                 ThermalSensorClassifier.peakCelsius(in: $0.value, for: .battery)
             }
 
-            VStack(alignment: .leading, spacing: Instrument.Space.m) {
+            VStack(alignment: .leading, spacing: Instrument.Space.sectionGap) {
                 // Section 1: Battery Health & Cycle Life
                 batteryHealthSection(sample: s)
 
@@ -499,7 +500,7 @@ public struct PowerPanel: View {
         let health = sample.healthPercentage
         let ringFraction = min(1.0, max(0.0, (health ?? 0.0) / 100.0))
 
-        Section("Battery Health & Cycle Life") {
+        Section("Battery Health") {
             VStack(alignment: .leading, spacing: Instrument.Space.m) {
                 HStack(alignment: .center, spacing: Instrument.Space.l) {
                     ZStack {
@@ -521,12 +522,6 @@ public struct PowerPanel: View {
                     }
 
                     VStack(spacing: 0) {
-                        MetricRow(
-                            label: "Max Capacity",
-                            valueText: health.map { "\(Int(round($0)))%" } ?? "Unavailable",
-                            showHairline: true
-                        )
-
                         MetricRow(
                             label: "Cycle Count",
                             valueText: sample.cycleCount.map { "\($0) / \(sample.designCycleCount ?? 1000)" } ?? "Unavailable",

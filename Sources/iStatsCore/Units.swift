@@ -112,6 +112,24 @@ public enum Units {
         return String(format: "%.\(fractionDigits)f %@", value, suffixes[index])
     }
 
+    /// Splits a byte count into value, unit suffix and printf format for `LiveNumber` heroes.
+    /// Same scaling and suffixes as `formatBytes`; one fractional digit below 10 when scaled.
+    public static func byteComponents(
+        _ bytes: UInt64,
+        standard: ByteUnitStandard = .iec
+    ) -> (value: Double, unit: String, format: String) {
+        let base: Double = standard == .si ? 1000 : 1024
+        let suffixes = standard == .si ? siSuffixes : iecSuffixes
+        var value = Double(bytes)
+        var index = 0
+        while value >= base && index < suffixes.count - 1 {
+            value /= base
+            index += 1
+        }
+        let format = (index > 0 && value < 10.0) ? "%.1f" : "%.0f"
+        return (value, suffixes[index], format)
+    }
+
     /// Convenience SI byte formatter (1000 base).
     public static func formatBytesSI(_ bytes: Int64, fractionDigits: Int = 1) -> String {
         formatBytes(UInt64(max(0, bytes)), standard: .si, fractionDigits: fractionDigits)
