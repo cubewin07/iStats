@@ -12,9 +12,9 @@ The only status file. Agent specs (`AGENTS.md`, `CLAUDE.md`) and phase plans do 
 
 | Field | Value |
 |-------|--------|
-| Phase | **8.5** — Instrument 2 polish (time-domain chart engine v3, synchronized motion, 8-panel polish) |
-| Next task | — (Phase 8.5 complete) |
-| Last closed | **8.5.9** `InstrumentGalleryPreview`, performance/accessibility verification & Phase 8.5 `report.md` |
+| Phase | **9** — Native-premium redesign (identity, panel shell v3, widgets, Settings, alerts, onboarding) |
+| Next task | **9.1** Identity and design-system foundation |
+| Last closed | **9.0** ADR 0011 and Phase 9 spec package |
 | Blocked by | — |
 
 ---
@@ -33,6 +33,7 @@ The only status file. Agent specs (`AGENTS.md`, `CLAUDE.md`) and phase plans do 
 | 7 | Widget & popover redesign | **done** | ADR 0008, 32 high-signal widgets, 8 purpose-driven popovers (23 tabs), in-memory scalar history with spike-preserving downsampling (Task 7.6, 154 KB), design tokens & primitives, 20 legacy files deleted, report complete. 480 tests passing. |
 | 8 | Premium panel redesign ("Instrument") | **done** | ADR 0009, Instrument design language, glass `MetricPanel : NSPanel`, `PanelController` with top-anchored morphing and multi-pinned HUDs, 8 signature instruments, `LiveChart` with 4 modes and active band detection, `InsightEngine` presets, top consumers (`ProcessSampler` Mach timebase fix), History v2, 25 legacy files deleted, accessibility matrix passed, report complete. 586 tests passing green (257 `iStatsCoreTests`, 329 `iStatsTests` CLI, 321 Xcode app). |
 | 8.5 | Instrument 2 polish (Chart Engine v3, Synchronized Motion & 8-Panel Polish) | **done** | ADR 0010 (amended 2026-11-13 for B1–B14 and reordered rollout), shell lifecycle & sizing (`8.5.6a`: B1–B6, A10–A11), time-domain `LiveChart` v3 & `HistoryPage` v3 (`8.5.1`–`8.5.5`: A1–A9, B7–B10), Header v2 & Kit v2 (`8.5.6b`–`8.5.7`: A12–A13, B11–B12, B14), 8-panel polish (`8.5.8a`–`8.5.8h`: B13), `InstrumentGalleryPreview`, accessibility & CPU budget verification (`8.5.9`), and [`report.md`](./phases/phase-08.5-instrument-polish/report.md) complete. 654 SwiftPM tests passing (278 `iStatsCoreTests` + 376 `iStatsTests`), 368 Xcode app tests passing. |
+| 9 | Native-premium redesign (`CategoryIdentity`, shell v3 with Overview, widget model, Settings, sustained alerts, onboarding) | **in progress** | ADR 0011 accepted; spec package in [`phases/phase-09-native-premium/`](./phases/phase-09-native-premium/). 9F privileged fan control is deferred (ADR 0004 still governs). |
 
 Status values: `not started` · `in progress` · `docs on disk, not closed` · `done` · `blocked`.
 
@@ -131,6 +132,7 @@ Copy a row from [`docs/specs/tasks.md`](./specs/tasks.md) when you start it. Lea
 | 8.5.8g | Disk panel polish (independent-scale mirrored R/W chart, 2-col storage legend, compact volume bars) | **done** | [`docs/handoffs/08.5-8.5.8g-summary.md`](./handoffs/08.5-8.5.8g-summary.md), `swift test` (646 passed: 278 core + 368 app), `xcodebuild test` (360 passed) |
 | 8.5.8h | Power panel polish (calm wattage-proportional `PowerFlowView`, refined health & diagnostics tables) | **done** | [`docs/handoffs/08.5-8.5.8h-summary.md`](./handoffs/08.5-8.5.8h-summary.md), `swift test` (646 passed: 278 core + 368 app), `xcodebuild test` (360 passed) |
 | 8.5.9 | `InstrumentGalleryPreview`, performance/accessibility verification & Phase 8.5 `report.md` | **done** | [`docs/handoffs/08.5-8.5.9-summary.md`](./handoffs/08.5-8.5.9-summary.md), [`docs/phases/phase-08.5-instrument-polish/report.md`](./phases/phase-08.5-instrument-polish/report.md), `swift test` (654 passed: 278 core + 376 app), `xcodebuild test` (368 passed), `swift build -c release` passed |
+| 9.0 | ADR 0011 native-premium redesign and Phase 9 spec package (docs only) | **done** | [`docs/handoffs/09-9.0-summary.md`](./handoffs/09-9.0-summary.md), [`docs/architecture/adr/0011-native-premium-redesign.md`](./architecture/adr/0011-native-premium-redesign.md), [`docs/phases/phase-09-native-premium/`](./phases/phase-09-native-premium/) |
 
 When a task is done, set Status to `done` and put the handoff summary path (or test command) in Evidence.
 

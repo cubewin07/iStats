@@ -31,6 +31,7 @@ Each phase folder is a self-contained module containing:
 | **7** | [`phase-07-widget-popover-redesign`](./phase-07-widget-popover-redesign/) | Widget & Popover Redesign | SwiftUI, AppKit | Med | 32 unified widgets, 8 tabbed popovers, downsampling, legacy deletion |
 | **8** | [`phase-08-premium-redesign`](./phase-08-premium-redesign/) | Premium Panel Redesign ("Instrument") | NSPanel, SwiftUI Canvas, Liquid Glass, libproc | Med–High | Glass panel shell, 8 bespoke signature instruments, perf budget met, zero NSPopover debt |
 | **8.5** | [`phase-08.5-instrument-polish`](./phase-08.5-instrument-polish/) | Instrument 2 Polish: Time-Domain Chart Engine & Synchronized Motion | SwiftUI Canvas, NSPanel, CoreAnimation | Med | Time-domain `LiveChart` v3, time-aligned history envelopes, synchronized window morphing, 8-panel polish pass |
+| **9** | [`phase-09-native-premium`](./phase-09-native-premium/) | Native-Premium Redesign: identity, panel shell v3, widgets, Settings, alerts, onboarding | SwiftUI, AppKit, NSPanel, NavigationSplitView, UserNotifications | High | `CategoryIdentity` and stable palette, header/footer shell with Overview, one-value-once pages, `WidgetModel` and appearance modes, sidebar Settings, sustained alerts, Preferences v2 migration, Welcome and glossary; 9F privileged fan control deferred (ADR 0011) |
 
 ---
 
@@ -58,6 +59,9 @@ Phase 0 (docs) ──► Phase 1 (foundation) ──► Phase 2 (CPU/Mem)
                                               │
                                               ▼
                                    Phase 8.5 (Instrument 2 Polish)
+                                              │
+                                              ▼
+                                   Phase 9 (Native-Premium Redesign)
 ```
 
 Phases 2, 3, and 4 are largely independent after Phase 1 and could be reordered; the recommended order builds from most-documented to least.
