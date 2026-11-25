@@ -9,10 +9,10 @@ final class AlertCoordinatorTests: XCTestCase {
 
     func testCPUEvaluator() {
         let lowCPU = CPUSample(totalUsage: 35.0, perCore: [30.0, 40.0], user: 20.0, system: 15.0, idle: 65.0)
-        XCTAssertNil(AlertEvaluator.evaluateCPU(sample: lowCPU, threshold: 90.0))
+        XCTAssertNil(AlertMessageBuilder.evaluateCPU(sample: lowCPU, threshold: 90.0))
 
         let highCPU = CPUSample(totalUsage: 94.2, perCore: [95.0, 93.4], user: 80.0, system: 14.2, idle: 5.8)
-        let alert = AlertEvaluator.evaluateCPU(sample: highCPU, threshold: 90.0)
+        let alert = AlertMessageBuilder.evaluateCPU(sample: highCPU, threshold: 90.0)
         XCTAssertNotNil(alert)
         XCTAssertTrue(alert!.triggered)
         XCTAssertTrue(alert!.body.contains("94.2%"))
@@ -33,8 +33,8 @@ final class AlertCoordinatorTests: XCTestCase {
         )
 
         // Below threshold & normal pressure
-        XCTAssertNil(AlertEvaluator.evaluateMemory(sample: normalMem, threshold: 85.0, criticalPressureOnly: true))
-        XCTAssertNil(AlertEvaluator.evaluateMemory(sample: normalMem, threshold: 85.0, criticalPressureOnly: false))
+        XCTAssertNil(AlertMessageBuilder.evaluateMemory(sample: normalMem, threshold: 85.0, criticalPressureOnly: true))
+        XCTAssertNil(AlertMessageBuilder.evaluateMemory(sample: normalMem, threshold: 85.0, criticalPressureOnly: false))
 
         let criticalMem = MemorySample(
             total: 16 * 1024 * 1024 * 1024,
@@ -47,7 +47,7 @@ final class AlertCoordinatorTests: XCTestCase {
             pressure: .critical
         )
 
-        let criticalAlert = AlertEvaluator.evaluateMemory(sample: criticalMem, threshold: 85.0, criticalPressureOnly: true)
+        let criticalAlert = AlertMessageBuilder.evaluateMemory(sample: criticalMem, threshold: 85.0, criticalPressureOnly: true)
         XCTAssertNotNil(criticalAlert)
         XCTAssertTrue(criticalAlert!.body.contains("Critical"))
 
@@ -63,8 +63,8 @@ final class AlertCoordinatorTests: XCTestCase {
             pressure: .normal
         )
 
-        XCTAssertNil(AlertEvaluator.evaluateMemory(sample: highUsageNormalPressure, threshold: 85.0, criticalPressureOnly: true))
-        let customAlert = AlertEvaluator.evaluateMemory(sample: highUsageNormalPressure, threshold: 85.0, criticalPressureOnly: false)
+        XCTAssertNil(AlertMessageBuilder.evaluateMemory(sample: highUsageNormalPressure, threshold: 85.0, criticalPressureOnly: true))
+        let customAlert = AlertMessageBuilder.evaluateMemory(sample: highUsageNormalPressure, threshold: 85.0, criticalPressureOnly: false)
         XCTAssertNotNil(customAlert)
         XCTAssertTrue(customAlert!.body.contains("90.0%"))
     }
@@ -79,7 +79,7 @@ final class AlertCoordinatorTests: XCTestCase {
             timeRemaining: 12000,
             powerDrawWatts: 12.5
         )
-        XCTAssertNil(AlertEvaluator.evaluateBattery(sample: normalBattery, lowThreshold: 20, lowAlertEnabled: true, fullAlertEnabled: true))
+        XCTAssertNil(AlertMessageBuilder.evaluateBattery(sample: normalBattery, lowThreshold: 20, lowAlertEnabled: true, fullAlertEnabled: true))
 
         let lowBattery = PowerSample(
             hasBattery: true,
@@ -88,7 +88,7 @@ final class AlertCoordinatorTests: XCTestCase {
             timeRemaining: 3600,
             powerDrawWatts: 14.0
         )
-        let lowAlert = AlertEvaluator.evaluateBattery(sample: lowBattery, lowThreshold: 20, lowAlertEnabled: true, fullAlertEnabled: false)
+        let lowAlert = AlertMessageBuilder.evaluateBattery(sample: lowBattery, lowThreshold: 20, lowAlertEnabled: true, fullAlertEnabled: false)
         XCTAssertNotNil(lowAlert)
         XCTAssertEqual(lowAlert?.type, .batteryLow)
         XCTAssertTrue(lowAlert!.body.contains("15%"))
@@ -100,7 +100,7 @@ final class AlertCoordinatorTests: XCTestCase {
             timeRemaining: 0,
             powerDrawWatts: 0.0
         )
-        let fullAlert = AlertEvaluator.evaluateBattery(sample: fullBattery, lowThreshold: 20, lowAlertEnabled: true, fullAlertEnabled: true)
+        let fullAlert = AlertMessageBuilder.evaluateBattery(sample: fullBattery, lowThreshold: 20, lowAlertEnabled: true, fullAlertEnabled: true)
         XCTAssertNotNil(fullAlert)
         XCTAssertEqual(fullAlert?.type, .batteryFull)
         XCTAssertTrue(fullAlert!.title.contains("Fully Charged"))
@@ -116,7 +116,7 @@ final class AlertCoordinatorTests: XCTestCase {
             ],
             pressure: .nominal
         )
-        XCTAssertNil(AlertEvaluator.evaluateThermal(sample: normalThermal, thresholdCelsius: 90.0, unit: .celsius))
+        XCTAssertNil(AlertMessageBuilder.evaluateThermal(sample: normalThermal, thresholdCelsius: 90.0, unit: .celsius))
 
         let hotThermal = ThermalSample(
             sensors: [
@@ -125,7 +125,7 @@ final class AlertCoordinatorTests: XCTestCase {
             ],
             pressure: .nominal
         )
-        let thermalAlert = AlertEvaluator.evaluateThermal(sample: hotThermal, thresholdCelsius: 90.0, unit: .celsius)
+        let thermalAlert = AlertMessageBuilder.evaluateThermal(sample: hotThermal, thresholdCelsius: 90.0, unit: .celsius)
         XCTAssertNotNil(thermalAlert)
         XCTAssertTrue(thermalAlert!.body.contains("94.5°C") || thermalAlert!.body.contains("94.5 °C"))
     }
@@ -138,14 +138,14 @@ final class AlertCoordinatorTests: XCTestCase {
                 VolumeCapacity(name: "Macintosh HD", mountPoint: "/", total: 500 * 1024 * 1024 * 1024, used: 250 * 1024 * 1024 * 1024, free: 250 * 1024 * 1024 * 1024) // 50%
             ]
         )
-        XCTAssertNil(AlertEvaluator.evaluateDisk(sample: normalDisk, threshold: 90.0))
+        XCTAssertNil(AlertMessageBuilder.evaluateDisk(sample: normalDisk, threshold: 90.0))
 
         let fullDisk = DiskSample(
             volumes: [
                 VolumeCapacity(name: "Macintosh HD", mountPoint: "/", total: 500 * 1024 * 1024 * 1024, used: 475 * 1024 * 1024 * 1024, free: 25 * 1024 * 1024 * 1024) // 95%
             ]
         )
-        let diskAlert = AlertEvaluator.evaluateDisk(sample: fullDisk, threshold: 90.0)
+        let diskAlert = AlertMessageBuilder.evaluateDisk(sample: fullDisk, threshold: 90.0)
         XCTAssertNotNil(diskAlert)
         XCTAssertTrue(diskAlert!.body.contains("95.0%"))
     }

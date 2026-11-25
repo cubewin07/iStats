@@ -3,8 +3,8 @@ import Combine
 import iStatsCore
 import os.log
 
-/// A pure rule evaluation engine that checks metric samples against user-defined thresholds.
-public struct AlertEvaluator: Sendable {
+/// Builds emoji-free notification titles and bodies for metric threshold alerts.
+public struct AlertMessageBuilder: Sendable {
     /// Evaluates CPU usage against user threshold.
     public static func evaluateCPU(
         sample: CPUSample,
@@ -199,7 +199,7 @@ public final class AlertCoordinator: ObservableObject {
         guard notificationManager.isAuthorized, preferencesStore.notificationsEnabled, preferencesStore.cpuAlertEnabled else { return }
         guard canTrigger(type: .cpuHigh) else { return }
 
-        if let alert = AlertEvaluator.evaluateCPU(sample: sample, threshold: preferencesStore.cpuAlertThreshold) {
+        if let alert = AlertMessageBuilder.evaluateCPU(sample: sample, threshold: preferencesStore.cpuAlertThreshold) {
             recordAlertTrigger(type: .cpuHigh)
             dispatchAlert(type: .cpuHigh, title: alert.title, body: alert.body)
         }
@@ -209,7 +209,7 @@ public final class AlertCoordinator: ObservableObject {
         guard notificationManager.isAuthorized, preferencesStore.notificationsEnabled, preferencesStore.memoryAlertEnabled else { return }
         guard canTrigger(type: .memoryPressure) else { return }
 
-        if let alert = AlertEvaluator.evaluateMemory(
+        if let alert = AlertMessageBuilder.evaluateMemory(
             sample: sample,
             threshold: preferencesStore.memoryAlertThreshold,
             criticalPressureOnly: preferencesStore.memoryAlertCriticalPressureOnly
@@ -222,7 +222,7 @@ public final class AlertCoordinator: ObservableObject {
     public func handlePowerSample(_ sample: PowerSample) {
         guard notificationManager.isAuthorized, preferencesStore.notificationsEnabled else { return }
 
-        if let alert = AlertEvaluator.evaluateBattery(
+        if let alert = AlertMessageBuilder.evaluateBattery(
             sample: sample,
             lowThreshold: preferencesStore.batteryLowThreshold,
             lowAlertEnabled: preferencesStore.batteryLowAlertEnabled,
@@ -238,7 +238,7 @@ public final class AlertCoordinator: ObservableObject {
         guard notificationManager.isAuthorized, preferencesStore.notificationsEnabled, preferencesStore.thermalAlertEnabled else { return }
         guard canTrigger(type: .thermalHigh) else { return }
 
-        if let alert = AlertEvaluator.evaluateThermal(
+        if let alert = AlertMessageBuilder.evaluateThermal(
             sample: sample,
             thresholdCelsius: preferencesStore.thermalAlertThreshold,
             unit: preferencesStore.temperatureUnit
@@ -252,7 +252,7 @@ public final class AlertCoordinator: ObservableObject {
         guard notificationManager.isAuthorized, preferencesStore.notificationsEnabled, preferencesStore.diskAlertEnabled else { return }
         guard canTrigger(type: .diskLow) else { return }
 
-        if let alert = AlertEvaluator.evaluateDisk(sample: sample, threshold: preferencesStore.diskAlertThreshold) {
+        if let alert = AlertMessageBuilder.evaluateDisk(sample: sample, threshold: preferencesStore.diskAlertThreshold) {
             recordAlertTrigger(type: .diskLow)
             dispatchAlert(type: .diskLow, title: alert.title, body: alert.body)
         }
