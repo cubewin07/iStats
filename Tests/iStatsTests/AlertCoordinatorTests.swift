@@ -155,10 +155,10 @@ final class AlertCoordinatorTests: XCTestCase {
     func testAntiSpamCooldown() {
         let defaults = UserDefaults(suiteName: "test.istats.alerts.\(UUID().uuidString)")!
         let store = PreferencesStore(userDefaults: defaults)
-        store.alertCooldownInterval = 300.0 // 5 minutes
+        store.defaultAlertCooldownSeconds = 300.0 // 5 minutes
 
         let coordinator = AlertCoordinator(preferencesStore: store)
-        
+
         let t0 = Date()
         XCTAssertTrue(coordinator.canTrigger(type: .cpuHigh, now: t0))
 
@@ -180,6 +180,149 @@ final class AlertCoordinatorTests: XCTestCase {
         XCTAssertFalse(coordinator.canTrigger(type: .cpuHigh, now: t2.addingTimeInterval(5)))
         coordinator.resetCooldowns()
         XCTAssertTrue(coordinator.canTrigger(type: .cpuHigh, now: t2.addingTimeInterval(5)))
+    }
+
+    // MARK: - Core AlertEvaluator Delegation & Migration Behavior
+
+    func testDisabledRuleDoesNotSendNotification() {
+        let suite = "test.istats.alerts.disabled.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        let store = PreferencesStore(userDefaults: defaults)
+        store.notificationsEnabled = true
+        store.setAlertRule(AlertRule(kind: .cpu, enabled: false, threshold: 50, sustainSeconds: 0))
+
+        var dispatched: [(AlertCoordinator.AlertType, String, String)] = []
+        let coordinator = AlertCoordinator(preferencesStore: store) { type, title, body in
+            dispatched.append((type, title, body))
+        }
+
+        let hotCPU = CPUSample(totalUsage: 95.0, perCore: [95.0], user: 80.0, system: 15.0, idle: 5.0)
+        coordinator.handleCPUSample(hotCPU, now: Date(timeIntervalSince1970: 1000))
+        XCTAssertTrue(dispatched.isEmpty)
+    }
+
+    func testSustainedRuleRequiresContinuousDuration() {
+        let suite = "test.istats.alerts.sustain.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        let store = PreferencesStore(userDefaults: defaults)
+        store.notificationsEnabled = true
+        store.setAlertRule(AlertRule(kind: .cpu, enabled: true, threshold: 85, sustainSeconds: 15, cooldownSeconds: 60))
+
+        var dispatched: [(AlertCoordinator.AlertType, String, String)] = []
+        let coordinator = AlertCoordinator(preferencesStore: store) { type, title, body in
+            dispatched.append((type, title, body))
+        }
+
+        let t0 = Date(timeIntervalSince1970: 1_700_000_000)
+        let highCPU = CPUSample(totalUsage: 92.0, perCore: [92.0], user: 75.0, system: 17.0, idle: 8.0)
+
+        // Single spike does not fire.
+        coordinator.handleCPUSample(highCPU, now: t0)
+        coordinator.handleCPUSample(highCPU, now: t0.addingTimeInterval(10))
+        XCTAssertTrue(dispatched.isEmpty)
+
+        // Sustained past 15s fires once.
+        coordinator.handleCPUSample(highCPU, now: t0.addingTimeInterval(15))
+        XCTAssertEqual(dispatched.count, 1)
+        XCTAssertEqual(dispatched.first?.0, .cpuHigh)
+        XCTAssertEqual(dispatched.first?.1, "High CPU Usage")
+
+        // Next sample remains suppressed.
+        coordinator.handleCPUSample(highCPU, now: t0.addingTimeInterval(20))
+        XCTAssertEqual(dispatched.count, 1)
+    }
+
+    func testMigratedV1RulesBehaveLikeOldDefaults() {
+        let suite = "test.istats.alerts.v1.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        defaults.set(true, forKey: "iStats.notificationsEnabled")
+        defaults.set(true, forKey: "iStats.cpuAlertEnabled")
+        defaults.set(80.0, forKey: "iStats.cpuAlertThreshold")
+        defaults.set(true, forKey: "iStats.diskAlertEnabled")
+        defaults.set(88.0, forKey: "iStats.diskAlertThreshold")
+        defaults.set(120.0, forKey: "iStats.alertCooldownInterval")
+
+        let store = PreferencesStore(userDefaults: defaults)
+        var dispatched: [AlertCoordinator.AlertType] = []
+        let coordinator = AlertCoordinator(preferencesStore: store) { type, _, _ in
+            dispatched.append(type)
+        }
+
+        let t0 = Date(timeIntervalSince1970: 1_700_000_000)
+        coordinator.handleCPUSample(
+            CPUSample(totalUsage: 82.0, perCore: [82.0], user: 60.0, system: 22.0, idle: 18.0),
+            now: t0
+        )
+        XCTAssertEqual(dispatched, [.cpuHigh])
+
+        // Cooldown of 120s blocks refire even after recovery.
+        coordinator.handleCPUSample(
+            CPUSample(totalUsage: 40.0, perCore: [40.0], user: 30.0, system: 10.0, idle: 60.0),
+            now: t0.addingTimeInterval(30)
+        )
+        coordinator.handleCPUSample(
+            CPUSample(totalUsage: 85.0, perCore: [85.0], user: 60.0, system: 25.0, idle: 15.0),
+            now: t0.addingTimeInterval(60)
+        )
+        XCTAssertEqual(dispatched, [.cpuHigh])
+
+        // Disk rule migrated to 88%
+        coordinator.handleDiskSample(
+            DiskSample(volumes: [VolumeCapacity(name: "HD", mountPoint: "/", total: 100, used: 90, free: 10)]),
+            now: t0.addingTimeInterval(10)
+        )
+        XCTAssertEqual(dispatched, [.cpuHigh, .diskLow])
+    }
+
+    func testTargetedDiskVolumeAndThermalSourceRules() {
+        let suite = "test.istats.alerts.targets.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        let store = PreferencesStore(userDefaults: defaults)
+        store.notificationsEnabled = true
+        store.setAlertRule(AlertRule(kind: .disk, enabled: true, threshold: 80, target: "/Volumes/Media"))
+        store.setAlertRule(AlertRule(kind: .temperature, enabled: true, threshold: 75, target: MetricSource.gpu.rawValue))
+
+        var dispatched: [(AlertCoordinator.AlertType, String)] = []
+        let coordinator = AlertCoordinator(preferencesStore: store) { type, _, body in
+            dispatched.append((type, body))
+        }
+
+        let t0 = Date(timeIntervalSince1970: 1_700_000_000)
+        // Root volume is 50%, /Volumes/Media is 90% -> triggers for /Volumes/Media.
+        let disk = DiskSample(volumes: [
+            VolumeCapacity(name: "HD", mountPoint: "/", total: 100, used: 50, free: 50),
+            VolumeCapacity(name: "Media", mountPoint: "/Volumes/Media", total: 100, used: 90, free: 10)
+        ])
+        coordinator.handleDiskSample(disk, now: t0)
+        XCTAssertEqual(dispatched.count, 1)
+        XCTAssertEqual(dispatched.last?.0, .diskLow)
+        XCTAssertTrue(dispatched.last?.1.contains("/Volumes/Media") ?? false)
+
+        // CPU is hot (85), GPU is cool (60) -> GPU-targeted rule must NOT trigger.
+        let gpuCool = ThermalSample(sensors: [
+            SensorReading(name: "CPU Package", celsius: 85),
+            SensorReading(name: "GPU Cluster", celsius: 60)
+        ])
+        coordinator.handleThermalSample(gpuCool, now: t0)
+        XCTAssertEqual(dispatched.count, 1)
+
+        // GPU crosses 78 -> triggers.
+        let gpuHot = ThermalSample(sensors: [
+            SensorReading(name: "CPU Package", celsius: 85),
+            SensorReading(name: "GPU Cluster", celsius: 78)
+        ])
+        coordinator.handleThermalSample(gpuHot, now: t0.addingTimeInterval(5))
+        XCTAssertEqual(dispatched.count, 2)
+        XCTAssertEqual(dispatched.last?.0, .thermalHigh)
+        XCTAssertTrue(dispatched.last?.1.contains("GPU") ?? false)
     }
 
     // MARK: - Test Notification Dispatch

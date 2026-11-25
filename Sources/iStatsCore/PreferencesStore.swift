@@ -244,17 +244,41 @@ public final class PreferencesStore: ObservableObject, @unchecked Sendable {
         didSet { Self.setOptionalString(networkInterfaceSelection, forKey: Keys.networkInterfaceSelection, in: userDefaults) }
     }
 
-    // MARK: - Legacy alert accessors (bridge over `alertRules`)
+    // MARK: - Alert Rule Helpers
 
-    private func rule(_ kind: AlertKind) -> AlertRule {
+    /// Returns the active `AlertRule` for `kind` (always normalized).
+    public func alertRule(for kind: AlertKind) -> AlertRule {
         alertRules.first { $0.kind == kind } ?? .default(for: kind)
     }
 
-    private func updateRule(_ kind: AlertKind, _ change: (inout AlertRule) -> Void) {
+    /// Replaces the stored rule for `updated.kind` (clamped).
+    public func setAlertRule(_ updated: AlertRule) {
+        updateAlertRule(updated.kind) { $0 = updated }
+    }
+
+    /// Mutates the stored rule for `kind` in place.
+    public func updateAlertRule(_ kind: AlertKind, _ change: (inout AlertRule) -> Void) {
         var rules = alertRules
         guard let index = rules.firstIndex(where: { $0.kind == kind }) else { return }
         change(&rules[index])
         alertRules = rules
+    }
+
+    /// Default cooldown applied across all rules when adjusted globally in Notifications settings.
+    public var defaultAlertCooldownSeconds: TimeInterval {
+        get { alertRule(for: .cpu).cooldownSeconds }
+        set {
+            let clamped = max(AlertRule.minCooldownSeconds, newValue)
+            alertRules = alertRules.map { var r = $0; r.cooldownSeconds = clamped; return r }
+        }
+    }
+
+    private func rule(_ kind: AlertKind) -> AlertRule {
+        alertRule(for: kind)
+    }
+
+    private func updateRule(_ kind: AlertKind, _ change: (inout AlertRule) -> Void) {
+        updateAlertRule(kind, change)
     }
 
     public var cpuAlertEnabled: Bool {

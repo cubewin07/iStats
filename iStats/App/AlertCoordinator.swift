@@ -72,47 +72,58 @@ public struct AlertMessageBuilder: Sendable {
         return nil
     }
 
-    /// Evaluates Thermal temperature against user threshold.
+    /// Evaluates Thermal temperature against user threshold (optionally scoped to a sensor source).
     public static func evaluateThermal(
         sample: ThermalSample,
         thresholdCelsius: Double,
-        unit: Units.TemperatureUnit
+        unit: Units.TemperatureUnit,
+        source: MetricSource = .peak
     ) -> (triggered: Bool, title: String, body: String)? {
-        let peakTemp = sample.sensors.map(\.celsius).max() ?? 0.0
-        guard peakTemp >= thresholdCelsius else { return nil }
+        guard let peakTemp = ThermalSensorClassifier.peakCelsius(in: sample, for: source),
+              peakTemp >= thresholdCelsius else {
+            return nil
+        }
 
         let formattedPeak = Units.formatTemperature(peakTemp, unit: unit)
         let formattedThreshold = Units.formatTemperature(thresholdCelsius, unit: unit)
+        let sensorLabel = source == .peak ? "Peak hardware sensor" : "\(source.displayName) sensor"
 
         return (
             triggered: true,
             title: "High System Temperature",
-            body: "Peak hardware sensor reached \(formattedPeak) (threshold: \(formattedThreshold))."
+            body: "\(sensorLabel) reached \(formattedPeak) (threshold: \(formattedThreshold))."
         )
     }
 
-    /// Evaluates Disk capacity usage against user threshold.
+    /// Evaluates Disk capacity usage against user threshold for the target mount point (default "/").
     public static func evaluateDisk(
         sample: DiskSample,
-        threshold: Double
+        threshold: Double,
+        target: String? = nil
     ) -> (triggered: Bool, title: String, body: String)? {
-        // Evaluate primary / root volume or highest usage volume
-        guard let primaryVolume = sample.volumes.first(where: { $0.mountPoint == "/" }) ?? sample.volumes.first else {
+        let targetVolume: VolumeCapacity?
+        if let target {
+            targetVolume = sample.volumes.first(where: { $0.mountPoint == target })
+        } else {
+            targetVolume = sample.volumes.first(where: { $0.mountPoint == "/" }) ?? sample.volumes.first
+        }
+        guard let volume = targetVolume else {
             return nil
         }
-        let usedPct = primaryVolume.total > 0 ? (Double(primaryVolume.used) / Double(primaryVolume.total)) * 100.0 : 0.0
+        let usedPct = volume.total > 0 ? (Double(volume.used) / Double(volume.total)) * 100.0 : 0.0
         guard usedPct >= threshold else { return nil }
 
+        let prefix = volume.mountPoint == "/" ? "Primary disk" : "Disk"
         return (
             triggered: true,
             title: "Low Disk Space Warning",
-            body: String(format: "Primary disk '%@' is %.1f%% full (threshold: %.0f%%).", primaryVolume.mountPoint, usedPct, threshold)
+            body: String(format: "%@ '%@' is %.1f%% full (threshold: %.0f%%).", prefix, volume.mountPoint, usedPct, threshold)
         )
     }
 }
 
-/// A central `@MainActor` coordinator that evaluates incoming telemetry against user alert thresholds
-/// and dispatches notifications via `NotificationManager` with anti-spam cooldown debouncing.
+/// A central `@MainActor` coordinator that evaluates incoming telemetry against user alert rules
+/// via core `AlertEvaluator` (sustain, cooldown, hysteresis) and dispatches notifications via `NotificationManager`.
 @MainActor
 public final class AlertCoordinator: ObservableObject {
     public static let shared = AlertCoordinator()
@@ -124,25 +135,39 @@ public final class AlertCoordinator: ObservableObject {
         case batteryFull = "batteryFull"
         case thermalHigh = "thermalHigh"
         case diskLow = "diskLow"
+
+        public var kind: AlertKind {
+            switch self {
+            case .cpuHigh: return .cpu
+            case .memoryPressure: return .memory
+            case .batteryLow: return .batteryLow
+            case .batteryFull: return .batteryFull
+            case .thermalHigh: return .temperature
+            case .diskLow: return .disk
+            }
+        }
     }
 
     private let logger = Logger(subsystem: "com.istats.app", category: "AlertCoordinator")
     private let preferencesStore: PreferencesStore
     private let metricsCoordinator: MetricsCoordinator
     private let notificationManager: NotificationManager
+    private let notificationHandler: ((AlertType, String, String) -> Void)?
 
     private var cancellables = Set<AnyCancellable>()
-    private var lastAlertTimes: [AlertType: Date] = [:]
+    private var evaluator = AlertEvaluator()
     private var isStarted = false
 
     public init(
         preferencesStore: PreferencesStore = .shared,
         metricsCoordinator: MetricsCoordinator = .shared,
-        notificationManager: NotificationManager = .shared
+        notificationManager: NotificationManager = .shared,
+        notificationHandler: ((AlertType, String, String) -> Void)? = nil
     ) {
         self.preferencesStore = preferencesStore
         self.metricsCoordinator = metricsCoordinator
         self.notificationManager = notificationManager
+        self.notificationHandler = notificationHandler
     }
 
     /// Starts observing live telemetry metrics for threshold alerting.
@@ -195,65 +220,114 @@ public final class AlertCoordinator: ObservableObject {
 
     // MARK: - Metric Evaluator Handlers
 
-    public func handleCPUSample(_ sample: CPUSample) {
-        guard notificationManager.isAuthorized, preferencesStore.notificationsEnabled, preferencesStore.cpuAlertEnabled else { return }
-        guard canTrigger(type: .cpuHigh) else { return }
+    private var canDeliverAlerts: Bool {
+        guard preferencesStore.notificationsEnabled else { return false }
+        return notificationHandler != nil || notificationManager.isAuthorized
+    }
 
-        if let alert = AlertMessageBuilder.evaluateCPU(sample: sample, threshold: preferencesStore.cpuAlertThreshold) {
-            recordAlertTrigger(type: .cpuHigh)
+    public func handleCPUSample(_ sample: CPUSample, now: Date = Date()) {
+        guard canDeliverAlerts else { return }
+        let rule = preferencesStore.alertRule(for: .cpu)
+        guard evaluator.evaluate(rule: rule, value: sample.totalUsage, now: now) == .fire else { return }
+
+        if let alert = AlertMessageBuilder.evaluateCPU(sample: sample, threshold: rule.threshold) {
             dispatchAlert(type: .cpuHigh, title: alert.title, body: alert.body)
         }
     }
 
-    public func handleMemorySample(_ sample: MemorySample) {
-        guard notificationManager.isAuthorized, preferencesStore.notificationsEnabled, preferencesStore.memoryAlertEnabled else { return }
-        guard canTrigger(type: .memoryPressure) else { return }
+    public func handleMemorySample(_ sample: MemorySample, now: Date = Date()) {
+        guard canDeliverAlerts else { return }
+        let rule = preferencesStore.alertRule(for: .memory)
+        let criticalOnly = preferencesStore.memoryAlertCriticalPressureOnly
+        let usedPct = sample.total > 0 ? (Double(sample.used) / Double(sample.total)) * 100.0 : 0.0
+        let evaluatedValue: Double
+        if criticalOnly {
+            evaluatedValue = (sample.pressure == .critical) ? 100.0 : 0.0
+        } else if sample.pressure == .critical || sample.pressure == .warning {
+            evaluatedValue = max(usedPct, rule.threshold)
+        } else {
+            evaluatedValue = usedPct
+        }
+
+        guard evaluator.evaluate(rule: rule, value: evaluatedValue, now: now) == .fire else { return }
 
         if let alert = AlertMessageBuilder.evaluateMemory(
             sample: sample,
-            threshold: preferencesStore.memoryAlertThreshold,
-            criticalPressureOnly: preferencesStore.memoryAlertCriticalPressureOnly
+            threshold: rule.threshold,
+            criticalPressureOnly: criticalOnly
         ) {
-            recordAlertTrigger(type: .memoryPressure)
             dispatchAlert(type: .memoryPressure, title: alert.title, body: alert.body)
         }
     }
 
-    public func handlePowerSample(_ sample: PowerSample) {
-        guard notificationManager.isAuthorized, preferencesStore.notificationsEnabled else { return }
+    public func handlePowerSample(_ sample: PowerSample, now: Date = Date()) {
+        guard canDeliverAlerts else { return }
+        let lowRule = preferencesStore.alertRule(for: .batteryLow)
+        let fullRule = preferencesStore.alertRule(for: .batteryFull)
 
-        if let alert = AlertMessageBuilder.evaluateBattery(
-            sample: sample,
-            lowThreshold: preferencesStore.batteryLowThreshold,
-            lowAlertEnabled: preferencesStore.batteryLowAlertEnabled,
-            fullAlertEnabled: preferencesStore.batteryFullAlertEnabled
-        ) {
-            guard canTrigger(type: alert.type) else { return }
-            recordAlertTrigger(type: alert.type)
-            dispatchAlert(type: alert.type, title: alert.title, body: alert.body)
+        guard sample.hasBattery, let charge = sample.charge else {
+            _ = evaluator.evaluate(rule: lowRule, value: nil, now: now)
+            _ = evaluator.evaluate(rule: fullRule, value: nil, now: now)
+            return
+        }
+
+        let lowVal = (sample.state == .discharging) ? charge : 100.0
+        if evaluator.evaluate(rule: lowRule, value: lowVal, now: now) == .fire,
+           let alert = AlertMessageBuilder.evaluateBattery(
+               sample: sample,
+               lowThreshold: Int(lowRule.threshold.rounded()),
+               lowAlertEnabled: true,
+               fullAlertEnabled: false
+           ) {
+            dispatchAlert(type: .batteryLow, title: alert.title, body: alert.body)
+        }
+
+        let isPlugged = (sample.state == .charging || sample.state == .charged || sample.state == .acConnected)
+        let fullVal = isPlugged ? charge : min(charge, 99.0)
+        if evaluator.evaluate(rule: fullRule, value: fullVal, now: now) == .fire,
+           let alert = AlertMessageBuilder.evaluateBattery(
+               sample: sample,
+               lowThreshold: Int(lowRule.threshold.rounded()),
+               lowAlertEnabled: false,
+               fullAlertEnabled: true
+           ) {
+            dispatchAlert(type: .batteryFull, title: alert.title, body: alert.body)
         }
     }
 
-    public func handleThermalSample(_ sample: ThermalSample) {
-        guard notificationManager.isAuthorized, preferencesStore.notificationsEnabled, preferencesStore.thermalAlertEnabled else { return }
-        guard canTrigger(type: .thermalHigh) else { return }
+    public func handleThermalSample(_ sample: ThermalSample, now: Date = Date()) {
+        guard canDeliverAlerts else { return }
+        let rule = preferencesStore.alertRule(for: .temperature)
+        let source = rule.target.flatMap(MetricSource.init(rawValue:)) ?? .peak
+        let temp = ThermalSensorClassifier.peakCelsius(in: sample, for: source)
+        guard evaluator.evaluate(rule: rule, value: temp, now: now) == .fire else { return }
 
         if let alert = AlertMessageBuilder.evaluateThermal(
             sample: sample,
-            thresholdCelsius: preferencesStore.thermalAlertThreshold,
-            unit: preferencesStore.temperatureUnit
+            thresholdCelsius: rule.threshold,
+            unit: preferencesStore.temperatureUnit,
+            source: source
         ) {
-            recordAlertTrigger(type: .thermalHigh)
             dispatchAlert(type: .thermalHigh, title: alert.title, body: alert.body)
         }
     }
 
-    public func handleDiskSample(_ sample: DiskSample) {
-        guard notificationManager.isAuthorized, preferencesStore.notificationsEnabled, preferencesStore.diskAlertEnabled else { return }
-        guard canTrigger(type: .diskLow) else { return }
+    public func handleDiskSample(_ sample: DiskSample, now: Date = Date()) {
+        guard canDeliverAlerts else { return }
+        let rule = preferencesStore.alertRule(for: .disk)
+        let targetVolume: VolumeCapacity?
+        if let target = rule.target {
+            targetVolume = sample.volumes.first(where: { $0.mountPoint == target })
+        } else {
+            targetVolume = sample.volumes.first(where: { $0.mountPoint == "/" }) ?? sample.volumes.first
+        }
+        let usedPct: Double? = targetVolume.flatMap { vol in
+            vol.total > 0 ? (Double(vol.used) / Double(vol.total)) * 100.0 : nil
+        }
 
-        if let alert = AlertMessageBuilder.evaluateDisk(sample: sample, threshold: preferencesStore.diskAlertThreshold) {
-            recordAlertTrigger(type: .diskLow)
+        guard evaluator.evaluate(rule: rule, value: usedPct, now: now) == .fire else { return }
+
+        if let alert = AlertMessageBuilder.evaluateDisk(sample: sample, threshold: rule.threshold, target: rule.target) {
             dispatchAlert(type: .diskLow, title: alert.title, body: alert.body)
         }
     }
@@ -262,21 +336,27 @@ public final class AlertCoordinator: ObservableObject {
 
     /// Verifies if enough time has passed since the last alert of this type.
     public func canTrigger(type: AlertType, now: Date = Date()) -> Bool {
-        guard let lastTime = lastAlertTimes[type] else { return true }
-        return now.timeIntervalSince(lastTime) >= preferencesStore.alertCooldownInterval
+        guard let lastTime = evaluator.state(for: type.kind).lastFired else { return true }
+        if now < lastTime { return false }
+        let cooldown = preferencesStore.alertRule(for: type.kind).cooldownSeconds
+        return now.timeIntervalSince(lastTime) >= cooldown
     }
 
     /// Records the trigger timestamp for anti-spam debounce.
     public func recordAlertTrigger(type: AlertType, now: Date = Date()) {
-        lastAlertTimes[type] = now
+        evaluator.recordFired(kind: type.kind, now: now)
     }
 
-    /// Clears cooldown history for a specific alert type or all types.
+    /// Clears cooldown history for all alert types.
     public func resetCooldowns() {
-        lastAlertTimes.removeAll()
+        evaluator.resetCooldowns()
     }
 
     private func dispatchAlert(type: AlertType, title: String, body: String) {
+        if let notificationHandler {
+            notificationHandler(type, title, body)
+            return
+        }
         guard notificationManager.isAuthorized else {
             logger.debug("Notification permission not authorized. Suppressing alert [\(type.rawValue)].")
             return
