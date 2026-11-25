@@ -369,4 +369,22 @@ final class MenuBarItemMatrixTests: XCTestCase {
             XCTAssertFalse(res.accessibilityLabel.isEmpty, "Accessibility label must not be empty for \(config.id)")
         }
     }
+
+    // MARK: - Model path matrix (task 9.7)
+
+    func testEveryAvailableItemHasStableKeySizeAndCachedImage() {
+        let (defaults, prefs, coord, suiteName) = makeContext()
+        defer { cleanup(defaults: defaults, suiteName: suiteName) }
+
+        coord.handleReading(MetricReading.wrap(category: .cpu, value: CPUSample(totalUsage: 40, perCore: [40, 40], user: 25, system: 15, idle: 60)))
+        for config in MenuBarItemConfig.allAvailableItems {
+            let first = MenuBarIconRenderer.render(config: config, coordinator: coord, preferences: prefs)
+            let second = MenuBarIconRenderer.render(config: config, coordinator: coord, preferences: prefs)
+            XCTAssertNotNil(first.visualKey, config.id)
+            XCTAssertEqual(first.visualKey, second.visualKey, "Key must be stable for \(config.id)")
+            XCTAssertTrue(first.image === second.image, "Same key must reuse the cached image for \(config.id)")
+            XCTAssertLessThanOrEqual(first.image?.size.height ?? 0, 22.0, config.id)
+            XCTAssertGreaterThan(first.image?.size.width ?? 0, 0, config.id)
+        }
+    }
 }

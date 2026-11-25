@@ -182,10 +182,15 @@ final class MenuBarDirtyCheckingTests: XCTestCase {
 
     func testNetworkActivityArrowsReusesSameImagePointer() {
         // Both below 1024 bytes -> inactive state
-        let imgIdle1 = MenuBarIconRenderer.drawNetworkActivityArrows(inBytes: 0, outBytes: 0)
-        let imgIdle2 = MenuBarIconRenderer.drawNetworkActivityArrows(inBytes: 256, outBytes: 512)
+        func arrows(_ inB: Double, _ outB: Double) -> NSImage {
+            let net = NetworkSample(interfaces: [InterfaceThroughput(interfaceName: "en0", bytesInPerSec: inB, bytesOutPerSec: outB, totalBytesIn: 0, totalBytesOut: 0)])
+            let model = WidgetModel.make(config: MenuBarItemConfig(category: .network, style: .symbol), snapshot: WidgetSnapshot(network: net), options: WidgetOptions())
+            return MenuBarIconRenderer.image(for: model)
+        }
+        let imgIdle1 = arrows(0, 0)
+        let imgIdle2 = arrows(256, 512)
         // Active download
-        let imgActiveDown = MenuBarIconRenderer.drawNetworkActivityArrows(inBytes: 100_000, outBytes: 0)
+        let imgActiveDown = arrows(100_000, 0)
 
         XCTAssertTrue(imgIdle1 === imgIdle2, "Inactive network arrows must reuse identical cached NSImage pointer")
         XCTAssertFalse(imgIdle1 === imgActiveDown, "State change must return different image instance")
@@ -193,10 +198,15 @@ final class MenuBarDirtyCheckingTests: XCTestCase {
 
     func testDiskActivityLedsReusesSameImagePointer() {
         // Both below 10240 bytes -> inactive state
-        let imgIdle1 = MenuBarIconRenderer.drawDiskActivityLeds(readBytes: 0, writeBytes: 0)
-        let imgIdle2 = MenuBarIconRenderer.drawDiskActivityLeds(readBytes: 1024, writeBytes: 2048)
+        func leds(_ r: Double, _ w: Double) -> NSImage {
+            let disk = DiskSample(io: DiskIO(bytesReadPerSec: r, bytesWrittenPerSec: w, readOpsPerSec: 0, writeOpsPerSec: 0))
+            let model = WidgetModel.make(config: MenuBarItemConfig(category: .disk, style: .symbol), snapshot: WidgetSnapshot(disk: disk), options: WidgetOptions())
+            return MenuBarIconRenderer.image(for: model)
+        }
+        let imgIdle1 = leds(0, 0)
+        let imgIdle2 = leds(1024, 2048)
         // Active write
-        let imgActiveWrite = MenuBarIconRenderer.drawDiskActivityLeds(readBytes: 0, writeBytes: 50_000)
+        let imgActiveWrite = leds(0, 50_000)
 
         XCTAssertTrue(imgIdle1 === imgIdle2, "Inactive disk LEDs must reuse identical cached NSImage pointer")
         XCTAssertFalse(imgIdle1 === imgActiveWrite, "State change must return different image instance")
@@ -228,80 +238,79 @@ final class MenuBarDirtyCheckingTests: XCTestCase {
 
     // MARK: - 4. Two-Phase Pre-Render Visual Key Tests
 
-    func testComputeVisualKeyCalculatesExpectedTokensAcrossCategories() {
+    func testComputeVisualKeyIsStableDistinctAndTracksVisibleChangesAcrossCategories() {
         let (defaults, prefs, coord, controller, suiteName) = makeContext()
         defer { cleanup(defaults: defaults, controller: controller, suiteName: suiteName) }
 
-        // 1. CPU
-        let cpuSample = CPUSample(totalUsage: 25.0, perCore: [25.0], user: 15.0, system: 10.0, idle: 75.0)
-        coord.handleReading(MetricReading.wrap(category: .cpu, value: cpuSample))
+        func key(_ category: MetricCategory, _ style: MetricDisplayStyle) -> String {
+            MenuBarIconRenderer.computeVisualKey(config: MenuBarItemConfig(category: category, style: style), coordinator: coord, preferences: prefs)
+        }
 
-        let cpuText = MenuBarIconRenderer.computeVisualKey(config: MenuBarItemConfig(category: .cpu, style: .text), coordinator: coord, preferences: prefs)
-        XCTAssertEqual(cpuText, "cpu:text:25%:lbl=false")
+        // CPU: percent changes the text key; a repeat of the same sample does not.
+        coord.handleReading(MetricReading.wrap(category: .cpu, value: CPUSample(totalUsage: 25.0, perCore: [25.0], user: 15.0, system: 10.0, idle: 75.0)))
+        let cpuText1 = key(.cpu, .text)
+        let cpuGauge1 = key(.cpu, .gauge)
+        coord.handleReading(MetricReading.wrap(category: .cpu, value: CPUSample(totalUsage: 25.0, perCore: [25.0], user: 15.0, system: 10.0, idle: 75.0)))
+        XCTAssertEqual(cpuText1, key(.cpu, .text))
+        XCTAssertEqual(cpuGauge1, key(.cpu, .gauge))
+        coord.handleReading(MetricReading.wrap(category: .cpu, value: CPUSample(totalUsage: 80.0, perCore: [80.0], user: 50.0, system: 30.0, idle: 20.0)))
+        XCTAssertNotEqual(cpuText1, key(.cpu, .text))
+        XCTAssertNotEqual(cpuGauge1, key(.cpu, .gauge))
 
-        let cpuGauge = MenuBarIconRenderer.computeVisualKey(config: MenuBarItemConfig(category: .cpu, style: .gauge), coordinator: coord, preferences: prefs)
-        XCTAssertEqual(cpuGauge, "cpu:gauge:15:10:lbl=false")
+        // Sparkline keys are no longer nil: they are stamp based and stable between samples.
+        let spark = key(.cpu, .sparkline)
+        XCTAssertFalse(spark.isEmpty)
+        XCTAssertEqual(spark, key(.cpu, .sparkline), "Sparkline key must be stable between samples")
 
-        let cpuSparkline = MenuBarIconRenderer.computeVisualKey(config: MenuBarItemConfig(category: .cpu, style: .sparkline), coordinator: coord, preferences: prefs)
-        XCTAssertNil(cpuSparkline, "Sparkline continuous graphs must return nil visualKey")
+        // Memory: the ratio is part of the symbol key (stale-image bug fix).
+        coord.handleReading(MetricReading.wrap(category: .memory, value: MemorySample(total: 1000, used: 550, free: 450, wired: 100, compressed: 50, cached: 250, swapUsed: 0, pressure: .normal)))
+        let memSym1 = key(.memory, .symbol)
+        let memGauge1 = key(.memory, .gauge)
+        coord.handleReading(MetricReading.wrap(category: .memory, value: MemorySample(total: 1000, used: 300, free: 700, wired: 100, compressed: 50, cached: 250, swapUsed: 0, pressure: .normal)))
+        XCTAssertNotEqual(memSym1, key(.memory, .symbol))
+        XCTAssertNotEqual(memGauge1, key(.memory, .gauge))
 
-        // 2. Memory
-        let memSample = MemorySample(total: 1000, used: 550, free: 450, wired: 100, compressed: 50, cached: 250, swapUsed: 0, pressure: .normal)
-        coord.handleReading(MetricReading.wrap(category: .memory, value: memSample))
+        // GPU, power, fan
+        coord.handleReading(MetricReading.wrap(category: .gpu, value: GPUSample(utilization: 35.0, tempCelsius: 48.0)))
+        let gpu1 = key(.gpu, .gauge)
+        coord.handleReading(MetricReading.wrap(category: .gpu, value: GPUSample(utilization: 70.0, tempCelsius: 48.0)))
+        XCTAssertNotEqual(gpu1, key(.gpu, .gauge))
 
-        let memGauge = MenuBarIconRenderer.computeVisualKey(config: MenuBarItemConfig(category: .memory, style: .gauge), coordinator: coord, preferences: prefs)
-        XCTAssertEqual(memGauge, "mem:gauge:55:normal:lbl=false")
+        coord.handleReading(MetricReading.wrap(category: .power, value: PowerSample(hasBattery: true, charge: 92.0, state: .charging)))
+        let pwr1 = key(.power, .symbol)
+        coord.handleReading(MetricReading.wrap(category: .power, value: PowerSample(hasBattery: true, charge: 40.0, state: .discharging)))
+        XCTAssertNotEqual(pwr1, key(.power, .symbol))
 
-        let memBadge = MenuBarIconRenderer.computeVisualKey(config: MenuBarItemConfig(category: .memory, style: .symbol), coordinator: coord, preferences: prefs)
-        XCTAssertEqual(memBadge, "mem:badge:normal:lbl=false")
+        coord.handleReading(MetricReading.wrap(category: .fan, value: FanSample(fans: [FanReading(name: "Fan 1", rpm: 2100, minRPM: 1200, maxRPM: 5000)])))
+        XCTAssertFalse(key(.fan, .gauge).isEmpty)
 
-        // 3. GPU
-        let gpuSample = GPUSample(utilization: 35.0, tempCelsius: 48.0)
-        coord.handleReading(MetricReading.wrap(category: .gpu, value: gpuSample))
+        // Network arrows and disk LEDs track only the active flags.
+        func net(_ inB: Double, _ outB: Double) {
+            coord.handleReading(MetricReading.wrap(category: .network, value: NetworkSample(interfaces: [
+                InterfaceThroughput(interfaceName: "en0", bytesInPerSec: inB, bytesOutPerSec: outB, totalBytesIn: 1000, totalBytesOut: 500)
+            ])))
+        }
+        net(50_000, 200)
+        let arrows1 = key(.network, .symbol)
+        net(90_000, 300)
+        XCTAssertEqual(arrows1, key(.network, .symbol), "Arrow key must ignore rate changes within the same activity state")
+        net(50_000, 90_000)
+        XCTAssertNotEqual(arrows1, key(.network, .symbol))
 
-        let gpuGauge = MenuBarIconRenderer.computeVisualKey(config: MenuBarItemConfig(category: .gpu, style: .gauge), coordinator: coord, preferences: prefs)
-        XCTAssertEqual(gpuGauge, "gpu:gauge:35:48:lbl=false")
-
-        let gpuSymbol = MenuBarIconRenderer.computeVisualKey(config: MenuBarItemConfig(category: .gpu, style: .symbol), coordinator: coord, preferences: prefs)
-        XCTAssertEqual(gpuSymbol, "gpu:symbol:35:48:lbl=false")
-
-        // 4. Power
-        let pwrSample = PowerSample(hasBattery: true, charge: 92.0, state: .charging)
-        coord.handleReading(MetricReading.wrap(category: .power, value: pwrSample))
-
-        let pwrGauge = MenuBarIconRenderer.computeVisualKey(config: MenuBarItemConfig(category: .power, style: .gauge), coordinator: coord, preferences: prefs)
-        XCTAssertEqual(pwrGauge, "pwr:gauge:92:true:charging:lbl=false")
-
-        let pwrSymbol = MenuBarIconRenderer.computeVisualKey(config: MenuBarItemConfig(category: .power, style: .symbol), coordinator: coord, preferences: prefs)
-        XCTAssertEqual(pwrSymbol, "pwr:symbol:92:charging:true:lbl=false")
-
-        // 5. Fan
-        let fanSample = FanSample(fans: [FanReading(name: "Fan 1", rpm: 2100, minRPM: 1200, maxRPM: 5000)])
-        coord.handleReading(MetricReading.wrap(category: .fan, value: fanSample))
-
-        let fanGauge = MenuBarIconRenderer.computeVisualKey(config: MenuBarItemConfig(category: .fan, style: .gauge), coordinator: coord, preferences: prefs)
-        XCTAssertNotNil(fanGauge)
-        XCTAssertTrue(fanGauge!.starts(with: "fan:gauge:"))
-
-        // 6. Network
-        let netSample = NetworkSample(interfaces: [InterfaceThroughput(interfaceName: "en0", bytesInPerSec: 50_000, bytesOutPerSec: 200, totalBytesIn: 1000, totalBytesOut: 500)])
-        coord.handleReading(MetricReading.wrap(category: .network, value: netSample))
-
-        let netArrows = MenuBarIconRenderer.computeVisualKey(config: MenuBarItemConfig(category: .network, style: .symbol), coordinator: coord, preferences: prefs)
-        XCTAssertEqual(netArrows, "net:arrows:true:false:lbl=false")
-
-        // 7. Disk
-        let diskSample = DiskSample(
-            volumes: [VolumeCapacity(name: "Macintosh HD", mountPoint: "/", total: 1_000_000, used: 600_000, free: 400_000)],
-            io: DiskIO(bytesReadPerSec: 50_000, bytesWrittenPerSec: 0, readOpsPerSec: 10, writeOpsPerSec: 0)
-        )
-        coord.handleReading(MetricReading.wrap(category: .disk, value: diskSample))
-
-        let diskLeds = MenuBarIconRenderer.computeVisualKey(config: MenuBarItemConfig(category: .disk, style: .symbol), coordinator: coord, preferences: prefs)
-        XCTAssertEqual(diskLeds, "disk:leds:true:false:lbl=false")
-
-        let diskGauge = MenuBarIconRenderer.computeVisualKey(config: MenuBarItemConfig(category: .disk, style: .gauge), coordinator: coord, preferences: prefs)
-        XCTAssertEqual(diskGauge, "disk:gauge:60:lbl=false")
+        func disk(_ r: Double, _ w: Double) {
+            coord.handleReading(MetricReading.wrap(category: .disk, value: DiskSample(
+                volumes: [VolumeCapacity(name: "Macintosh HD", mountPoint: "/", total: 1_000_000, used: 600_000, free: 400_000)],
+                io: DiskIO(bytesReadPerSec: r, bytesWrittenPerSec: w, readOpsPerSec: 1, writeOpsPerSec: 1)
+            )))
+        }
+        disk(50_000, 0)
+        let leds1 = key(.disk, .symbol)
+        let diskGauge1 = key(.disk, .gauge)
+        disk(80_000, 0)
+        XCTAssertEqual(leds1, key(.disk, .symbol))
+        XCTAssertEqual(diskGauge1, key(.disk, .gauge), "Disk gauge key must ignore I/O when capacity is unchanged")
+        disk(50_000, 50_000)
+        XCTAssertNotEqual(leds1, key(.disk, .symbol))
     }
 
     func testVisualKeyChangesOnSourceThroughputLayoutAndShowLabel() {
@@ -479,72 +488,58 @@ final class MenuBarDirtyCheckingTests: XCTestCase {
         XCTAssertNotEqual(netBtn?.toolTip, netTip1, "Network arrows tooltip must update when live throughput rate changes")
     }
 
+    private func modelKey(_ category: MetricCategory, _ style: MetricDisplayStyle, _ snapshot: WidgetSnapshot, options: WidgetOptions = WidgetOptions()) -> String {
+        WidgetModel.make(config: MenuBarItemConfig(category: category, style: style), snapshot: snapshot, options: options).visualKey
+    }
+
     func testVisualKeyDistinguishesNilFromZeroForPowerAndGPU() {
-        let pwrTpNil = MenuBarIconRenderer.visualKeyForPower(
-            style: .throughput,
-            power: PowerSample(hasBattery: true, powerDrawWatts: nil, adapterWatts: nil)
-        )
-        let pwrTpZero = MenuBarIconRenderer.visualKeyForPower(
-            style: .throughput,
-            power: PowerSample(hasBattery: true, powerDrawWatts: 0.0, adapterWatts: 0.0)
-        )
-        XCTAssertNotEqual(pwrTpNil, pwrTpZero, "Power .throughput visualKey must distinguish nil ('--W'/'AC') from 0.0 ('0W'/'0W')")
+        let pwrTpNil = modelKey(.power, .throughput, WidgetSnapshot(power: PowerSample(hasBattery: true, powerDrawWatts: nil, adapterWatts: nil)))
+        let pwrTpZero = modelKey(.power, .throughput, WidgetSnapshot(power: PowerSample(hasBattery: true, powerDrawWatts: 0.0, adapterWatts: 0.0)))
+        XCTAssertNotEqual(pwrTpNil, pwrTpZero, "Power .throughput key must distinguish nil from 0.0")
 
-        let pwrSymNil = MenuBarIconRenderer.visualKeyForPower(
-            style: .symbol,
-            power: PowerSample(hasBattery: true, charge: nil, state: .unknown)
-        )
-        let pwrSymZero = MenuBarIconRenderer.visualKeyForPower(
-            style: .symbol,
-            power: PowerSample(hasBattery: true, charge: 0.0, state: .unknown)
-        )
-        XCTAssertNotEqual(pwrSymNil, pwrSymZero, "Power .symbol visualKey must distinguish nil charge from 0% charge")
+        let pwrSymNil = modelKey(.power, .symbol, WidgetSnapshot(power: PowerSample(hasBattery: true, charge: nil, state: .unknown)))
+        let pwrSymZero = modelKey(.power, .symbol, WidgetSnapshot(power: PowerSample(hasBattery: true, charge: 0.0, state: .unknown)))
+        XCTAssertNotEqual(pwrSymNil, pwrSymZero, "Power .symbol key must distinguish nil charge from 0% charge")
 
-        let gpuGaugeNil = MenuBarIconRenderer.visualKeyForGPU(
-            style: .gauge,
-            gpu: GPUSample(utilization: 30.0, tempCelsius: nil)
-        )
-        let gpuGaugeZero = MenuBarIconRenderer.visualKeyForGPU(
-            style: .gauge,
-            gpu: GPUSample(utilization: 30.0, tempCelsius: 0.0)
-        )
-        XCTAssertNotEqual(gpuGaugeNil, gpuGaugeZero, "GPU .gauge visualKey must distinguish nil temp (purple) from 0°C (green)")
+        let gpuNil = modelKey(.gpu, .text, WidgetSnapshot())
+        let gpuZero = modelKey(.gpu, .text, WidgetSnapshot(gpu: GPUSample(utilization: 0.0)))
+        XCTAssertNotEqual(gpuNil, gpuZero, "GPU .text key must distinguish a missing sample from 0%")
     }
 
     func testFanGaugeAndBarIgnoreSingleRPMJitterAtSamePercentage() {
-        let fan1 = FanSample(fans: [FanReading(name: "Fan 1", rpm: 2100, minRPM: 1200, maxRPM: 5000)])
-        let fan2 = FanSample(fans: [FanReading(name: "Fan 1", rpm: 2101, minRPM: 1200, maxRPM: 5000)])
+        let fan1 = WidgetSnapshot(fan: FanSample(fans: [FanReading(name: "Fan 1", rpm: 2100, minRPM: 1200, maxRPM: 5000)]))
+        let fan2 = WidgetSnapshot(fan: FanSample(fans: [FanReading(name: "Fan 1", rpm: 2101, minRPM: 1200, maxRPM: 5000)]))
 
-        XCTAssertEqual(
-            MenuBarIconRenderer.visualKeyForFan(style: .gauge, fan: fan1),
-            MenuBarIconRenderer.visualKeyForFan(style: .gauge, fan: fan2),
-            "Fan .gauge visualKey must not churn on 1 RPM jitter when rounded percentage is unchanged"
-        )
-        XCTAssertEqual(
-            MenuBarIconRenderer.visualKeyForFan(style: .bar, fan: fan1),
-            MenuBarIconRenderer.visualKeyForFan(style: .bar, fan: fan2),
-            "Fan .bar visualKey must not churn on 1 RPM jitter when rounded percentage is unchanged"
-        )
-        XCTAssertNotEqual(
-            MenuBarIconRenderer.visualKeyForFan(style: .throughput, fan: fan1),
-            MenuBarIconRenderer.visualKeyForFan(style: .throughput, fan: fan2),
-            "Fan .throughput visualKey must still update on exact RPM change"
-        )
+        XCTAssertEqual(modelKey(.fan, .gauge, fan1), modelKey(.fan, .gauge, fan2),
+                       "Fan .gauge key must not churn on 1 RPM jitter when rounded percentage is unchanged")
+        XCTAssertEqual(modelKey(.fan, .bar, fan1), modelKey(.fan, .bar, fan2),
+                       "Fan .bar key must not churn on 1 RPM jitter when rounded percentage is unchanged")
+        XCTAssertNotEqual(modelKey(.fan, .throughput, fan1), modelKey(.fan, .throughput, fan2),
+                          "Fan .throughput key must still update on exact RPM change")
     }
 
     func testDiskTextRespectsSIAndIECStandard() {
         let bytes: UInt64 = 500_000_000_000
-        XCTAssertEqual(MenuBarIconRenderer.formatCompactBytes(bytes, standard: .si), "500G")
-        XCTAssertEqual(MenuBarIconRenderer.formatCompactBytes(bytes, standard: .iec), "466G")
+        XCTAssertEqual(WidgetModel.formatCompactBytes(bytes, standard: .si), "500G")
+        XCTAssertEqual(WidgetModel.formatCompactBytes(bytes, standard: .iec), "466G")
 
         let disk = DiskSample(volumes: [
             VolumeCapacity(name: "Macintosh HD", mountPoint: "/", total: 1_000_000_000_000, used: 500_000_000_000, free: bytes)
         ])
-        let siKey = MenuBarIconRenderer.visualKeyForDisk(style: .text, disk: disk, standard: .si)
-        let iecKey = MenuBarIconRenderer.visualKeyForDisk(style: .text, disk: disk, standard: .iec)
+        let siKey = modelKey(.disk, .text, WidgetSnapshot(disk: disk), options: WidgetOptions(byteUnitStandard: .si))
+        let iecKey = modelKey(.disk, .text, WidgetSnapshot(disk: disk), options: WidgetOptions(byteUnitStandard: .iec))
         XCTAssertNotEqual(siKey, iecKey)
-        XCTAssertTrue(siKey?.contains("500G") == true)
-        XCTAssertTrue(iecKey?.contains("466G") == true)
+        XCTAssertTrue(siKey.contains("500G"))
+        XCTAssertTrue(iecKey.contains("466G"))
+    }
+
+    func testSparklineKeyChangesOnlyWithNewSample() {
+        let a = WidgetSeries(primary: [1, 2, 3], secondary: [], tertiary: [], stamp: 100)
+        let same = WidgetSeries(primary: [1, 2, 3], secondary: [], tertiary: [], stamp: 100)
+        let next = WidgetSeries(primary: [1, 2, 3, 4], secondary: [], tertiary: [], stamp: 101)
+        let k1 = modelKey(.gpu, .sparkline, WidgetSnapshot(gpu: GPUSample(utilization: 3), series: a))
+        XCTAssertEqual(k1, modelKey(.gpu, .sparkline, WidgetSnapshot(gpu: GPUSample(utilization: 3), series: same)))
+        XCTAssertNotEqual(k1, modelKey(.gpu, .sparkline, WidgetSnapshot(gpu: GPUSample(utilization: 4), series: next)))
     }
 
     func testRenderDoesNotDoubleCacheStackedOrSingleLineThroughput() {
@@ -558,7 +553,7 @@ final class MenuBarDirtyCheckingTests: XCTestCase {
         let cpuConfig = MenuBarItemConfig(category: .cpu, style: .text)
         let cpuResult = MenuBarIconRenderer.render(config: cpuConfig, coordinator: coord, preferences: prefs)
         XCTAssertNotNil(cpuResult.visualKey)
-        XCTAssertTrue(MenuBarIconRenderer.hasCachedImage(forKey: cpuResult.visualKey!))
+        XCTAssertTrue(MenuBarIconRenderer.hasCachedImage(forKey: cpuResult.visualKey ?? ""))
         XCTAssertFalse(MenuBarIconRenderer.hasCachedImage(forKey: "stacked:CPU:42%:32.0:0:0:0"))
 
         let net = NetworkSample(interfaces: [
@@ -569,7 +564,7 @@ final class MenuBarDirtyCheckingTests: XCTestCase {
         netConfig.throughputLayout = .singleLine
         let netResult = MenuBarIconRenderer.render(config: netConfig, coordinator: coord, preferences: prefs)
         XCTAssertNotNil(netResult.visualKey)
-        XCTAssertTrue(MenuBarIconRenderer.hasCachedImage(forKey: netResult.visualKey!))
+        XCTAssertTrue(MenuBarIconRenderer.hasCachedImage(forKey: netResult.visualKey ?? ""))
         let inStr = Units.formatCompactRate(1024 * 50, unit: prefs.networkUnit, standard: prefs.byteUnitStandard)
         let outStr = Units.formatCompactRate(1024 * 10, unit: prefs.networkUnit, standard: prefs.byteUnitStandard)
         XCTAssertFalse(MenuBarIconRenderer.hasCachedImage(forKey: "singleLineTp:↓:\(inStr):↑:\(outStr):82.0"))
