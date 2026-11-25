@@ -4,315 +4,243 @@ import SwiftUI
 @testable import iStatsCore
 @testable import iStats
 
-/// Anti-jitter and geometry invariance test suite verifying that menu bar items maintain
-/// strict, fixed pixel-perfect widths and bounding boxes across wildly fluctuating metric
-/// numbers (preventing menu bar items from shifting / hopping horizontally).
+/// Anti-jitter and geometry invariance: each menu bar style has a fixed width class, so a widget keeps the
+/// same pixel size across wildly fluctuating metric values. Everything here goes through `WidgetModel`
+/// and the per-family renderers, the same path the menu bar uses.
 @MainActor
 final class MenuBarGeometryInvarianceTests: XCTestCase {
 
-    // MARK: - 1. Category Stacked Text Width Invariance (32.0pt fixed width)
+    // MARK: - Helpers
+
+    private func image(
+        _ category: MetricCategory,
+        _ style: MetricDisplayStyle,
+        snapshot: WidgetSnapshot = WidgetSnapshot(),
+        showLabel: Bool = false,
+        layout: ThroughputLayout? = nil,
+        options: WidgetOptions = WidgetOptions()
+    ) -> NSImage {
+        let config = MenuBarItemConfig(category: category, style: style, throughputLayout: layout, showLabel: showLabel)
+        return MenuBarIconRenderer.image(for: WidgetModel.make(config: config, snapshot: snapshot, options: options))
+    }
+
+    private func cpu(_ total: Double, user: Double? = nil, system: Double = 0) -> CPUSample {
+        CPUSample(totalUsage: total, perCore: [total, total], user: user ?? total, system: system, idle: max(0, 100 - total))
+    }
+
+    private func series(_ values: [Double], secondary: [Double] = [], tertiary: [Double] = []) -> WidgetSeries {
+        WidgetSeries(primary: values, secondary: secondary, tertiary: tertiary, stamp: values.count)
+    }
+
+    private func width(_ widthClass: WidgetWidthClass) -> CGFloat { WidgetMetrics.width(widthClass) }
+
+    // MARK: - 1. Label/value text: one width per class, 22 pt high, for every value
 
     func testCategoryStackedTextWidthInvarianceAcrossNumberFluctuations() {
-        let testValues = [
-            "0%", "1%", "5%", "9%",      // Single digit
-            "10%", "25%", "50%", "99%",  // Two digits
-            "100%",                       // Three digits
-            "--%", "N/A"                  // Placeholders
-        ]
+        for usage in [0.0, 1.0, 9.0, 10.0, 55.0, 99.0, 100.0] {
+            for category in [MetricCategory.cpu, .memory, .gpu] {
+                let snap = WidgetSnapshot(
+                    cpu: cpu(usage),
+                    memory: MemorySample(total: 100, used: UInt64(usage), free: 100 - UInt64(usage), wired: 0, compressed: 0, cached: 0, swapUsed: 0, pressure: .normal),
+                    gpu: GPUSample(utilization: usage)
+                )
+                let img = image(category, .text, snapshot: snap)
+                XCTAssertEqual(img.size.width, width(.stackedPercent), "\(category) text at \(usage)% must keep the class width")
+                XCTAssertEqual(img.size.height, 22.0)
+            }
+        }
+        // Placeholders keep the same width
+        XCTAssertEqual(image(.cpu, .text).size.width, width(.stackedPercent))
+        XCTAssertGreaterThanOrEqual(width(.stackedPercent), 32.0)
 
-        for val in testValues {
-            let cpuText = MenuBarIconRenderer.drawCategoryStackedText(title: "CPU", value: val, fixedWidth: 32.0)
-            XCTAssertEqual(cpuText.size.width, 32.0, "CPU stacked text width for '\(val)' must be exactly 32.0pt")
-            XCTAssertEqual(cpuText.size.height, 22.0, "CPU stacked text height must be 22.0pt")
-            XCTAssertTrue(cpuText.isTemplate, "Stacked text must be configured as macOS template image")
+        // Template when no status color applies
+        XCTAssertTrue(image(.cpu, .text, snapshot: WidgetSnapshot(cpu: cpu(20))).isTemplate)
+    }
 
-            let memText = MenuBarIconRenderer.drawCategoryStackedText(title: "MEM", value: val, fixedWidth: 32.0)
-            XCTAssertEqual(memText.size.width, 32.0, "MEM stacked text width for '\(val)' must be exactly 32.0pt")
-
-            let gpuText = MenuBarIconRenderer.drawCategoryStackedText(title: "GPU", value: val, fixedWidth: 32.0)
-            XCTAssertEqual(gpuText.size.width, 32.0, "GPU stacked text width for '\(val)' must be exactly 32.0pt")
-
-            let tmpText = MenuBarIconRenderer.drawCategoryStackedText(title: "TMP", value: val, fixedWidth: 32.0)
-            XCTAssertEqual(tmpText.size.width, 32.0, "TMP stacked text width for '\(val)' must be exactly 32.0pt")
-
-            let fanText = MenuBarIconRenderer.drawCategoryStackedText(title: "FAN", value: val, fixedWidth: 32.0)
-            XCTAssertEqual(fanText.size.width, 32.0, "FAN stacked text width for '\(val)' must be exactly 32.0pt")
+    func testTemperatureFanAndStorageTextWidthsAreFixed() {
+        for celsius in [20.0, 52.0, 99.0, 105.0] {
+            let thermal = ThermalSample(sensors: [SensorReading(name: "CPU die", celsius: celsius)])
+            let img = image(.thermal, .text, snapshot: WidgetSnapshot(thermal: thermal))
+            XCTAssertEqual(img.size.width, image(.thermal, .text, snapshot: WidgetSnapshot(thermal: ThermalSample(sensors: [SensorReading(name: "CPU die", celsius: 40)]))).size.width)
+        }
+        for rpm in [0, 900, 2400, 6500, 9999] {
+            let fan = FanSample(fans: [FanReading(name: "Fan", rpm: rpm, minRPM: 1000, maxRPM: 6500)])
+            XCTAssertEqual(image(.fan, .text, snapshot: WidgetSnapshot(fan: fan)).size.width, width(.stackedRPM), "fan text at \(rpm) rpm")
+        }
+        for free: UInt64 in [500_000_000, 9_000_000_000, 412_000_000_000, 1_200_000_000_000] {
+            let disk = DiskSample(volumes: [VolumeCapacity(name: "Macintosh HD", mountPoint: "/", total: 2_000_000_000_000, used: 2_000_000_000_000 - free, free: free)])
+            XCTAssertEqual(image(.disk, .text, snapshot: WidgetSnapshot(disk: disk)).size.width, width(.stackedBytes), "disk free \(free)")
         }
     }
 
-    // MARK: - 2. Stacked Throughput Two-Line Text Invariance (60.0pt fixed width)
+    // MARK: - 2. Throughput: 60 pt two-line, 82 pt single-line
 
-    func testStackedThroughputTwoLineTextWidthInvariance() {
-        let testRates: [(Double, Double)] = [
-            (0, 0),                                           // 0 B/s
-            (512, 1024),                                      // bytes
-            (1024 * 12, 1024 * 45),                           // KB/s
-            (1024 * 1024 * 1.5, 1024 * 1024 * 8.2),           // MB/s
-            (1024 * 1024 * 125, 1024 * 1024 * 450),           // hundreds MB/s
-            (1024 * 1024 * 1024 * 1.2, 1024 * 1024 * 1024 * 3.5) // GB/s
+    func testStackedThroughputWidthInvariance() {
+        let rates: [(Double, Double)] = [
+            (0, 0), (512, 1024), (1024 * 12, 1024 * 45),
+            (1024 * 1024 * 1.5, 1024 * 1024 * 8.2),
+            (1024 * 1024 * 125, 1024 * 1024 * 450),
+            (1024 * 1024 * 1024 * 1.2, 1024 * 1024 * 1024 * 3.5)
         ]
+        for (inB, outB) in rates {
+            let net = NetworkSample(interfaces: [InterfaceThroughput(interfaceName: "en0", bytesInPerSec: inB, bytesOutPerSec: outB, totalBytesIn: 0, totalBytesOut: 0)])
+            for standard in [Units.ByteUnitStandard.iec, .si] {
+                for unit in [Units.NetworkUnit.bytesPerSecond, .bitsPerSecond] {
+                    let stacked = image(.network, .throughput, snapshot: WidgetSnapshot(network: net), layout: .stacked,
+                                        options: WidgetOptions(networkUnit: unit, byteUnitStandard: standard))
+                    XCTAssertEqual(stacked.size.width, width(.twoLineRate), "network stacked \(unit) \(standard)")
+                    XCTAssertEqual(stacked.size.height, 22.0)
+                    XCTAssertTrue(stacked.isTemplate)
 
-        for (inBytes, outBytes) in testRates {
-            // Network IEC
-            let netIEC = MenuBarIconRenderer.drawNetworkStackedThroughput(
-                inBytes: inBytes,
-                outBytes: outBytes,
-                unit: .bytesPerSecond,
-                standard: .iec
-            )
-            XCTAssertEqual(netIEC.size.width, 60.0, "Network IEC throughput must be invariant 60.0pt width")
-            XCTAssertEqual(netIEC.size.height, 22.0, "Network throughput height must be 22.0pt")
-            XCTAssertTrue(netIEC.isTemplate)
-
-            // Network SI
-            let netSI = MenuBarIconRenderer.drawNetworkStackedThroughput(
-                inBytes: inBytes,
-                outBytes: outBytes,
-                unit: .bytesPerSecond,
-                standard: .si
-            )
-            XCTAssertEqual(netSI.size.width, 60.0, "Network SI throughput must be invariant 60.0pt width")
-
-            // Network Bits
-            let netBits = MenuBarIconRenderer.drawNetworkStackedThroughput(
-                inBytes: inBytes,
-                outBytes: outBytes,
-                unit: .bitsPerSecond,
-                standard: .iec
-            )
-            XCTAssertEqual(netBits.size.width, 60.0, "Network Bits throughput must be invariant 60.0pt width")
-
-            // Disk Throughput
-            let diskThroughput = MenuBarIconRenderer.drawDiskStackedThroughput(
-                readBytes: inBytes,
-                writeBytes: outBytes,
-                standard: .iec
-            )
-            XCTAssertEqual(diskThroughput.size.width, 60.0, "Disk throughput must be invariant 60.0pt width")
-            XCTAssertEqual(diskThroughput.size.height, 22.0)
-            XCTAssertTrue(diskThroughput.isTemplate)
+                    let single = image(.network, .throughput, snapshot: WidgetSnapshot(network: net), layout: .singleLine,
+                                       options: WidgetOptions(networkUnit: unit, byteUnitStandard: standard))
+                    XCTAssertEqual(single.size.width, width(.singleLineRate), "network single-line \(unit) \(standard)")
+                }
+            }
+            let disk = DiskSample(io: DiskIO(bytesReadPerSec: inB, bytesWrittenPerSec: outB, readOpsPerSec: 0, writeOpsPerSec: 0))
+            let diskImg = image(.disk, .throughput, snapshot: WidgetSnapshot(disk: disk), layout: .stacked)
+            XCTAssertEqual(diskImg.size.width, width(.twoLineRate), "disk stacked throughput")
+            XCTAssertEqual(diskImg.size.height, 22.0)
+            XCTAssertEqual(image(.disk, .throughput, snapshot: WidgetSnapshot(disk: disk), layout: .singleLine).size.width, width(.singleLineRate))
         }
     }
 
-    // MARK: - 3. Single Capsule Bar Geometry (25.0pt width × 22.0pt height)
+    // MARK: - 3. Single capsule bar: 25 x 22
 
     func testSingleCapsuleBarGeometryInvariance() {
-        let percentages: [Double] = [0.0, 15.0, 50.0, 85.0, 100.0, 150.0]
-
-        for pct in percentages {
-            // RAM Bar
-            let ramBar = MenuBarIconRenderer.drawMemoryBar(ratio: pct)
-            XCTAssertEqual(ramBar.size.width, 25.0, "RAM single capsule bar must be 25.0pt wide")
-            XCTAssertEqual(ramBar.size.height, 22.0, "RAM single capsule bar must be 22.0pt high")
-
-            // GPU Bar
-            let gpuBar = MenuBarIconRenderer.drawGPUBar(percentage: pct)
-            XCTAssertEqual(gpuBar.size.width, 25.0, "GPU single capsule bar must be 25.0pt wide")
-            XCTAssertEqual(gpuBar.size.height, 22.0)
-
-            // Thermal Bar
-            let tmpBar = MenuBarIconRenderer.drawThermalBar(percentage: pct)
-            XCTAssertEqual(tmpBar.size.width, 25.0, "TMP single capsule bar must be 25.0pt wide")
-            XCTAssertEqual(tmpBar.size.height, 22.0)
-
-            // Fan Bar
-            let fanBar = MenuBarIconRenderer.drawFanBar(percentage: pct)
-            XCTAssertEqual(fanBar.size.width, 25.0, "FAN single capsule bar must be 25.0pt wide")
-            XCTAssertEqual(fanBar.size.height, 22.0)
-
-            // Power Bar
-            let powerBar = MenuBarIconRenderer.drawPowerBar(percentage: pct)
-            XCTAssertEqual(powerBar.size.width, 25.0, "BAT single capsule bar must be 25.0pt wide")
-            XCTAssertEqual(powerBar.size.height, 22.0)
-
-            // Disk Bar
-            let diskBar = MenuBarIconRenderer.drawDiskBar(percentage: pct)
-            XCTAssertEqual(diskBar.size.width, 25.0, "SSD single capsule bar must be 25.0pt wide")
-            XCTAssertEqual(diskBar.size.height, 22.0)
+        for pct in [0.0, 15.0, 50.0, 85.0, 100.0, 150.0] {
+            let mem = MemorySample(total: 100, used: UInt64(min(pct, 100)), free: 0, wired: 0, compressed: 0, cached: 0, swapUsed: 0, pressure: .normal)
+            let snap = WidgetSnapshot(
+                memory: mem,
+                gpu: GPUSample(utilization: pct),
+                thermal: ThermalSample(sensors: [SensorReading(name: "CPU die", celsius: 30 + pct)]),
+                fan: FanSample(fans: [FanReading(name: "Fan", rpm: Int(pct * 60), minRPM: 0, maxRPM: 6000)]),
+                disk: DiskSample(volumes: [VolumeCapacity(name: "HD", mountPoint: "/", total: 100, used: UInt64(min(pct, 100)), free: 0)])
+            )
+            for (category, style) in [(MetricCategory.memory, MetricDisplayStyle.bar), (.gpu, .bar), (.thermal, .bar), (.fan, .bar), (.disk, .bar)] {
+                let img = image(category, style, snapshot: snap)
+                XCTAssertEqual(img.size, NSSize(width: 25, height: 22), "\(category) bar at \(pct)")
+            }
         }
     }
 
-    // MARK: - 4. Dual Capsule Bar Geometry (36.0pt width × 22.0pt height)
+    // MARK: - 4. Dual capsule bar: 36 x 22
 
     func testDualCapsuleBarGeometryInvariance() {
-        let pairs: [(Double, Double)] = [
-            (0.0, 0.0),
-            (25.0, 75.0),
-            (100.0, 100.0)
-        ]
-
-        for (left, right) in pairs {
-            // Generic Dual Bar
-            let genericDual = MenuBarIconRenderer.drawDualCapsuleBar(label: "NET", leftPercentage: left, rightPercentage: right)
-            XCTAssertEqual(genericDual.size.width, 36.0, "Dual capsule bar width must be 36.0pt")
-            XCTAssertEqual(genericDual.size.height, 22.0, "Dual capsule bar height must be 22.0pt")
-
-            // Network Dual Bar
-            let netDual = MenuBarIconRenderer.drawNetworkBar(inPct: left, outPct: right)
-            XCTAssertEqual(netDual.size.width, 36.0, "Network dual bar width must be 36.0pt")
-            XCTAssertEqual(netDual.size.height, 22.0)
-
-            // Disk Dual Bar
-            let diskDual = MenuBarIconRenderer.drawDiskBar(readPct: left, writePct: right)
-            XCTAssertEqual(diskDual.size.width, 36.0, "Disk dual bar width must be 36.0pt")
-            XCTAssertEqual(diskDual.size.height, 22.0)
+        for (user, sys) in [(0.0, 0.0), (25.0, 75.0), (100.0, 100.0)] {
+            let img = image(.cpu, .bar, snapshot: WidgetSnapshot(cpu: cpu(user, user: user, system: sys)))
+            XCTAssertEqual(img.size, NSSize(width: 36, height: 22))
         }
+        // Hybrid E/P cores and larger core counts keep the same width
+        let hybrid = CPUSample(totalUsage: 50, perCore: Array(repeating: 25.0, count: 6) + Array(repeating: 80.0, count: 4),
+                               user: 45, system: 10, idle: 50, efficiencyCoreCount: 6, performanceCoreCount: 4)
+        XCTAssertEqual(image(.cpu, .bar, snapshot: WidgetSnapshot(cpu: hybrid)).size, NSSize(width: 36, height: 22))
+        let sixteen = CPUSample(totalUsage: 65, perCore: Array(repeating: 65.0, count: 16), user: 50, system: 15, idle: 35)
+        XCTAssertEqual(image(.cpu, .bar, snapshot: WidgetSnapshot(cpu: sixteen)).size, NSSize(width: 36, height: 22))
+        XCTAssertEqual(image(.cpu, .bar).size, NSSize(width: 36, height: 22))
 
-        // Dual Fan Bar
         let dualFan = FanSample(fans: [
             FanReading(name: "Fan 1", rpm: 2000, minRPM: 1500, maxRPM: 6000),
             FanReading(name: "Fan 2", rpm: 3500, minRPM: 1500, maxRPM: 6000)
         ])
-        let fanDual = MenuBarIconRenderer.drawFanBar(fan: dualFan)
-        XCTAssertEqual(fanDual.size.width, 36.0, "Dual fan bar width must be 36.0pt")
-        XCTAssertEqual(fanDual.size.height, 22.0)
-
-        let fanThroughput = MenuBarIconRenderer.drawFanStackedThroughput(fan: dualFan)
-        XCTAssertEqual(fanThroughput.size.width, 36.0, "Dual fan throughput width must be 36.0pt")
-        XCTAssertEqual(fanThroughput.size.height, 22.0)
+        XCTAssertEqual(image(.fan, .bar, snapshot: WidgetSnapshot(fan: dualFan)).size, NSSize(width: 36, height: 22))
+        XCTAssertEqual(image(.fan, .throughput, snapshot: WidgetSnapshot(fan: dualFan)).size, NSSize(width: width(.twoLineFan), height: 22))
     }
 
-    // MARK: - 5. Sparkline & Graph Geometry (36.0pt width × 16.0pt height)
+    // MARK: - 5. Sparklines and graphs: 36 x 16 (50 x 22 labeled)
 
     func testSparklineGeometryInvariance() {
-        let historySets: [[Double]] = [
-            [],
-            [50.0],
-            [10.0, 20.0, 30.0, 40.0, 50.0],
-            Array(repeating: 100.0, count: 60)
-        ]
-
-        for history in historySets {
-            let cpuSparkline = MenuBarIconRenderer.drawCPUSparkline(history: history)
-            XCTAssertEqual(cpuSparkline.size.width, 36.0, "CPU sparkline width must be 36.0pt")
-            XCTAssertEqual(cpuSparkline.size.height, 16.0, "CPU sparkline height must be 16.0pt")
-
-            let memSparkline = MenuBarIconRenderer.drawMemorySparkline(history: history)
-            XCTAssertEqual(memSparkline.size.width, 36.0)
-            XCTAssertEqual(memSparkline.size.height, 16.0)
-
-            let gpuSparkline = MenuBarIconRenderer.drawGPUSparkline(history: history)
-            XCTAssertEqual(gpuSparkline.size.width, 36.0)
-            XCTAssertEqual(gpuSparkline.size.height, 16.0)
-
-            let tmpSparkline = MenuBarIconRenderer.drawThermalSparkline(history: history)
-            XCTAssertEqual(tmpSparkline.size.width, 36.0)
-            XCTAssertEqual(tmpSparkline.size.height, 16.0)
-
-            let fanSparkline = MenuBarIconRenderer.drawFanSparkline(history: history)
-            XCTAssertEqual(fanSparkline.size.width, 36.0)
-            XCTAssertEqual(fanSparkline.size.height, 16.0)
-
-            let pwrSparkline = MenuBarIconRenderer.drawPowerSparkline(history: history)
-            XCTAssertEqual(pwrSparkline.size.width, 36.0)
-            XCTAssertEqual(pwrSparkline.size.height, 16.0)
-
-            let diskSparkline = MenuBarIconRenderer.drawDiskSparkline(history: history)
-            XCTAssertEqual(diskSparkline.size.width, 36.0)
-            XCTAssertEqual(diskSparkline.size.height, 16.0)
-
-            let netSplit = MenuBarIconRenderer.drawNetworkSplitDuplexGraph(inHistory: history, outHistory: history)
-            XCTAssertEqual(netSplit.size.width, 36.0)
-            XCTAssertEqual(netSplit.size.height, 16.0)
-        }
-    }
-
-    // MARK: - 6. Gauges & Donut Pies (18.0pt × 18.0pt)
-
-    func testGaugesAndDonutPiesGeometryInvariance() {
-        let percentages: [Double] = [0.0, 33.3, 50.0, 88.8, 100.0]
-
-        for pct in percentages {
-            let cpuDonut = MenuBarIconRenderer.drawCPUDonutPie(user: pct * 0.7, system: pct * 0.3)
-            XCTAssertEqual(cpuDonut.size, NSSize(width: 18, height: 18), "CPU donut must be 18x18pt")
-
-            let memGauge = MenuBarIconRenderer.drawMemoryGauge(ratio: pct)
-            XCTAssertEqual(memGauge.size, NSSize(width: 18, height: 18), "Memory gauge must be 18x18pt")
-
-            let gpuGauge = MenuBarIconRenderer.drawGPUGauge(percentage: pct)
-            XCTAssertEqual(gpuGauge.size, NSSize(width: 18, height: 18), "GPU gauge must be 18x18pt")
-
-            let tmpGauge = MenuBarIconRenderer.drawThermalGauge(percentage: pct)
-            XCTAssertEqual(tmpGauge.size, NSSize(width: 18, height: 18), "Thermal gauge must be 18x18pt")
-
-            let fanGauge = MenuBarIconRenderer.drawFanGauge(percentage: pct)
-            XCTAssertEqual(fanGauge.size, NSSize(width: 18, height: 18), "Fan gauge must be 18x18pt")
-
-            let diskGauge = MenuBarIconRenderer.drawDiskGauge(percentage: pct)
-            XCTAssertEqual(diskGauge.size, NSSize(width: 18, height: 18), "Disk gauge must be 18x18pt")
-
-            let pwrGauge = MenuBarIconRenderer.drawPowerGauge(percentage: pct)
-            XCTAssertEqual(pwrGauge.size, NSSize(width: 18, height: 18), "Power gauge must be 18x18pt")
-        }
-    }
-
-    // MARK: - 7. Battery Instrument & Power Budget (25x16pt and 34x22pt)
-
-    func testBatteryAndPowerBudgetGeometryInvariance() {
-        // Battery instrument (25.0pt × 16.0pt)
-        let charges: [Double?] = [nil, 0.0, 15.0, 50.0, 85.0, 100.0]
-        for chg in charges {
-            let batDischarging = MenuBarIconRenderer.drawBatteryInstrument(charge: chg, state: .discharging, hasBattery: true)
-            XCTAssertEqual(batDischarging.size, NSSize(width: 25, height: 16), "Battery instrument must be 25x16pt")
-
-            let batCharging = MenuBarIconRenderer.drawBatteryInstrument(charge: chg, state: .charging, hasBattery: true)
-            XCTAssertEqual(batCharging.size, NSSize(width: 25, height: 16))
-
-            let batDesktop = MenuBarIconRenderer.drawBatteryInstrument(charge: nil, state: nil, hasBattery: false)
-            XCTAssertEqual(batDesktop.size, NSSize(width: 25, height: 16))
-
-            for variant in PowerStateVariant.allCases {
-                let batVariant = MenuBarIconRenderer.drawBatteryInstrument(charge: chg, state: nil, hasBattery: true, variant: variant)
-                XCTAssertEqual(batVariant.size, NSSize(width: 25, height: 16), "Battery instrument for variant \(variant) must be 25x16pt")
+        let sets: [[Double]] = [[], [50.0], [10, 20, 30, 40, 50], Array(repeating: 100.0, count: 60)]
+        for values in sets {
+            let snap = WidgetSnapshot(series: series(values, secondary: values, tertiary: values))
+            let cases: [(MetricCategory, MetricDisplayStyle)] = [
+                (.cpu, .sparkline), (.memory, .sparkline), (.gpu, .sparkline), (.thermal, .sparkline),
+                (.fan, .sparkline), (.power, .sparkline), (.network, .sparkline), (.disk, .sparkline)
+            ]
+            for (category, style) in cases {
+                let bare = image(category, style, snapshot: snap)
+                XCTAssertEqual(bare.size, NSSize(width: 36, height: 16), "\(category) sparkline with \(values.count) points")
+                let labeled = image(category, style, snapshot: snap, showLabel: true)
+                XCTAssertEqual(labeled.size, NSSize(width: 50, height: 22), "\(category) labeled sparkline")
             }
         }
+    }
 
-        // Power budget text (34.0pt × 22.0pt)
-        let budgets: [(Double, Double)] = [
-            (0, 0),
-            (15.2, 67.0),
-            (95.0, 140.0)
-        ]
-        for (drawW, adapterW) in budgets {
-            let budgetImg = MenuBarIconRenderer.drawPowerBudgetText(drawWatts: drawW, adapterWatts: adapterW)
-            XCTAssertEqual(budgetImg.size, NSSize(width: 34, height: 22), "Power budget text must be 34x22pt")
+    // MARK: - 6. Rings: 18 x 18 (32 x 22 labeled)
+
+    func testGaugesAndDonutPiesGeometryInvariance() {
+        for pct in [0.0, 33.3, 50.0, 88.8, 100.0] {
+            let snap = WidgetSnapshot(
+                cpu: cpu(pct, user: pct * 0.7, system: pct * 0.3),
+                memory: MemorySample(total: 100, used: UInt64(pct), free: 0, wired: 0, compressed: 0, cached: 0, swapUsed: 0, pressure: .normal),
+                gpu: GPUSample(utilization: pct),
+                thermal: ThermalSample(sensors: [SensorReading(name: "CPU die", celsius: 30 + pct * 0.7)]),
+                disk: DiskSample(volumes: [VolumeCapacity(name: "HD", mountPoint: "/", total: 100, used: UInt64(pct), free: 0)])
+            )
+            for (category, style) in [(MetricCategory.cpu, MetricDisplayStyle.gauge), (.memory, .gauge), (.memory, .symbol),
+                                      (.gpu, .gauge), (.thermal, .gauge), (.disk, .gauge)] {
+                XCTAssertEqual(image(category, style, snapshot: snap).size, NSSize(width: 18, height: 18), "\(category) \(style) at \(pct)")
+                XCTAssertEqual(image(category, style, snapshot: snap, showLabel: true).size, NSSize(width: 32, height: 22), "\(category) \(style) labeled")
+            }
         }
     }
 
-    // MARK: - 8. CPU Cluster Bars Width Invariance
+    // MARK: - 7. Battery instrument and power budget
 
-    func testCPUPerCoreBarClusterGeometry() {
-        // Hybrid E/P cluster dual bars and non-hybrid User/System dual bars share 36.0pt invariant width
-        let cores2 = [30.0, 50.0]
-        let img2 = MenuBarIconRenderer.drawCPUBar(perCore: cores2, user: 40.0, system: 10.0)
-        XCTAssertEqual(img2.size.width, 36.0, "CPU cluster bars for 2 cores must be 36.0pt wide")
-        XCTAssertEqual(img2.size.height, 22.0)
-
-        let cores10Hybrid = Array(repeating: 25.0, count: 6) + Array(repeating: 80.0, count: 4)
-        let img10 = MenuBarIconRenderer.drawCPUBar(perCore: cores10Hybrid, user: 45.0, system: 10.0, eCoreCount: 6, pCoreCount: 4)
-        XCTAssertEqual(img10.size.width, 36.0, "CPU hybrid cluster bars for 10 cores must be 36.0pt wide")
-        XCTAssertEqual(img10.size.height, 22.0)
-
-        let cores16 = Array(repeating: 65.0, count: 16)
-        let img16 = MenuBarIconRenderer.drawCPUBar(perCore: cores16, user: 50.0, system: 15.0)
-        XCTAssertEqual(img16.size.width, 36.0, "CPU cluster bars for 16 cores must be 36.0pt wide")
-        XCTAssertEqual(img16.size.height, 22.0)
-
-        // Nil perCore fallback (User/System dual capsule bars)
-        let imgNil = MenuBarIconRenderer.drawCPUBar(perCore: nil, user: 40.0, system: 10.0)
-        XCTAssertEqual(imgNil.size.width, 36.0, "User/System dual bar fallback must be 36.0pt wide")
-        XCTAssertEqual(imgNil.size.height, 22.0)
+    func testBatteryAndPowerBudgetGeometryInvariance() {
+        for chg in [nil, 0.0, 15.0, 50.0, 85.0, 100.0] as [Double?] {
+            for state in [BatteryState.discharging, .charging] {
+                let power = PowerSample(hasBattery: true, charge: chg, state: state)
+                XCTAssertEqual(image(.power, .symbol, snapshot: WidgetSnapshot(power: power)).size, NSSize(width: 25, height: 16))
+            }
+            XCTAssertEqual(image(.power, .symbol, snapshot: WidgetSnapshot(power: PowerSample(hasBattery: false))).size, NSSize(width: 25, height: 16))
+            for variant in PowerStateVariant.allCases {
+                XCTAssertEqual(MenuBarIconRenderer.drawBatteryInstrument(charge: chg, state: nil, hasBattery: true, variant: variant).size,
+                               NSSize(width: 25, height: 16), "variant \(variant)")
+            }
+        }
+        for (draw, adapter) in [(0.0, 0.0), (15.2, 67.0), (95.0, 140.0)] {
+            let power = PowerSample(hasBattery: true, charge: 50, state: .discharging, powerDrawWatts: draw, adapterWatts: adapter)
+            XCTAssertEqual(image(.power, .throughput, snapshot: WidgetSnapshot(power: power)).size, NSSize(width: width(.twoLinePower), height: 22))
+        }
+        // Battery text keeps its width class across values
+        for chg in [5.0, 50.0, 100.0] {
+            let power = PowerSample(hasBattery: true, charge: chg, state: .charging)
+            XCTAssertEqual(image(.power, .text, snapshot: WidgetSnapshot(power: power)).size.width, width(.twoLinePower))
+        }
     }
 
-    // MARK: - 9. Thermometer Glyph Non-Clipping Width
+    // MARK: - 8. Thermometer glyph: one width regardless of digits
 
-    func testThermometerGlyphWidthAccommodatesUnit() {
-        let twoDigit = MenuBarIconRenderer.drawThermometerGlyph(celsius: 52.0, formattedTemp: "52°C", status: .fine)
-        XCTAssertGreaterThanOrEqual(twoDigit.size.width, 42.0, "52°C thermometer glyph must be wide enough to avoid clipping °C")
-        XCTAssertEqual(twoDigit.size.height, 22.0)
+    func testThermometerGlyphWidthIsConstantAndNotClipped() {
+        func width(_ celsius: Double, unit: Units.TemperatureUnit = .celsius) -> CGFloat {
+            let thermal = ThermalSample(sensors: [SensorReading(name: "CPU die", celsius: celsius)])
+            return image(.thermal, .glyph, snapshot: WidgetSnapshot(thermal: thermal), options: WidgetOptions(temperatureUnit: unit)).size.width
+        }
+        let two = width(52)
+        XCTAssertGreaterThanOrEqual(two, 42.0)
+        XCTAssertEqual(width(5), two, "1-digit temperature keeps the width")
+        XCTAssertEqual(width(102), two, "3-digit temperature must not widen the glyph")
+        XCTAssertEqual(width(100, unit: .fahrenheit), two, "°F values (212) must fit the same width")
+        XCTAssertEqual(image(.thermal, .glyph).size.height, 22.0)
+    }
 
-        let threeDigit = MenuBarIconRenderer.drawThermometerGlyph(celsius: 102.0, formattedTemp: "102°C", status: .critical)
-        XCTAssertGreaterThan(threeDigit.size.width, 42.0, "3-digit temperature must expand beyond 42pt so °C is never clipped")
-        XCTAssertEqual(threeDigit.size.height, 22.0)
+    // MARK: - 9. Glyph widths
+
+    func testFanGlyphArrowsAndLedsAreFixedWidth() {
+        for rpm in [0, 800, 3200, 9999] {
+            let fan = FanSample(fans: [FanReading(name: "Fan", rpm: rpm, minRPM: 0, maxRPM: 6000)])
+            XCTAssertEqual(image(.fan, .glyph, snapshot: WidgetSnapshot(fan: fan)).size, NSSize(width: 44, height: 22))
+        }
+        XCTAssertEqual(image(.network, .symbol).size, NSSize(width: 18, height: 18))
+        XCTAssertEqual(image(.disk, .symbol).size, NSSize(width: 20, height: 18))
+    }
+
+    // MARK: - 10. Minimum text size
+
+    func testMinimumWidgetFontSizeIsNineAndLabelsKeepTheirBounds() {
+        XCTAssertGreaterThanOrEqual(MenuBarIconRenderer.minimumWidgetFontSize, 9.0)
+        let labeled = image(.memory, .bar)
+        XCTAssertEqual(labeled.size.height, 22.0)
     }
 }

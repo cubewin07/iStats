@@ -382,17 +382,10 @@ public final class MenuBarController: NSObject {
     private func updateStatusItem(config: MenuBarItemConfig) {
         guard let item = statusItems[config.id], let button = item.button else { return }
 
-        let visualKey = MenuBarIconRenderer.computeVisualKey(
-            config: config,
-            coordinator: coordinator,
-            preferences: preferences
-        )
-
         let result = MenuBarIconRenderer.render(
             config: config,
             coordinator: coordinator,
-            preferences: preferences,
-            visualKey: visualKey
+            preferences: preferences
         )
 
         let targetPosition: NSControl.ImagePosition

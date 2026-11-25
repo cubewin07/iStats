@@ -87,6 +87,14 @@
 		1100000000000000000000E3 /* LaunchAtLoginManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000000E2 /* LaunchAtLoginManager.swift */; };
 		1100000000000000000000E5 /* SystemIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000000E4 /* SystemIntegrationTests.swift */; };
 		1100000000000000000000E7 /* PerformancePassTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000000E6 /* PerformancePassTests.swift */; };
+		110000000000000000000930 /* WidgetRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000910 /* WidgetRenderer.swift */; };
+		110000000000000000000931 /* WidgetDrawing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000911 /* WidgetDrawing.swift */; };
+		110000000000000000000932 /* ValueWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000912 /* ValueWidget.swift */; };
+		110000000000000000000933 /* DualWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000913 /* DualWidget.swift */; };
+		110000000000000000000934 /* BarWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000914 /* BarWidget.swift */; };
+		110000000000000000000935 /* RingWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000915 /* RingWidget.swift */; };
+		110000000000000000000936 /* GraphWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000916 /* GraphWidget.swift */; };
+		110000000000000000000937 /* GlyphWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000917 /* GlyphWidget.swift */; };
 		1100000000000000000000F1 /* MenuBarIconRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000000F0 /* MenuBarIconRenderer.swift */; };
 		110000000000000000000045 /* iStatsCore in Frameworks */ = {isa = PBXBuildFile; productRef = 110000000000000000000005 /* iStatsCore */; };
 		110000000000000000000117 /* NotificationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000116 /* NotificationManager.swift */; };
@@ -205,6 +213,14 @@
 		1100000000000000000000E2 /* LaunchAtLoginManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchAtLoginManager.swift; sourceTree = "<group>"; };
 		1100000000000000000000E4 /* SystemIntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemIntegrationTests.swift; sourceTree = "<group>"; };
 		1100000000000000000000E6 /* PerformancePassTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PerformancePassTests.swift; sourceTree = "<group>"; };
+		110000000000000000000910 /* WidgetRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetRenderer.swift; sourceTree = "<group>"; };
+		110000000000000000000911 /* WidgetDrawing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetDrawing.swift; sourceTree = "<group>"; };
+		110000000000000000000912 /* ValueWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ValueWidget.swift; sourceTree = "<group>"; };
+		110000000000000000000913 /* DualWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DualWidget.swift; sourceTree = "<group>"; };
+		110000000000000000000914 /* BarWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BarWidget.swift; sourceTree = "<group>"; };
+		110000000000000000000915 /* RingWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RingWidget.swift; sourceTree = "<group>"; };
+		110000000000000000000916 /* GraphWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GraphWidget.swift; sourceTree = "<group>"; };
+		110000000000000000000917 /* GlyphWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlyphWidget.swift; sourceTree = "<group>"; };
 		1100000000000000000000F0 /* MenuBarIconRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarIconRenderer.swift; sourceTree = "<group>"; };
 		110000000000000000000116 /* NotificationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationManager.swift; sourceTree = "<group>"; };
 		110000000000000000000118 /* NotificationManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationManagerTests.swift; sourceTree = "<group>"; };
@@ -354,8 +370,24 @@
 				110000000000000000000220 /* SegmentedControl.swift */,
 				110000000000000000000222 /* FilterChip.swift */,
 				1100000000000000000000F0 /* MenuBarIconRenderer.swift */,
+				110000000000000000000950 /* MenuBar */,
 			);
 			path = UI;
+			sourceTree = "<group>";
+		};
+		110000000000000000000950 /* MenuBar */ = {
+			isa = PBXGroup;
+			children = (
+				110000000000000000000910 /* WidgetRenderer.swift */,
+				110000000000000000000911 /* WidgetDrawing.swift */,
+				110000000000000000000912 /* ValueWidget.swift */,
+				110000000000000000000913 /* DualWidget.swift */,
+				110000000000000000000914 /* BarWidget.swift */,
+				110000000000000000000915 /* RingWidget.swift */,
+				110000000000000000000916 /* GraphWidget.swift */,
+				110000000000000000000917 /* GlyphWidget.swift */,
+			);
+			path = MenuBar;
 			sourceTree = "<group>";
 		};
 		11000000000000000000000C /* Resources */ = {
@@ -590,6 +622,14 @@
 				1100000000000000000000B1 /* FanSampler.swift in Sources */,
 				1100000000000000000000C1 /* GPUSampler.swift in Sources */,
 				1100000000000000000000F1 /* MenuBarIconRenderer.swift in Sources */,
+				110000000000000000000930 /* WidgetRenderer.swift in Sources */,
+				110000000000000000000931 /* WidgetDrawing.swift in Sources */,
+				110000000000000000000932 /* ValueWidget.swift in Sources */,
+				110000000000000000000933 /* DualWidget.swift in Sources */,
+				110000000000000000000934 /* BarWidget.swift in Sources */,
+				110000000000000000000935 /* RingWidget.swift in Sources */,
+				110000000000000000000936 /* GraphWidget.swift in Sources */,
+				110000000000000000000937 /* GlyphWidget.swift in Sources */,
 				110000000000000000000117 /* NotificationManager.swift in Sources */,
 				110000000000000000000121 /* AlertCoordinator.swift in Sources */,
 				110000000000000000000131 /* AppleSMCClient.swift in Sources */,

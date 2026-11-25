@@ -54,7 +54,10 @@ public enum WidgetColorRole: Hashable, Sendable {
 /// Fixed width class per style: the canvas width never depends on the current value.
 /// `worstCase` is the longest string the style can display; the renderer measures it once.
 public enum WidgetWidthClass: String, Hashable, Sendable {
-    case stackedText      // label over value, 32 pt minimum
+    case stackedPercent   // label over value, 32 pt minimum (worst case "100%")
+    case stackedTemperature
+    case stackedRPM
+    case stackedBytes
     case twoLineRate      // 60 pt
     case singleLineRate   // 82 pt
     case twoLineFan       // 36 pt
@@ -71,7 +74,7 @@ public enum WidgetWidthClass: String, Hashable, Sendable {
 
     public var minWidth: Double {
         switch self {
-        case .stackedText: return 32
+        case .stackedPercent, .stackedTemperature, .stackedRPM, .stackedBytes: return 32
         case .twoLineRate: return 60
         case .singleLineRate: return 82
         case .twoLineFan: return 36
@@ -91,7 +94,10 @@ public enum WidgetWidthClass: String, Hashable, Sendable {
     /// Longest value string the style can display, used to size the canvas once.
     public var worstCase: String? {
         switch self {
-        case .stackedText: return "100%"
+        case .stackedPercent: return "100%"
+        case .stackedTemperature: return "212°F"
+        case .stackedRPM: return "9999"
+        case .stackedBytes: return "999G"
         case .thermometer: return "212°F"
         case .twoLinePower: return "100% ⚡"
         case .fanGlyph: return "9999"
@@ -378,7 +384,7 @@ public struct WidgetModel: Hashable, Sendable {
         var m = WidgetModel(
             category: config.category, style: config.style, layout: .labelValue,
             showLabel: config.showLabel, label: nil, texts: [], prefixes: [], fractions: [],
-            flags: [], numbers: [], status: .fine, colorRole: .label, widthClass: .stackedText,
+            flags: [], numbers: [], status: .fine, colorRole: .label, widthClass: .stackedPercent,
             variant: nil, series: nil
         )
         let lbl: (String) -> String? = { config.showLabel ? $0 : nil }
@@ -414,7 +420,7 @@ public struct WidgetModel: Hashable, Sendable {
                 m.layout = (ser.secondary.count == ser.primary.count && ser.tertiary.count == ser.primary.count && ser.primary.count >= 2)
                     ? .cpuSparkline : .sparkline
             default:
-                m.layout = .labelValue; m.widthClass = .stackedText; m.label = "CPU"
+                m.layout = .labelValue; m.label = "CPU"
                 m.texts = [cpu != nil ? String(format: "%.0f%%", usage) : "--%"]
                 if config.style == .text { m.colorRole = statusRole(m.status) }
             }
@@ -474,6 +480,7 @@ public struct WidgetModel: Hashable, Sendable {
             let pct = quantize(thermalPercent(celsius: tempC))
             switch config.style {
             case .text, .cpuTemp, .gpuTemp, .memoryTemp, .storageTemp, .batteryTemp:
+                m.widthClass = .stackedTemperature
                 m.label = title; m.texts = [valStr]; m.colorRole = statusRole(m.status)
                 m.flags = [s.thermal?.pressure == .serious || s.thermal?.pressure == .critical]
             case .sparkline:
@@ -505,6 +512,7 @@ public struct WidgetModel: Hashable, Sendable {
             let pct = quantize(primary.map { fanPercentage(for: $0) } ?? 0.0)
             switch config.style {
             case .text:
+                m.widthClass = .stackedRPM
                 m.label = "FAN"; m.texts = [isFanless ? "—" : (primary != nil ? "\(primary!.rpm)" : "--")]
                 m.colorRole = statusRole(m.status)
             case .throughput:
@@ -512,6 +520,7 @@ public struct WidgetModel: Hashable, Sendable {
                     m.layout = .twoLine; m.widthClass = .twoLineFan; m.colorRole = .category
                     m.prefixes = ["L", "R"]; m.texts = ["\(fans[0].rpm)", "\(fans[1].rpm)"]
                 } else {
+                    m.widthClass = .stackedRPM
                     m.label = "FAN"; m.texts = [isFanless ? "—" : (primary != nil ? "\(primary!.rpm)" : "--")]
                 }
             case .bar:
@@ -582,6 +591,7 @@ public struct WidgetModel: Hashable, Sendable {
                 m.layout = .singleCapsule; m.widthClass = .singleCapsule; m.label = "SSD"; m.colorRole = .category
                 m.fractions = [quantize(volRatio)]
             default:
+                m.widthClass = .stackedBytes
                 m.label = "SSD"
                 m.texts = [vol != nil ? formatCompactBytes(vol!.free, standard: o.byteUnitStandard) : "--G"]
                 if config.style == .text { m.colorRole = statusRole(m.status) }
