@@ -1,6 +1,6 @@
 import Foundation
 
-/// Layout orientation for throughput (dual value) menu bar widgets.
+/// Layout orientation for dual-value (throughput) menu bar widgets.
 public enum ThroughputLayout: String, Codable, CaseIterable, Identifiable, Sendable {
     case stacked
     case singleLine
@@ -16,43 +16,93 @@ public enum ThroughputLayout: String, Codable, CaseIterable, Identifiable, Senda
 }
 
 /// The visual presentation style for an item in the macOS menu bar.
+///
+/// Aligned to the shared six-family vocabulary (ADR 0011):
+/// - `.text` -> **Value**
+/// - `.throughput` -> **Dual**
+/// - `.bar` -> **Bar**
+/// - `.gauge` -> **Ring**
+/// - `.sparkline` -> **Graph**
+/// - `.glyph` -> **Glyph**
+///
+/// Raw values remain `"text"`, `"throughput"`, `"bar"`, `"gauge"`, `"sparkline"`, `"glyph"`
+/// for persisted config compatibility; all legacy raw values (including `"symbol"`, `"tachometer"`,
+/// `"blades"`, and the five legacy per-sensor thermal styles) migrate deterministically on decode.
 public enum MetricDisplayStyle: String, CaseIterable, Identifiable, Codable, Sendable {
     case text
     case throughput
     case bar
     case gauge
     case sparkline
-    case symbol
     case glyph
 
-    // MARK: - Legacy Deprecated Styles (preserved for decode migration)
-    case cpuTemp = "cpuTemp"
-    case gpuTemp = "gpuTemp"
-    case memoryTemp = "memoryTemp"
-    case storageTemp = "storageTemp"
-    case batteryTemp = "batteryTemp"
+    // MARK: - Vocabulary & Compatibility Aliases
+
+    public static let value: MetricDisplayStyle = .text
+    public static let dual: MetricDisplayStyle = .throughput
+    public static let ring: MetricDisplayStyle = .gauge
+    public static let graph: MetricDisplayStyle = .sparkline
+    /// Legacy alias preserved for source compatibility; unified under `.glyph`.
+    public static let symbol: MetricDisplayStyle = .glyph
 
     public var id: String { rawValue }
 
+    /// Shared vocabulary family (ADR 0011).
+    public var widgetFamily: WidgetFamily {
+        switch self {
+        case .text: return .value
+        case .throughput: return .dual
+        case .bar: return .bar
+        case .gauge: return .ring
+        case .sparkline: return .graph
+        case .glyph: return .glyph
+        }
+    }
+
+    /// Canonical shared vocabulary name ("Value", "Dual", "Bar", "Ring", "Graph", "Glyph").
+    public var vocabularyName: String {
+        switch self {
+        case .text: return "Value"
+        case .throughput: return "Dual"
+        case .bar: return "Bar"
+        case .gauge: return "Ring"
+        case .sparkline: return "Graph"
+        case .glyph: return "Glyph"
+        }
+    }
+
     // MARK: - Codable Migration
+
+    /// Migrates a standalone raw style string (including legacy and vocabulary aliases) into a canonical style.
+    public static func migrated(fromRawValue raw: String) -> MetricDisplayStyle? {
+        switch raw {
+        case "text", "value", "cpuTemp", "gpuTemp", "memoryTemp", "storageTemp", "batteryTemp":
+            return .text
+        case "throughput", "dual":
+            return .throughput
+        case "bar":
+            return .bar
+        case "gauge", "ring":
+            return .gauge
+        case "sparkline", "graph":
+            return .sparkline
+        case "glyph", "symbol", "tachometer", "blades":
+            return .glyph
+        default:
+            return MetricDisplayStyle(rawValue: raw)
+        }
+    }
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.singleValueContainer()
         let raw = try container.decode(String.self)
-        switch raw {
-        case "tachometer":
-            self = .glyph
-        case "blades":
-            self = .glyph
-        default:
-            if let matched = MetricDisplayStyle(rawValue: raw) {
-                self = matched
-            } else {
-                throw DecodingError.dataCorruptedError(
-                    in: container,
-                    debugDescription: "Unknown MetricDisplayStyle raw value: \(raw)"
-                )
-            }
+        if let matched = Self.migrated(fromRawValue: raw) {
+            self = matched
+        } else {
+            throw DecodingError.dataCorruptedError(
+                in: container,
+                debugDescription: "Unknown MetricDisplayStyle raw value: \(raw)"
+            )
         }
     }
 
@@ -63,8 +113,8 @@ public enum MetricDisplayStyle: String, CaseIterable, Identifiable, Codable, Sen
 
     // MARK: - Display Names
 
-    /// Category-specific descriptive metric name for preferences and menus.
-    public func displayName(for category: MetricCategory) -> String {
+    /// Category-specific descriptive metric name for preferences, catalog, and menus.
+    public func displayName(for category: MetricCategory, hasBattery: Bool = true) -> String {
         switch (category, self) {
         // CPU (4)
         case (.cpu, .text): return "CPU %"
@@ -77,105 +127,75 @@ public enum MetricDisplayStyle: String, CaseIterable, Identifiable, Codable, Sen
         case (.memory, .gauge): return "Pressure Ring"
         case (.memory, .bar): return "Allocation"
         case (.memory, .sparkline): return "Used % History"
-        case (.memory, .symbol): return "Pressure"
 
         // GPU (4)
         case (.gpu, .text): return "GPU %"
         case (.gpu, .gauge): return "Load Ring"
         case (.gpu, .bar): return "Load Bar"
         case (.gpu, .sparkline): return "Load History"
-        case (.gpu, .symbol): return "GPU Die"
 
         // Thermal (3)
         case (.thermal, .text): return "Temperature"
         case (.thermal, .glyph): return "Thermometer"
         case (.thermal, .sparkline): return "Peak History"
-        case (.thermal, .gauge): return "Temp Ring"
-        case (.thermal, .cpuTemp): return "CPU °C"
-        case (.thermal, .gpuTemp): return "GPU °C"
-        case (.thermal, .memoryTemp): return "Memory °C"
-        case (.thermal, .storageTemp): return "SSD °C"
-        case (.thermal, .batteryTemp): return "Battery °C"
 
-        // Fans (5)
+        // Fans (4)
         case (.fan, .text): return "Fan RPM"
-        case (.fan, .throughput): return "Dual RPM"
         case (.fan, .glyph): return "Fan Glyph"
         case (.fan, .bar): return "Fan Bars"
         case (.fan, .sparkline): return "RPM History"
-        case (.fan, .gauge): return "Tachometer"
-        case (.fan, .symbol): return "Blades"
 
         // Network (3)
         case (.network, .throughput): return "Up / Down"
         case (.network, .sparkline): return "Duplex History"
-        case (.network, .symbol): return "Activity Arrows"
-        case (.network, .bar): return "In / Out Bars"
+        case (.network, .glyph): return "Activity Arrows"
 
         // Disk (5)
         case (.disk, .throughput): return "Read / Write"
         case (.disk, .sparkline): return "I/O History"
-        case (.disk, .symbol): return "R/W LEDs"
+        case (.disk, .glyph): return "R/W LEDs"
         case (.disk, .gauge): return "Storage Ring"
         case (.disk, .text): return "Free Space"
-        case (.disk, .bar): return "Storage Bar"
 
-        // Power (4 battery / 2 desktop)
-        case (.power, .symbol): return "Battery"
-        case (.power, .text): return "Charge + Time"
-        case (.power, .throughput): return "Draw / Adapter W"
+        // Power (3 battery / 2 desktop)
+        case (.power, .glyph): return "Battery"
+        case (.power, .text): return hasBattery ? "Charge + Time" : "Power Draw"
         case (.power, .sparkline): return "Wattage History"
-        case (.power, .gauge): return "Charge Ring"
-        case (.power, .bar): return "Charge Bar"
 
         default:
-            return genericDisplayName
+            return vocabularyName
         }
     }
 
     /// Generic presentation family name.
     public var displayName: String {
-        genericDisplayName
+        vocabularyName
     }
 
-    private var genericDisplayName: String {
-        switch self {
-        case .text: return "Numeric Text"
-        case .throughput: return "Throughput Rates"
-        case .bar: return "Bar Meter"
-        case .gauge: return "Ring Gauge"
-        case .sparkline: return "Sparkline Chart"
-        case .symbol: return "Icon Symbol"
-        case .glyph: return "Glyph Reading"
-        case .cpuTemp: return "CPU Temperature"
-        case .gpuTemp: return "GPU Temperature"
-        case .memoryTemp: return "Memory Temperature"
-        case .storageTemp: return "SSD Temperature"
-        case .batteryTemp: return "Battery Temperature"
-        }
-    }
-
-    /// Supported high-signal styles for a given metric category (32 total across all categories).
+    /// Supported high-signal styles for a given metric category (29 with battery, 28 on desktop).
+    ///
+    /// Overloaded `.throughput` on Fan and Power is removed, Temperature's per-sensor styles
+    /// collapse into `.text` with `source`, and duplicate rings/bars are eliminated.
     public static func supportedStyles(for category: MetricCategory, hasBattery: Bool = true) -> [MetricDisplayStyle] {
         switch category {
         case .cpu:
-            return [.text, .gauge, .bar, .sparkline] // 4
+            return [.text, .gauge, .bar, .sparkline] // 4: Value, Ring, Bar, Graph
         case .memory:
-            return [.text, .gauge, .bar, .sparkline] // 4
+            return [.text, .gauge, .bar, .sparkline] // 4: Value, Ring, Bar, Graph
         case .gpu:
-            return [.text, .gauge, .bar, .sparkline] // 4
+            return [.text, .gauge, .bar, .sparkline] // 4: Value, Ring, Bar, Graph
         case .thermal:
-            return [.text, .glyph, .sparkline] // 3
+            return [.text, .glyph, .sparkline] // 3: Value (with source), Glyph, Graph
         case .fan:
-            return [.text, .throughput, .glyph, .bar, .sparkline] // 5
+            return [.text, .glyph, .bar, .sparkline] // 4: Value, Glyph, Bar, Graph
         case .network:
-            return [.throughput, .sparkline, .symbol] // 3
+            return [.throughput, .sparkline, .glyph] // 3: Dual, Graph, Glyph
         case .disk:
-            return [.throughput, .sparkline, .symbol, .gauge, .text] // 5
+            return [.throughput, .sparkline, .glyph, .gauge, .text] // 5: Dual, Graph, Glyph, Ring, Value
         case .power:
             return hasBattery
-                ? [.symbol, .text, .throughput, .sparkline] // 4
-                : [.throughput, .sparkline] // 2
+                ? [.glyph, .text, .sparkline] // 3: Glyph (Battery), Value (Charge + Time), Graph
+                : [.text, .sparkline] // 2: Value (Power Draw), Graph
         }
     }
 }
@@ -191,7 +211,7 @@ public struct MenuBarItemConfig: Identifiable, Codable, Hashable, Equatable, Sen
     public var popover: PopoverConfig?
     /// Specific hardware subcomponent source for multi-source categories (e.g. Temperature).
     public var source: MetricSource?
-    /// Layout option for throughput widgets.
+    /// Layout option for dual (throughput) widgets.
     public var throughputLayout: ThroughputLayout?
     /// Whether to render a 3-letter vertical label for sparklines and rings.
     public var showLabel: Bool
@@ -219,6 +239,130 @@ public struct MenuBarItemConfig: Identifiable, Codable, Hashable, Equatable, Sen
         self.showLabel = showLabel
     }
 
+    // MARK: - Legacy Raw-Value Migration Map
+
+    /// All legacy raw style values that have existed across prior schemas, used for migration verification.
+    public static let allLegacyStyleRawValues: [String] = [
+        "text", "value",
+        "throughput", "dual",
+        "bar",
+        "gauge", "ring",
+        "sparkline", "graph",
+        "symbol", "glyph",
+        "tachometer", "blades",
+        "cpuTemp", "gpuTemp", "memoryTemp", "storageTemp", "batteryTemp"
+    ]
+
+    /// Deterministic migration map from any legacy raw style string to a valid supported style
+    /// (and optional sensor source) for `category`, so persisted configs are never dropped silently.
+    public static func migratedStyle(
+        for category: MetricCategory,
+        rawStyle: String,
+        source: MetricSource? = nil
+    ) -> (style: MetricDisplayStyle, source: MetricSource?) {
+        // Normalize vocabulary synonyms first.
+        let normalized: String
+        switch rawStyle {
+        case "value": normalized = "text"
+        case "dual": normalized = "throughput"
+        case "ring": normalized = "gauge"
+        case "graph": normalized = "sparkline"
+        default: normalized = rawStyle
+        }
+
+        var targetStyle: MetricDisplayStyle
+        var resolvedSource = source
+
+        switch (category, normalized) {
+        // CPU (supported: .text, .gauge, .bar, .sparkline)
+        case (.cpu, "symbol"), (.cpu, "glyph"), (.cpu, "tachometer"), (.cpu, "blades"):
+            targetStyle = .gauge
+        case (.cpu, "throughput"):
+            targetStyle = .bar
+
+        // Memory (supported: .text, .gauge, .bar, .sparkline)
+        case (.memory, "symbol"), (.memory, "glyph"), (.memory, "tachometer"), (.memory, "blades"):
+            targetStyle = .gauge
+        case (.memory, "throughput"):
+            targetStyle = .bar
+
+        // GPU (supported: .text, .gauge, .bar, .sparkline)
+        case (.gpu, "symbol"), (.gpu, "glyph"), (.gpu, "tachometer"), (.gpu, "blades"):
+            targetStyle = .gauge
+        case (.gpu, "throughput"):
+            targetStyle = .bar
+
+        // Thermal (supported: .text, .glyph, .sparkline)
+        case (.thermal, "cpuTemp"):
+            targetStyle = .text
+            resolvedSource = .cpu
+        case (.thermal, "gpuTemp"):
+            targetStyle = .text
+            resolvedSource = .gpu
+        case (.thermal, "memoryTemp"):
+            targetStyle = .text
+            resolvedSource = .memory
+        case (.thermal, "storageTemp"):
+            targetStyle = .text
+            resolvedSource = .ssd
+        case (.thermal, "batteryTemp"):
+            targetStyle = .text
+            resolvedSource = .battery
+        case (.thermal, "gauge"), (.thermal, "symbol"), (.thermal, "glyph"), (.thermal, "tachometer"), (.thermal, "blades"):
+            targetStyle = .glyph
+            resolvedSource = resolvedSource ?? .peak
+        case (.thermal, "bar"), (.thermal, "throughput"):
+            targetStyle = .text
+            resolvedSource = resolvedSource ?? .peak
+
+        // Fans (supported: .text, .glyph, .bar, .sparkline)
+        case (.fan, "throughput"):
+            // Overloaded .throughput removed from Fan; migrate cleanly to Value (Fan RPM).
+            targetStyle = .text
+        case (.fan, "gauge"), (.fan, "symbol"), (.fan, "tachometer"), (.fan, "blades"), (.fan, "glyph"):
+            targetStyle = .glyph
+
+        // Network (supported: .throughput, .sparkline, .glyph)
+        case (.network, "symbol"), (.network, "glyph"), (.network, "bar"), (.network, "tachometer"), (.network, "blades"):
+            targetStyle = .glyph
+        case (.network, "text"), (.network, "gauge"):
+            targetStyle = .throughput
+
+        // Disk (supported: .throughput, .sparkline, .glyph, .gauge, .text)
+        case (.disk, "symbol"), (.disk, "glyph"), (.disk, "tachometer"), (.disk, "blades"):
+            targetStyle = .glyph
+        case (.disk, "bar"):
+            targetStyle = .text
+
+        // Power (supported: .glyph, .text, .sparkline)
+        case (.power, "symbol"), (.power, "glyph"), (.power, "gauge"), (.power, "bar"), (.power, "tachometer"), (.power, "blades"):
+            targetStyle = .glyph
+        case (.power, "throughput"):
+            // Overloaded .throughput removed from Power; migrate cleanly to Value (Charge + Time / Power Draw).
+            targetStyle = .text
+
+        default:
+            if let direct = MetricDisplayStyle.migrated(fromRawValue: normalized),
+               MetricDisplayStyle.supportedStyles(for: category).contains(direct) {
+                targetStyle = direct
+            } else {
+                targetStyle = MetricDisplayStyle.supportedStyles(for: category).first ?? .text
+            }
+        }
+
+        // Final safety net: guarantee the migrated style is always supported for the category.
+        let supported = MetricDisplayStyle.supportedStyles(for: category)
+        if !supported.contains(targetStyle) {
+            targetStyle = supported.first ?? .text
+        }
+
+        if category == .thermal && (targetStyle == .text || targetStyle == .glyph) {
+            resolvedSource = resolvedSource ?? .peak
+        }
+
+        return (targetStyle, resolvedSource)
+    }
+
     // MARK: - Codable Migration & Compatibility
 
     enum CodingKeys: String, CodingKey {
@@ -238,47 +382,11 @@ public struct MenuBarItemConfig: Identifiable, Codable, Hashable, Equatable, Sen
         self.category = cat
 
         let rawStyle = try container.decode(String.self, forKey: .style)
-        var decodedSource = try container.decodeIfPresent(MetricSource.self, forKey: .source)
+        let decodedSource = try container.decodeIfPresent(MetricSource.self, forKey: .source)
 
-        // Decode-time migration table (plan.md §6)
-        var targetStyle: MetricDisplayStyle
-        switch (cat, rawStyle) {
-        case (.memory, "symbol"):
-            targetStyle = .gauge
-        case (.gpu, "symbol"):
-            targetStyle = .gauge
-        case (.thermal, "cpuTemp"):
-            targetStyle = .text
-            decodedSource = .cpu
-        case (.thermal, "gpuTemp"):
-            targetStyle = .text
-            decodedSource = .gpu
-        case (.thermal, "memoryTemp"):
-            targetStyle = .text
-            decodedSource = .memory
-        case (.thermal, "storageTemp"):
-            targetStyle = .text
-            decodedSource = .ssd
-        case (.thermal, "batteryTemp"):
-            targetStyle = .text
-            decodedSource = .battery
-        case (.thermal, "gauge"):
-            targetStyle = .glyph
-            decodedSource = .peak
-        case (.fan, "gauge"), (.fan, "symbol"), (.fan, "tachometer"), (.fan, "blades"):
-            targetStyle = .glyph
-        case (.network, "bar"):
-            targetStyle = .symbol
-        case (.disk, "bar"):
-            targetStyle = .text
-        case (.power, "gauge"), (.power, "bar"):
-            targetStyle = .symbol
-        default:
-            targetStyle = MetricDisplayStyle(rawValue: rawStyle) ?? .text
-        }
-
-        self.style = targetStyle
-        self.source = decodedSource ?? (cat == .thermal && (targetStyle == .text || targetStyle == .glyph) ? .peak : nil)
+        let migrated = Self.migratedStyle(for: cat, rawStyle: rawStyle, source: decodedSource)
+        self.style = migrated.style
+        self.source = migrated.source
         self.throughputLayout = try container.decodeIfPresent(ThroughputLayout.self, forKey: .throughputLayout)
         self.showLabel = try container.decodeIfPresent(Bool.self, forKey: .showLabel) ?? false
 
@@ -324,7 +432,7 @@ public struct MenuBarItemConfig: Identifiable, Codable, Hashable, Equatable, Sen
         return result
     }
 
-    /// All available standard widget configurations (32 widgets total).
+    /// All available standard widget configurations across all categories.
     public static var allAvailableItems: [MenuBarItemConfig] {
         MetricCategory.allCases.flatMap { category in
             allStyles(for: category)
@@ -338,7 +446,7 @@ public struct MenuBarItemConfig: Identifiable, Codable, Hashable, Equatable, Sen
         }
     }
 
-    /// Sensible default starter widgets for the app.
+    /// Sensible default starter widgets for the app (matches `MenuBarPreset.balanced`).
     public static func defaultConfigs() -> [MenuBarItemConfig] {
         [
             MenuBarItemConfig(category: .cpu, style: .bar),

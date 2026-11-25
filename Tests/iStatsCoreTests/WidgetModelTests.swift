@@ -58,6 +58,51 @@ final class WidgetModelTests: XCTestCase {
         XCTAssertEqual(hot.colorRole, .status(StatusThresholds.cpu(usagePercent: 97)))
     }
 
+    func testAppearanceModesDriveColorRoleAndVisualKey() {
+        let normalSnap = WidgetSnapshot(cpu: cpu(25))
+        let hotSnap = WidgetSnapshot(cpu: cpu(95))
+
+        // Monochrome: always .label (template), even at critical load
+        let monoNormal = make(.cpu, .bar, normalSnap, options: WidgetOptions(appearance: .monochrome))
+        let monoHot = make(.cpu, .bar, hotSnap, options: WidgetOptions(appearance: .monochrome))
+        XCTAssertEqual(monoNormal.colorRole, .label)
+        XCTAssertEqual(monoHot.colorRole, .label)
+        XCTAssertTrue(monoNormal.prefersTemplate)
+        XCTAssertTrue(monoHot.prefersTemplate)
+
+        // Status tint (default): .label when fine/elevated, .status when warning/critical
+        let tintNormal = make(.cpu, .bar, normalSnap, options: WidgetOptions(appearance: .statusTint))
+        let tintHot = make(.cpu, .bar, hotSnap, options: WidgetOptions(appearance: .statusTint))
+        XCTAssertEqual(tintNormal.colorRole, .label)
+        XCTAssertTrue(tintNormal.prefersTemplate)
+        XCTAssertEqual(tintHot.colorRole, .status(.critical))
+        XCTAssertFalse(tintHot.prefersTemplate)
+
+        // Category color: .category accent when normal, .status when critical
+        let catNormal = make(.cpu, .bar, normalSnap, options: WidgetOptions(appearance: .categoryColor))
+        let catHot = make(.cpu, .bar, hotSnap, options: WidgetOptions(appearance: .categoryColor))
+        XCTAssertEqual(catNormal.colorRole, .category)
+        XCTAssertFalse(catNormal.prefersTemplate)
+        XCTAssertEqual(catHot.colorRole, .status(.critical))
+
+        // All three appearance modes produce distinct visual keys
+        XCTAssertEqual(Set([monoNormal.visualKey, tintNormal.visualKey, catNormal.visualKey]).count, 3)
+        XCTAssertEqual(Set([monoHot.visualKey, tintHot.visualKey, catHot.visualKey]).count, 3)
+    }
+
+    func testPowerDesktopValueAndBatteryStatus() {
+        let desktop = PowerSample(hasBattery: false, powerDrawWatts: 42.0)
+        let desktopModel = make(.power, .text, WidgetSnapshot(power: desktop))
+        XCTAssertEqual(desktopModel.layout, .labelValue)
+        XCTAssertEqual(desktopModel.label, "PWR")
+        XCTAssertEqual(desktopModel.texts, ["42W"])
+
+        let lowBat = PowerSample(hasBattery: true, charge: 8.0, state: .discharging)
+        let lowModel = make(.power, .glyph, WidgetSnapshot(power: lowBat), options: WidgetOptions(appearance: .statusTint))
+        XCTAssertEqual(lowModel.status, .critical)
+        XCTAssertEqual(lowModel.colorRole, .status(.critical))
+    }
+
     func testWidthClassIsIndependentOfValue() {
         let a = make(.thermal, .glyph, WidgetSnapshot(thermal: ThermalSample(sensors: [SensorReading(name: "CPU die", celsius: 35)])))
         let b = make(.thermal, .glyph, WidgetSnapshot(thermal: ThermalSample(sensors: [SensorReading(name: "CPU die", celsius: 105)])))

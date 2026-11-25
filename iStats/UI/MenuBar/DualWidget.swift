@@ -194,34 +194,57 @@ struct DualWidget: WidgetRenderer {
     static func draw(_ model: WidgetModel) -> NSImage {
         switch model.layout {
         case .singleLine:
-            let second: NSColor = model.category == .network
-                ? NSColor(CategoryPalette.Series.networkUpload)
-                : NSColor(CategoryPalette.Series.diskWrite)
+            let color1: NSColor?
+            let color2: NSColor?
+            switch model.colorRole {
+            case .label:
+                color1 = nil
+                color2 = nil
+            case .status(let level):
+                let statusColor = CategoryPalette.statusNSColor(for: level)
+                color1 = statusColor
+                color2 = statusColor
+            case .category:
+                color1 = CategoryPalette.nsColor(for: model.category)
+                color2 = model.category == .network
+                    ? NSColor(CategoryPalette.Series.networkUpload)
+                    : NSColor(CategoryPalette.Series.diskWrite)
+            }
             return MenuBarIconRenderer.drawSingleLineThroughput(
                 prefix1: model.prefixes[0],
                 value1: model.texts[0],
                 prefix2: model.prefixes[1],
                 value2: model.texts[1],
                 fixedWidth: WidgetMetrics.width(model.widthClass),
-                color1: CategoryPalette.nsColor(for: model.category),
-                color2: second,
+                color1: color1,
+                color2: color2,
                 useInternalCache: false
             )
 
         case .dualCapsule:
-            let left: NSColor
-            let right: NSColor
-            switch model.category {
-            case .fan:
-                left = CategoryPalette.nsColor(for: .fan)
-                right = CategoryPalette.nsDeep(for: .fan)
-            default:
-                if model.flags.first == true {
-                    left = NSColor(CategoryPalette.Series.cpuEfficiency)
-                    right = CategoryPalette.nsColor(for: .cpu)
-                } else {
-                    left = CategoryPalette.nsColor(for: .cpu)
-                    right = NSColor(CategoryPalette.Series.cpuSystem)
+            let left: NSColor?
+            let right: NSColor?
+            switch model.colorRole {
+            case .label:
+                left = nil
+                right = nil
+            case .status(let level):
+                let statusColor = CategoryPalette.statusNSColor(for: level)
+                left = statusColor
+                right = statusColor.withAlphaComponent(0.75)
+            case .category:
+                switch model.category {
+                case .fan:
+                    left = CategoryPalette.nsColor(for: .fan)
+                    right = CategoryPalette.nsDeep(for: .fan)
+                default:
+                    if model.flags.first == true {
+                        left = NSColor(CategoryPalette.Series.cpuEfficiency)
+                        right = CategoryPalette.nsColor(for: .cpu)
+                    } else {
+                        left = CategoryPalette.nsColor(for: .cpu)
+                        right = NSColor(CategoryPalette.Series.cpuSystem)
+                    }
                 }
             }
             return MenuBarIconRenderer.drawDualCapsuleBar(
@@ -233,18 +256,33 @@ struct DualWidget: WidgetRenderer {
             )
 
         default:
-            var c1: NSColor?
-            var c2: NSColor?
-            if model.colorRole == .category {
-                if model.category == .fan {
+            let c1: NSColor?
+            let c2: NSColor?
+            switch model.colorRole {
+            case .label:
+                c1 = nil
+                c2 = nil
+            case .status(let level):
+                let statusColor = CategoryPalette.statusNSColor(for: level)
+                c1 = statusColor
+                c2 = statusColor
+            case .category:
+                switch model.category {
+                case .network:
+                    c1 = NSColor(CategoryPalette.Series.networkUpload)
+                    c2 = CategoryPalette.nsColor(for: .network)
+                case .disk:
+                    c1 = CategoryPalette.nsColor(for: .disk)
+                    c2 = NSColor(CategoryPalette.Series.diskWrite)
+                case .fan:
                     c1 = CategoryPalette.nsColor(for: .fan)
                     c2 = CategoryPalette.nsDeep(for: .fan)
-                } else {
+                default:
                     c1 = CategoryPalette.nsColor(for: model.category)
                     c2 = .secondaryLabelColor
                 }
             }
-            let fanColors = model.category == .fan
+            let tintPrefixes = (c1 != nil && (model.category == .fan || model.category == .network || model.category == .disk))
             return MenuBarIconRenderer.drawStackedTwoLineText(
                 prefix1: model.prefixes[0],
                 value1: model.texts[0],
@@ -253,8 +291,8 @@ struct DualWidget: WidgetRenderer {
                 minWidth: WidgetMetrics.width(model.widthClass),
                 color1: c1,
                 color2: c2,
-                prefixColor1: fanColors ? c1 : nil,
-                prefixColor2: fanColors ? c2 : nil
+                prefixColor1: tintPrefixes ? c1 : nil,
+                prefixColor2: tintPrefixes ? c2 : nil
             )
         }
     }

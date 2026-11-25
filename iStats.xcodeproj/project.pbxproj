@@ -104,6 +104,9 @@
 		110000000000000000000935 /* RingWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000915 /* RingWidget.swift */; };
 		110000000000000000000936 /* GraphWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000916 /* GraphWidget.swift */; };
 		110000000000000000000937 /* GlyphWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000917 /* GlyphWidget.swift */; };
+		980000000000000000000002 /* WidgetPreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = 980000000000000000000001 /* WidgetPreview.swift */; };
+		980000000000000000000004 /* WidgetCatalogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 980000000000000000000003 /* WidgetCatalogView.swift */; };
+		980000000000000000000006 /* WidgetPreviewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 980000000000000000000005 /* WidgetPreviewTests.swift */; };
 		1100000000000000000000F1 /* MenuBarIconRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000000F0 /* MenuBarIconRenderer.swift */; };
 		110000000000000000000045 /* iStatsCore in Frameworks */ = {isa = PBXBuildFile; productRef = 110000000000000000000005 /* iStatsCore */; };
 		110000000000000000000117 /* NotificationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000116 /* NotificationManager.swift */; };
@@ -240,6 +243,9 @@
 		110000000000000000000915 /* RingWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RingWidget.swift; sourceTree = "<group>"; };
 		110000000000000000000916 /* GraphWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GraphWidget.swift; sourceTree = "<group>"; };
 		110000000000000000000917 /* GlyphWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlyphWidget.swift; sourceTree = "<group>"; };
+		980000000000000000000001 /* WidgetPreview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetPreview.swift; sourceTree = "<group>"; };
+		980000000000000000000003 /* WidgetCatalogView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Settings/WidgetCatalogView.swift; sourceTree = "<group>"; };
+		980000000000000000000005 /* WidgetPreviewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetPreviewTests.swift; sourceTree = "<group>"; };
 		1100000000000000000000F0 /* MenuBarIconRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarIconRenderer.swift; sourceTree = "<group>"; };
 		110000000000000000000116 /* NotificationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationManager.swift; sourceTree = "<group>"; };
 		110000000000000000000118 /* NotificationManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationManagerTests.swift; sourceTree = "<group>"; };
@@ -396,6 +402,7 @@
 				110000000000000000000222 /* FilterChip.swift */,
 				1100000000000000000000F0 /* MenuBarIconRenderer.swift */,
 				110000000000000000000950 /* MenuBar */,
+				980000000000000000000003 /* WidgetCatalogView.swift */,
 			);
 			path = UI;
 			sourceTree = "<group>";
@@ -411,6 +418,7 @@
 				110000000000000000000915 /* RingWidget.swift */,
 				110000000000000000000916 /* GraphWidget.swift */,
 				110000000000000000000917 /* GlyphWidget.swift */,
+				980000000000000000000001 /* WidgetPreview.swift */,
 			);
 			path = MenuBar;
 			sourceTree = "<group>";
@@ -472,6 +480,7 @@
 				110000000000000000000ff1 /* PanelContentPassATests.swift */,
 				110000000000000000000224 /* InstrumentKitTests.swift */,
 				110000000000000000000234 /* ConnectionStatusTests.swift */,
+				980000000000000000000005 /* WidgetPreviewTests.swift */,
 			);
 			path = iStatsTests;
 			sourceTree = "<group>";
@@ -665,6 +674,8 @@
 				110000000000000000000935 /* RingWidget.swift in Sources */,
 				110000000000000000000936 /* GraphWidget.swift in Sources */,
 				110000000000000000000937 /* GlyphWidget.swift in Sources */,
+				980000000000000000000002 /* WidgetPreview.swift in Sources */,
+				980000000000000000000004 /* WidgetCatalogView.swift in Sources */,
 				110000000000000000000117 /* NotificationManager.swift in Sources */,
 				110000000000000000000121 /* AlertCoordinator.swift in Sources */,
 				110000000000000000000131 /* AppleSMCClient.swift in Sources */,
@@ -713,6 +724,7 @@
 				110000000000000000000ff2 /* PanelContentPassATests.swift in Sources */,
 				110000000000000000000225 /* InstrumentKitTests.swift in Sources */,
 				110000000000000000000235 /* ConnectionStatusTests.swift in Sources */,
+				980000000000000000000006 /* WidgetPreviewTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

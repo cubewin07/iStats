@@ -73,7 +73,9 @@ extension MenuBarIconRenderer {
 struct ValueWidget: WidgetRenderer {
     static func draw(_ model: WidgetModel) -> NSImage {
         let valueColor = WidgetColor.optional(model.colorRole, category: model.category)
-        let dotColor: NSColor? = (model.flags.first == true) ? CategoryPalette.statusNSColor(for: model.status) : nil
+        let dotColor: NSColor? = (model.flags.first == true && !model.prefersTemplate)
+            ? CategoryPalette.statusNSColor(for: model.status)
+            : nil
         return MenuBarIconRenderer.drawCategoryStackedText(
             title: model.label ?? "",
             value: model.texts.first ?? "--",

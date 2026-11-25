@@ -10,7 +10,7 @@ extension MenuBarIconRenderer {
     }
 
     /// Draws a donut gauge (18 pt bare, 32 x 22 with a rotated label); arcs stack clockwise from 12 o'clock.
-    static func drawRing(arcs: [RingArc], label: String?) -> NSImage {
+    static func drawRing(arcs: [RingArc], label: String?, isTemplate: Bool = false) -> NSImage {
         let hasLabel = (label != nil && !label!.isEmpty)
         let size = NSSize(width: hasLabel ? 32.0 : 18.0, height: hasLabel ? 22.0 : 18.0)
 
@@ -29,7 +29,7 @@ extension MenuBarIconRenderer {
 
             let track = NSBezierPath(ovalIn: gaugeBounds.insetBy(dx: 1.8, dy: 1.8))
             track.lineWidth = lineWidth
-            NSColor.secondaryLabelColor.withAlphaComponent(0.20).setStroke()
+            (isTemplate ? NSColor.labelColor.withAlphaComponent(0.20) : NSColor.secondaryLabelColor.withAlphaComponent(0.20)).setStroke()
             track.stroke()
 
             var startAngle: CGFloat = 90.0
@@ -45,7 +45,7 @@ extension MenuBarIconRenderer {
             }
             return true
         }
-        image.isTemplate = false
+        image.isTemplate = isTemplate
         return image
     }
 }
@@ -55,18 +55,35 @@ extension MenuBarIconRenderer {
 struct RingWidget: WidgetRenderer {
     static func draw(_ model: WidgetModel) -> NSImage {
         let f = model.fractions
+        let isTemplate = model.prefersTemplate
         if model.layout == .cpuRing {
+            let userColor: NSColor
+            let sysColor: NSColor
+            switch model.colorRole {
+            case .label:
+                userColor = .labelColor
+                sysColor = NSColor.labelColor.withAlphaComponent(0.50)
+            case .status(let level):
+                let s = CategoryPalette.statusNSColor(for: level)
+                userColor = s
+                sysColor = s.withAlphaComponent(0.60)
+            case .category:
+                userColor = CategoryPalette.nsColor(for: .cpu)
+                sysColor = NSColor(CategoryPalette.Series.cpuSystem).withAlphaComponent(0.70)
+            }
             return MenuBarIconRenderer.drawRing(
                 arcs: [
-                    .init(fraction: f[0], color: CategoryPalette.nsColor(for: .cpu), roundCap: true),
-                    .init(fraction: f[1], color: NSColor(CategoryPalette.Series.cpuSystem).withAlphaComponent(0.70), roundCap: false)
+                    .init(fraction: f[0], color: userColor, roundCap: true),
+                    .init(fraction: f[1], color: sysColor, roundCap: false)
                 ],
-                label: model.label
+                label: model.label,
+                isTemplate: isTemplate
             )
         }
         return MenuBarIconRenderer.drawRing(
             arcs: [.init(fraction: f.first ?? 0, color: WidgetColor.resolve(model.colorRole, category: model.category), roundCap: true)],
-            label: model.label
+            label: model.label,
+            isTemplate: isTemplate
         )
     }
 }

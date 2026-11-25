@@ -219,15 +219,18 @@ public struct WidgetOptions: Sendable, Hashable {
     public var temperatureUnit: Units.TemperatureUnit
     public var networkUnit: Units.NetworkUnit
     public var byteUnitStandard: Units.ByteUnitStandard
+    public var appearance: MenuBarAppearance
 
     public init(
         temperatureUnit: Units.TemperatureUnit = .celsius,
         networkUnit: Units.NetworkUnit = .bytesPerSecond,
-        byteUnitStandard: Units.ByteUnitStandard = .si
+        byteUnitStandard: Units.ByteUnitStandard = .si,
+        appearance: MenuBarAppearance = .statusTint
     ) {
         self.temperatureUnit = temperatureUnit
         self.networkUnit = networkUnit
         self.byteUnitStandard = byteUnitStandard
+        self.appearance = appearance
     }
 }
 
@@ -257,12 +260,18 @@ public struct WidgetModel: Hashable, Sendable {
     public var flags: [Bool]
     public var numbers: [Int]
     public var status: StatusLevel
+    public var appearance: MenuBarAppearance
     public var colorRole: WidgetColorRole
     public var widthClass: WidgetWidthClass
     public var variant: PowerStateVariant?
     public var series: WidgetSeries?
 
     public var family: WidgetFamily { layout.family }
+
+    /// Whether this model should render as a monochrome template image (`NSImage.isTemplate = true`).
+    public var prefersTemplate: Bool {
+        colorRole == .label
+    }
 
     /// Deterministic string form of the model; the dirty-check and cache key.
     public var visualKey: String {
@@ -274,6 +283,7 @@ public struct WidgetModel: Hashable, Sendable {
         parts.append("b=" + flags.map { $0 ? "1" : "0" }.joined())
         parts.append("n=" + numbers.map(String.init).joined(separator: ","))
         parts.append("s=\(status.rawValue)")
+        parts.append("a=\(appearance.rawValue)")
         parts.append("c=\(colorRole.token)")
         parts.append("w=\(widthClass.rawValue)")
         if let variant { parts.append("v=\(variant.rawValue)") }
@@ -328,16 +338,7 @@ public struct WidgetModel: Hashable, Sendable {
         source: MetricSource? = nil,
         thermal: ThermalSample?
     ) -> (sensor: SensorReading?, title: String, componentLabel: String) {
-        let src = source ?? {
-            switch style {
-            case .cpuTemp: return .cpu
-            case .gpuTemp: return .gpu
-            case .memoryTemp: return .memory
-            case .storageTemp: return .ssd
-            case .batteryTemp: return .battery
-            default: return .peak
-            }
-        }()
+        let src = source ?? .peak
         let title = src.shortLabel
         let componentLabel = (src == .peak) ? "Peak" : src.displayName
         let sensor = thermal.flatMap { ThermalSensorClassifier.sensors(in: $0, for: src).max(by: { $0.celsius < $1.celsius }) }
@@ -370,8 +371,19 @@ public struct WidgetModel: Hashable, Sendable {
         return (l1, l2)
     }
 
-    private static func statusRole(_ level: StatusLevel) -> WidgetColorRole {
-        level >= .warning ? .status(level) : .label
+    /// Resolves the semantic color role for a widget according to the active `MenuBarAppearance`.
+    public static func resolvedColorRole(
+        appearance: MenuBarAppearance,
+        status: StatusLevel
+    ) -> WidgetColorRole {
+        switch appearance {
+        case .monochrome:
+            return .label
+        case .statusTint:
+            return status >= .warning ? .status(status) : .label
+        case .categoryColor:
+            return status >= .warning ? .status(status) : .category
+        }
     }
 
     // MARK: Factory
@@ -384,8 +396,8 @@ public struct WidgetModel: Hashable, Sendable {
         var m = WidgetModel(
             category: config.category, style: config.style, layout: .labelValue,
             showLabel: config.showLabel, label: nil, texts: [], prefixes: [], fractions: [],
-            flags: [], numbers: [], status: .fine, colorRole: .label, widthClass: .stackedPercent,
-            variant: nil, series: nil
+            flags: [], numbers: [], status: .fine, appearance: o.appearance, colorRole: .label,
+            widthClass: .stackedPercent, variant: nil, series: nil
         )
         let lbl: (String) -> String? = { config.showLabel ? $0 : nil }
 
@@ -394,13 +406,14 @@ public struct WidgetModel: Hashable, Sendable {
             let cpu = s.cpu
             let usage = cpu?.totalUsage ?? 0.0
             m.status = StatusThresholds.cpu(usagePercent: usage)
+            m.colorRole = resolvedColorRole(appearance: o.appearance, status: m.status)
             switch config.style {
             case .gauge:
-                m.layout = .cpuRing; m.widthClass = .ring; m.label = lbl("CPU"); m.colorRole = .category
+                m.layout = .cpuRing; m.widthClass = .ring; m.label = lbl("CPU")
                 let u = quantize(cpu?.user ?? usage)
                 m.fractions = [u, min(quantize(cpu?.system ?? 0.0), 100 - u)]
             case .bar:
-                m.layout = .dualCapsule; m.widthClass = .dualCapsule; m.label = "CPU"; m.colorRole = .category
+                m.layout = .dualCapsule; m.widthClass = .dualCapsule; m.label = "CPU"
                 var hybrid = false
                 var a = 0.0, b = 0.0
                 if let cores = cpu?.perCore, let e = cpu?.efficiencyCoreCount, let p = cpu?.performanceCoreCount,
@@ -416,22 +429,22 @@ public struct WidgetModel: Hashable, Sendable {
                 m.flags = [hybrid]
             case .sparkline:
                 let ser = s.series
-                m.series = ser; m.widthClass = .graph; m.label = lbl("CPU"); m.colorRole = .category
+                m.series = ser; m.widthClass = .graph; m.label = lbl("CPU")
                 m.layout = (ser.secondary.count == ser.primary.count && ser.tertiary.count == ser.primary.count && ser.primary.count >= 2)
                     ? .cpuSparkline : .sparkline
             default:
                 m.layout = .labelValue; m.label = "CPU"
                 m.texts = [cpu != nil ? String(format: "%.0f%%", usage) : "--%"]
-                if config.style == .text { m.colorRole = statusRole(m.status) }
             }
 
         case .memory:
             let mem = s.memory
             let ratio = (mem != nil && mem!.total > 0) ? Double(mem!.used) / Double(mem!.total) * 100.0 : 0.0
             m.status = StatusThresholds.memory(pressure: mem?.pressure ?? .normal, swapUsedBytes: mem?.swapUsed ?? 0)
+            m.colorRole = resolvedColorRole(appearance: o.appearance, status: m.status)
             switch config.style {
-            case .gauge, .symbol:
-                m.layout = .ring; m.widthClass = .ring; m.label = lbl("MEM"); m.colorRole = .status(m.status)
+            case .gauge, .glyph:
+                m.layout = .ring; m.widthClass = .ring; m.label = lbl("MEM")
                 m.fractions = [quantize(ratio)]
             case .bar:
                 m.layout = .memoryAllocation; m.widthClass = .singleCapsule; m.label = "RAM"
@@ -444,31 +457,27 @@ public struct WidgetModel: Hashable, Sendable {
                     m.fractions = [quantize(ratio), 0, 0, 0]
                     m.flags = [false]
                 }
-                m.colorRole = .status(.fine)
             case .sparkline:
                 m.layout = .sparkline; m.widthClass = .graph; m.label = lbl("MEM"); m.series = s.series
-                m.colorRole = .status(m.status)
             default:
                 m.label = "MEM"; m.texts = [mem != nil ? String(format: "%.0f%%", ratio) : "--%"]
-                if config.style == .text { m.colorRole = statusRole(m.status) }
             }
 
         case .gpu:
             let gpu = s.gpu
             let util = gpu?.utilization ?? 0.0
             m.status = StatusThresholds.gpu(utilizationPercent: util)
+            m.colorRole = resolvedColorRole(appearance: o.appearance, status: m.status)
             switch config.style {
-            case .gauge, .symbol:
+            case .gauge, .glyph:
                 m.layout = .ring; m.widthClass = .ring; m.label = lbl("GPU"); m.fractions = [quantize(util)]
-                m.colorRole = m.status >= .warning ? .status(m.status) : .category
             case .bar:
-                m.layout = .singleCapsule; m.widthClass = .singleCapsule; m.label = "GPU"; m.colorRole = .category
+                m.layout = .singleCapsule; m.widthClass = .singleCapsule; m.label = "GPU"
                 m.fractions = [quantize(util)]
             case .sparkline:
-                m.layout = .sparkline; m.widthClass = .graph; m.label = lbl("GPU"); m.colorRole = .category; m.series = s.series
+                m.layout = .sparkline; m.widthClass = .graph; m.label = lbl("GPU"); m.series = s.series
             default:
                 m.label = "GPU"; m.texts = [gpu?.utilization != nil ? String(format: "%.0f%%", util) : "--%"]
-                if config.style == .text { m.colorRole = statusRole(m.status) }
             }
 
         case .thermal:
@@ -479,24 +488,27 @@ public struct WidgetModel: Hashable, Sendable {
             let valStr = sensor != nil ? Units.formatTemperature(tempC, unit: o.temperatureUnit, fractionDigits: 0) : "--°"
             let pct = quantize(thermalPercent(celsius: tempC))
             switch config.style {
-            case .text, .cpuTemp, .gpuTemp, .memoryTemp, .storageTemp, .batteryTemp:
+            case .text:
                 m.widthClass = .stackedTemperature
-                m.label = title; m.texts = [valStr]; m.colorRole = statusRole(m.status)
-                m.flags = [s.thermal?.pressure == .serious || s.thermal?.pressure == .critical]
+                m.label = title; m.texts = [valStr]
+                m.colorRole = resolvedColorRole(appearance: o.appearance, status: m.status)
+                m.flags = [o.appearance != .monochrome && (s.thermal?.pressure == .serious || s.thermal?.pressure == .critical)]
             case .sparkline:
                 m.layout = .sparkline; m.widthClass = .graph; m.label = lbl(title); m.series = s.series
-                let latest = s.series.primary.last ?? 50.0
-                m.colorRole = .status(StatusThresholds.temperature(celsius: latest, source: .peak))
+                if let latest = s.series.primary.last {
+                    m.status = StatusThresholds.temperature(celsius: latest, source: source)
+                }
+                m.colorRole = resolvedColorRole(appearance: o.appearance, status: m.status)
             case .gauge:
                 m.layout = .ring; m.widthClass = .ring; m.label = lbl(title); m.fractions = [pct]
-                m.colorRole = .status(m.status)
+                m.colorRole = resolvedColorRole(appearance: o.appearance, status: m.status)
             case .bar:
                 m.layout = .singleCapsule; m.widthClass = .singleCapsule; m.label = "TMP"; m.fractions = [pct]
-                m.colorRole = .status(m.status)
+                m.colorRole = resolvedColorRole(appearance: o.appearance, status: m.status)
             default:
                 m.layout = .thermometer; m.widthClass = .thermometer; m.texts = [valStr]
                 m.fractions = [pct]; m.flags = [sensor != nil]
-                m.colorRole = m.status >= .warning ? .status(m.status) : .category
+                m.colorRole = resolvedColorRole(appearance: o.appearance, status: m.status)
             }
 
         case .fan:
@@ -509,22 +521,21 @@ public struct WidgetModel: Hashable, Sendable {
                 minRPM: Double(primary?.minRPM ?? 0),
                 maxRPM: Double(primary?.maxRPM ?? Int(FanMath.fallbackMaxRPM))
             )
+            m.colorRole = resolvedColorRole(appearance: o.appearance, status: m.status)
             let pct = quantize(primary.map { fanPercentage(for: $0) } ?? 0.0)
             switch config.style {
             case .text:
                 m.widthClass = .stackedRPM
                 m.label = "FAN"; m.texts = [isFanless ? "—" : (primary != nil ? "\(primary!.rpm)" : "--")]
-                m.colorRole = statusRole(m.status)
             case .throughput:
                 if !isFanless && fans.count >= 2 {
-                    m.layout = .twoLine; m.widthClass = .twoLineFan; m.colorRole = .category
+                    m.layout = .twoLine; m.widthClass = .twoLineFan
                     m.prefixes = ["L", "R"]; m.texts = ["\(fans[0].rpm)", "\(fans[1].rpm)"]
                 } else {
                     m.widthClass = .stackedRPM
                     m.label = "FAN"; m.texts = [isFanless ? "—" : (primary != nil ? "\(primary!.rpm)" : "--")]
                 }
             case .bar:
-                m.colorRole = .category
                 if fans.count >= 2 {
                     m.layout = .dualCapsule; m.widthClass = .dualCapsule; m.label = "FAN"
                     m.fractions = [quantize(fanPercentage(for: fans[0])), quantize(fanPercentage(for: fans[1]))]
@@ -532,34 +543,34 @@ public struct WidgetModel: Hashable, Sendable {
                     m.layout = .singleCapsule; m.widthClass = .singleCapsule; m.label = "FAN"; m.fractions = [pct]
                 }
             case .sparkline:
-                m.layout = .sparkline; m.widthClass = .graph; m.label = lbl("FAN"); m.colorRole = .category; m.series = s.series
-            case .gauge, .symbol:
-                m.layout = .ring; m.widthClass = .ring; m.label = lbl("FAN"); m.fractions = [pct]; m.colorRole = .category
+                m.layout = .sparkline; m.widthClass = .graph; m.label = lbl("FAN"); m.series = s.series
+            case .gauge:
+                m.layout = .ring; m.widthClass = .ring; m.label = lbl("FAN"); m.fractions = [pct]
             default:
                 m.layout = .fanGlyph; m.widthClass = .fanGlyph
                 m.texts = [isFanless ? "—" : (primary != nil ? "\(primary!.rpm)" : "--")]
                 m.flags = [isFanless]
-                m.colorRole = .status(m.status)
             }
 
         case .network:
             let inB = s.network?.totalBytesInPerSec ?? 0.0
             let outB = s.network?.totalBytesOutPerSec ?? 0.0
+            m.colorRole = resolvedColorRole(appearance: o.appearance, status: m.status)
             switch config.style {
             case .throughput:
                 let i = Units.formatCompactRate(inB, unit: o.networkUnit, standard: o.byteUnitStandard)
                 let u = Units.formatCompactRate(outB, unit: o.networkUnit, standard: o.byteUnitStandard)
                 if config.throughputLayout == .singleLine {
-                    m.layout = .singleLine; m.widthClass = .singleLineRate; m.colorRole = .category
+                    m.layout = .singleLine; m.widthClass = .singleLineRate
                     m.prefixes = ["↓", "↑"]; m.texts = [i, u]
                 } else {
                     m.layout = .twoLine; m.widthClass = .twoLineRate
                     m.prefixes = ["↑", "↓"]; m.texts = [u, i]
                 }
             case .sparkline:
-                m.layout = .duplexGraph; m.widthClass = .graph; m.label = lbl("NET"); m.series = s.series; m.colorRole = .category
+                m.layout = .duplexGraph; m.widthClass = .graph; m.label = lbl("NET"); m.series = s.series
             default:
-                m.layout = .arrows; m.widthClass = .arrows; m.colorRole = .category
+                m.layout = .arrows; m.widthClass = .arrows
                 m.flags = [inB > networkActivityThreshold, outB > networkActivityThreshold]
             }
 
@@ -569,52 +580,76 @@ public struct WidgetModel: Hashable, Sendable {
             let vol = s.disk?.volumes.first(where: { $0.mountPoint == "/" }) ?? s.disk?.volumes.first
             let volRatio = (vol != nil && vol!.total > 0) ? Double(vol!.used) / Double(vol!.total) * 100.0 : 0.0
             m.status = StatusThresholds.disk(usedPercent: volRatio)
+            m.colorRole = resolvedColorRole(appearance: o.appearance, status: m.status)
             switch config.style {
             case .throughput:
                 let rs = Units.formatCompactRate(r, unit: .bytesPerSecond, standard: o.byteUnitStandard)
                 let ws = Units.formatCompactRate(w, unit: .bytesPerSecond, standard: o.byteUnitStandard)
                 m.prefixes = ["R", "W"]; m.texts = [rs, ws]
                 if config.throughputLayout == .singleLine {
-                    m.layout = .singleLine; m.widthClass = .singleLineRate; m.colorRole = .category
+                    m.layout = .singleLine; m.widthClass = .singleLineRate
                 } else {
                     m.layout = .twoLine; m.widthClass = .twoLineRate
                 }
-            case .symbol:
-                m.layout = .leds; m.widthClass = .leds; m.colorRole = .category
+            case .glyph:
+                m.layout = .leds; m.widthClass = .leds
                 m.flags = [r > diskActivityThreshold, w > diskActivityThreshold]
             case .gauge:
                 m.layout = .ring; m.widthClass = .ring; m.label = lbl("SSD"); m.fractions = [quantize(volRatio)]
-                m.colorRole = m.status >= .warning ? .status(m.status) : .category
             case .sparkline:
-                m.layout = .duplexGraph; m.widthClass = .graph; m.label = lbl("SSD"); m.series = s.series; m.colorRole = .category
+                m.layout = .duplexGraph; m.widthClass = .graph; m.label = lbl("SSD"); m.series = s.series
             case .bar:
-                m.layout = .singleCapsule; m.widthClass = .singleCapsule; m.label = "SSD"; m.colorRole = .category
+                m.layout = .singleCapsule; m.widthClass = .singleCapsule; m.label = "SSD"
                 m.fractions = [quantize(volRatio)]
             default:
                 m.widthClass = .stackedBytes
                 m.label = "SSD"
                 m.texts = [vol != nil ? formatCompactBytes(vol!.free, standard: o.byteUnitStandard) : "--G"]
-                if config.style == .text { m.colorRole = statusRole(m.status) }
             }
 
         case .power:
             let p = s.power
             let variant = p?.variant ?? .unavailable
             m.variant = variant
+            if let p, p.hasBattery {
+                let deficit: Double?
+                if let draw = p.powerDrawWatts, let adapter = p.adapterWatts, adapter > 0, draw > adapter {
+                    deficit = draw - adapter
+                } else {
+                    deficit = nil
+                }
+                if let charge = p.charge {
+                    m.status = StatusThresholds.battery(
+                        chargePercent: charge,
+                        isCharging: p.state == .charging || p.state == .charged || p.state == .acConnected,
+                        powerDeficitWatts: deficit
+                    )
+                } else if variant == .powerDeficit {
+                    m.status = .warning
+                } else if variant == .lowBattery {
+                    m.status = .critical
+                }
+            }
+            m.colorRole = resolvedColorRole(appearance: o.appearance, status: m.status)
             switch config.style {
             case .text:
-                let lines = powerStackedTextLines(charge: p?.charge, state: p?.state, timeRemaining: p?.timeRemaining, watts: p?.powerDrawWatts)
-                m.layout = .twoLine; m.widthClass = .twoLinePower
-                m.prefixes = ["", ""]; m.texts = [lines.line1, lines.line2]
+                if p?.hasBattery == false {
+                    m.layout = .labelValue; m.widthClass = .stackedPercent; m.label = "PWR"
+                    m.texts = [p?.powerDrawWatts.map { String(format: "%.0fW", $0) } ?? "--W"]
+                } else {
+                    let lines = powerStackedTextLines(charge: p?.charge, state: p?.state, timeRemaining: p?.timeRemaining, watts: p?.powerDrawWatts)
+                    m.layout = .twoLine; m.widthClass = .twoLinePower
+                    m.prefixes = ["", ""]; m.texts = [lines.line1, lines.line2]
+                }
             case .throughput:
-                m.layout = .twoLine; m.widthClass = .twoLinePower; m.colorRole = .category
+                m.layout = .twoLine; m.widthClass = .twoLinePower
                 m.prefixes = ["", ""]
                 m.texts = [
                     p?.powerDrawWatts.map { String(format: "%.0fW", $0) } ?? "--W",
                     p?.adapterWatts.map { String(format: "%.0fW", $0) } ?? "AC"
                 ]
             case .sparkline:
-                m.layout = .sparkline; m.widthClass = .graph; m.label = lbl("PWR"); m.colorRole = .category; m.series = s.series
+                m.layout = .sparkline; m.widthClass = .graph; m.label = lbl("PWR"); m.series = s.series
             default:
                 m.layout = .battery; m.widthClass = .battery
                 m.fractions = [quantize(p?.charge ?? 0.0)]

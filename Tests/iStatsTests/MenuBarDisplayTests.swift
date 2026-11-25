@@ -8,8 +8,17 @@ import SwiftUI
 final class MenuBarDisplayTests: XCTestCase {
     // MARK: - ADR 0007 Modular Rendering & Controller Lifecycle Tests
 
-    private func widgetImage(_ category: MetricCategory, _ style: MetricDisplayStyle, _ snapshot: WidgetSnapshot = WidgetSnapshot()) -> NSImage {
-        let model = WidgetModel.make(config: MenuBarItemConfig(category: category, style: style), snapshot: snapshot, options: WidgetOptions())
+    private func widgetImage(
+        _ category: MetricCategory,
+        _ style: MetricDisplayStyle,
+        _ snapshot: WidgetSnapshot = WidgetSnapshot(),
+        appearance: MenuBarAppearance = .statusTint
+    ) -> NSImage {
+        let model = WidgetModel.make(
+            config: MenuBarItemConfig(category: category, style: style),
+            snapshot: snapshot,
+            options: WidgetOptions(appearance: appearance)
+        )
         return MenuBarIconRenderer.image(for: model)
     }
 
@@ -328,9 +337,13 @@ final class MenuBarDisplayTests: XCTestCase {
             disk: DiskSample(volumes: [VolumeCapacity(name: "HD", mountPoint: "/", total: 100, used: 72, free: 28)])
         )
         for category in [MetricCategory.memory, .gpu, .thermal, .fan, .disk] {
-            let bar = widgetImage(category, .bar, snap)
-            XCTAssertEqual(bar.size, NSSize(width: 25, height: 22), "\(category)")
-            XCTAssertFalse(bar.isTemplate, "\(category)")
+            let tintBar = widgetImage(category, .bar, snap, appearance: .statusTint)
+            XCTAssertEqual(tintBar.size, NSSize(width: 25, height: 22), "\(category)")
+            XCTAssertTrue(tintBar.isTemplate, "\(category) normal bar stays template under statusTint")
+
+            let colorBar = widgetImage(category, .bar, snap, appearance: .categoryColor)
+            XCTAssertEqual(colorBar.size, NSSize(width: 25, height: 22), "\(category)")
+            XCTAssertFalse(colorBar.isTemplate, "\(category) bar is colored under categoryColor")
         }
     }
 
@@ -435,31 +448,31 @@ final class MenuBarDisplayTests: XCTestCase {
         coord.handleReading(.thermal(Sample(value: thermalSample)))
 
         // 1. CPU Temp
-        let cpuRes = MenuBarIconRenderer.render(config: MenuBarItemConfig(category: .thermal, style: .cpuTemp), coordinator: coord, preferences: prefs)
+        let cpuRes = MenuBarIconRenderer.render(config: MenuBarItemConfig(category: .thermal, style: .text, source: .cpu), coordinator: coord, preferences: prefs)
         XCTAssertNotNil(cpuRes.image)
         XCTAssertTrue(cpuRes.toolTip.contains("52.0 °C") && cpuRes.toolTip.contains("CPU Package"))
         XCTAssertEqual(cpuRes.accessibilityLabel, "CPU temperature 52 °C")
 
         // 2. GPU Temp
-        let gpuRes = MenuBarIconRenderer.render(config: MenuBarItemConfig(category: .thermal, style: .gpuTemp), coordinator: coord, preferences: prefs)
+        let gpuRes = MenuBarIconRenderer.render(config: MenuBarItemConfig(category: .thermal, style: .text, source: .gpu), coordinator: coord, preferences: prefs)
         XCTAssertNotNil(gpuRes.image)
         XCTAssertTrue(gpuRes.toolTip.contains("65.0 °C") && gpuRes.toolTip.contains("GPU Cluster 1"))
         XCTAssertEqual(gpuRes.accessibilityLabel, "GPU temperature 65 °C")
 
         // 3. Memory Temp
-        let memRes = MenuBarIconRenderer.render(config: MenuBarItemConfig(category: .thermal, style: .memoryTemp), coordinator: coord, preferences: prefs)
+        let memRes = MenuBarIconRenderer.render(config: MenuBarItemConfig(category: .thermal, style: .text, source: .memory), coordinator: coord, preferences: prefs)
         XCTAssertNotNil(memRes.image)
         XCTAssertTrue(memRes.toolTip.contains("48.0 °C") && memRes.toolTip.contains("Memory Module A"))
         XCTAssertEqual(memRes.accessibilityLabel, "Memory temperature 48 °C")
 
         // 4. Storage Temp
-        let ssdRes = MenuBarIconRenderer.render(config: MenuBarItemConfig(category: .thermal, style: .storageTemp), coordinator: coord, preferences: prefs)
+        let ssdRes = MenuBarIconRenderer.render(config: MenuBarItemConfig(category: .thermal, style: .text, source: .ssd), coordinator: coord, preferences: prefs)
         XCTAssertNotNil(ssdRes.image)
         XCTAssertTrue(ssdRes.toolTip.contains("41.0 °C") && ssdRes.toolTip.contains("Storage Flash (NAND)"))
         XCTAssertEqual(ssdRes.accessibilityLabel, "Storage temperature 41 °C")
 
         // 5. Battery Temp
-        let batRes = MenuBarIconRenderer.render(config: MenuBarItemConfig(category: .thermal, style: .batteryTemp), coordinator: coord, preferences: prefs)
+        let batRes = MenuBarIconRenderer.render(config: MenuBarItemConfig(category: .thermal, style: .text, source: .battery), coordinator: coord, preferences: prefs)
         XCTAssertNotNil(batRes.image)
         XCTAssertTrue(batRes.toolTip.contains("33.0 °C") && batRes.toolTip.contains("Battery (Sensor 1)"))
         XCTAssertEqual(batRes.accessibilityLabel, "Battery temperature 33 °C")
@@ -467,7 +480,7 @@ final class MenuBarDisplayTests: XCTestCase {
         // 6. Graceful degradation when sensor missing
         let emptySample = ThermalSample(sensors: [], pressure: .nominal)
         coord.handleReading(.thermal(Sample(value: emptySample)))
-        let emptyRes = MenuBarIconRenderer.render(config: MenuBarItemConfig(category: .thermal, style: .gpuTemp), coordinator: coord, preferences: prefs)
+        let emptyRes = MenuBarIconRenderer.render(config: MenuBarItemConfig(category: .thermal, style: .text, source: .gpu), coordinator: coord, preferences: prefs)
         XCTAssertNotNil(emptyRes.image)
         XCTAssertEqual(emptyRes.toolTip, "GPU Thermal: --")
         XCTAssertEqual(emptyRes.accessibilityLabel, "GPU thermal unavailable")
@@ -502,7 +515,7 @@ final class MenuBarDisplayTests: XCTestCase {
 
     func testDiskLinearCapacityBar() {
         let disk = DiskSample(volumes: [VolumeCapacity(name: "HD", mountPoint: "/", total: 1000, used: 725, free: 275)])
-        let diskBar = widgetImage(.disk, .bar, WidgetSnapshot(disk: disk))
+        let diskBar = widgetImage(.disk, .bar, WidgetSnapshot(disk: disk), appearance: .categoryColor)
         XCTAssertEqual(diskBar.size.width, 25.0)
         XCTAssertEqual(diskBar.size.height, 22.0)
         XCTAssertFalse(diskBar.isTemplate)
