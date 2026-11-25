@@ -219,13 +219,6 @@ extension StatusLevel {
         CategoryPalette.statusColor(for: self)
     }
 
-    /// Semantic SF Symbol name representing this status level.
-    public var iconName: String {
-        switch self {
-        case .fine: return "checkmark.circle.fill"
-        case .elevated: return "info.circle.fill"
-        case .warning: return "exclamationmark.triangle.fill"
-        case .critical: return "exclamationmark.octagon.fill"
-        }
-    }
+    /// Filled status symbol; forwards to the single core mapping.
+    public var iconName: String { symbolNameFilled }
 }

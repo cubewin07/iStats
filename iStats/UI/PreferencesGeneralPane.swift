@@ -169,7 +169,7 @@ public struct PreferencesGeneralPane: View {
             // Temperature Unit
             SettingsRow(
                 leading: {
-                    SettingsBadge(icon: "thermometer.medium", color: .orange)
+                    SettingsBadge(category: .thermal)
                 },
                 title: "Temperature"
             ) {
@@ -186,7 +186,7 @@ public struct PreferencesGeneralPane: View {
             // Network Unit
             SettingsRow(
                 leading: {
-                    SettingsBadge(icon: "network", color: .teal)
+                    SettingsBadge(category: .network)
                 },
                 title: "Network Rate"
             ) {
@@ -203,7 +203,7 @@ public struct PreferencesGeneralPane: View {
             // Data Size Standard
             SettingsRow(
                 leading: {
-                    SettingsBadge(icon: "internaldrive", color: .indigo)
+                    SettingsBadge(category: .disk)
                 },
                 title: "Data Storage Standard",
                 subtitle: "Base 2 (1024 B) or Base 10 (1000 B)"

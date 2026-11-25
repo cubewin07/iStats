@@ -24,7 +24,7 @@ final class MetricCategoryTests: XCTestCase {
         XCTAssertEqual(MetricCategory.gpu.displayName, "GPU")
         XCTAssertEqual(MetricCategory.network.displayName, "Network")
         XCTAssertEqual(MetricCategory.disk.displayName, "Disk")
-        XCTAssertEqual(MetricCategory.power.displayName, "Battery & Power")
+        XCTAssertEqual(MetricCategory.power.displayName, "Battery")
     }
 
     func testCategoryIdentifiable() {
@@ -38,11 +38,11 @@ final class MetricCategoryTests: XCTestCase {
         XCTAssertEqual(MetricCategory.memory.symbolName, "memorychip")
         XCTAssertEqual(MetricCategory.thermal.symbolName, "thermometer.medium")
         XCTAssertEqual(MetricCategory.fan.symbolName, "fan")
-        XCTAssertEqual(MetricCategory.gpu.symbolName, "square.3.layers.3d")
-        XCTAssertEqual(MetricCategory.network.symbolName, "arrow.up.arrow.down")
+        XCTAssertEqual(MetricCategory.gpu.symbolName, "cube.transparent")
+        XCTAssertEqual(MetricCategory.network.symbolName, "network")
         XCTAssertEqual(MetricCategory.disk.symbolName, "internaldrive")
-        XCTAssertEqual(MetricCategory.power.symbolName(hasBattery: true), "battery.100percent.bolt")
-        XCTAssertEqual(MetricCategory.power.symbolName(hasBattery: false), "powerplug.fill")
+        XCTAssertEqual(MetricCategory.power.symbolName(hasBattery: true), "battery.100percent")
+        XCTAssertEqual(MetricCategory.power.symbolName(hasBattery: false), "powerplug")
     }
 
     func testCategoryShortLabels() {

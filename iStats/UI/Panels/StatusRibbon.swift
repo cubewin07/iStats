@@ -94,7 +94,7 @@ public struct StatusRibbon: View {
         let tint = statusColor(for: status)
 
         HStack(spacing: 8) {
-            Image(systemName: iconName(for: status))
+            Image(systemName: status.symbolNameFilled)
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundColor(tint)
 
@@ -143,19 +143,6 @@ public struct StatusRibbon: View {
             insertion: .opacity.combined(with: .move(edge: .top)),
             removal: .opacity.combined(with: .move(edge: .top))
         ))
-    }
-
-    private func iconName(for status: StatusLevel) -> String {
-        switch status {
-        case .fine:
-            return "checkmark.circle"
-        case .elevated:
-            return "info.circle.fill"
-        case .warning:
-            return "exclamationmark.triangle.fill"
-        case .critical:
-            return "exclamationmark.octagon.fill"
-        }
     }
 
     private func statusColor(for status: StatusLevel) -> Color {

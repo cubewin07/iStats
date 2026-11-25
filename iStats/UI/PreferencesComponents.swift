@@ -173,6 +173,15 @@ public struct SettingsBadge: View {
         self.size = size
     }
 
+    /// Category identity badge (symbol and tint from `CategoryIdentity` / `CategoryPalette`).
+    public init(category: MetricCategory, symbol: String? = nil, size: CGFloat = 26) {
+        self.init(
+            icon: symbol ?? category.identity.symbol(),
+            color: CategoryPalette.color(for: category),
+            size: size
+        )
+    }
+
     public var body: some View {
         ZStack {
             RoundedRectangle(cornerRadius: size * 0.26)

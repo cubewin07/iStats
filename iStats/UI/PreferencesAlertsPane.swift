@@ -197,7 +197,7 @@ public struct PreferencesAlertsPane: View {
     private var cpuAlertSection: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 12) {
-                SettingsBadge(icon: "cpu", color: .blue)
+                SettingsBadge(category: .cpu)
 
                 HStack(spacing: 6) {
                     Text("CPU Usage")
@@ -246,7 +246,7 @@ public struct PreferencesAlertsPane: View {
     private var memoryAlertSection: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 12) {
-                SettingsBadge(icon: "memorychip", color: .green)
+                SettingsBadge(category: .memory)
 
                 HStack(spacing: 6) {
                     Text("Memory Pressure")
@@ -304,7 +304,7 @@ public struct PreferencesAlertsPane: View {
     private var thermalAlertSection: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 12) {
-                SettingsBadge(icon: "thermometer.high", color: .orange)
+                SettingsBadge(category: .thermal)
 
                 HStack(spacing: 6) {
                     Text("High Temperature")
@@ -354,7 +354,7 @@ public struct PreferencesAlertsPane: View {
     private var diskAlertSection: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 12) {
-                SettingsBadge(icon: "internaldrive", color: .indigo)
+                SettingsBadge(category: .disk)
 
                 HStack(spacing: 6) {
                     Text("Low Disk Space")
@@ -408,7 +408,7 @@ public struct PreferencesAlertsPane: View {
             // Low Battery Alert
             VStack(alignment: .leading, spacing: 6) {
                 HStack(spacing: 12) {
-                    SettingsBadge(icon: "battery.25", color: .mint)
+                    SettingsBadge(category: .power, symbol: CategoryIdentity(.power).liveSymbol(LiveSymbolState(batteryChargePercent: 25)))
 
                     HStack(spacing: 6) {
                         Text("Low Battery Warning")
@@ -453,7 +453,7 @@ public struct PreferencesAlertsPane: View {
 
             // Fully Charged Alert
             HStack(spacing: 12) {
-                SettingsBadge(icon: "battery.100.bolt", color: .green)
+                SettingsBadge(category: .power, symbol: CategoryIdentity(.power).liveSymbol(LiveSymbolState(batteryChargePercent: 100, isCharging: true)))
 
                 Text("Battery Fully Charged (100%)")
                     .font(.system(size: 12.5, weight: .medium))

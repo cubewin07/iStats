@@ -200,7 +200,7 @@ public struct FanPanel: View {
             }
         } else {
             InsetEmptyState(
-                systemImage: "wind",
+                systemImage: CategoryIdentity(.fan).liveSymbol(LiveSymbolState(isFanless: true)),
                 title: "No Fan Telemetry",
                 reason: "Fan speed readings are currently unavailable."
             )
@@ -285,7 +285,7 @@ public struct FanPanel: View {
             }
         } else {
             InsetEmptyState(
-                systemImage: "wind",
+                systemImage: CategoryIdentity(.fan).liveSymbol(LiveSymbolState(isFanless: true)),
                 title: "No Cooling Hardware Data",
                 reason: "Fan hardware bounds are currently unavailable."
             )
@@ -298,7 +298,7 @@ public struct FanPanel: View {
     private var fanlessModule: some View {
         Section("Cooling Architecture") {
             InsetEmptyState(
-                systemImage: "wind",
+                systemImage: CategoryIdentity(.fan).liveSymbol(LiveSymbolState(isFanless: true)),
                 title: "Fanless by design",
                 reason: "This Mac cools passively. See Temperature for heat."
             ) {
