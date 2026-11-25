@@ -8,10 +8,10 @@ public final class PanelController: NSObject, ObservableObject {
     public static let shared = PanelController()
 
     public private(set) var transientPanel: MetricPanel?
-    public private(set) var pinnedPanels: [MetricCategory: MetricPanel] = [:]
-    @Published public private(set) var pinnedCategories: Set<MetricCategory> = []
+    public private(set) var pinnedPanels: [PanelDestination: MetricPanel] = [:]
+    @Published public private(set) var pinnedDestinations: Set<PanelDestination> = []
     @Published public private(set) var isTransientVisible: Bool = false
-    public private(set) var currentCategory: MetricCategory?
+    public private(set) var currentDestination: PanelDestination?
     public private(set) var currentItemID: String?
     public private(set) var currentButton: NSStatusBarButton?
 
@@ -20,18 +20,26 @@ public final class PanelController: NSObject, ObservableObject {
     public var statusItemHitTest: ((NSPoint) -> Bool)?
     /// Resolves an active status bar button and config ID for a category (used when swapping panels).
     public var statusButtonProvider: ((MetricCategory) -> (button: NSStatusBarButton, itemID: String?)?)?
-    /// Notifies `MenuBarController` when `swapToCategory` anchors the transient panel to another category's status item.
+    /// Notifies `MenuBarController` when `swap(to:)` anchors the transient panel to another category's status item.
     public var onTransientCategorySwapped: ((MetricCategory, NSStatusBarButton) -> Void)?
+    /// Optional view builder injected by `MenuBarController` so destination swaps use its coordinator and preferences.
+    public var destinationViewProvider: ((PanelDestination) -> AnyView)?
+
+    public var currentCategory: MetricCategory? { currentDestination?.category }
+
+    public var pinnedCategories: Set<MetricCategory> {
+        Set(pinnedDestinations.compactMap(\.category))
+    }
 
     public var activePanel: MetricPanel? {
-        transientPanel ?? (currentCategory.flatMap { pinnedPanels[$0] })
+        transientPanel ?? (currentDestination.flatMap { pinnedPanels[$0] })
     }
 
     private var globalMouseMonitor: Any?
     private var localMouseMonitor: Any?
     private var spaceChangeObserver: Any?
     private var resignActiveObserver: Any?
-    private var pinnedMoveObservers: [MetricCategory: Any] = [:]
+    private var pinnedMoveObservers: [PanelDestination: Any] = [:]
 
     private var preferencesStore: PreferencesStore?
     private var transitionGeneration: UInt64 = 0
@@ -57,16 +65,25 @@ public final class PanelController: NSObject, ObservableObject {
         relativeTo button: NSStatusBarButton,
         content: () -> V
     ) {
-        if let pinned = pinnedPanels[category], pinned.isVisible {
+        toggle(destination: .category(category), itemID: itemID, relativeTo: button, content: content)
+    }
+
+    public func toggle<V: View>(
+        destination: PanelDestination,
+        itemID: String? = nil,
+        relativeTo button: NSStatusBarButton,
+        content: () -> V
+    ) {
+        if let pinned = pinnedPanels[destination], pinned.isVisible {
             close()
             pinned.makeKeyAndOrderFront(nil)
             return
         }
 
-        if isTransientPanelOpen(for: category) && (itemID == nil || currentItemID == itemID) {
+        if isTransientPanelOpen(for: destination) && (itemID == nil || currentItemID == itemID) {
             close()
         } else {
-            show(category: category, itemID: itemID, relativeTo: button, content: content)
+            show(destination: destination, itemID: itemID, relativeTo: button, content: content)
         }
     }
 
@@ -76,8 +93,17 @@ public final class PanelController: NSObject, ObservableObject {
         relativeTo button: NSStatusBarButton,
         content: () -> V
     ) {
+        show(destination: .category(category), itemID: itemID, relativeTo: button, content: content)
+    }
+
+    public func show<V: View>(
+        destination: PanelDestination,
+        itemID: String? = nil,
+        relativeTo button: NSStatusBarButton,
+        content: () -> V
+    ) {
         presentTransient(
-            category: category,
+            destination: destination,
             itemID: itemID,
             relativeTo: button,
             anchorFrame: nil,
@@ -86,14 +112,14 @@ public final class PanelController: NSObject, ObservableObject {
     }
 
     private func presentTransient<V: View>(
-        category: MetricCategory,
+        destination: PanelDestination,
         itemID: String?,
         relativeTo button: NSStatusBarButton?,
         anchorFrame: NSRect?,
         content: () -> V
     ) {
-        // B6: Never create a transient panel for a category that already has a visible pinned HUD.
-        if let pinned = pinnedPanels[category], pinned.isVisible {
+        // B6: Never create a transient panel for a destination that already has a visible pinned HUD.
+        if let pinned = pinnedPanels[destination], pinned.isVisible {
             close()
             pinned.makeKeyAndOrderFront(nil)
             return
@@ -101,7 +127,7 @@ public final class PanelController: NSObject, ObservableObject {
 
         transitionGeneration &+= 1
         let wasVisible = transientPanel?.isVisible ?? false
-        let isSwitching = wasVisible && (currentCategory != category)
+        let isSwitching = wasVisible && (currentDestination != destination)
 
         let panel: MetricPanel
         if let existing = transientPanel {
@@ -115,17 +141,18 @@ public final class PanelController: NSObject, ObservableObject {
                 self?.togglePin()
             }
             panel.onContentHeightChanged = { [weak self, weak panel] height in
-                guard let self, let panel, let cat = panel.category else { return }
-                self.setContentHeight(height, forPanel: panel, category: cat, animated: panel.isVisible)
+                guard let self, let panel, let dest = panel.destination else { return }
+                self.setContentHeight(height, forPanel: panel, destination: dest, animated: panel.isVisible)
             }
             transientPanel = panel
         }
 
-        currentCategory = category
+        currentDestination = destination
         currentItemID = itemID
         currentButton = button
+        recordLastDestination(destination)
 
-        panel.category = category
+        panel.destination = destination
         panel.isPinned = false
 
         // Build content once and measure synchronously before ordering front (B5)
@@ -181,7 +208,7 @@ public final class PanelController: NSObject, ObservableObject {
         let closeGen = transitionGeneration
 
         removeDismissalMonitors()
-        currentCategory = nil
+        currentDestination = nil
         currentItemID = nil
         currentButton = nil
         isTransientVisible = false
@@ -191,7 +218,7 @@ public final class PanelController: NSObject, ObservableObject {
             MainActor.assumeIsolated {
                 guard let self = self,
                       self.transitionGeneration == closeGen,
-                      self.currentCategory == nil else {
+                      self.currentDestination == nil else {
                     return
                 }
                 panel?.orderOut(nil)
@@ -215,60 +242,101 @@ public final class PanelController: NSObject, ObservableObject {
     }
 
     public func isTransientPanelOpen(for category: MetricCategory? = nil) -> Bool {
+        isTransientPanelOpen(for: category.map { PanelDestination.category($0) })
+    }
+
+    public func isTransientPanelOpen(for destination: PanelDestination?) -> Bool {
         guard let panel = transientPanel, panel.isVisible else { return false }
-        if let cat = category {
-            return currentCategory == cat
+        if let destination {
+            return currentDestination == destination
         }
         return true
     }
 
     public func isPinned(for category: MetricCategory) -> Bool {
-        pinnedCategories.contains(category) && (pinnedPanels[category]?.isVisible == true)
+        isPinned(for: PanelDestination.category(category))
+    }
+
+    public func isPinned(for destination: PanelDestination) -> Bool {
+        pinnedDestinations.contains(destination) && (pinnedPanels[destination]?.isVisible == true)
     }
 
     public func isPanelOpen(for category: MetricCategory) -> Bool {
-        isTransientPanelOpen(for: category) || isPinned(for: category)
+        isPanelOpen(for: PanelDestination.category(category))
+    }
+
+    public func isPanelOpen(for destination: PanelDestination) -> Bool {
+        isTransientPanelOpen(for: destination) || isPinned(for: destination)
     }
 
     private func syncNetworkForegroundProbing() {
         NetworkConnectivityMonitor.shared.setForegroundProbing(isPanelOpen(for: .network))
     }
 
-    /// Swaps the active open panel to a different category (e.g. from Fanless state to Temperature).
-    public func swapToCategory(_ category: MetricCategory) {
-        if let pinned = pinnedPanels[category], pinned.isVisible {
+    private func recordLastDestination(_ destination: PanelDestination) {
+        // Assigning an unchanged value would still publish and re-render every observing panel.
+        guard let store = preferencesStore, store.lastPanelDestination != destination else { return }
+        store.lastPanelDestination = destination
+    }
+
+    private func makeView(for destination: PanelDestination) -> AnyView {
+        if let provider = destinationViewProvider {
+            return provider(destination)
+        }
+        return AnyView(
+            PanelFactory.makePanelView(
+                destination: destination,
+                coordinator: .shared,
+                preferences: preferencesStore ?? .shared
+            )
+        )
+    }
+
+    /// Swaps the active open panel to a different destination (Overview or any category).
+    public func swap(to destination: PanelDestination, from sourceDestination: PanelDestination? = nil) {
+        if let pinned = pinnedPanels[destination], pinned.isVisible {
             close()
             pinned.makeKeyAndOrderFront(nil)
+            recordLastDestination(destination)
             return
         }
 
-        if let target = statusButtonProvider?(category) {
-            show(category: category, itemID: target.itemID, relativeTo: target.button) {
-                PanelFactory.makeCategoryPanelView(category: category)
+        if case .category(let category) = destination, let target = statusButtonProvider?(category) {
+            show(destination: destination, itemID: target.itemID, relativeTo: target.button) {
+                self.makeView(for: destination)
             }
-            if isTransientPanelOpen(for: category) {
+            if isTransientPanelOpen(for: destination) {
                 onTransientCategorySwapped?(category, target.button)
             }
             return
         }
 
         if let button = currentButton {
-            show(category: category, itemID: nil, relativeTo: button) {
-                PanelFactory.makeCategoryPanelView(category: category)
+            show(destination: destination, itemID: nil, relativeTo: button) {
+                self.makeView(for: destination)
             }
             return
         }
 
-        if let sourcePinned = pinnedPanels[.fan] ?? pinnedPanels.values.first(where: { $0.isVisible }) {
+        let sourcePinned = sourceDestination.flatMap { pinnedPanels[$0] }
+            ?? pinnedPanels[.category(.fan)]
+            ?? pinnedPanels.values.first(where: { $0.isVisible })
+
+        if let sourcePinned {
             presentTransient(
-                category: category,
+                destination: destination,
                 itemID: nil,
                 relativeTo: nil,
                 anchorFrame: sourcePinned.frame
             ) {
-                PanelFactory.makeCategoryPanelView(category: category)
+                self.makeView(for: destination)
             }
         }
+    }
+
+    /// Thin wrapper over `swap(to:)` for existing category-only callers (e.g. Fanless state -> Temperature).
+    public func swapToCategory(_ category: MetricCategory) {
+        swap(to: .category(category))
     }
 
     // MARK: - Menu Tracking (F2)
@@ -280,54 +348,69 @@ public final class PanelController: NSObject, ObservableObject {
         button: NSStatusBarButton,
         content: () -> V
     ) {
+        handleStatusItemHover(destination: .category(category), itemID: itemID, button: button, content: content)
+    }
+
+    public func handleStatusItemHover<V: View>(
+        destination: PanelDestination,
+        itemID: String? = nil,
+        button: NSStatusBarButton,
+        content: () -> V
+    ) {
         guard let panel = transientPanel, panel.isVisible, !panel.isPinned else { return }
 
-        // B6: Hovering onto a category with an already-visible pinned HUD closes transient and fronts pinned.
-        if let pinned = pinnedPanels[category], pinned.isVisible {
+        // B6: Hovering onto a destination with an already-visible pinned HUD closes transient and fronts pinned.
+        if let pinned = pinnedPanels[destination], pinned.isVisible {
             close()
             pinned.makeKeyAndOrderFront(nil)
+            recordLastDestination(destination)
             return
         }
 
-        guard currentCategory != category || (itemID != nil && currentItemID != itemID) else { return }
+        guard currentDestination != destination || (itemID != nil && currentItemID != itemID) else { return }
 
-        // Switch category with swift crossfade
-        show(category: category, itemID: itemID, relativeTo: button, content: content)
+        // Switch destination with swift crossfade
+        show(destination: destination, itemID: itemID, relativeTo: button, content: content)
     }
 
     // MARK: - Pinning & Detaching (F3)
 
     public func togglePin() {
-        guard let category = currentCategory else { return }
-        togglePin(for: category)
+        guard let destination = currentDestination else { return }
+        togglePin(for: destination)
     }
 
     public func togglePin(for category: MetricCategory) {
-        if pinnedPanels[category] != nil {
-            unpin(category: category)
+        togglePin(for: PanelDestination.category(category))
+    }
+
+    public func togglePin(for destination: PanelDestination) {
+        if pinnedPanels[destination] != nil {
+            unpin(destination: destination)
             return
         }
 
-        guard let panel = transientPanel, currentCategory == category else { return }
+        guard let panel = transientPanel, currentDestination == destination else { return }
 
         transitionGeneration &+= 1
 
         // Pinning the currently open transient panel into an independent floating HUD
-        panel.category = category
+        panel.destination = destination
         panel.isPinned = true
         removeDismissalMonitors()
         onTransientPanelClosed?()
 
-        pinnedPanels[category] = panel
-        pinnedCategories.insert(category)
+        pinnedPanels[destination] = panel
+        pinnedDestinations.insert(destination)
         transientPanel = nil
-        currentCategory = nil
+        currentDestination = nil
         currentItemID = nil
         currentButton = nil
         isTransientVisible = false
         syncNetworkForegroundProbing()
 
-        if let savedOrigin = preferencesStore?.pinnedOrigin(for: category) {
+        let storageKey = destination.storageKey
+        if let savedOrigin = preferencesStore?.pinnedOrigin(forDestinationKey: storageKey) {
             var frame = panel.frame
             frame.origin = clampedPinnedOrigin(savedOrigin, for: frame.size)
             if shouldAnimateTransitions && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion && NSAnimationContext.current.duration > 0 {
@@ -340,7 +423,7 @@ public final class PanelController: NSObject, ObservableObject {
                 panel.setFrame(frame, display: true, animate: false)
             }
         } else {
-            preferencesStore?.setPinnedOrigin(panel.frame.origin, for: category)
+            preferencesStore?.setPinnedOrigin(panel.frame.origin, forDestinationKey: storageKey)
         }
 
         let observer = NotificationCenter.default.addObserver(
@@ -350,28 +433,32 @@ public final class PanelController: NSObject, ObservableObject {
         ) { [weak self, weak panel] _ in
             MainActor.assumeIsolated {
                 guard let self = self, let panel = panel else { return }
-                self.preferencesStore?.setPinnedOrigin(panel.frame.origin, for: category)
+                self.preferencesStore?.setPinnedOrigin(panel.frame.origin, forDestinationKey: storageKey)
             }
         }
-        pinnedMoveObservers[category] = observer
+        pinnedMoveObservers[destination] = observer
 
         panel.onUnpinRequested = { [weak self] in
-            self?.unpin(category: category)
+            self?.unpin(destination: destination)
         }
         panel.onCloseRequested = { [weak self] in
-            self?.unpin(category: category)
+            self?.unpin(destination: destination)
         }
     }
 
     public func unpin(category: MetricCategory, immediately: Bool = false) {
-        guard let panel = pinnedPanels[category] else { return }
+        unpin(destination: .category(category), immediately: immediately)
+    }
 
-        if let obs = pinnedMoveObservers[category] {
+    public func unpin(destination: PanelDestination, immediately: Bool = false) {
+        guard let panel = pinnedPanels[destination] else { return }
+
+        if let obs = pinnedMoveObservers[destination] {
             NotificationCenter.default.removeObserver(obs)
-            pinnedMoveObservers.removeValue(forKey: category)
+            pinnedMoveObservers.removeValue(forKey: destination)
         }
-        pinnedPanels.removeValue(forKey: category)
-        pinnedCategories.remove(category)
+        pinnedPanels.removeValue(forKey: destination)
+        pinnedDestinations.remove(destination)
         syncNetworkForegroundProbing()
 
         let finishUnpin: @Sendable () -> Void = { [weak panel] in
@@ -395,8 +482,8 @@ public final class PanelController: NSObject, ObservableObject {
     }
 
     public func unpinAll(immediately: Bool = false) {
-        for category in Array(pinnedPanels.keys) {
-            unpin(category: category, immediately: immediately)
+        for destination in Array(pinnedPanels.keys) {
+            unpin(destination: destination, immediately: immediately)
         }
     }
 
@@ -404,22 +491,26 @@ public final class PanelController: NSObject, ObservableObject {
 
     /// Resizes the panel for `category` (or `activePanel`) keeping its top edge anchored and clamping to the screen's visible bottom margin.
     public func setContentHeight(_ height: CGFloat, for category: MetricCategory? = nil, animated: Bool = true) {
+        setContentHeight(height, for: category.map { PanelDestination.category($0) }, animated: animated)
+    }
+
+    public func setContentHeight(_ height: CGFloat, for destination: PanelDestination?, animated: Bool = true) {
         let targetPanel: MetricPanel?
-        if let cat = category {
-            if currentCategory == cat, let transient = transientPanel, transient.isVisible {
+        if let destination {
+            if currentDestination == destination, let transient = transientPanel, transient.isVisible {
                 targetPanel = transient
             } else {
-                targetPanel = pinnedPanels[cat]
+                targetPanel = pinnedPanels[destination]
             }
         } else {
             targetPanel = activePanel
         }
 
         guard let panel = targetPanel else { return }
-        setContentHeight(height, forPanel: panel, category: category, animated: animated)
+        setContentHeight(height, forPanel: panel, destination: destination, animated: animated)
     }
 
-    private func setContentHeight(_ height: CGFloat, forPanel panel: MetricPanel, category: MetricCategory?, animated: Bool) {
+    private func setContentHeight(_ height: CGFloat, forPanel panel: MetricPanel, destination: PanelDestination?, animated: Bool) {
         guard panel.isVisible else { return }
 
         let clampedHeight = min(max(height, 160.0), Instrument.Size.maxHeight)

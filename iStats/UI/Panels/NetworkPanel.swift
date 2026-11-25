@@ -106,23 +106,28 @@ public struct NetworkPanel: View {
         let isLoading = (availability == nil && !coordinator.isSamplingPaused)
 
         PanelScaffold(
-            category: .network,
+            chrome: PanelChrome(
+                category: .network,
+                status: derived.status,
+                ribbon: derived.ribbon,
+                availability: availability,
+                isLoading: isLoading,
+                isPaused: coordinator.isSamplingPaused,
+                isLowPowerModeActive: coordinator.isLowPowerModeActive,
+                isPinned: PanelController.shared.isPinned(for: .network),
+                hasBattery: coordinator.latestPower?.value.hasBattery ?? true,
+                refreshInterval: preferences.refreshInterval,
+                enabledCategories: preferences.enabledCategories,
+                onTogglePause: {
+                    coordinator.toggleSamplingPaused()
+                },
+                onPinToggle: {
+                    PanelController.shared.togglePin(for: .network)
+                }
+            ),
             glance: derived.glance,
-            status: derived.status,
-            ribbon: derived.ribbon,
             pages: PopoverTab.supportedTabs(for: .network),
-            selection: $selectedTab,
-            availability: availability,
-            isLoading: isLoading,
-            isPaused: coordinator.isSamplingPaused,
-            isLowPowerModeActive: coordinator.isLowPowerModeActive,
-            onTogglePause: {
-                coordinator.toggleSamplingPaused()
-            },
-            onPinToggle: {
-                PanelController.shared.togglePin(for: .network)
-            },
-            isPinned: PanelController.shared.isPinned(for: .network)
+            selection: $selectedTab
         ) { tab in
             switch tab {
             case .overview:

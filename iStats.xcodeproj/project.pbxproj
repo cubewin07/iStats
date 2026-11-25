@@ -42,6 +42,8 @@
 		1100000000000000000001B5 /* PageSwitcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000001B4 /* PageSwitcher.swift */; };
 		1100000000000000000001B7 /* StatusRibbon.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000001B6 /* StatusRibbon.swift */; };
 		1100000000000000000001B9 /* PanelScaffold.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000001B8 /* PanelScaffold.swift */; };
+		930000000000000000000002 /* PanelChrome.swift in Sources */ = {isa = PBXBuildFile; fileRef = 930000000000000000000001 /* PanelChrome.swift */; };
+		930000000000000000000004 /* PanelScaffoldProbes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 930000000000000000000003 /* PanelScaffoldProbes.swift */; };
 		1100000000000000000001BB /* PanelFactory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000001BA /* PanelFactory.swift */; };
 		1100000000000000000001BF /* CPUPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000001BE /* CPUPanel.swift */; };
 		1100000000000000000001C1 /* MemoryPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000001C0 /* MemoryPanel.swift */; };
@@ -175,6 +177,8 @@
 		1100000000000000000001B4 /* PageSwitcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Panels/PageSwitcher.swift; sourceTree = "<group>"; };
 		1100000000000000000001B6 /* StatusRibbon.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Panels/StatusRibbon.swift; sourceTree = "<group>"; };
 		1100000000000000000001B8 /* PanelScaffold.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Panels/PanelScaffold.swift; sourceTree = "<group>"; };
+		930000000000000000000001 /* PanelChrome.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Panels/PanelChrome.swift; sourceTree = "<group>"; };
+		930000000000000000000003 /* PanelScaffoldProbes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Panels/PanelScaffoldProbes.swift; sourceTree = "<group>"; };
 		1100000000000000000001BA /* PanelFactory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Panels/PanelFactory.swift; sourceTree = "<group>"; };
 		1100000000000000000001BE /* CPUPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Panels/CPUPanel.swift; sourceTree = "<group>"; };
 		1100000000000000000001C0 /* MemoryPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Panels/MemoryPanel.swift; sourceTree = "<group>"; };
@@ -370,6 +374,8 @@
 				1100000000000000000001B4 /* PageSwitcher.swift */,
 				1100000000000000000001B6 /* StatusRibbon.swift */,
 				1100000000000000000001B8 /* PanelScaffold.swift */,
+				930000000000000000000001 /* PanelChrome.swift */,
+				930000000000000000000003 /* PanelScaffoldProbes.swift */,
 				1100000000000000000001BA /* PanelFactory.swift */,
 				1100000000000000000001BE /* CPUPanel.swift */,
 				1100000000000000000001C0 /* MemoryPanel.swift */,
@@ -617,6 +623,8 @@
 				1100000000000000000001B5 /* PageSwitcher.swift in Sources */,
 				1100000000000000000001B7 /* StatusRibbon.swift in Sources */,
 				1100000000000000000001B9 /* PanelScaffold.swift in Sources */,
+				930000000000000000000002 /* PanelChrome.swift in Sources */,
+				930000000000000000000004 /* PanelScaffoldProbes.swift in Sources */,
 				1100000000000000000001BB /* PanelFactory.swift in Sources */,
 				1100000000000000000001BF /* CPUPanel.swift in Sources */,
 				1100000000000000000001C1 /* MemoryPanel.swift in Sources */,

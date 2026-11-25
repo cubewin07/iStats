@@ -312,7 +312,7 @@ final class PanelControllerLifecycleTests: XCTestCase {
         }
         PanelController.shared.togglePin(for: .cpu)
 
-        guard let pinned = PanelController.shared.pinnedPanels[.cpu] else {
+        guard let pinned = PanelController.shared.pinnedPanels[.category(.cpu)] else {
             XCTFail("Expected pinned CPU panel")
             return
         }
@@ -372,5 +372,136 @@ final class PanelControllerLifecycleTests: XCTestCase {
         XCTAssertEqual(PanelController.shared.currentItemID, thermalItem.id)
         XCTAssertTrue(PanelController.shared.currentButton === thermalBtn2)
         XCTAssertTrue(menuController2.currentlyShownButton === thermalBtn2)
+    }
+
+    func testDestinationKeyedPinningOverviewSwapAndLastDestinationPersistence() {
+        let (defaults, prefs, coord, suiteName) = makeContext()
+        defer {
+            PanelController.shared.statusButtonProvider = nil
+            PanelController.shared.onTransientCategorySwapped = nil
+            PanelController.shared.destinationViewProvider = nil
+            cleanup(defaults: defaults, suiteName: suiteName)
+        }
+
+        PanelController.shared.configure(preferences: prefs)
+        PanelController.shared.destinationViewProvider = { dest in
+            AnyView(PanelFactory.makePanelView(destination: dest, coordinator: coord, preferences: prefs))
+        }
+
+        let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        defer { NSStatusBar.system.removeStatusItem(statusItem) }
+        guard let button = statusItem.button else {
+            XCTFail("Expected status bar button")
+            return
+        }
+
+        // Open CPU and swap to Overview: lastPanelDestination tracks each destination
+        PanelController.shared.show(destination: .category(.cpu), relativeTo: button) {
+            Text("CPU")
+        }
+        XCTAssertEqual(prefs.lastPanelDestination, .category(.cpu))
+        XCTAssertEqual(PanelController.shared.currentDestination, .category(.cpu))
+
+        PanelController.shared.swap(to: .overview)
+        XCTAssertEqual(PanelController.shared.currentDestination, .overview)
+        XCTAssertTrue(PanelController.shared.isTransientPanelOpen(for: .overview))
+        XCTAssertEqual(prefs.lastPanelDestination, .overview)
+
+        // Pin Overview and verify destination storage key "overview" persists origin
+        PanelController.shared.togglePin(for: .overview)
+        XCTAssertTrue(PanelController.shared.isPinned(for: .overview))
+        XCTAssertNotNil(PanelController.shared.pinnedPanels[.overview])
+        XCTAssertNotNil(prefs.pinnedOrigin(forDestinationKey: "overview"))
+        XCTAssertNil(PanelController.shared.transientPanel)
+
+        // Swap to Network from pinned Overview
+        PanelController.shared.swap(to: .category(.network), from: .overview)
+        XCTAssertTrue(PanelController.shared.isTransientPanelOpen(for: .category(.network)))
+        XCTAssertEqual(prefs.lastPanelDestination, .category(.network))
+
+        PanelController.shared.unpin(destination: .overview, immediately: true)
+        XCTAssertFalse(PanelController.shared.isPinned(for: .overview))
+    }
+
+    func testMetricPanelKeyDownRoutingAndSpaceUnmapped() throws {
+        let panel = MetricPanel()
+        panel.destination = .category(.cpu)
+
+        var commands: [PanelCommand] = []
+        var closeCount = 0
+        var unpinCount = 0
+        var glossaryCount = 0
+
+        panel.onCommand = { commands.append($0) }
+        panel.onCloseRequested = { closeCount += 1 }
+        panel.onUnpinRequested = { unpinCount += 1 }
+        panel.onGlossaryRequested = { glossaryCount += 1 }
+
+        func sendKey(_ chars: String, keyCode: UInt16, modifiers: NSEvent.ModifierFlags = []) throws {
+            let event = try XCTUnwrap(NSEvent.keyEvent(
+                with: .keyDown,
+                location: .zero,
+                modifierFlags: modifiers,
+                timestamp: 0,
+                windowNumber: 0,
+                context: nil,
+                characters: chars,
+                charactersIgnoringModifiers: chars,
+                isARepeat: false,
+                keyCode: keyCode
+            ))
+            panel.keyDown(with: event)
+        }
+
+        // Space (49) must NOT trigger pause or any PanelCommand
+        try sendKey(" ", keyCode: 49)
+        XCTAssertTrue(commands.isEmpty, "Space must not toggle pause or emit a PanelCommand")
+
+        // Cmd+1..9 select strip positions 0..8
+        try sendKey("1", keyCode: 18, modifiers: [.command])
+        try sendKey("9", keyCode: 25, modifiers: [.command])
+        // Ctrl+Tab / Ctrl+Shift+Tab cycle destinations
+        try sendKey("\t", keyCode: 48, modifiers: [.control])
+        try sendKey("\t", keyCode: 48, modifiers: [.control, .shift])
+        // Left / Right switch pages
+        try sendKey("", keyCode: 123)
+        try sendKey("", keyCode: 124)
+        // Pin, Settings, Quit, Glossary
+        try sendKey("p", keyCode: 35, modifiers: [.command])
+        try sendKey(",", keyCode: 43, modifiers: [.command])
+        try sendKey("q", keyCode: 12, modifiers: [.command])
+        try sendKey("?", keyCode: 44, modifiers: [.shift])
+
+        XCTAssertEqual(commands, [
+            .selectDestination(0),
+            .selectDestination(8),
+            .nextDestination,
+            .previousDestination,
+            .previousPage,
+            .nextPage,
+            .togglePin,
+            .openPreferences,
+            .quit,
+            .showGlossary
+        ])
+        XCTAssertEqual(glossaryCount, 1)
+
+        // Esc / Cmd+W when unpinned close; Esc when pinned is no-op; Cmd+W when pinned unpins
+        commands.removeAll()
+        try sendKey("\u{1B}", keyCode: 53)
+        try sendKey("w", keyCode: 13, modifiers: [.command])
+        XCTAssertEqual(closeCount, 2)
+        XCTAssertEqual(unpinCount, 0)
+        XCTAssertEqual(commands, [.close, .close])
+
+        commands.removeAll()
+        panel.isPinned = true
+        try sendKey("\u{1B}", keyCode: 53)
+        XCTAssertEqual(closeCount, 2, "Esc must be a no-op on pinned HUD")
+        XCTAssertEqual(unpinCount, 0)
+        XCTAssertTrue(commands.isEmpty)
+
+        try sendKey("w", keyCode: 13, modifiers: [.command])
+        XCTAssertEqual(unpinCount, 1, "Cmd+W on pinned HUD must unpin")
     }
 }

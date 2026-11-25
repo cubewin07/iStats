@@ -81,12 +81,14 @@ final class PanelScaffoldTests: XCTestCase {
         let binding = Binding(get: { selected }, set: { selected = $0 })
 
         let scaffold = PanelScaffold(
-            category: .fan,
+            chrome: PanelChrome(
+                category: .fan,
+                status: .fine,
+                availability: .unavailable(reason: "This Mac cools passively")
+            ),
             glance: PanelGlance(value: 0, headline: "Passive cooling"),
-            status: .fine,
             pages: [.overview, .history],
-            selection: binding,
-            availability: .unavailable(reason: "This Mac cools passively")
+            selection: binding
         ) { _ in
             Text("Content")
         }
@@ -662,9 +664,8 @@ final class PanelScaffoldTests: XCTestCase {
             let binding = Binding.constant(tab)
 
             let scaffold = PanelScaffold(
-                category: .thermal,
+                chrome: PanelChrome(category: .thermal, status: .fine),
                 glance: PanelGlance(value: 62, unit: "°C", headline: "Elevated"),
-                status: .fine,
                 pages: [.overview, .detail, .history],
                 selection: binding
             ) { _ in
@@ -691,9 +692,8 @@ final class PanelScaffoldTests: XCTestCase {
         var reportedHeights: [CGFloat] = []
 
         let scaffold = PanelScaffold(
-            category: .cpu,
+            chrome: PanelChrome(category: .cpu, status: .fine),
             glance: PanelGlance(value: 35, unit: "%", headline: "Normal"),
-            status: .fine,
             pages: [.overview, .detail, .history],
             selection: binding
         ) { _ in
@@ -830,7 +830,7 @@ final class PanelScaffoldTests: XCTestCase {
         var latestProbe = PanelScaffoldProbeSnapshot()
         let binding = Binding.constant(PopoverTab.overview)
         let scaffold = PanelScaffold(
-            category: .cpu,
+            chrome: PanelChrome(category: .cpu, status: .fine),
             glance: PanelGlance(
                 value: 42,
                 format: "%.0f",
@@ -839,7 +839,6 @@ final class PanelScaffoldTests: XCTestCase {
                 insight: "↗ Peak 92% · 3m ago",
                 chartMode: .single(values: [30, 42, 55], color: .blue)
             ),
-            status: .fine,
             pages: [.overview, .detail, .history],
             selection: binding
         ) { _ in
@@ -915,7 +914,7 @@ final class PanelScaffoldTests: XCTestCase {
 
             var body: some View {
                 PanelScaffold(
-                    category: .network,
+                    chrome: PanelChrome(category: .network, status: .fine),
                     glance: PanelGlance(
                         value: 4.2,
                         format: "%.1f",
@@ -931,7 +930,6 @@ final class PanelScaffoldTests: XCTestCase {
                         ),
                         chartHeight: 56
                     ),
-                    status: .fine,
                     pages: [.overview, .detail, .history],
                     selection: $model.tab,
                     scrubState: $model.scrub
@@ -1159,12 +1157,14 @@ final class PanelScaffoldTests: XCTestCase {
             for pinned in [false, true] {
                 var latestProbe = PanelScaffoldProbeSnapshot()
                 let scaffold = PanelScaffold(
-                    category: category,
+                    chrome: PanelChrome(
+                        category: category,
+                        status: .fine,
+                        isPinned: pinned
+                    ),
                     glance: PanelGlance(value: 42, unit: "%", headline: "Nominal"),
-                    status: .fine,
                     pages: PopoverTab.supportedTabs(for: category, hasBattery: true),
-                    selection: .constant(.overview),
-                    isPinned: pinned
+                    selection: .constant(.overview)
                 ) { _ in
                     Text("Body").frame(height: 40)
                 }
@@ -1190,9 +1190,14 @@ final class PanelScaffoldTests: XCTestCase {
                 RunLoop.main.run(until: Date().addingTimeInterval(0.03))
                 window.orderOut(nil)
 
-                XCTAssertEqual(latestProbe.badgeTitle, category.displayName, "Header v2 uses sentence-case category displayName")
-                if let eyebrow = latestProbe.eyebrowFrame {
-                    XCTAssertLessThanOrEqual(eyebrow.height, 29.0, "Eyebrow row height for \(category) (pinned: \(pinned)) must remain single-line 28pt")
+                XCTAssertEqual(latestProbe.badgeTitle, category.displayName, "Header v3 uses sentence-case category displayName")
+                XCTAssertEqual(latestProbe.headerStripButtonCount, 9, "Overview + all 8 categories enabled")
+                if let headerStrip = latestProbe.headerStripFrame {
+                    XCTAssertEqual(headerStrip.height, Instrument.Size.headerStripHeight, accuracy: 1.0, "Header strip must remain single-line 28pt")
+                    XCTAssertLessThanOrEqual(headerStrip.width, Instrument.Size.contentWidth + 0.5, "Header strip must fit 320pt content width")
+                }
+                if let footer = latestProbe.footerFrame {
+                    XCTAssertGreaterThanOrEqual(footer.height, Instrument.Size.footerHeight, "Footer bar must be present (>= 24pt)")
                 }
             }
         }
@@ -1225,16 +1230,22 @@ final class PanelScaffoldTests: XCTestCase {
             }
         }
 
-        // Verify ⌘1–3 and arrow commands update PanelScaffold selection cleanly
+        // Verify arrow commands update PanelScaffold page selection and Cmd+1..9 / Ctrl+Tab route destinations
         @MainActor
         final class SelectionHost: ObservableObject {
             @Published var tab: PopoverTab = .overview
+            var selectedDestinations: [PanelDestination] = []
         }
         let hostModel = SelectionHost()
         let scaffold = PanelScaffold(
-            category: .cpu,
+            chrome: PanelChrome(
+                category: .cpu,
+                status: .fine,
+                onSelectDestination: { dest in
+                    hostModel.selectedDestinations.append(dest)
+                }
+            ),
             glance: PanelGlance(value: 25, unit: "%", headline: "Normal"),
-            status: .fine,
             pages: [.overview, .detail, .history],
             selection: Binding(get: { hostModel.tab }, set: { hostModel.tab = $0 })
         ) { _ in
@@ -1253,17 +1264,23 @@ final class PanelScaffoldTests: XCTestCase {
         defer { window.orderOut(nil) }
         RunLoop.main.run(until: Date().addingTimeInterval(0.03))
 
-        NotificationCenter.default.post(name: .panelCommandReceived, object: PanelCommand.selectPage(2), userInfo: ["category": MetricCategory.cpu])
+        NotificationCenter.default.post(name: .panelCommandReceived, object: PanelCommand.nextPage, userInfo: ["destination": PanelDestination.category(.cpu)])
         RunLoop.main.run(until: Date().addingTimeInterval(0.03))
         XCTAssertEqual(hostModel.tab, .detail)
 
-        NotificationCenter.default.post(name: .panelCommandReceived, object: PanelCommand.selectPage(3), userInfo: ["category": MetricCategory.cpu])
+        NotificationCenter.default.post(name: .panelCommandReceived, object: PanelCommand.nextPage, userInfo: ["destination": PanelDestination.category(.cpu)])
         RunLoop.main.run(until: Date().addingTimeInterval(0.03))
         XCTAssertEqual(hostModel.tab, .history)
 
-        NotificationCenter.default.post(name: .panelCommandReceived, object: PanelCommand.selectPage(1), userInfo: ["category": MetricCategory.cpu])
+        NotificationCenter.default.post(name: .panelCommandReceived, object: PanelCommand.previousPage, userInfo: ["category": MetricCategory.cpu])
         RunLoop.main.run(until: Date().addingTimeInterval(0.03))
-        XCTAssertEqual(hostModel.tab, .overview)
+        XCTAssertEqual(hostModel.tab, .detail)
+
+        NotificationCenter.default.post(name: .panelCommandReceived, object: PanelCommand.selectDestination(0), userInfo: ["destination": PanelDestination.category(.cpu)])
+        NotificationCenter.default.post(name: .panelCommandReceived, object: PanelCommand.nextDestination, userInfo: ["destination": PanelDestination.category(.cpu)])
+        NotificationCenter.default.post(name: .panelCommandReceived, object: PanelCommand.previousDestination, userInfo: ["destination": PanelDestination.category(.cpu)])
+        RunLoop.main.run(until: Date().addingTimeInterval(0.03))
+        XCTAssertEqual(hostModel.selectedDestinations, [.overview, .category(.memory), .overview])
     }
 
     func testInlineStatusChipVsActionableStatusRibbon() throws {
@@ -1285,6 +1302,7 @@ final class PanelScaffoldTests: XCTestCase {
         }
 
         func probeScaffold(
+            category: MetricCategory = .thermal,
             status: StatusLevel,
             ribbon: String? = nil,
             ribbonActionTitle: String? = nil,
@@ -1295,17 +1313,19 @@ final class PanelScaffoldTests: XCTestCase {
         ) -> (shouldShowChip: Bool, shouldShowRibbon: Bool, probe: PanelScaffoldProbeSnapshot) {
             var latestProbe = PanelScaffoldProbeSnapshot()
             let scaffold = PanelScaffold(
-                category: .thermal,
+                chrome: PanelChrome(
+                    category: category,
+                    status: status,
+                    ribbon: ribbon,
+                    ribbonActionTitle: ribbonActionTitle,
+                    ribbonAction: ribbonAction,
+                    availability: availability,
+                    isLoading: isLoading,
+                    isPaused: isPaused
+                ),
                 glance: PanelGlance(value: 84, unit: "°C", headline: "Hot"),
-                status: status,
-                ribbon: ribbon,
-                ribbonActionTitle: ribbonActionTitle,
-                ribbonAction: ribbonAction,
                 pages: [.overview, .detail, .history],
-                selection: .constant(.overview),
-                availability: availability,
-                isLoading: isLoading,
-                isPaused: isPaused
+                selection: .constant(.overview)
             ) { _ in
                 Text("Body").frame(height: 40)
             }
@@ -1315,13 +1335,13 @@ final class PanelScaffoldTests: XCTestCase {
                 .onPreferenceChange(PanelScaffoldProbeKey.self) { latestProbe = $0 }
 
             let window = NSWindow(
-                contentRect: NSRect(x: 0, y: 0, width: Instrument.Size.panelWidth, height: 320),
+                contentRect: NSRect(x: 0, y: 0, width: Instrument.Size.panelWidth, height: 360),
                 styleMask: [.borderless],
                 backing: .buffered,
                 defer: false
             )
             let hosting = NSHostingView(rootView: view)
-            hosting.frame = NSRect(x: 0, y: 0, width: Instrument.Size.panelWidth, height: 320)
+            hosting.frame = NSRect(x: 0, y: 0, width: Instrument.Size.panelWidth, height: 360)
             window.contentView = hosting
             window.orderFront(nil)
             window.layoutIfNeeded()
@@ -1339,30 +1359,42 @@ final class PanelScaffoldTests: XCTestCase {
         XCTAssertNil(fineResult.probe.inlineStatusText)
         XCTAssertEqual(fineResult.probe.hasActionRibbon, false)
 
-        // 2. Elevated / Warning / Critical with passive message: inline chip shown on trailing side of Glance, NO full-width StatusRibbon
+        // 2. Elevated with passive message: inline chip shown on trailing side of Glance, NO full-width StatusRibbon
+        let elevatedRes = probeScaffold(status: .elevated, ribbon: "Thermal pressure elevated")
+        XCTAssertTrue(elevatedRes.shouldShowChip)
+        XCTAssertFalse(elevatedRes.shouldShowRibbon, "Elevated passive message does not show full-width StatusRibbon")
+        XCTAssertEqual(elevatedRes.probe.inlineStatusText, "● Elevated")
+        XCTAssertEqual(elevatedRes.probe.hasActionRibbon, false)
+        let glanceFrame = try XCTUnwrap(elevatedRes.probe.glanceFrame)
+        let chipFrame = try XCTUnwrap(elevatedRes.probe.inlineStatusFrame)
+        XCTAssertGreaterThan(chipFrame.minX, glanceFrame.midX, "Inline status chip must sit on trailing side of Glance numeral row")
+        XCTAssertEqual(elevatedRes.probe.glanceSummary?.contains(InlineStatusChip.title(for: .elevated)), true)
+
+        // 3. Warning & Critical with message: inline chip AND full-width StatusRibbon carrying a real category action
         for (level, expectedText) in [
-            (StatusLevel.elevated, "● Elevated"),
             (StatusLevel.warning, "▲ Warning"),
             (StatusLevel.critical, "◆ Critical")
         ] {
-            let res = probeScaffold(status: level, ribbon: "Thermal pressure \(level.rawValue)")
+            let res = probeScaffold(category: .thermal, status: level, ribbon: "Thermal pressure \(level.rawValue)")
             XCTAssertTrue(res.shouldShowChip)
-            XCTAssertFalse(res.shouldShowRibbon, "Non-actionable ribbon message must not show full-width StatusRibbon")
+            XCTAssertTrue(res.shouldShowRibbon, "Warning/critical messages always show StatusRibbon with a real action")
             XCTAssertEqual(res.probe.inlineStatusText, expectedText)
-            XCTAssertEqual(res.probe.hasActionRibbon, false)
-
-            let glanceFrame = try XCTUnwrap(res.probe.glanceFrame)
-            let chipFrame = try XCTUnwrap(res.probe.inlineStatusFrame)
-            XCTAssertGreaterThan(chipFrame.minX, glanceFrame.midX, "Inline status chip must sit on trailing side of Glance numeral row")
-            XCTAssertEqual(res.probe.glanceSummary?.contains(InlineStatusChip.title(for: level)), true)
+            XCTAssertEqual(res.probe.hasActionRibbon, true)
+            XCTAssertEqual(res.probe.ribbonActionTitle, "Open Activity Monitor")
         }
 
-        // 3. Paused state: full-width StatusRibbon IS shown
+        // Category-specific real ribbon actions at .warning
+        XCTAssertEqual(probeScaffold(category: .power, status: .warning, ribbon: "Low battery").probe.ribbonActionTitle, "Battery Settings…")
+        XCTAssertEqual(probeScaffold(category: .disk, status: .warning, ribbon: "Disk almost full").probe.ribbonActionTitle, "Manage Storage…")
+        XCTAssertEqual(probeScaffold(category: .network, status: .warning, ribbon: "No internet").probe.ribbonActionTitle, "Wi-Fi Settings…")
+
+        // 4. Paused state: full-width StatusRibbon IS shown
         let pausedResult = probeScaffold(status: .fine, isPaused: true)
         XCTAssertTrue(pausedResult.shouldShowRibbon)
         XCTAssertEqual(pausedResult.probe.hasActionRibbon, true)
+        XCTAssertEqual(pausedResult.probe.ribbonActionTitle, "Resume")
 
-        // 4. Explicit action button on ribbon: full-width StatusRibbon IS shown
+        // 5. Explicit action button on ribbon: full-width StatusRibbon IS shown
         let actionResult = probeScaffold(
             status: .warning,
             ribbon: "Helper upgrade needed",
@@ -1372,15 +1404,104 @@ final class PanelScaffoldTests: XCTestCase {
         XCTAssertTrue(actionResult.shouldShowChip)
         XCTAssertTrue(actionResult.shouldShowRibbon)
         XCTAssertEqual(actionResult.probe.hasActionRibbon, true)
+        XCTAssertEqual(actionResult.probe.ribbonActionTitle, "Install")
 
-        // 5. Loading / Unavailable suppress inline status chip
-        let loadingResult = probeScaffold(status: .critical, isLoading: true)
+        // 6. Loading / Unavailable suppress inline status chip and warning ribbon
+        let loadingResult = probeScaffold(status: .critical, ribbon: "Hot", isLoading: true)
         XCTAssertFalse(loadingResult.shouldShowChip)
+        XCTAssertFalse(loadingResult.shouldShowRibbon)
         XCTAssertNil(loadingResult.probe.inlineStatusText)
 
-        let unavailableResult = probeScaffold(status: .warning, availability: .unavailable(reason: "No sensor"))
+        let unavailableResult = probeScaffold(status: .warning, ribbon: "Hot", availability: .unavailable(reason: "No sensor"))
         XCTAssertFalse(unavailableResult.shouldShowChip)
+        XCTAssertFalse(unavailableResult.shouldShowRibbon)
         XCTAssertNil(unavailableResult.probe.inlineStatusText)
+    }
+
+    func testHeaderStripAll9ButtonsFitWithin320ContentWidth() {
+        for pinned in [false, true] {
+            let strip = PanelHeaderStrip(
+                destination: .category(.cpu),
+                enabledCategories: Set(MetricCategory.allCases),
+                hasBattery: true,
+                isPinned: pinned,
+                isPaused: false,
+                onSelectDestination: { _ in },
+                onTogglePin: {},
+                onClose: {},
+                onTogglePause: {},
+                onOpenSettings: {},
+                onQuit: {}
+            )
+            let hosting = NSHostingView(rootView: strip)
+            let fit = hosting.fittingSize
+            XCTAssertLessThanOrEqual(
+                fit.width,
+                Instrument.Size.contentWidth,
+                "Overview + all 8 categories + trailing controls (pinned: \(pinned)) must fit within 320pt (got \(fit.width))"
+            )
+            XCTAssertEqual(fit.height, Instrument.Size.headerStripHeight, accuracy: 1.0)
+        }
+    }
+
+    func testChromeUsesHasBatteryIdentityAndSettingsDeepLinkNotification() {
+        let desktopPower = PanelChrome(category: .power, hasBattery: false)
+        XCTAssertEqual(desktopPower.identitySymbol, "powerplug")
+        XCTAssertEqual(desktopPower.displayTitle, "Power")
+
+        let laptopPower = PanelChrome(category: .power, hasBattery: true)
+        XCTAssertEqual(laptopPower.identitySymbol, "battery.100percent")
+        XCTAssertEqual(laptopPower.displayTitle, "Battery")
+
+        // Verify Settings deep-link notification contract (coordinated with Task 9.9):
+        // showPreferences() is invoked first, then iStats.openSettingsSection is posted with section userInfo.
+        final class EventRecorder: @unchecked Sendable {
+            var events: [String] = []
+        }
+        let recorder = EventRecorder()
+        let token = NotificationCenter.default.addObserver(
+            forName: .openSettingsSection,
+            object: nil,
+            queue: nil
+        ) { note in
+            if let section = note.userInfo?[PanelSettingsLink.sectionKey] as? String {
+                recorder.events.append("notify:\(section)")
+            }
+        }
+        defer { NotificationCenter.default.removeObserver(token) }
+
+        PanelChromeActions.openSettings(
+            for: .category(.network),
+            closeTransientIfUnpinned: false,
+            showPreferences: { recorder.events.append("showPreferences") }
+        )
+        PanelChromeActions.openSettings(
+            for: .overview,
+            closeTransientIfUnpinned: false,
+            showPreferences: { recorder.events.append("showPreferences") }
+        )
+
+        XCTAssertEqual(recorder.events, [
+            "showPreferences",
+            "notify:network",
+            "showPreferences",
+            "notify:general"
+        ])
+    }
+
+    func testOverviewPlaceholderRendersWithinPanelBounds() {
+        let (defaults, prefs, coord, suiteName) = makeContext()
+        defer { cleanup(defaults: defaults, suiteName: suiteName) }
+
+        let view = PanelFactory.makePanelView(destination: .overview, coordinator: coord, preferences: prefs)
+        let hosting = NSHostingView(rootView: AnyView(view))
+        hosting.frame = CGRect(x: 0, y: 0, width: Instrument.Size.panelWidth, height: 320)
+        hosting.layoutSubtreeIfNeeded()
+
+        let fit = hosting.fittingSize
+        XCTAssertEqual(fit.width, Instrument.Size.panelWidth, accuracy: 2.0)
+        XCTAssertGreaterThanOrEqual(fit.height, 140)
+        XCTAssertLessThanOrEqual(fit.height, Instrument.Size.maxHeight)
     }
 
     func testPanelScaffoldPreservesAncestorMotionPolicyAndInjectedLowPowerMode() {
@@ -1402,10 +1523,12 @@ final class PanelScaffoldTests: XCTestCase {
         ) -> MotionPolicy? {
             var observed: MotionPolicy?
             let scaffold = PanelScaffold(
-                category: .cpu,
+                chrome: PanelChrome(
+                    category: .cpu,
+                    isLowPowerModeActive: isLowPowerModeActive
+                ),
                 glance: PanelGlance(value: 25, unit: "%", headline: "Calm"),
-                selection: .constant(.overview),
-                isLowPowerModeActive: isLowPowerModeActive
+                selection: .constant(.overview)
             ) { _ in
                 PolicyReader { observed = $0 }
             }

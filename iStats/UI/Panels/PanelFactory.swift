@@ -6,6 +6,34 @@ import iStatsCore
 @MainActor
 public enum PanelFactory {
 
+    /// Instantiates the panel view for a destination (`.overview` or `.category`).
+    @ViewBuilder
+    public static func makePanelView(
+        destination: PanelDestination,
+        initialTab: PopoverTab? = nil,
+        focusSource: MetricSource? = nil,
+        coordinator: MetricsCoordinator = .shared,
+        preferences: PreferencesStore = .shared
+    ) -> some View {
+        switch destination {
+        case .overview:
+            OverviewPlaceholderView(
+                coordinator: coordinator,
+                preferences: preferences
+            )
+        case .category(let category):
+            let resolvedTab = initialTab ?? preferences.lastSelectedTab(for: category) ?? .overview
+            makeCategoryPanelView(
+                category: category,
+                initialTab: resolvedTab,
+                rememberLastTab: true,
+                focusSource: focusSource,
+                coordinator: coordinator,
+                preferences: preferences
+            )
+        }
+    }
+
     /// Instantiates the panel view for a given menu bar item configuration.
     @ViewBuilder
     public static func makePanelView(
@@ -103,6 +131,146 @@ public enum PanelFactory {
                 coordinator: coordinator,
                 preferences: preferences
             )
+        }
+    }
+}
+
+/// Minimal Overview destination shell placeholder until Task 9.4 lands the full dashboard.
+public struct OverviewPlaceholderView: View {
+    @ObservedObject public var coordinator: MetricsCoordinator
+    @ObservedObject public var preferences: PreferencesStore
+    @ObservedObject private var panelController = PanelController.shared
+
+    public init(
+        coordinator: MetricsCoordinator = .shared,
+        preferences: PreferencesStore = .shared
+    ) {
+        self.coordinator = coordinator
+        self.preferences = preferences
+    }
+
+    private var hasBattery: Bool {
+        coordinator.latestPower?.value.hasBattery ?? true
+    }
+
+    private var isPinned: Bool {
+        panelController.isPinned(for: .overview)
+    }
+
+    public var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            PanelHeaderStrip(
+                destination: .overview,
+                enabledCategories: preferences.enabledCategories,
+                hasBattery: hasBattery,
+                isPinned: isPinned,
+                isPaused: coordinator.isSamplingPaused,
+                onSelectDestination: { target in
+                    panelController.swap(to: target, from: .overview)
+                },
+                onTogglePin: {
+                    panelController.togglePin(for: .overview)
+                },
+                onClose: {
+                    if isPinned {
+                        panelController.unpin(destination: .overview)
+                    } else {
+                        panelController.close()
+                    }
+                },
+                onTogglePause: {
+                    coordinator.toggleSamplingPaused()
+                },
+                onOpenSettings: {
+                    PanelChromeActions.openSettings(for: .overview, closeTransientIfUnpinned: !isPinned)
+                },
+                onQuit: {
+                    PanelChromeActions.quitApp()
+                }
+            )
+            .padding(.bottom, Instrument.Space.xs)
+
+            PanelTitleRow(
+                title: "Overview",
+                category: nil,
+                pages: [],
+                selection: .constant(.overview)
+            )
+            .padding(.bottom, Instrument.Space.m)
+
+            InsetEmptyState(
+                systemImage: "square.grid.2x2",
+                title: "System Overview",
+                reason: "Select a category above or use ⌘2–⌘9 to inspect live metrics."
+            )
+            .padding(.bottom, Instrument.Space.m)
+
+            PanelFooterBar(
+                destination: .overview,
+                hasBattery: hasBattery,
+                isPaused: coordinator.isSamplingPaused,
+                isPinned: isPinned,
+                refreshInterval: preferences.refreshInterval,
+                onTogglePause: {
+                    coordinator.toggleSamplingPaused()
+                },
+                onOpenSettings: {
+                    PanelChromeActions.openSettings(for: .overview, closeTransientIfUnpinned: !isPinned)
+                }
+            )
+        }
+        .padding(.horizontal, Instrument.Space.xl)
+        .padding(.top, Instrument.Space.l)
+        .padding(.bottom, Instrument.Space.m)
+        .frame(width: Instrument.Size.panelWidth)
+        .background(
+            GeometryReader { proxy in
+                Color.clear.preference(
+                    key: PanelContentHeightKey.self,
+                    value: proxy.size.height > 0
+                        ? min(max(proxy.size.height, 160.0), Instrument.Size.maxHeight)
+                        : 0
+                )
+            }
+        )
+        .onReceive(NotificationCenter.default.publisher(for: .panelCommandReceived)) { notification in
+            if let target = notification.userInfo?["destination"] as? PanelDestination, target != .overview {
+                return
+            }
+            guard let cmd = notification.object as? PanelCommand else { return }
+            switch cmd {
+            case .selectDestination(let idx):
+                let items = PanelDestination.strip(enabled: preferences.enabledCategories)
+                if idx >= 0 && idx < items.count, items[idx] != .overview {
+                    panelController.swap(to: items[idx], from: .overview)
+                }
+            case .nextDestination:
+                let ordered = PanelDestination.orderedCategories(enabled: preferences.enabledCategories)
+                let next = PanelDestination.overview.neighbor(offset: 1, in: ordered)
+                if next != .overview {
+                    panelController.swap(to: next, from: .overview)
+                }
+            case .previousDestination:
+                let ordered = PanelDestination.orderedCategories(enabled: preferences.enabledCategories)
+                let prev = PanelDestination.overview.neighbor(offset: -1, in: ordered)
+                if prev != .overview {
+                    panelController.swap(to: prev, from: .overview)
+                }
+            case .togglePin:
+                panelController.togglePin(for: .overview)
+            case .openPreferences:
+                PanelChromeActions.openSettings(for: .overview, closeTransientIfUnpinned: !isPinned)
+            case .quit:
+                PanelChromeActions.quitApp()
+            case .close:
+                if isPinned {
+                    panelController.unpin(destination: .overview)
+                } else {
+                    panelController.close()
+                }
+            case .previousPage, .nextPage, .showGlossary:
+                break
+            }
         }
     }
 }

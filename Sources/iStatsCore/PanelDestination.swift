@@ -44,6 +44,31 @@ public enum PanelDestination: Hashable, Sendable, Codable {
         if case .category(let category) = self { return category }
         return nil
     }
+
+    /// Enabled categories in `MetricCategory.allCases` order (the strip order).
+    public static func orderedCategories(enabled: Set<MetricCategory>) -> [MetricCategory] {
+        MetricCategory.allCases.filter { enabled.contains($0) }
+    }
+
+    /// Strip destinations: Overview first, then each enabled category in `allCases` order.
+    public static func strip(enabled: Set<MetricCategory>) -> [PanelDestination] {
+        strip(categories: orderedCategories(enabled: enabled))
+    }
+
+    public static func strip(categories: [MetricCategory]) -> [PanelDestination] {
+        [.overview] + categories.map { PanelDestination.category($0) }
+    }
+
+    /// The destination `offset` steps away, cycling Overview, then `categories` in the given order,
+    /// wrapping at both ends. A category that is not in `categories` (for example one just disabled)
+    /// is treated as sitting at Overview, so stepping still lands on a valid strip entry.
+    public func neighbor(offset: Int, in categories: [MetricCategory]) -> PanelDestination {
+        let sequence = Self.strip(categories: categories)
+        let index = sequence.firstIndex(of: self) ?? 0
+        let count = sequence.count
+        let wrapped = ((index + offset) % count + count) % count
+        return sequence[wrapped]
+    }
 }
 
 /// How menu bar widgets are tinted.

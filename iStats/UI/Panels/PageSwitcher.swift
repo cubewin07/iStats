@@ -48,8 +48,8 @@ public struct PageSwitcher: View {
             Self.label(for: page)
         }
         .fixedSize(horizontal: true, vertical: false)
-        .help("Switch page (⌘1–3)")
-        .accessibilityHint("Use Command 1 to 3 to switch pages")
+        .help("Switch page (← / →)")
+        .accessibilityHint("Use Left and Right arrow keys to switch pages")
     }
 }
 

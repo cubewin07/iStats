@@ -64,23 +64,28 @@ public struct FanPanel: View {
         let isLoading = (availability == nil && !coordinator.isSamplingPaused)
 
         PanelScaffold(
-            category: .fan,
+            chrome: PanelChrome(
+                category: .fan,
+                status: .fine,
+                ribbon: nil,
+                availability: availability,
+                isLoading: isLoading,
+                isPaused: coordinator.isSamplingPaused,
+                isLowPowerModeActive: coordinator.isLowPowerModeActive,
+                isPinned: PanelController.shared.isPinned(for: .fan),
+                hasBattery: coordinator.latestPower?.value.hasBattery ?? true,
+                refreshInterval: preferences.refreshInterval,
+                enabledCategories: preferences.enabledCategories,
+                onTogglePause: {
+                    coordinator.toggleSamplingPaused()
+                },
+                onPinToggle: {
+                    PanelController.shared.togglePin(for: .fan)
+                }
+            ),
             glance: glance,
-            status: .fine,
-            ribbon: nil,
             pages: Self.supportedTabs,
-            selection: $selectedTab,
-            availability: availability,
-            isLoading: isLoading,
-            isPaused: coordinator.isSamplingPaused,
-            isLowPowerModeActive: coordinator.isLowPowerModeActive,
-            onTogglePause: {
-                coordinator.toggleSamplingPaused()
-            },
-            onPinToggle: {
-                PanelController.shared.togglePin(for: .fan)
-            },
-            isPinned: PanelController.shared.isPinned(for: .fan)
+            selection: $selectedTab
         ) { tab in
             switch tab {
             case .overview:

@@ -2,14 +2,19 @@ import AppKit
 import SwiftUI
 import iStatsCore
 
-/// Keyboard commands dispatched from MetricPanel to UI observers.
+/// Keyboard commands dispatched from MetricPanel to UI observers (Task 9.3 / ADR 0011).
 public enum PanelCommand: Sendable, Equatable {
     case previousPage
     case nextPage
-    case selectPage(Int)
+    /// 0-based strip index (0 = Overview, 1... = enabled categories).
+    case selectDestination(Int)
+    case nextDestination
+    case previousDestination
     case togglePin
-    case togglePause
     case openPreferences
+    case quit
+    /// Stub hook for Task 9.11 glossary sheet (`?`).
+    case showGlossary
     case close
 }
 
@@ -17,10 +22,16 @@ extension Notification.Name {
     public static let panelCommandReceived = Notification.Name("iStats.panelCommandReceived")
 }
 
-/// A custom borderless glass panel hosting SwiftUI instrument views (ADR 0009 / Task 8.3).
+/// A custom borderless glass panel hosting SwiftUI instrument views (ADR 0009 / Task 8.3, ADR 0011 / Task 9.3).
 public final class MetricPanel: NSPanel {
 
-    public var category: MetricCategory?
+    public var destination: PanelDestination?
+
+    /// Computed shim over `destination` for existing category-oriented callers.
+    public var category: MetricCategory? {
+        get { destination?.category }
+        set { destination = newValue.map { .category($0) } }
+    }
 
     public var isPinned: Bool = false {
         didSet {
@@ -30,6 +41,7 @@ public final class MetricPanel: NSPanel {
 
     public var onCloseRequested: (() -> Void)?
     public var onUnpinRequested: (() -> Void)?
+    public var onGlossaryRequested: (() -> Void)?
     public var onCommand: ((PanelCommand) -> Void)?
     public var onContentHeightChanged: ((CGFloat) -> Void)?
 
@@ -90,73 +102,69 @@ public final class MetricPanel: NSPanel {
     }
 
     private func postCommand(_ command: PanelCommand) {
-        let info: [AnyHashable: Any]? = category.map { ["category": $0] }
-        NotificationCenter.default.post(name: .panelCommandReceived, object: command, userInfo: info)
+        var info: [AnyHashable: Any] = [:]
+        if let destination {
+            info["destination"] = destination
+            if let category = destination.category {
+                info["category"] = category
+            }
+        }
+        NotificationCenter.default.post(
+            name: .panelCommandReceived,
+            object: command,
+            userInfo: info.isEmpty ? nil : info
+        )
         onCommand?(command)
     }
 
     public override func keyDown(with event: NSEvent) {
-        let isCmd = event.modifierFlags.contains(.command)
+        let flags = event.modifierFlags
+        let input = PanelKeyInput(
+            keyCode: event.keyCode,
+            characters: event.charactersIgnoringModifiers ?? "",
+            command: flags.contains(.command),
+            control: flags.contains(.control),
+            shift: flags.contains(.shift),
+            option: flags.contains(.option)
+        )
 
-        if event.keyCode == 53 { // Escape
-            if isPinned {
-                // Esc is a deliberate no-op on pinned HUD panels so desktop workflows aren't interrupted
-                return
-            }
-            onCloseRequested?()
-            postCommand(.close)
+        guard let action = PanelKeyMap.action(for: input, isPinned: isPinned) else {
+            super.keyDown(with: event)
             return
         }
 
-        if isCmd {
-            switch event.charactersIgnoringModifiers?.lowercased() {
-            case "c":
-                if CopyHoverCoordinator.shared.copyActiveText() {
-                    return
-                }
-            case "1":
-                postCommand(.selectPage(1))
-                return
-            case "2":
-                postCommand(.selectPage(2))
-                return
-            case "3":
-                postCommand(.selectPage(3))
-                return
-            case "p":
-                postCommand(.togglePin)
-                return
-            case ",":
-                postCommand(.openPreferences)
-                return
-            case "w":
-                if isPinned {
-                    onUnpinRequested?()
-                } else {
-                    onCloseRequested?()
-                    postCommand(.close)
-                }
-                return
-            default:
-                break
+        switch action {
+        case .noOp:
+            return
+        case .close:
+            onCloseRequested?()
+            postCommand(.close)
+        case .unpin:
+            onUnpinRequested?()
+        case .copy:
+            if !CopyHoverCoordinator.shared.copyActiveText() {
+                super.keyDown(with: event)
             }
-        } else {
-            switch event.keyCode {
-            case 123: // Left Arrow
-                postCommand(.previousPage)
-                return
-            case 124: // Right Arrow
-                postCommand(.nextPage)
-                return
-            case 49: // Space
-                postCommand(.togglePause)
-                return
-            default:
-                break
-            }
+        case .selectDestination(let index):
+            postCommand(.selectDestination(index))
+        case .nextDestination:
+            postCommand(.nextDestination)
+        case .previousDestination:
+            postCommand(.previousDestination)
+        case .previousPage:
+            postCommand(.previousPage)
+        case .nextPage:
+            postCommand(.nextPage)
+        case .togglePin:
+            postCommand(.togglePin)
+        case .openSettings:
+            postCommand(.openPreferences)
+        case .quit:
+            postCommand(.quit)
+        case .showGlossary:
+            onGlossaryRequested?()
+            postCommand(.showGlossary)
         }
-
-        super.keyDown(with: event)
     }
 
     /// Swaps the SwiftUI root view in place on the persistent hosting view without rebuilding AppKit layers.
