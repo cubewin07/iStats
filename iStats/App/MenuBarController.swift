@@ -608,8 +608,24 @@ public final class MenuBarController: NSObject {
         }
         NotificationCenter.default.post(name: Self.showOverviewNotification, object: button)
         let rawId = button.identifier?.rawValue ?? Self.fallbackStatusItemId
-        let category = categoryForConfigId(rawId) ?? .cpu
-        showPanel(for: category, relativeTo: button)
+        currentlyShownButton = button
+        PanelController.shared.show(destination: .overview, itemID: rawId, relativeTo: button) {
+            AnyView(
+                PanelFactory.makePanelView(
+                    destination: .overview,
+                    coordinator: self.coordinator,
+                    preferences: self.preferences
+                )
+                .environmentObject(self.preferences)
+                .environmentObject(self.coordinator)
+            )
+        }
+        if PanelController.shared.isTransientPanelOpen(for: .overview) {
+            startScrubbingMonitor()
+        } else {
+            stopScrubbingMonitor()
+            currentlyShownButton = nil
+        }
     }
 
     @objc private func openCategorySettingsFromContextMenu(_ sender: NSMenuItem) {
