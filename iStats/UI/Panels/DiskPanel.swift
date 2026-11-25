@@ -100,8 +100,6 @@ public struct DiskPanel: View {
         let glance: PanelGlance
         let status: StatusLevel
         let ribbon: String?
-        let readSeries: [Double]
-        let writeSeries: [Double]
     }
 
     private final class DerivedCache {
@@ -131,7 +129,7 @@ public struct DiskPanel: View {
         let std = preferences.byteUnitStandard
         let boot = Self.resolveBootVolume(in: currentSample)
 
-        let (displayVal, displayUnit, formatStr) = formatFreeSpace(boot?.free ?? 0, standard: std)
+        let freeParts = Units.byteComponents(boot?.free ?? 0, standard: std)
         let headline = deriveHeadline(boot: boot, std: std)
 
         // B8: Read exclusively from timestamped scalar buffers (never mix diskHistory).
@@ -142,11 +140,9 @@ public struct DiskPanel: View {
             duration: 60.0,
             referenceDate: refDate
         )
-        let readSeries = dualPoints.map(\.primary)
-        let writeSeries = dualPoints.map(\.secondary)
 
         let insight = InsightEngine.best(
-            series: readSeries,
+            series: dualPoints.map(\.primary),
             interval: preferences.refreshInterval,
             unit: .bytesPerSecond(standard: std),
             thresholds: .throughputBytesPerSec()
@@ -161,9 +157,9 @@ public struct DiskPanel: View {
         )
 
         let glance = PanelGlance(
-            value: displayVal,
-            format: formatStr,
-            unit: displayUnit,
+            value: freeParts.value,
+            format: freeParts.format,
+            unit: "\(freeParts.unit) free",
             headline: headline,
             insight: insight,
             chartMode: chartMode,
@@ -176,9 +172,7 @@ public struct DiskPanel: View {
         return DerivedState(
             glance: glance,
             status: status,
-            ribbon: ribbon,
-            readSeries: readSeries,
-            writeSeries: writeSeries
+            ribbon: ribbon
         )
     }
 
@@ -186,19 +180,6 @@ public struct DiskPanel: View {
         guard let s = sample else { return nil }
         return s.volumes.first(where: { $0.mountPoint == "/" })
             ?? s.volumes.max(by: { $0.total < $1.total })
-    }
-
-    private func formatFreeSpace(_ bytes: UInt64, standard: Units.ByteUnitStandard) -> (Double, String, String) {
-        let base: Double = standard == .si ? 1000.0 : 1024.0
-        let suffixes = standard == .si ? ["B", "KB", "MB", "GB", "TB", "PB"] : ["B", "KiB", "MiB", "GiB", "TiB", "PiB"]
-        var val = Double(bytes)
-        var idx = 0
-        while val >= base && idx < suffixes.count - 1 {
-            val /= base
-            idx += 1
-        }
-        let formatStr = (idx > 0 && val < 10.0) ? "%.1f" : "%.0f"
-        return (val, "\(suffixes[idx]) free", formatStr)
     }
 
     private func deriveHeadline(boot: VolumeCapacity?, std: Units.ByteUnitStandard) -> String {
@@ -232,12 +213,9 @@ public struct DiskPanel: View {
         if let s = sample, let boot = bootVolume {
             let std = preferences.byteUnitStandard
 
-            VStack(alignment: .leading, spacing: Instrument.Space.m) {
-                // Section 1: Boot Volume Storage
+            VStack(alignment: .leading, spacing: Instrument.Space.sectionGap) {
                 bootStorageSection(volume: boot, status: derived.status, std: std)
-
-                // Section 2: Live Throughput & IOPS
-                throughputSection(io: s.io, derived: derived, std: std)
+                throughputSection(io: s.io, std: std)
             }
         } else {
             InsetEmptyState(
@@ -248,7 +226,7 @@ public struct DiskPanel: View {
         }
     }
 
-    // MARK: - Section 1: Boot Volume Storage
+    // MARK: - Boot Volume Storage
 
     private struct StorageLegendItem: Identifiable {
         let id: String
@@ -421,39 +399,24 @@ public struct DiskPanel: View {
         }
     }
 
-    // MARK: - Section 2: Live Throughput & IOPS
+    // MARK: - Throughput
 
     @ViewBuilder
     private func throughputSection(
         io: DiskIO?,
-        derived: DerivedState,
         std: Units.ByteUnitStandard
     ) -> some View {
-        Section("Live Throughput & IOPS") {
+        Section("Throughput") {
             if let io {
                 VStack(spacing: 0) {
                     MetricRow(
-                        label: "Read Throughput",
-                        valueText: Units.formatCompactRate(io.bytesReadPerSec, standard: std),
-                        sparklineHistory: derived.readSeries,
-                        sparklineColor: CategoryPalette.Series.diskRead,
+                        label: "Read",
+                        valueText: Self.throughputText(bytesPerSec: io.bytesReadPerSec, opsPerSec: io.readOpsPerSec, standard: std),
                         showHairline: true
                     )
                     MetricRow(
-                        label: "Write Throughput",
-                        valueText: Units.formatCompactRate(io.bytesWrittenPerSec, standard: std),
-                        sparklineHistory: derived.writeSeries,
-                        sparklineColor: CategoryPalette.Series.diskWrite,
-                        showHairline: true
-                    )
-                    MetricRow(
-                        label: "Read IOPS",
-                        valueText: "\(formatIOPS(io.readOpsPerSec)) ops/s",
-                        showHairline: true
-                    )
-                    MetricRow(
-                        label: "Write IOPS",
-                        valueText: "\(formatIOPS(io.writeOpsPerSec)) ops/s",
+                        label: "Write",
+                        valueText: Self.throughputText(bytesPerSec: io.bytesWrittenPerSec, opsPerSec: io.writeOpsPerSec, standard: std),
                         showHairline: false
                     )
                 }
@@ -467,7 +430,12 @@ public struct DiskPanel: View {
         }
     }
 
-    private func formatIOPS(_ value: Double) -> String {
+    /// "14.5 MB/s · 240 IOPS": rate and operations together, the chart owns the history.
+    static func throughputText(bytesPerSec: Double, opsPerSec: Double, standard: Units.ByteUnitStandard) -> String {
+        "\(Units.formatCompactRate(bytesPerSec, standard: standard)) · \(formatIOPS(opsPerSec)) IOPS"
+    }
+
+    private static func formatIOPS(_ value: Double) -> String {
         let count = max(0, Int(round(value)))
         let formatter = NumberFormatter()
         formatter.numberStyle = .decimal
@@ -481,22 +449,31 @@ public struct DiskPanel: View {
     private func volumesPage(sample: DiskSample?) -> some View {
         if let s = sample, !s.volumes.isEmpty {
             let std = preferences.byteUnitStandard
+            let boot = bootVolume
+            let others = s.volumes.filter { $0.mountPoint != boot?.mountPoint }
 
-            Section("Mounted Volumes") {
+            Section("Volumes") {
                 Text("\(s.volumes.count)")
                     .font(Instrument.Typography.caption.monospacedDigit())
                     .foregroundStyle(.secondary)
             } content: {
                 VStack(spacing: 0) {
-                    ForEach(Array(s.volumes.enumerated()), id: \.element.mountPoint) { index, vol in
-                        volumeRow(vol: vol, std: std)
-                            .padding(.vertical, Instrument.Space.m)
-
-                        if index < s.volumes.count - 1 {
+                    if let boot {
+                        bootCompactRow(vol: boot, std: std)
+                            .padding(.bottom, others.isEmpty ? 0 : Instrument.Space.m)
+                        if !others.isEmpty {
                             Rectangle()
                                 .fill(Instrument.Surface.hairline)
                                 .frame(height: 0.5)
                         }
+                    }
+                    if others.count > Self.maxVisibleVolumeRows {
+                        ScrollView {
+                            otherVolumesList(others, std: std)
+                        }
+                        .frame(maxHeight: Self.volumeListMaxHeight)
+                    } else {
+                        otherVolumesList(others, std: std)
                     }
                 }
             }
@@ -506,6 +483,48 @@ public struct DiskPanel: View {
                 title: "No Volumes Mounted",
                 reason: "No mounted file system volumes detected."
             )
+        }
+    }
+
+    private static let maxVisibleVolumeRows = 4
+    private static let volumeListMaxHeight: CGFloat = 4 * 80
+
+    @ViewBuilder
+    private func otherVolumesList(_ volumes: [VolumeCapacity], std: Units.ByteUnitStandard) -> some View {
+        VStack(spacing: 0) {
+            ForEach(Array(volumes.enumerated()), id: \.element.mountPoint) { index, vol in
+                volumeRow(vol: vol, std: std)
+                    .padding(.vertical, Instrument.Space.m)
+
+                if index < volumes.count - 1 {
+                    Rectangle()
+                        .fill(Instrument.Surface.hairline)
+                        .frame(height: 0.5)
+                }
+            }
+        }
+    }
+
+    /// Boot volume as one compact row: capacity already has its card on Now.
+    @ViewBuilder
+    private func bootCompactRow(vol: VolumeCapacity, std: Units.ByteUnitStandard) -> some View {
+        HStack(spacing: Instrument.Space.s) {
+            Image(systemName: CategoryIdentity(.disk).liveSymbol(LiveSymbolState(isExternalVolume: false)))
+                .font(Instrument.Typography.icon(Instrument.Icon.regular, weight: .medium))
+                .foregroundColor(CategoryPalette.color(for: .disk))
+            Text(vol.name)
+                .font(Instrument.Typography.body.weight(.medium))
+                .lineLimit(1)
+            Text("Boot")
+                .font(Instrument.Typography.micro)
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, Instrument.Space.s)
+                .padding(.vertical, Instrument.Space.xxs)
+                .background(Capsule(style: .continuous).fill(Instrument.Surface.inset))
+            Spacer(minLength: Instrument.Space.xs)
+            Text(Units.formatBytes(vol.total, standard: std, fractionDigits: 1))
+                .font(Instrument.Typography.caption.monospacedDigit())
+                .foregroundStyle(.secondary)
         }
     }
 
