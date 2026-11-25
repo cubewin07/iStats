@@ -13,8 +13,8 @@ The only status file. Agent specs (`AGENTS.md`, `CLAUDE.md`) and phase plans do 
 | Field | Value |
 |-------|--------|
 | Phase | **9** — Native-premium redesign (identity, panel shell v3, widgets, Settings, alerts, onboarding) |
-| Next task | **9.2**, **9.6**, **9.7** (in progress in parallel) |
-| Last closed | **9.5** Panel content pass A |
+| Next task | **9.3**, **9.7**, **9.9** (in progress in parallel) |
+| Last closed | **9.2** Preferences model v2 and migration |
 | Blocked by | — |
 
 ---
@@ -135,6 +135,8 @@ Copy a row from [`docs/specs/tasks.md`](./specs/tasks.md) when you start it. Lea
 | 9.0 | ADR 0011 native-premium redesign and Phase 9 spec package (docs only) | **done** | [`docs/handoffs/09-9.0-summary.md`](./handoffs/09-9.0-summary.md), [`docs/architecture/adr/0011-native-premium-redesign.md`](./architecture/adr/0011-native-premium-redesign.md), [`docs/phases/phase-09-native-premium/`](./phases/phase-09-native-premium/) |
 | 9.1 | Identity and design-system foundation (`CategoryIdentity`, stable-hue palette, unified `StatusLevel` symbols, token consolidation, panel threshold tables) | **done** | [`docs/handoffs/09-9.1-summary.md`](./handoffs/09-9.1-summary.md), `swift test` (716 passed: 311 core + 405 app), `xcodebuild test -scheme iStatsApp` (397 passed), `xcodebuild -scheme iStats -configuration Debug build` passed |
 | 9.5 | Panel content pass A (CPU, Memory, GPU, Temperature one-value-once pages) | **done** | [`docs/handoffs/09-9.5-summary.md`](./handoffs/09-9.5-summary.md), `swift test` (311 core + 415 app passed), `xcodebuild -scheme iStats -configuration Debug build` passed |
+| 9.2 | Preferences model v2 and migration (`PreferencesMigration` schema v2, `AlertRule`, `PanelDestination`, new keys, dead display-mode/popover-style state removed) | **done** | [`docs/handoffs/09-9.2-summary.md`](./handoffs/09-9.2-summary.md), merged `swift test` (330 core + 420 app passed), `xcodebuild -scheme iStats -configuration Debug build` passed |
+| 9.6 | Panel content pass B (Fans, Network, Disk, Battery/Power one-value-once pages; battery chart plots charge %) | **done** | [`docs/handoffs/09-9.6-summary.md`](./handoffs/09-9.6-summary.md), `xcodebuild test -scheme iStatsApp` (412 passed), merged `swift test` green |
 
 When a task is done, set Status to `done` and put the handoff summary path (or test command) in Evidence.
 
