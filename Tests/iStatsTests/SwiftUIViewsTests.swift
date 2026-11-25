@@ -815,9 +815,8 @@ final class SwiftUIViewsTests: XCTestCase {
         var historyProbe = HistoryPageProbeSnapshot()
 
         let scaffold = PanelScaffold(
-            category: .cpu,
+            chrome: PanelChrome(category: .cpu, status: .fine),
             glance: PanelGlance(value: 64, format: "%.0f", unit: "%", headline: "Live CPU"),
-            status: .fine,
             pages: [.overview, .detail, .history],
             selection: .constant(.history)
         ) { _ in

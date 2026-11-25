@@ -45,9 +45,8 @@ final class Phase7RefinementTests: XCTestCase {
         var capturedTab: PopoverTab = .detail
         let glance = PanelGlance(value: 12.0, headline: "Processor Idle")
         let view = PanelScaffold(
-            category: .cpu,
+            chrome: PanelChrome(category: .cpu, status: .fine),
             glance: glance,
-            status: .fine,
             pages: [.overview, .history],
             selection: Binding(get: { capturedTab }, set: { capturedTab = $0 })
         ) { page in

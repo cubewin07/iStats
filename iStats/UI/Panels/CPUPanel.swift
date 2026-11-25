@@ -107,23 +107,28 @@ public struct CPUPanel: View {
         let isLoading = (availability == nil && !coordinator.isSamplingPaused)
 
         PanelScaffold(
-            category: .cpu,
+            chrome: PanelChrome(
+                category: .cpu,
+                status: derived.status,
+                ribbon: derived.ribbon,
+                availability: availability,
+                isLoading: isLoading,
+                isPaused: coordinator.isSamplingPaused,
+                isLowPowerModeActive: coordinator.isLowPowerModeActive,
+                isPinned: PanelController.shared.isPinned(for: .cpu),
+                hasBattery: coordinator.latestPower?.value.hasBattery ?? true,
+                refreshInterval: preferences.refreshInterval,
+                enabledCategories: preferences.enabledCategories,
+                onTogglePause: {
+                    coordinator.toggleSamplingPaused()
+                },
+                onPinToggle: {
+                    PanelController.shared.togglePin(for: .cpu)
+                }
+            ),
             glance: derived.glance,
-            status: derived.status,
-            ribbon: derived.ribbon,
             pages: PopoverTab.supportedTabs(for: .cpu),
-            selection: $selectedTab,
-            availability: availability,
-            isLoading: isLoading,
-            isPaused: coordinator.isSamplingPaused,
-            isLowPowerModeActive: coordinator.isLowPowerModeActive,
-            onTogglePause: {
-                coordinator.toggleSamplingPaused()
-            },
-            onPinToggle: {
-                PanelController.shared.togglePin(for: .cpu)
-            },
-            isPinned: PanelController.shared.isPinned(for: .cpu)
+            selection: $selectedTab
         ) { tab in
             switch tab {
             case .overview:

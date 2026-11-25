@@ -1894,7 +1894,7 @@ public struct LiveChart: View {
     }
 
     private var isPinnedNonKey: Bool {
-        guard let pinnedPanel = panelController.pinnedPanels[category], pinnedPanel.isVisible else {
+        guard let pinnedPanel = panelController.pinnedPanels[.category(category)], pinnedPanel.isVisible else {
             return false
         }
         return !(pinnedPanel.isKeyWindow && isWindowKey)
@@ -2061,7 +2061,7 @@ public struct LiveChart: View {
     }
 
     private func refreshWindowKeyState() {
-        if let pinned = panelController.pinnedPanels[category], pinned.isVisible {
+        if let pinned = panelController.pinnedPanels[.category(category)], pinned.isVisible {
             isWindowKey = pinned.isKeyWindow
         } else {
             isWindowKey = true

@@ -58,23 +58,28 @@ public struct PowerPanel: View {
         let isLoading = (availability == nil && !coordinator.isSamplingPaused)
 
         PanelScaffold(
-            category: .power,
+            chrome: PanelChrome(
+                category: .power,
+                status: derived.status,
+                ribbon: derived.ribbon,
+                availability: availability,
+                isLoading: isLoading,
+                isPaused: coordinator.isSamplingPaused,
+                isLowPowerModeActive: coordinator.isLowPowerModeActive,
+                isPinned: PanelController.shared.isPinned(for: .power),
+                hasBattery: hasBattery,
+                refreshInterval: preferences.refreshInterval,
+                enabledCategories: preferences.enabledCategories,
+                onTogglePause: {
+                    coordinator.toggleSamplingPaused()
+                },
+                onPinToggle: {
+                    PanelController.shared.togglePin(for: .power)
+                }
+            ),
             glance: derived.glance,
-            status: derived.status,
-            ribbon: derived.ribbon,
             pages: supportedPages,
-            selection: $selectedTab,
-            availability: availability,
-            isLoading: isLoading,
-            isPaused: coordinator.isSamplingPaused,
-            isLowPowerModeActive: coordinator.isLowPowerModeActive,
-            onTogglePause: {
-                coordinator.toggleSamplingPaused()
-            },
-            onPinToggle: {
-                PanelController.shared.togglePin(for: .power)
-            },
-            isPinned: PanelController.shared.isPinned(for: .power)
+            selection: $selectedTab
         ) { tab in
             switch tab {
             case .overview:

@@ -6,7 +6,6 @@ public struct InlineStatusChip: View {
     public let status: StatusLevel
     public var detail: String?
 
-    @State private var isActionHovered: Bool = false
     @Environment(\.colorSchemeContrast) private var colorSchemeContrast
 
     public init(status: StatusLevel, detail: String? = nil) {

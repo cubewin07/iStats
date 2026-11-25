@@ -40,24 +40,14 @@ public struct PanelGlance: Sendable {
     }
 }
 
-/// The unified Instrument Panel Scaffold (ADR 0009 / Task 8.6).
-/// Composes zones ① Eyebrow, ② Glance, ③ Living Chart, ④ Status Ribbon, and ⑤ Page Body.
+/// The unified Instrument Panel Scaffold v3 (ADR 0011 / Task 9.3).
+/// Composes `PanelHeaderStrip` (28 pt), `PanelTitleRow` (15 pt + `PageSwitcher`),
+/// Glance, Living Chart, Status Ribbon, Page Body, and `PanelFooterBar` (24 pt).
 public struct PanelScaffold<Content: View>: View {
-    public let category: MetricCategory
+    public let chrome: PanelChrome
     public let glance: PanelGlance
-    public let status: StatusLevel
-    public let ribbon: String?
-    public var ribbonActionTitle: String? = nil
-    public var ribbonAction: (() -> Void)? = nil
     public let pages: [PopoverTab]
     @Binding public var selection: PopoverTab
-    public var availability: Availability? = nil
-    public var isLoading: Bool = false
-    public var isPaused: Bool = false
-    public var isLowPowerModeActive: Bool = false
-    public var onTogglePause: (() -> Void)? = nil
-    public var onPinToggle: (() -> Void)? = nil
-    public var isPinned: Bool = false
     private var externalScrubState: Binding<ChartScrubState?>?
     @ViewBuilder public let content: (PopoverTab) -> Content
 
@@ -65,82 +55,112 @@ public struct PanelScaffold<Content: View>: View {
     @State private var activeScrubSourceID: UUID? = nil
     @State private var measuredBodyHeight: CGFloat? = nil
     @State private var scrollVisibleHeight: CGFloat = 0
-    @State private var isMenuHovered: Bool = false
-    @State private var isPinHovered: Bool = false
-    @State private var isCloseHovered: Bool = false
     @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
     @Environment(\.explicitMotionPolicy) private var explicitMotionPolicy
     @Environment(\.isManagedByPanelController) private var isManagedByPanelController
     @Environment(\.panelScaffoldProbeEnabled) private var probeEnabled
     @ObservedObject private var panelController = PanelController.shared
 
+    /// Convenience accessor for the active category (category panels always pass `.category(...)`).
+    public var category: MetricCategory {
+        chrome.destination.category ?? .cpu
+    }
+
+    private var destination: PanelDestination {
+        chrome.destination
+    }
+
     private var effectiveIsPinned: Bool {
-        isPinned || panelController.isPinned(for: category)
+        chrome.isPinned || panelController.isPinned(for: destination)
     }
 
     private var isWindowVisible: Bool {
-        isManagedByPanelController ? panelController.isPanelOpen(for: category) : true
+        isManagedByPanelController ? panelController.isPanelOpen(for: destination) : true
     }
 
     private var activeScrubState: ChartScrubState? {
-        guard !isLoading, (availability?.isAvailable ?? true) else { return nil }
+        guard !chrome.isLoading, (chrome.availability?.isAvailable ?? true) else { return nil }
         return externalScrubState?.wrappedValue ?? scrubState
     }
 
     private var shouldShowInsightRow: Bool {
-        guard !isLoading else { return false }
-        if let avail = availability, !avail.isAvailable { return false }
+        guard !chrome.isLoading else { return false }
+        if let avail = chrome.availability, !avail.isAvailable { return false }
         return selection != .history
     }
 
     internal var shouldShowInlineStatusChip: Bool {
-        !isLoading && (availability?.isAvailable ?? true) && status >= .elevated
+        !chrome.isLoading && (chrome.availability?.isAvailable ?? true) && chrome.status >= .elevated
+    }
+
+    internal struct ResolvedRibbon {
+        let status: StatusLevel
+        let message: String
+        let actionTitle: String
+        let action: (() -> Void)?
+    }
+
+    /// Single source of truth for StatusRibbon visibility:
+    /// - Paused sampling always shows a Resume ribbon.
+    /// - Explicit ribbon action always shows.
+    /// - Any message at `.warning` or above always shows with a real category action.
+    internal var resolvedRibbon: ResolvedRibbon? {
+        if chrome.isPaused {
+            return ResolvedRibbon(
+                status: .elevated,
+                message: "Sampling paused",
+                actionTitle: "Resume",
+                action: chrome.onTogglePause
+            )
+        }
+        guard let message = chrome.ribbon, !message.isEmpty else { return nil }
+
+        if let title = chrome.ribbonActionTitle, !title.isEmpty, let action = chrome.ribbonAction {
+            return ResolvedRibbon(
+                status: chrome.status,
+                message: message,
+                actionTitle: title,
+                action: action
+            )
+        }
+
+        guard !chrome.isLoading, (chrome.availability?.isAvailable ?? true), chrome.status >= .warning else {
+            return nil
+        }
+
+        let quickAction = PanelQuickAction.ribbon(for: category)
+        let isPinnedSnapshot = effectiveIsPinned
+        let dest = destination
+        return ResolvedRibbon(
+            status: chrome.status,
+            message: message,
+            actionTitle: quickAction.title,
+            action: {
+                PanelChromeActions.perform(
+                    quickAction,
+                    closeTransientIfUnpinned: !isPinnedSnapshot,
+                    destination: dest
+                )
+            }
+        )
     }
 
     internal var shouldShowActionableRibbon: Bool {
-        if isPaused { return true }
-        guard let message = ribbon, !message.isEmpty,
-              let actionTitle = ribbonActionTitle, !actionTitle.isEmpty,
-              ribbonAction != nil else {
-            return false
-        }
-        return true
+        resolvedRibbon != nil
     }
 
     public init(
-        category: MetricCategory,
+        chrome: PanelChrome,
         glance: PanelGlance,
-        status: StatusLevel = .fine,
-        ribbon: String? = nil,
-        ribbonActionTitle: String? = nil,
-        ribbonAction: (() -> Void)? = nil,
         pages: [PopoverTab] = [.overview, .detail, .history],
         selection: Binding<PopoverTab>,
-        availability: Availability? = nil,
-        isLoading: Bool = false,
-        isPaused: Bool = false,
-        isLowPowerModeActive: Bool = false,
-        onTogglePause: (() -> Void)? = nil,
-        onPinToggle: (() -> Void)? = nil,
-        isPinned: Bool = false,
         scrubState: Binding<ChartScrubState?>? = nil,
         @ViewBuilder content: @escaping (PopoverTab) -> Content
     ) {
-        self.category = category
+        self.chrome = chrome
         self.glance = glance
-        self.status = status
-        self.ribbon = ribbon
-        self.ribbonActionTitle = ribbonActionTitle
-        self.ribbonAction = ribbonAction
         self.pages = pages
         self._selection = selection
-        self.availability = availability
-        self.isLoading = isLoading
-        self.isPaused = isPaused
-        self.isLowPowerModeActive = isLowPowerModeActive
-        self.onTogglePause = onTogglePause
-        self.onPinToggle = onPinToggle
-        self.isPinned = isPinned
         self.externalScrubState = scrubState
         self.content = content
     }
@@ -148,36 +168,85 @@ public struct PanelScaffold<Content: View>: View {
     public var body: some View {
         let resolvedPolicy = explicitMotionPolicy ?? MotionPolicy.resolve(
             reduceMotion: accessibilityReduceMotion,
-            lowPower: isLowPowerModeActive,
-            paused: isPaused,
+            lowPower: chrome.isLowPowerModeActive,
+            paused: chrome.isPaused,
             visible: isWindowVisible
         )
+        let activeRibbon = resolvedRibbon
+        let topPadding = Instrument.Space.l
+        let bottomPadding = Instrument.Space.m
 
-        PanelStackLayout(maxHeight: Instrument.Size.maxHeight - (Instrument.Space.xl * 2)) {
-            // Child 0: Static-height Chrome (Eyebrow + Glance + Chart + Insight + Status Ribbon)
+        PanelStackLayout(maxHeight: Instrument.Size.maxHeight - topPadding - bottomPadding) {
+            // Child 0: Static-height Top Chrome (Header Strip + Title Row + Glance + Chart + Insight + Status Ribbon)
             VStack(alignment: .leading, spacing: 0) {
-                // Zone ①: Eyebrow row (28 pt)
-                eyebrowRow
-                    .frame(height: Instrument.Size.headerStripHeight)
-                    .background(
-                        Group {
-                            if probeEnabled {
-                                GeometryReader { proxy in
-                                    Color.clear.preference(
-                                        key: PanelScaffoldProbeKey.self,
-                                        value: PanelScaffoldProbeSnapshot(
-                                            badgeTitle: category.displayName,
-                                            eyebrowFrame: proxy.frame(in: .named("PanelScaffoldProbe")),
-                                            hasActionRibbon: shouldShowActionableRibbon
-                                        )
+                // Zone ①: 28 pt Header Strip (Overview + enabled categories + pin + ⋯ menu)
+                PanelHeaderStrip(
+                    destination: destination,
+                    enabledCategories: chrome.enabledCategories,
+                    hasBattery: chrome.hasBattery,
+                    isPinned: effectiveIsPinned,
+                    isPaused: chrome.isPaused,
+                    onSelectDestination: { target in
+                        selectDestination(target)
+                    },
+                    onTogglePin: {
+                        togglePin()
+                    },
+                    onClose: {
+                        closePanel()
+                    },
+                    onTogglePause: chrome.onTogglePause,
+                    onOpenSettings: {
+                        openSettings()
+                    },
+                    onQuit: {
+                        quitApp()
+                    }
+                )
+                .background(
+                    Group {
+                        if probeEnabled {
+                            GeometryReader { proxy in
+                                let frame = proxy.frame(in: .named("PanelScaffoldProbe"))
+                                Color.clear.preference(
+                                    key: PanelScaffoldProbeKey.self,
+                                    value: PanelScaffoldProbeSnapshot(
+                                        badgeTitle: chrome.displayTitle,
+                                        eyebrowFrame: frame,
+                                        headerStripFrame: frame,
+                                        headerStripButtonCount: chrome.stripDestinations.count,
+                                        hasActionRibbon: activeRibbon != nil,
+                                        ribbonActionTitle: activeRibbon?.actionTitle
                                     )
-                                }
+                                )
                             }
                         }
-                    )
-                    .padding(.bottom, Instrument.Space.m)
-                    .accessibilityElement(children: .contain)
-                    .accessibilityLabel("\(category.displayName) Header")
+                    }
+                )
+                .padding(.bottom, Instrument.Space.xs)
+
+                // Title row (15 pt semibold) + PageSwitcher
+                PanelTitleRow(
+                    title: chrome.displayTitle,
+                    category: destination.category,
+                    pages: pages,
+                    selection: $selection
+                )
+                .background(
+                    Group {
+                        if probeEnabled {
+                            GeometryReader { proxy in
+                                Color.clear.preference(
+                                    key: PanelScaffoldProbeKey.self,
+                                    value: PanelScaffoldProbeSnapshot(
+                                        titleRowFrame: proxy.frame(in: .named("PanelScaffoldProbe"))
+                                    )
+                                )
+                            }
+                        }
+                    }
+                )
+                .padding(.bottom, Instrument.Space.s)
 
                 // Zone ②: Glance (display numeral + headline)
                 glanceHeader
@@ -198,10 +267,10 @@ public struct PanelScaffold<Content: View>: View {
                         }
                     )
                     .accessibilityElement(children: .combine)
-                    .accessibilityLabel("\(category.displayName) Glance")
+                    .accessibilityLabel("\(chrome.displayTitle) Glance")
                     .accessibilityValue(glanceAccessibilitySummary)
 
-                // Zone ③: Living Chart (full-bleed, 72 pt; collapses cleanly on .history)
+                // Zone ③: Living Chart (full-bleed; collapses cleanly on .history)
                 chartZone
                     .padding(.horizontal, -Instrument.Space.xl)
                     .animation(nil, value: selection)
@@ -240,24 +309,13 @@ public struct PanelScaffold<Content: View>: View {
                         )
                 }
 
-                // Zone ④: Status Ribbon (strictly reserved for actionable states: paused sampling or explicit action buttons)
-                if isPaused {
+                // Zone ④: Status Ribbon (paused, explicit action, or >= .warning with real category action)
+                if let activeRibbon {
                     StatusRibbon(
-                        status: .elevated,
-                        message: "Sampling paused",
-                        actionTitle: "Resume",
-                        action: onTogglePause
-                    )
-                    .padding(.top, Instrument.Space.s)
-                    .accessibilityElement(children: .combine)
-                } else if let message = ribbon, !message.isEmpty,
-                          let actionTitle = ribbonActionTitle, !actionTitle.isEmpty,
-                          let action = ribbonAction {
-                    StatusRibbon(
-                        status: status,
-                        message: message,
-                        actionTitle: actionTitle,
-                        action: action
+                        status: activeRibbon.status,
+                        message: activeRibbon.message,
+                        actionTitle: activeRibbon.actionTitle,
+                        action: activeRibbon.action
                     )
                     .padding(.top, Instrument.Space.s)
                     .accessibilityElement(children: .combine)
@@ -267,8 +325,42 @@ public struct PanelScaffold<Content: View>: View {
             // Child 1: Zone ⑤ Page Body
             pageContent(policy: resolvedPolicy)
                 .accessibilityElement(children: .contain)
+
+            // Child 2: 24 pt Slim Footer
+            PanelFooterBar(
+                destination: destination,
+                hasBattery: chrome.hasBattery,
+                isPaused: chrome.isPaused,
+                isPinned: effectiveIsPinned,
+                refreshInterval: chrome.refreshInterval,
+                onTogglePause: chrome.onTogglePause,
+                onOpenSettings: {
+                    openSettings()
+                }
+            )
+            .padding(.top, Instrument.Space.s)
+            .background(
+                Group {
+                    if probeEnabled {
+                        GeometryReader { proxy in
+                            Color.clear.preference(
+                                key: PanelScaffoldProbeKey.self,
+                                value: PanelScaffoldProbeSnapshot(
+                                    footerFrame: proxy.frame(in: .named("PanelScaffoldProbe")),
+                                    footerStatusText: PanelFooterCaption.text(
+                                        isPaused: chrome.isPaused,
+                                        refreshInterval: chrome.refreshInterval
+                                    )
+                                )
+                            )
+                        }
+                    }
+                }
+            )
         }
-        .padding(Instrument.Space.xl)
+        .padding(.horizontal, Instrument.Space.xl)
+        .padding(.top, topPadding)
+        .padding(.bottom, bottomPadding)
         .frame(width: Instrument.Size.panelWidth)
         .coordinateSpace(name: "PanelScaffoldProbe")
         .background(
@@ -289,188 +381,15 @@ public struct PanelScaffold<Content: View>: View {
             updateScrubState(nil, sourceID: nil)
         }
         .onReceive(NotificationCenter.default.publisher(for: .panelCommandReceived)) { notification in
-            if let targetCategory = notification.userInfo?["category"] as? MetricCategory,
-               targetCategory != category {
-                return
+            if let targetDestination = notification.userInfo?["destination"] as? PanelDestination {
+                guard targetDestination == destination else { return }
+            } else if let targetCategory = notification.userInfo?["category"] as? MetricCategory {
+                guard targetCategory == destination.category else { return }
             }
             if let cmd = notification.object as? PanelCommand {
                 handleCommand(cmd)
             }
         }
-    }
-
-    // MARK: - Zone ①: Eyebrow Row
-
-    private var eyebrowRow: some View {
-        let tint = CategoryPalette.tint(for: category)
-
-        return HStack(spacing: Instrument.Space.xs) {
-            // 18×18 Tinted Category Badge + 13 pt Semibold Sentence-Case Title
-            HStack(spacing: Instrument.Space.s) {
-                ZStack {
-                    Circle()
-                        .fill(tint.opacity(0.16))
-                    Image(systemName: category.symbolName)
-                        .font(Instrument.Typography.icon(Instrument.Icon.small, weight: .semibold))
-                        .foregroundColor(tint)
-                }
-                .frame(width: 18, height: 18)
-
-                Text(category.displayName)
-                    .font(Instrument.Typography.headlineStrong)
-                    .foregroundColor(.primary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.85)
-            }
-
-            Spacer(minLength: 2)
-
-            // Text Page Switcher (Now · Details · History)
-            if pages.count > 1 {
-                PageSwitcher(
-                    pages: pages,
-                    selection: $selection,
-                    category: category
-                )
-            }
-
-            HStack(spacing: Instrument.Space.xxs) {
-                // Ellipsis Menu (plain button menu + hidden indicator prevents chevron overlap)
-                Menu {
-                    if let (title, icon, action) = contextUtilityAction() {
-                        Button {
-                            if !effectiveIsPinned {
-                                panelController.close()
-                            }
-                            action()
-                        } label: {
-                            Label(title, systemImage: icon)
-                        }
-                    }
-
-                    if let pauseAction = onTogglePause {
-                        Button(action: pauseAction) {
-                            Label(
-                                isPaused ? "Resume Sampling" : "Pause Sampling",
-                                systemImage: isPaused ? "play.circle" : "pause.circle"
-                            )
-                        }
-                    }
-
-                    Button {
-                        if let pinAction = onPinToggle {
-                            pinAction()
-                        } else {
-                            panelController.togglePin(for: category)
-                        }
-                    } label: {
-                        Label(
-                            effectiveIsPinned ? "Unpin Window" : "Pin Window",
-                            systemImage: effectiveIsPinned ? "pin.slash" : "pin"
-                        )
-                    }
-
-                    Divider()
-
-                    Button {
-                        if !effectiveIsPinned {
-                            panelController.close()
-                        }
-                        PreferencesWindowController.shared.showPreferences()
-                    } label: {
-                        Label("Settings...", systemImage: "gearshape")
-                    }
-                } label: {
-                    eyebrowIconLabel(
-                        systemName: "ellipsis",
-                        size: 11,
-                        weight: .semibold,
-                        foreground: isMenuHovered ? .primary : .secondary,
-                        pillFill: isMenuHovered ? Color.primary.opacity(0.09) : .clear
-                    )
-                }
-                .menuStyle(.button)
-                .buttonStyle(.plain)
-                .menuIndicator(.hidden)
-                .fixedSize()
-                .onHover { hovering in
-                    withAnimation(Motion.snappy) {
-                        isMenuHovered = hovering
-                    }
-                }
-                .help("More Actions")
-                .accessibilityLabel("More Actions")
-
-                // Pin / Detach Button
-                Button {
-                    if let pinAction = onPinToggle {
-                        pinAction()
-                    } else {
-                        panelController.togglePin(for: category)
-                    }
-                } label: {
-                    let pillFill: Color = effectiveIsPinned
-                        ? tint.opacity(isPinHovered ? 0.22 : 0.14)
-                        : (isPinHovered ? Color.primary.opacity(0.09) : .clear)
-                    eyebrowIconLabel(
-                        systemName: effectiveIsPinned ? "pin.fill" : "pin",
-                        size: 10.5,
-                        weight: effectiveIsPinned ? .semibold : .regular,
-                        foreground: effectiveIsPinned ? tint : (isPinHovered ? .primary : .secondary),
-                        pillFill: pillFill
-                    )
-                }
-                .buttonStyle(.plain)
-                .onHover { hovering in
-                    withAnimation(Motion.snappy) {
-                        isPinHovered = hovering
-                    }
-                }
-                .help(effectiveIsPinned ? "Unpin Window (⌘P)" : "Pin Window (⌘P)")
-                .accessibilityLabel(effectiveIsPinned ? "Unpin Window" : "Pin Window")
-
-                // Explicit Close Button on Pinned HUDs
-                if effectiveIsPinned {
-                    Button {
-                        panelController.unpin(category: category)
-                    } label: {
-                        eyebrowIconLabel(
-                            systemName: "xmark",
-                            size: 9.5,
-                            weight: .semibold,
-                            foreground: isCloseHovered ? .primary : .secondary,
-                            pillFill: isCloseHovered ? Color.primary.opacity(0.09) : .clear
-                        )
-                    }
-                    .buttonStyle(.plain)
-                    .onHover { hovering in
-                        withAnimation(Motion.snappy) {
-                            isCloseHovered = hovering
-                        }
-                    }
-                    .help("Close Pinned Window (⌘W)")
-                    .accessibilityLabel("Close Pinned Window")
-                }
-            }
-        }
-    }
-
-    private func eyebrowIconLabel(
-        systemName: String,
-        size: CGFloat,
-        weight: Font.Weight,
-        foreground: Color,
-        pillFill: Color
-    ) -> some View {
-        Image(systemName: systemName)
-            .font(Instrument.Typography.icon(size, weight: weight))
-            .foregroundColor(foreground)
-            .frame(width: 21, height: 21)
-            .background(
-                RoundedRectangle(cornerRadius: Instrument.Radius.chip, style: .continuous)
-                    .fill(pillFill)
-            )
-            .contentShape(RoundedRectangle(cornerRadius: Instrument.Radius.chip, style: .continuous))
     }
 
     // MARK: - Zone ②: Glance Header
@@ -479,11 +398,11 @@ public struct PanelScaffold<Content: View>: View {
         VStack(alignment: .leading, spacing: Instrument.Space.xxs) {
             HStack(alignment: .firstTextBaseline) {
                 // Value Display
-                if isLoading {
+                if chrome.isLoading {
                     Text("--")
                         .font(Instrument.Typography.display)
                         .foregroundColor(.secondary.opacity(0.3))
-                } else if let avail = availability, case .unavailable = avail {
+                } else if let avail = chrome.availability, case .unavailable = avail {
                     Text("—")
                         .font(Instrument.Typography.display)
                         .foregroundColor(.secondary)
@@ -542,7 +461,7 @@ public struct PanelScaffold<Content: View>: View {
                 Spacer(minLength: 8)
 
                 if shouldShowInlineStatusChip {
-                    InlineStatusChip(status: status, detail: ribbon)
+                    InlineStatusChip(status: chrome.status, detail: chrome.ribbon)
                         .background(
                             Group {
                                 if probeEnabled {
@@ -550,7 +469,7 @@ public struct PanelScaffold<Content: View>: View {
                                         Color.clear.preference(
                                             key: PanelScaffoldProbeKey.self,
                                             value: PanelScaffoldProbeSnapshot(
-                                                inlineStatusText: InlineStatusChip.displayText(for: status),
+                                                inlineStatusText: InlineStatusChip.displayText(for: chrome.status),
                                                 inlineStatusFrame: proxy.frame(in: .named("PanelScaffoldProbe"))
                                             )
                                         )
@@ -562,12 +481,12 @@ public struct PanelScaffold<Content: View>: View {
             }
 
             // Headline
-            if isLoading {
+            if chrome.isLoading {
                 Text("Loading...")
                     .font(Instrument.Typography.headline)
                     .foregroundColor(.secondary)
                     .lineLimit(1)
-            } else if let avail = availability, case .unavailable(let reason) = avail {
+            } else if let avail = chrome.availability, case .unavailable(let reason) = avail {
                 Text(reason)
                     .font(Instrument.Typography.headline)
                     .foregroundColor(.secondary)
@@ -675,18 +594,18 @@ public struct PanelScaffold<Content: View>: View {
         }
         .padding(.top, Instrument.Space.s)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(category.displayName) Insight")
+        .accessibilityLabel("\(chrome.displayTitle) Insight")
         .accessibilityValue(insight)
     }
 
     private var glanceAccessibilitySummary: String {
-        if isLoading {
+        if chrome.isLoading {
             return "Loading"
         }
-        if let avail = availability, case .unavailable(let reason) = avail {
+        if let avail = chrome.availability, case .unavailable(let reason) = avail {
             return reason
         }
-        let statusSuffix = status >= .elevated ? ", \(InlineStatusChip.title(for: status))" : ""
+        let statusSuffix = chrome.status >= .elevated ? ", \(InlineStatusChip.title(for: chrome.status))" : ""
         if let scrub = activeScrubState {
             let primary = scrub.primaryUnit.isEmpty
                 ? scrub.formattedPrimary
@@ -756,7 +675,7 @@ public struct PanelScaffold<Content: View>: View {
     // MARK: - Zone ③: Living Chart
 
     private var targetChartHeight: CGFloat {
-        if let avail = availability, !avail.isAvailable {
+        if let avail = chrome.availability, !avail.isAvailable {
             return 12
         } else if selection == .history {
             return 0
@@ -769,7 +688,7 @@ public struct PanelScaffold<Content: View>: View {
 
     private var chartZone: some View {
         Group {
-            if let avail = availability, !avail.isAvailable {
+            if let avail = chrome.availability, !avail.isAvailable {
                 Color.clear
                     .frame(height: 12)
             } else if selection == .history {
@@ -782,7 +701,7 @@ public struct PanelScaffold<Content: View>: View {
                     height: glance.chartHeight,
                     valueFormatter: resolvedScrubFormatter
                 )
-                .opacity(isPaused ? 0.4 : 1.0)
+                .opacity(chrome.isPaused ? 0.4 : 1.0)
                 .transition(.opacity)
             } else {
                 Color.clear
@@ -797,14 +716,14 @@ public struct PanelScaffold<Content: View>: View {
 
     @ViewBuilder
     private func pageContent(policy: MotionPolicy) -> some View {
-        if let avail = availability, case .unavailable(let reason) = avail {
+        if let avail = chrome.availability, case .unavailable(let reason) = avail {
             InsetEmptyState(
-                systemImage: category.symbolName,
-                title: "\(category.displayName) Unavailable",
+                systemImage: chrome.identitySymbol,
+                title: "\(chrome.displayTitle) Unavailable",
                 reason: reason
             )
             .padding(.top, 14)
-        } else if isLoading {
+        } else if chrome.isLoading {
             VStack(spacing: Instrument.Space.m) {
                 ProgressView()
                     .scaleEffect(0.8)
@@ -860,13 +779,57 @@ public struct PanelScaffold<Content: View>: View {
         }
     }
 
-    // MARK: - Keyboard Command Handling
+    // MARK: - Actions & Keyboard Command Handling
+
+    private func selectDestination(_ target: PanelDestination) {
+        if let handler = chrome.onSelectDestination {
+            handler(target)
+        } else {
+            panelController.swap(to: target, from: destination)
+        }
+    }
+
+    private func togglePin() {
+        if let pinAction = chrome.onPinToggle {
+            pinAction()
+        } else {
+            panelController.togglePin(for: destination)
+        }
+    }
+
+    private func closePanel() {
+        if effectiveIsPinned {
+            if let closeAction = chrome.onClosePinned {
+                closeAction()
+            } else {
+                panelController.unpin(destination: destination)
+            }
+        } else {
+            panelController.close()
+        }
+    }
+
+    private func openSettings() {
+        if let custom = chrome.onOpenSettings {
+            custom()
+        } else {
+            PanelChromeActions.openSettings(for: destination, closeTransientIfUnpinned: !effectiveIsPinned)
+        }
+    }
+
+    private func quitApp() {
+        if let custom = chrome.onQuit {
+            custom()
+        } else {
+            PanelChromeActions.quitApp()
+        }
+    }
 
     private var pageSwitchAnimation: Animation? {
         let policy = explicitMotionPolicy ?? MotionPolicy.resolve(
             reduceMotion: accessibilityReduceMotion,
-            lowPower: isLowPowerModeActive,
-            paused: isPaused,
+            lowPower: chrome.isLowPowerModeActive,
+            paused: chrome.isPaused,
             visible: isWindowVisible
         )
         switch policy {
@@ -890,89 +853,78 @@ public struct PanelScaffold<Content: View>: View {
                     selection = pages[idx + 1]
                 }
             }
-        case .selectPage(let pageNumber):
-            let idx = pageNumber - 1
-            if idx >= 0 && idx < pages.count {
-                withAnimation(pageSwitchAnimation) {
-                    selection = pages[idx]
+        case .selectDestination(let index):
+            let items = chrome.stripDestinations
+            if index >= 0 && index < items.count {
+                let target = items[index]
+                if target != destination {
+                    selectDestination(target)
                 }
+            }
+        case .nextDestination:
+            let ordered = PanelDestination.orderedCategories(enabled: chrome.enabledCategories)
+            let next = destination.neighbor(offset: 1, in: ordered)
+            if next != destination {
+                selectDestination(next)
+            }
+        case .previousDestination:
+            let ordered = PanelDestination.orderedCategories(enabled: chrome.enabledCategories)
+            let prev = destination.neighbor(offset: -1, in: ordered)
+            if prev != destination {
+                selectDestination(prev)
             }
         case .togglePin:
-            if let pinAction = onPinToggle {
-                pinAction()
-            } else {
-                panelController.togglePin(for: category)
-            }
-        case .togglePause:
-            onTogglePause?()
+            togglePin()
         case .openPreferences:
-            PreferencesWindowController.shared.showPreferences()
+            openSettings()
+        case .quit:
+            quitApp()
+        case .showGlossary:
+            chrome.onShowGlossary?()
         case .close:
-            if effectiveIsPinned {
-                panelController.unpin(category: category)
-            } else {
-                panelController.close()
-            }
-        }
-    }
-
-    private func contextUtilityAction() -> (title: String, systemImage: String, action: () -> Void)? {
-        switch category {
-        case .cpu, .memory, .gpu:
-            return ("Open Activity Monitor", "waveform.path.ecg", {
-                NSWorkspace.shared.open(URL(fileURLWithPath: "/System/Applications/Utilities/Activity Monitor.app"))
-            })
-        case .network:
-            return ("Open Network Settings", "network", {
-                if let url = URL(string: "x-apple.systempreferences:com.apple.Network-Settings.extension") {
-                    NSWorkspace.shared.open(url)
-                }
-            })
-        case .disk:
-            return ("Open Storage Settings", "internaldrive", {
-                if let url = URL(string: "x-apple.systempreferences:com.apple.settings.Storage") {
-                    NSWorkspace.shared.open(url)
-                }
-            })
-        case .power:
-            return ("Open Battery Settings", "battery.100percent", {
-                if let url = URL(string: "x-apple.systempreferences:com.apple.preference.battery") {
-                    NSWorkspace.shared.open(url)
-                }
-            })
-        case .thermal, .fan:
-            return nil
+            closePanel()
         }
     }
 }
 
 // MARK: - Panel Layout & Height Preference Keys
 
-/// Single-pass layout clamping the scroll body to `maxHeight - chromeHeight` without double-building content.
+/// Single-pass 3-child layout (top chrome, scrollable body, slim footer) clamping the body
+/// to `maxHeight - topHeight - footerHeight` without double-building content.
 private struct PanelStackLayout: Layout {
     let maxHeight: CGFloat
 
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
         let width = proposal.width ?? Instrument.Size.panelWidth
-        guard subviews.count == 2 else { return .zero }
-        let chromeSize = subviews[0].sizeThatFits(ProposedViewSize(width: width, height: nil))
-        let maxBody = max(80.0, maxHeight - chromeSize.height)
+        guard subviews.count == 3 else { return .zero }
+        let topSize = subviews[0].sizeThatFits(ProposedViewSize(width: width, height: nil))
+        let footerSize = subviews[2].sizeThatFits(ProposedViewSize(width: width, height: nil))
+        let maxBody = max(60.0, maxHeight - topSize.height - footerSize.height)
         let bodyIdeal = subviews[1].sizeThatFits(ProposedViewSize(width: width, height: nil))
         let clampedBody = min(bodyIdeal.height, maxBody)
-        return CGSize(width: width, height: chromeSize.height + clampedBody)
+        return CGSize(width: width, height: topSize.height + clampedBody + footerSize.height)
     }
 
     func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
-        guard subviews.count == 2 else { return }
+        guard subviews.count == 3 else { return }
         let width = bounds.width
-        let chromeSize = subviews[0].sizeThatFits(ProposedViewSize(width: width, height: nil))
-        subviews[0].place(at: bounds.origin, proposal: ProposedViewSize(width: width, height: chromeSize.height))
-        let maxBody = max(80.0, maxHeight - chromeSize.height)
+        let topSize = subviews[0].sizeThatFits(ProposedViewSize(width: width, height: nil))
+        let footerSize = subviews[2].sizeThatFits(ProposedViewSize(width: width, height: nil))
+        let maxBody = max(60.0, maxHeight - topSize.height - footerSize.height)
         let bodyIdeal = subviews[1].sizeThatFits(ProposedViewSize(width: width, height: nil))
         let clampedBody = min(bodyIdeal.height, maxBody)
+
+        subviews[0].place(
+            at: bounds.origin,
+            proposal: ProposedViewSize(width: width, height: topSize.height)
+        )
         subviews[1].place(
-            at: CGPoint(x: bounds.minX, y: bounds.minY + chromeSize.height),
+            at: CGPoint(x: bounds.minX, y: bounds.minY + topSize.height),
             proposal: ProposedViewSize(width: width, height: clampedBody)
+        )
+        subviews[2].place(
+            at: CGPoint(x: bounds.minX, y: bounds.minY + topSize.height + clampedBody),
+            proposal: ProposedViewSize(width: width, height: footerSize.height)
         )
     }
 }
@@ -1026,45 +978,3 @@ private struct PageBodySlot<BodyContent: View>: View {
             )
     }
 }
-
-extension EnvironmentValues {
-    internal var panelScaffoldProbeEnabled: Bool {
-        get { self[PanelScaffoldProbeEnabledKey.self] }
-        set { self[PanelScaffoldProbeEnabledKey.self] = newValue }
-    }
-}
-
-private struct PanelScaffoldProbeEnabledKey: EnvironmentKey {
-    static let defaultValue: Bool = false
-}
-
-internal struct PanelScaffoldProbeSnapshot: Equatable, Sendable {
-    var glanceSummary: String?
-    var glanceFrame: CGRect?
-    var chartFrame: CGRect?
-    var insightText: String?
-    var insightFrame: CGRect?
-    var badgeTitle: String?
-    var eyebrowFrame: CGRect?
-    var inlineStatusText: String?
-    var inlineStatusFrame: CGRect?
-    var hasActionRibbon: Bool?
-}
-
-internal struct PanelScaffoldProbeKey: PreferenceKey {
-    static let defaultValue = PanelScaffoldProbeSnapshot()
-    static func reduce(value: inout PanelScaffoldProbeSnapshot, nextValue: () -> PanelScaffoldProbeSnapshot) {
-        let next = nextValue()
-        if let s = next.glanceSummary { value.glanceSummary = s }
-        if let f = next.glanceFrame { value.glanceFrame = f }
-        if let f = next.chartFrame { value.chartFrame = f }
-        if let t = next.insightText { value.insightText = t }
-        if let f = next.insightFrame { value.insightFrame = f }
-        if let b = next.badgeTitle { value.badgeTitle = b }
-        if let f = next.eyebrowFrame { value.eyebrowFrame = f }
-        if let s = next.inlineStatusText { value.inlineStatusText = s }
-        if let f = next.inlineStatusFrame { value.inlineStatusFrame = f }
-        if let r = next.hasActionRibbon { value.hasActionRibbon = r }
-    }
-}
-

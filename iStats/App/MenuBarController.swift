@@ -100,6 +100,20 @@ public final class MenuBarController: NSObject {
                 self.startScrubbingMonitor()
             }
         }
+        PanelController.shared.destinationViewProvider = { [weak self] destination in
+            guard let self else {
+                return AnyView(PanelFactory.makePanelView(destination: destination))
+            }
+            return AnyView(
+                PanelFactory.makePanelView(
+                    destination: destination,
+                    coordinator: self.coordinator,
+                    preferences: self.preferences
+                )
+                .environmentObject(self.preferences)
+                .environmentObject(self.coordinator)
+            )
+        }
 
         syncStatusItems()
         setupSubscriptions()
