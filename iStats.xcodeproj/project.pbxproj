@@ -57,6 +57,7 @@
 		1100000000000000000001DD /* HistoryPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000001DC /* HistoryPage.swift */; };
 		1100000000000000000001DF /* AccessibilityAppearanceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100000000000000000001DE /* AccessibilityAppearanceTests.swift */; };
 		110000000000000000000239 /* TokenLintTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000238 /* TokenLintTests.swift */; };
+		960000000000000000000002 /* PanelContentPassBTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 960000000000000000000001 /* PanelContentPassBTests.swift */; };
 		110000000000000000000237 /* SymbolAvailabilityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000236 /* SymbolAvailabilityTests.swift */; };
 		110000000000000000000193 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000192 /* Assets.xcassets */; };
 		11000000000000000000001F /* PreferencesWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11000000000000000000001E /* PreferencesWindowController.swift */; };
@@ -175,6 +176,7 @@
 		1100000000000000000001DC /* HistoryPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Panels/HistoryPage.swift; sourceTree = "<group>"; };
 		1100000000000000000001DE /* AccessibilityAppearanceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccessibilityAppearanceTests.swift; sourceTree = "<group>"; };
 		110000000000000000000238 /* TokenLintTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TokenLintTests.swift; sourceTree = "<group>"; };
+		960000000000000000000001 /* PanelContentPassBTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PanelContentPassBTests.swift; sourceTree = "<group>"; };
 		110000000000000000000236 /* SymbolAvailabilityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SymbolAvailabilityTests.swift; sourceTree = "<group>"; };
 		110000000000000000000192 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		11000000000000000000001E /* PreferencesWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferencesWindowController.swift; sourceTree = "<group>"; };
@@ -410,6 +412,7 @@
 				1100000000000000000001DA /* ProcessSamplerTests.swift */,
 				1100000000000000000001DE /* AccessibilityAppearanceTests.swift */,
 				110000000000000000000238 /* TokenLintTests.swift */,
+				960000000000000000000001 /* PanelContentPassBTests.swift */,
 				110000000000000000000236 /* SymbolAvailabilityTests.swift */,
 				110000000000000000000224 /* InstrumentKitTests.swift */,
 				110000000000000000000234 /* ConnectionStatusTests.swift */,
@@ -634,6 +637,7 @@
 				1100000000000000000001DB /* ProcessSamplerTests.swift in Sources */,
 				1100000000000000000001DF /* AccessibilityAppearanceTests.swift in Sources */,
 				110000000000000000000239 /* TokenLintTests.swift in Sources */,
+				960000000000000000000002 /* PanelContentPassBTests.swift in Sources */,
 				110000000000000000000237 /* SymbolAvailabilityTests.swift in Sources */,
 				110000000000000000000225 /* InstrumentKitTests.swift in Sources */,
 				110000000000000000000235 /* ConnectionStatusTests.swift in Sources */,

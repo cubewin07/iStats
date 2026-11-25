@@ -161,42 +161,34 @@ public struct FanPanel: View {
         )
     }
 
-    // MARK: - Now Page (Turbine + Range Bar & Fanless State)
+    // MARK: - Now Page (single Fans section)
 
     @ViewBuilder
     private func nowPage(sample: FanSample?) -> some View {
         if isFanless {
             fanlessModule
         } else if let s = sample, !s.fans.isEmpty {
-            VStack(alignment: .leading, spacing: Instrument.Space.l) {
-                if s.fans.count <= 2 {
+            Section(FanPanelCopy.nowSectionTitle) {
+                VStack(spacing: Instrument.Space.m) {
                     ForEach(Array(s.fans.enumerated()), id: \.offset) { index, fan in
-                        fanRowSection(fan: fan, index: index)
-                    }
-                } else {
-                    Section("Cooling Channels") {
-                        VStack(spacing: Instrument.Space.m) {
-                            ForEach(Array(s.fans.enumerated()), id: \.offset) { index, fan in
-                                VStack(alignment: .leading, spacing: Instrument.Space.xs) {
-                                    Text(fanTitle(fan, index: index))
-                                        .font(Instrument.Typography.caption)
-                                        .foregroundStyle(.secondary)
-                                    fanRowBody(fan: fan)
-                                }
-                                .padding(.bottom, index < s.fans.count - 1 ? Instrument.Space.s : 0)
-                                .overlay(alignment: .bottom) {
-                                    if index < s.fans.count - 1 {
-                                        Rectangle()
-                                            .fill(Instrument.Surface.hairline)
-                                            .frame(height: 0.5)
-                                    }
-                                }
+                        VStack(alignment: .leading, spacing: Instrument.Space.xs) {
+                            if s.fans.count > 1 {
+                                Text(fanTitle(fan, index: index))
+                                    .font(Instrument.Typography.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            fanRowBody(fan: fan)
+                        }
+                        .padding(.bottom, index < s.fans.count - 1 ? Instrument.Space.s : 0)
+                        .overlay(alignment: .bottom) {
+                            if index < s.fans.count - 1 {
+                                Rectangle()
+                                    .fill(Instrument.Surface.hairline)
+                                    .frame(height: 0.5)
                             }
                         }
                     }
                 }
-
-                acousticsSection
             }
         } else {
             InsetEmptyState(
@@ -207,81 +199,48 @@ public struct FanPanel: View {
         }
     }
 
-    // MARK: - Details Page (Fan Hardware Table, B13)
+    // MARK: - Details Page (hardware table, control shown once)
 
     @ViewBuilder
     private func detailsPage(sample: FanSample?) -> some View {
         if isFanless {
             fanlessModule
         } else if let s = sample, !s.fans.isEmpty {
-            VStack(alignment: .leading, spacing: Instrument.Space.l) {
-                if s.fans.count <= 2 {
-                    ForEach(Array(s.fans.enumerated()), id: \.offset) { index, fan in
-                        Section(
-                            fanTitle(fan, index: index),
-                            trailing: {
-                                Text(Units.formatRPM(fan.rpm))
-                                    .font(Instrument.Typography.value)
-                                    .foregroundStyle(.secondary)
-                            }
-                        ) {
-                            fanHardwareRows(fan: fan)
-                        }
-                    }
-                } else {
-                    Section("Cooling Hardware") {
-                        VStack(spacing: Instrument.Space.m) {
-                            ForEach(Array(s.fans.enumerated()), id: \.offset) { index, fan in
-                                VStack(alignment: .leading, spacing: 0) {
-                                    HStack {
-                                        Text(fanTitle(fan, index: index))
-                                            .font(Instrument.Typography.body)
-                                            .fontWeight(.medium)
-                                        Spacer()
-                                        Text(Units.formatRPM(fan.rpm))
-                                            .font(Instrument.Typography.value)
-                                            .foregroundStyle(.secondary)
-                                    }
+            VStack(alignment: .leading, spacing: Instrument.Space.sectionGap) {
+                Section(FanPanelCopy.detailsSectionTitle) {
+                    VStack(spacing: Instrument.Space.m) {
+                        ForEach(Array(s.fans.enumerated()), id: \.offset) { index, fan in
+                            VStack(alignment: .leading, spacing: 0) {
+                                Text(fanTitle(fan, index: index))
+                                    .font(Instrument.Typography.body)
+                                    .fontWeight(.medium)
                                     .padding(.bottom, Instrument.Space.xs)
-
-                                    fanHardwareRows(fan: fan)
-                                }
-                                .padding(.bottom, index < s.fans.count - 1 ? Instrument.Space.xs : 0)
-                                .overlay(alignment: .bottom) {
-                                    if index < s.fans.count - 1 {
-                                        Rectangle()
-                                            .fill(Instrument.Surface.hairline)
-                                            .frame(height: 0.5)
-                                    }
+                                fanHardwareRows(fan: fan)
+                            }
+                            .padding(.bottom, index < s.fans.count - 1 ? Instrument.Space.xs : 0)
+                            .overlay(alignment: .bottom) {
+                                if index < s.fans.count - 1 {
+                                    Rectangle()
+                                        .fill(Instrument.Surface.hairline)
+                                        .frame(height: 0.5)
                                 }
                             }
                         }
+
+                        MetricRow(
+                            label: "Control",
+                            valueText: FanControlPolicy.statusLabel,
+                            isCopyable: false,
+                            showHairline: false
+                        )
                     }
                 }
 
-                Section("Read-Only Policy") {
-                    VStack(alignment: .leading, spacing: Instrument.Space.s) {
-                        VStack(spacing: 0) {
-                            MetricRow(
-                                label: "Safety Policy",
-                                valueText: "Read-only (ADR 0004)",
-                                isCopyable: false,
-                                showHairline: true
-                            )
-                            MetricRow(
-                                label: "Privilege Posture",
-                                valueText: "No root helper",
-                                isCopyable: false,
-                                showHairline: false
-                            )
-                        }
-
-                        Text(FanControlPolicy.readOnlyExplanation)
-                            .font(Instrument.Typography.caption)
-                            .foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                }
+                Text(FanPanelCopy.footnote)
+                    .font(Instrument.Typography.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, Instrument.Space.xs)
             }
         } else {
             InsetEmptyState(
@@ -296,11 +255,11 @@ public struct FanPanel: View {
 
     @ViewBuilder
     private var fanlessModule: some View {
-        Section("Cooling Architecture") {
+        Section(FanPanelCopy.fanlessSectionTitle) {
             InsetEmptyState(
                 systemImage: CategoryIdentity(.fan).liveSymbol(LiveSymbolState(isFanless: true)),
-                title: "Fanless by design",
-                reason: "This Mac cools passively. See Temperature for heat."
+                title: FanPanelCopy.fanlessTitle,
+                reason: FanPanelCopy.fanlessReason
             ) {
                 Button("Open Temperature") {
                     PanelController.shared.swapToCategory(.thermal)
@@ -308,33 +267,6 @@ public struct FanPanel: View {
                 .buttonStyle(.borderedProminent)
                 .controlSize(.small)
             }
-        }
-    }
-
-    @ViewBuilder
-    private var acousticsSection: some View {
-        Section("Acoustics & Control") {
-            VStack(spacing: 0) {
-                MetricRow(
-                    label: "Control Mode",
-                    valueText: FanControlPolicy.statusLabel,
-                    isCopyable: false,
-                    showHairline: true
-                )
-                MetricRow(
-                    label: "Safety Policy",
-                    valueText: "Read-only (ADR 0004)",
-                    isCopyable: false,
-                    showHairline: false
-                )
-            }
-        }
-    }
-
-    @ViewBuilder
-    private func fanRowSection(fan: FanReading, index: Int) -> some View {
-        Section(fanTitle(fan, index: index)) {
-            fanRowBody(fan: fan)
         }
     }
 
@@ -390,18 +322,6 @@ public struct FanPanel: View {
                 label: "Max RPM",
                 valueText: fan.maxRPM.map { Units.formatRPM($0) } ?? "Unavailable",
                 isCopyable: false,
-                showHairline: true
-            )
-            MetricRow(
-                label: "Target RPM",
-                valueText: "System-managed",
-                isCopyable: false,
-                showHairline: true
-            )
-            MetricRow(
-                label: "Control Mode",
-                valueText: FanControlPolicy.statusLabel,
-                isCopyable: false,
                 showHairline: false
             )
         }
@@ -410,6 +330,17 @@ public struct FanPanel: View {
     private func fanTitle(_ fan: FanReading, index: Int) -> String {
         fan.name.isEmpty ? "Fan \(index + 1)" : fan.name
     }
+}
+
+/// User-facing Fans copy. Kept separate so tests can assert there is no internal doc
+/// reference (ADR numbers) and no policy essay in the UI.
+enum FanPanelCopy {
+    static let nowSectionTitle = "Fans"
+    static let detailsSectionTitle = "Fan Hardware"
+    static let fanlessSectionTitle = "Cooling"
+    static let fanlessTitle = "Fanless by design"
+    static let fanlessReason = "This Mac cools passively. See Temperature for heat."
+    static let footnote = "macOS manages fan speed automatically."
 }
 
 // MARK: - Min–Max RPM Range Bar
