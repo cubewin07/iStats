@@ -321,15 +321,15 @@ final class MenuBarControllerInteractionTests: XCTestCase {
         let (defaults, prefs, coord, controller, suiteName) = makeContext()
         defer { cleanup(defaults: defaults, controller: controller, suiteName: suiteName) }
 
-        let cpuTemp = MenuBarItemConfig(category: .thermal, style: .cpuTemp)
-        let gpuTemp = MenuBarItemConfig(category: .thermal, style: .gpuTemp)
-        let memTemp = MenuBarItemConfig(category: .thermal, style: .memoryTemp)
-        let ssdTemp = MenuBarItemConfig(category: .thermal, style: .storageTemp)
-        let batTemp = MenuBarItemConfig(category: .thermal, style: .batteryTemp)
-        let ringTemp = MenuBarItemConfig(category: .thermal, style: .gauge)
+        let cpuTemp = MenuBarItemConfig(category: .thermal, style: .text, source: .cpu)
+        let gpuTemp = MenuBarItemConfig(category: .thermal, style: .text, source: .gpu)
+        let memTemp = MenuBarItemConfig(category: .thermal, style: .text, source: .memory)
+        let ssdTemp = MenuBarItemConfig(category: .thermal, style: .text, source: .ssd)
+        let batTemp = MenuBarItemConfig(category: .thermal, style: .text, source: .battery)
+        let glyphTemp = MenuBarItemConfig(category: .thermal, style: .glyph)
         let histTemp = MenuBarItemConfig(category: .thermal, style: .sparkline)
 
-        let configs = [cpuTemp, gpuTemp, memTemp, ssdTemp, batTemp, ringTemp, histTemp]
+        let configs = [cpuTemp, gpuTemp, memTemp, ssdTemp, batTemp, glyphTemp, histTemp]
         for cfg in configs {
             let view = PanelFactory.makePanelView(config: cfg, coordinator: coord, preferences: prefs)
             let hosting = NSHostingView(rootView: AnyView(view))
