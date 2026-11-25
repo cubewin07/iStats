@@ -40,6 +40,35 @@ public struct RGBColor: Equatable, Sendable {
         }
     }
 
+    private var hsv: (hue: Double, saturation: Double, value: Double) {
+        let maxC = max(red, green, blue)
+        let minC = min(red, green, blue)
+        let delta = maxC - minC
+        guard delta > 0 else { return (0, 0, maxC) }
+        var h: Double
+        if maxC == red {
+            h = (green - blue) / delta
+            if h < 0 { h += 6 }
+        } else if maxC == green {
+            h = (blue - red) / delta + 2
+        } else {
+            h = (red - green) / delta + 4
+        }
+        return (h * 60, delta / maxC, maxC)
+    }
+
+    /// HSV hue in degrees, 0..<360 (0 for greys).
+    public var hueDegrees: Double { hsv.hue }
+
+    /// HSV saturation 0...1.
+    public var saturation: Double { hsv.saturation }
+
+    /// Shortest angular distance between two hues, 0...180.
+    public static func hueDistance(_ a: Double, _ b: Double) -> Double {
+        let d = abs(a - b).truncatingRemainder(dividingBy: 360)
+        return min(d, 360 - d)
+    }
+
     /// WCAG 2.1 relative luminance:
     /// https://www.w3.org/TR/WCAG21/#dfn-relative-luminance
     public var relativeLuminance: Double {
@@ -79,29 +108,35 @@ public enum PaletteContrast {
 
     /// Canonical hex definitions shared between `CategoryPalette` and `PaletteContrastTests`.
     public enum Hex {
+        /// Category identity tints. Each category keeps one hue family across appearances
+        /// (light = darker variant for white surfaces, dark = brighter variant for dark surfaces).
+        /// Hue targets: CPU 215, Memory 160 (mint), GPU 262, Temperature 22, Fans 212 (steel: low
+        /// saturation, so it is separated from CPU by saturation, not hue), Network 188 (cyan),
+        /// Disk 335 (pink), Power 85 (lime, off the status green at ~136).
         public static func categoryTint(for category: MetricCategory) -> (light: String, dark: String) {
             switch category {
-            case .cpu:     return ("#0058D6", "#5C8DFF")
-            case .memory:  return ("#006E80", "#33D1A6")
-            case .gpu:     return ("#6D28D9", "#A386FF")
-            case .thermal: return ("#B54308", "#FF8A4C")
-            case .fan:     return ("#0B6E66", "#3CC6E8")
-            case .network: return ("#087054", "#8389FF")
-            case .disk:    return ("#364FC7", "#FF6E9C")
-            case .power:   return ("#147530", "#4ADE80")
+            case .cpu:     return ("#0264ED", "#5CA0FF")
+            case .memory:  return ("#067D55", "#30DBA2")
+            case .gpu:     return ("#6B1DF2", "#AE80FF")
+            case .thermal: return ("#BA4A09", "#FF8E4D")
+            case .fan:     return ("#616E7D", "#8FABCC")
+            case .network: return ("#07788A", "#2FD2EB")
+            case .disk:    return ("#CD256B", "#FF6BA9")
+            case .power:   return ("#4E7912", "#9DE03F")
             }
         }
 
+        /// Darker gradient terminals, same hue as the tint.
         public static func categoryDeep(for category: MetricCategory) -> (light: String, dark: String) {
             switch category {
-            case .cpu:     return ("#003E99", "#3B5BDB")
-            case .memory:  return ("#004D5A", "#13997A")
-            case .gpu:     return ("#4C1D95", "#6E4BD8")
-            case .thermal: return ("#7C2D12", "#E0532A")
-            case .fan:     return ("#044E46", "#1A8FB5")
-            case .network: return ("#064E3B", "#5A5FE0")
-            case .disk:    return ("#25368A", "#D8467A")
-            case .power:   return ("#0E4B20", "#22A355")
+            case .cpu:     return ("#0043A1", "#3165AD")
+            case .memory:  return ("#005539", "#15956A")
+            case .gpu:     return ("#440BA5", "#6E49AD")
+            case .thermal: return ("#7E2E00", "#AD5826")
+            case .fan:     return ("#3E4955", "#566F8B")
+            case .network: return ("#00515E", "#138DA0")
+            case .disk:    return ("#8B1245", "#AD3B6B")
+            case .power:   return ("#335208", "#66991F")
             }
         }
 
