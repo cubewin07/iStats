@@ -17,6 +17,22 @@ public enum PreferencesMigration {
         public static let hasCompletedOnboarding = "iStats.hasCompletedOnboarding"
     }
 
+    /// Raw v1 per-alert keys retained strictly for v1 -> v2 migration.
+    public enum LegacyAlertKeys {
+        public static let cpuEnabled = "iStats.cpuAlertEnabled"
+        public static let cpuThreshold = "iStats.cpuAlertThreshold"
+        public static let memoryEnabled = "iStats.memoryAlertEnabled"
+        public static let memoryThreshold = "iStats.memoryAlertThreshold"
+        public static let batteryLowEnabled = "iStats.batteryLowAlertEnabled"
+        public static let batteryLowThreshold = "iStats.batteryLowThreshold"
+        public static let batteryFullEnabled = "iStats.batteryFullAlertEnabled"
+        public static let thermalEnabled = "iStats.thermalAlertEnabled"
+        public static let thermalThreshold = "iStats.thermalAlertThreshold"
+        public static let diskEnabled = "iStats.diskAlertEnabled"
+        public static let diskThreshold = "iStats.diskAlertThreshold"
+        public static let cooldown = "iStats.alertCooldownInterval"
+    }
+
     public struct Result: Equatable, Sendable {
         public let fromVersion: Int
         public let toVersion: Int
@@ -62,7 +78,7 @@ public enum PreferencesMigration {
 
     /// Builds rules from the v1 keys, falling back to factory defaults for anything unset.
     static func legacyAlertRules(_ defaults: UserDefaults) -> [AlertRule] {
-        let keys = PreferencesStore.LegacyAlertKeys.self
+        let keys = LegacyAlertKeys.self
         let cooldown = defaults.object(forKey: keys.cooldown) as? Double ?? AlertRule.defaultCooldownSeconds
 
         func rule(_ kind: AlertKind, enabledKey: String, thresholdKey: String?) -> AlertRule {

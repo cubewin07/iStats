@@ -48,22 +48,6 @@ public final class PreferencesStore: ObservableObject, @unchecked Sendable {
         public static let memoryAlertCriticalPressureOnly = "iStats.memoryAlertCriticalPressureOnly"
     }
 
-    /// v1 per-alert keys. Read only by `PreferencesMigration`; the store no longer writes them.
-    public enum LegacyAlertKeys {
-        public static let cpuEnabled = "iStats.cpuAlertEnabled"
-        public static let cpuThreshold = "iStats.cpuAlertThreshold"
-        public static let memoryEnabled = "iStats.memoryAlertEnabled"
-        public static let memoryThreshold = "iStats.memoryAlertThreshold"
-        public static let batteryLowEnabled = "iStats.batteryLowAlertEnabled"
-        public static let batteryLowThreshold = "iStats.batteryLowThreshold"
-        public static let batteryFullEnabled = "iStats.batteryFullAlertEnabled"
-        public static let thermalEnabled = "iStats.thermalAlertEnabled"
-        public static let thermalThreshold = "iStats.thermalAlertThreshold"
-        public static let diskEnabled = "iStats.diskAlertEnabled"
-        public static let diskThreshold = "iStats.diskAlertThreshold"
-        public static let cooldown = "iStats.alertCooldownInterval"
-    }
-
     // MARK: - Singleton
 
     /// Shared singleton instance backed by standard UserDefaults.
@@ -271,69 +255,6 @@ public final class PreferencesStore: ObservableObject, @unchecked Sendable {
             let clamped = max(AlertRule.minCooldownSeconds, newValue)
             alertRules = alertRules.map { var r = $0; r.cooldownSeconds = clamped; return r }
         }
-    }
-
-    private func rule(_ kind: AlertKind) -> AlertRule {
-        alertRule(for: kind)
-    }
-
-    private func updateRule(_ kind: AlertKind, _ change: (inout AlertRule) -> Void) {
-        updateAlertRule(kind, change)
-    }
-
-    public var cpuAlertEnabled: Bool {
-        get { rule(.cpu).enabled }
-        set { updateRule(.cpu) { $0.enabled = newValue } }
-    }
-    /// CPU usage percentage threshold (50 - 100).
-    public var cpuAlertThreshold: Double {
-        get { rule(.cpu).threshold }
-        set { updateRule(.cpu) { $0.threshold = newValue } }
-    }
-    public var memoryAlertEnabled: Bool {
-        get { rule(.memory).enabled }
-        set { updateRule(.memory) { $0.enabled = newValue } }
-    }
-    /// Memory usage percentage threshold (50 - 100).
-    public var memoryAlertThreshold: Double {
-        get { rule(.memory).threshold }
-        set { updateRule(.memory) { $0.threshold = newValue } }
-    }
-    public var batteryLowAlertEnabled: Bool {
-        get { rule(.batteryLow).enabled }
-        set { updateRule(.batteryLow) { $0.enabled = newValue } }
-    }
-    /// Low battery percentage threshold (5 - 50).
-    public var batteryLowThreshold: Int {
-        get { Int(rule(.batteryLow).threshold.rounded()) }
-        set { updateRule(.batteryLow) { $0.threshold = Double(newValue) } }
-    }
-    public var batteryFullAlertEnabled: Bool {
-        get { rule(.batteryFull).enabled }
-        set { updateRule(.batteryFull) { $0.enabled = newValue } }
-    }
-    public var thermalAlertEnabled: Bool {
-        get { rule(.temperature).enabled }
-        set { updateRule(.temperature) { $0.enabled = newValue } }
-    }
-    /// Temperature threshold in Celsius (60 - 105).
-    public var thermalAlertThreshold: Double {
-        get { rule(.temperature).threshold }
-        set { updateRule(.temperature) { $0.threshold = newValue } }
-    }
-    public var diskAlertEnabled: Bool {
-        get { rule(.disk).enabled }
-        set { updateRule(.disk) { $0.enabled = newValue } }
-    }
-    /// Primary disk usage percentage threshold (70 - 98).
-    public var diskAlertThreshold: Double {
-        get { rule(.disk).threshold }
-        set { updateRule(.disk) { $0.threshold = newValue } }
-    }
-    /// Cooldown between repeat alerts in seconds (minimum 30); applied to every rule.
-    public var alertCooldownInterval: TimeInterval {
-        get { rule(.cpu).cooldownSeconds }
-        set { alertRules = alertRules.map { var r = $0; r.cooldownSeconds = newValue; return r } }
     }
 
     /// Ensures exactly one clamped rule per kind, in `AlertKind.allCases` order.

@@ -20,7 +20,7 @@ final class PreferencesMigrationTests: XCTestCase {
     /// A realistic v1 profile: every pre-v2 key, legacy popover styles, custom alert thresholds.
     private func seedV1Profile() {
         let K = PreferencesStore.Keys.self
-        let L = PreferencesStore.LegacyAlertKeys.self
+        let L = PreferencesMigration.LegacyAlertKeys.self
         defaults.set(5.0, forKey: K.refreshInterval)
         defaults.set(["cpu", "network"], forKey: K.enabledCategories)
         defaults.set("fahrenheit", forKey: K.temperatureUnit)
@@ -75,7 +75,7 @@ final class PreferencesMigrationTests: XCTestCase {
         XCTAssertEqual(byKind[.batteryLow]?.threshold, 10)
         XCTAssertEqual(byKind[.memory]?.threshold, 85)
         XCTAssertTrue(rules.allSatisfy { $0.cooldownSeconds == 900 })
-        XCTAssertEqual(defaults.double(forKey: PreferencesStore.LegacyAlertKeys.cpuThreshold), 75)
+        XCTAssertEqual(defaults.double(forKey: PreferencesMigration.LegacyAlertKeys.cpuThreshold), 75)
 
         // Widget layout preserved; legacy popover styles folded into `popover`.
         let json = try! JSONSerialization.jsonObject(with: defaults.data(forKey: PreferencesStore.Keys.menuBarItems)!) as! [[String: Any]]
@@ -138,11 +138,11 @@ final class PreferencesMigrationTests: XCTestCase {
         XCTAssertTrue(store.hasCompletedOnboarding)
         XCTAssertTrue(store.notificationsEnabled)
         XCTAssertFalse(store.memoryAlertCriticalPressureOnly)
-        XCTAssertTrue(store.cpuAlertEnabled)
-        XCTAssertEqual(store.cpuAlertThreshold, 75)
-        XCTAssertEqual(store.diskAlertThreshold, 95)
-        XCTAssertEqual(store.batteryLowThreshold, 10)
-        XCTAssertEqual(store.alertCooldownInterval, 900)
+        XCTAssertTrue(store.alertRule(for: .cpu).enabled)
+        XCTAssertEqual(store.alertRule(for: .cpu).threshold, 75)
+        XCTAssertEqual(store.alertRule(for: .disk).threshold, 95)
+        XCTAssertEqual(store.alertRule(for: .batteryLow).threshold, 10)
+        XCTAssertEqual(store.alertRule(for: .cpu).cooldownSeconds, 900)
         XCTAssertEqual(store.pinnedOrigin(for: MetricCategory.cpu), CGPoint(x: 100, y: 200))
         XCTAssertEqual(store.lastSelectedTab(for: .cpu), .history)
 

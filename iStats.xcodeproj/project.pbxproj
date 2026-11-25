@@ -13,13 +13,14 @@
 		110000000000000000000017 /* iStatsCore in Frameworks */ = {isa = PBXBuildFile; productRef = 110000000000000000000005 /* iStatsCore */; };
 		110000000000000000000019 /* MenuBarController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000018 /* MenuBarController.swift */; };
 		110000000000000000000141 /* PreferencesComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000140 /* PreferencesComponents.swift */; };
-		110000000000000000000143 /* PreferencesMenuBarPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000142 /* PreferencesMenuBarPane.swift */; };
-		110000000000000000000147 /* PreferencesAlertsPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000146 /* PreferencesAlertsPane.swift */; };
 		990000000000000000000002 /* SettingsSidebar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 990000000000000000000001 /* SettingsSidebar.swift */; };
 		990000000000000000000004 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 990000000000000000000003 /* SettingsView.swift */; };
 		990000000000000000000006 /* GeneralSettingsPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 990000000000000000000005 /* GeneralSettingsPage.swift */; };
 		990000000000000000000008 /* AppearanceSettingsPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 990000000000000000000007 /* AppearanceSettingsPage.swift */; };
-		99000000000000000000000A /* CategorySettingsPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 990000000000000000000009 /* CategorySettingsPage.swift */; };
+		9A0000000000000000000002 /* MenuBarSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A0000000000000000000001 /* MenuBarSettingsView.swift */; };
+		9A0000000000000000000004 /* CategorySettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A0000000000000000000003 /* CategorySettingsView.swift */; };
+		9A0000000000000000000006 /* AlertsSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A0000000000000000000005 /* AlertsSettingsView.swift */; };
+		9A0000000000000000000008 /* MenuBarSettingsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A0000000000000000000007 /* MenuBarSettingsTests.swift */; };
 		99000000000000000000000C /* NotificationsSettingsPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99000000000000000000000B /* NotificationsSettingsPage.swift */; };
 		99000000000000000000000E /* AboutSettingsPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99000000000000000000000D /* AboutSettingsPage.swift */; };
 		110000000000000000000153 /* CategoryPalette.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000152 /* CategoryPalette.swift */; };
@@ -151,13 +152,14 @@
 		110000000000000000000016 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		110000000000000000000018 /* MenuBarController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarController.swift; sourceTree = "<group>"; };
 		110000000000000000000140 /* PreferencesComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferencesComponents.swift; sourceTree = "<group>"; };
-		110000000000000000000142 /* PreferencesMenuBarPane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferencesMenuBarPane.swift; sourceTree = "<group>"; };
-		110000000000000000000146 /* PreferencesAlertsPane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferencesAlertsPane.swift; sourceTree = "<group>"; };
 		990000000000000000000001 /* SettingsSidebar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Settings/SettingsSidebar.swift; sourceTree = "<group>"; };
 		990000000000000000000003 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Settings/SettingsView.swift; sourceTree = "<group>"; };
 		990000000000000000000005 /* GeneralSettingsPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Settings/GeneralSettingsPage.swift; sourceTree = "<group>"; };
 		990000000000000000000007 /* AppearanceSettingsPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Settings/AppearanceSettingsPage.swift; sourceTree = "<group>"; };
-		990000000000000000000009 /* CategorySettingsPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Settings/CategorySettingsPage.swift; sourceTree = "<group>"; };
+		9A0000000000000000000001 /* MenuBarSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Settings/MenuBarSettingsView.swift; sourceTree = "<group>"; };
+		9A0000000000000000000003 /* CategorySettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Settings/CategorySettingsView.swift; sourceTree = "<group>"; };
+		9A0000000000000000000005 /* AlertsSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Settings/AlertsSettingsView.swift; sourceTree = "<group>"; };
+		9A0000000000000000000007 /* MenuBarSettingsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarSettingsTests.swift; sourceTree = "<group>"; };
 		99000000000000000000000B /* NotificationsSettingsPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Settings/NotificationsSettingsPage.swift; sourceTree = "<group>"; };
 		99000000000000000000000D /* AboutSettingsPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Settings/AboutSettingsPage.swift; sourceTree = "<group>"; };
 		110000000000000000000152 /* CategoryPalette.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Design/CategoryPalette.swift; sourceTree = "<group>"; };
@@ -353,13 +355,13 @@
 			isa = PBXGroup;
 			children = (
 				110000000000000000000140 /* PreferencesComponents.swift */,
-				110000000000000000000142 /* PreferencesMenuBarPane.swift */,
-				110000000000000000000146 /* PreferencesAlertsPane.swift */,
 				990000000000000000000001 /* SettingsSidebar.swift */,
 				990000000000000000000003 /* SettingsView.swift */,
 				990000000000000000000005 /* GeneralSettingsPage.swift */,
 				990000000000000000000007 /* AppearanceSettingsPage.swift */,
-				990000000000000000000009 /* CategorySettingsPage.swift */,
+				9A0000000000000000000001 /* MenuBarSettingsView.swift */,
+				9A0000000000000000000003 /* CategorySettingsView.swift */,
+				9A0000000000000000000005 /* AlertsSettingsView.swift */,
 				99000000000000000000000B /* NotificationsSettingsPage.swift */,
 				99000000000000000000000D /* AboutSettingsPage.swift */,
 				110000000000000000000152 /* CategoryPalette.swift */,
@@ -481,6 +483,7 @@
 				110000000000000000000224 /* InstrumentKitTests.swift */,
 				110000000000000000000234 /* ConnectionStatusTests.swift */,
 				980000000000000000000005 /* WidgetPreviewTests.swift */,
+				9A0000000000000000000007 /* MenuBarSettingsTests.swift */,
 			);
 			path = iStatsTests;
 			sourceTree = "<group>";
@@ -603,13 +606,13 @@
 				1100000000000000000000E3 /* LaunchAtLoginManager.swift in Sources */,
 				110000000000000000000019 /* MenuBarController.swift in Sources */,
 				110000000000000000000141 /* PreferencesComponents.swift in Sources */,
-				110000000000000000000143 /* PreferencesMenuBarPane.swift in Sources */,
-				110000000000000000000147 /* PreferencesAlertsPane.swift in Sources */,
 				990000000000000000000002 /* SettingsSidebar.swift in Sources */,
 				990000000000000000000004 /* SettingsView.swift in Sources */,
 				990000000000000000000006 /* GeneralSettingsPage.swift in Sources */,
 				990000000000000000000008 /* AppearanceSettingsPage.swift in Sources */,
-				99000000000000000000000A /* CategorySettingsPage.swift in Sources */,
+				9A0000000000000000000002 /* MenuBarSettingsView.swift in Sources */,
+				9A0000000000000000000004 /* CategorySettingsView.swift in Sources */,
+				9A0000000000000000000006 /* AlertsSettingsView.swift in Sources */,
 				99000000000000000000000C /* NotificationsSettingsPage.swift in Sources */,
 				99000000000000000000000E /* AboutSettingsPage.swift in Sources */,
 				110000000000000000000153 /* CategoryPalette.swift in Sources */,
@@ -725,6 +728,7 @@
 				110000000000000000000225 /* InstrumentKitTests.swift in Sources */,
 				110000000000000000000235 /* ConnectionStatusTests.swift in Sources */,
 				980000000000000000000006 /* WidgetPreviewTests.swift in Sources */,
+				9A0000000000000000000008 /* MenuBarSettingsTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

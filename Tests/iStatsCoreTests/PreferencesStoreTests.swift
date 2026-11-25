@@ -188,23 +188,28 @@ final class PreferencesStoreTests: XCTestCase {
         XCTAssertEqual(store.menuBarAppearance, .statusTint)
     }
 
-    func testLegacyAlertAccessorsBridgeToAlertRules() {
+    func testAlertRulesHelpersClampAndPersist() {
         let store = PreferencesStore(userDefaults: testDefaults)
-        store.cpuAlertEnabled = true
-        store.cpuAlertThreshold = 75
-        store.batteryLowThreshold = 3 // clamps to 5
-        store.thermalAlertThreshold = 200 // clamps to 105
-        store.alertCooldownInterval = 10 // clamps to 30
+        store.updateAlertRule(.cpu) {
+            $0.enabled = true
+            $0.threshold = 75
+            $0.sustainSeconds = 15
+        }
+        store.updateAlertRule(.batteryLow) { $0.threshold = 3 } // clamps to 5
+        store.updateAlertRule(.temperature) { $0.threshold = 200 } // clamps to 105
+        store.defaultAlertCooldownSeconds = 10 // clamps to 30
 
-        XCTAssertEqual(store.alertRules.first { $0.kind == .cpu }?.threshold, 75)
-        XCTAssertEqual(store.batteryLowThreshold, 5)
-        XCTAssertEqual(store.thermalAlertThreshold, 105)
-        XCTAssertEqual(store.alertCooldownInterval, 30)
+        XCTAssertEqual(store.alertRule(for: .cpu).threshold, 75)
+        XCTAssertEqual(store.alertRule(for: .cpu).sustainSeconds, 15)
+        XCTAssertEqual(store.alertRule(for: .batteryLow).threshold, 5)
+        XCTAssertEqual(store.alertRule(for: .temperature).threshold, 105)
+        XCTAssertEqual(store.defaultAlertCooldownSeconds, 30)
         XCTAssertTrue(store.alertRules.allSatisfy { $0.cooldownSeconds == 30 })
 
         let reloaded = PreferencesStore(userDefaults: testDefaults)
-        XCTAssertTrue(reloaded.cpuAlertEnabled)
-        XCTAssertEqual(reloaded.cpuAlertThreshold, 75)
+        XCTAssertTrue(reloaded.alertRule(for: .cpu).enabled)
+        XCTAssertEqual(reloaded.alertRule(for: .cpu).threshold, 75)
+        XCTAssertEqual(reloaded.alertRule(for: .cpu).sustainSeconds, 15)
         XCTAssertEqual(reloaded.alertRules.map(\.kind), AlertKind.allCases)
 
         reloaded.resetToDefaults()
