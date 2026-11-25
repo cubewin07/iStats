@@ -13,7 +13,7 @@ public struct AlertEvaluator: Sendable {
         guard sample.totalUsage >= threshold else { return nil }
         return (
             triggered: true,
-            title: "⚠️ High CPU Usage",
+            title: "High CPU Usage",
             body: String(format: "Total CPU load is at %.1f%% (threshold: %.0f%%).", sample.totalUsage, threshold)
         )
     }
@@ -37,7 +37,7 @@ public struct AlertEvaluator: Sendable {
         let pressureDesc = sample.pressure.displayName
         return (
             triggered: true,
-            title: "⚠️ Memory Pressure Warning",
+            title: "Memory Pressure Warning",
             body: String(format: "System memory pressure is %@ (%.1f%% used).", pressureDesc, usedPct)
         )
     }
@@ -55,7 +55,7 @@ public struct AlertEvaluator: Sendable {
         if lowAlertEnabled && sample.state == .discharging && Int(charge) <= lowThreshold {
             return (
                 type: .batteryLow,
-                title: "🪫 Low Battery Warning",
+                title: "Low Battery Warning",
                 body: String(format: "Battery is at %.0f%% (threshold: %d%%).", charge, lowThreshold)
             )
         }
@@ -64,7 +64,7 @@ public struct AlertEvaluator: Sendable {
         if fullAlertEnabled && (sample.state == .charging || sample.state == .charged || sample.state == .acConnected) && charge >= 100.0 {
             return (
                 type: .batteryFull,
-                title: "🔋 Battery Fully Charged",
+                title: "Battery Fully Charged",
                 body: "Battery has reached 100% and is ready to unplug."
             )
         }
@@ -86,7 +86,7 @@ public struct AlertEvaluator: Sendable {
 
         return (
             triggered: true,
-            title: "🔥 High System Temperature",
+            title: "High System Temperature",
             body: "Peak hardware sensor reached \(formattedPeak) (threshold: \(formattedThreshold))."
         )
     }
@@ -105,7 +105,7 @@ public struct AlertEvaluator: Sendable {
 
         return (
             triggered: true,
-            title: "💾 Low Disk Space Warning",
+            title: "Low Disk Space Warning",
             body: String(format: "Primary disk '%@' is %.1f%% full (threshold: %.0f%%).", primaryVolume.mountPoint, usedPct, threshold)
         )
     }
@@ -301,7 +301,7 @@ public final class AlertCoordinator: ObservableObject {
         do {
             try await notificationManager.postNotification(
                 identifier: "iStats.alert.test",
-                title: "🔔 iStats Test Notification",
+                title: "iStats Test Notification",
                 subtitle: "System Monitor",
                 body: "Notification permissions and alert channels are working properly!"
             )
