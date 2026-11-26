@@ -21,6 +21,10 @@
 		9A0000000000000000000004 /* CategorySettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A0000000000000000000003 /* CategorySettingsView.swift */; };
 		9A0000000000000000000006 /* AlertsSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A0000000000000000000005 /* AlertsSettingsView.swift */; };
 		9A0000000000000000000008 /* MenuBarSettingsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A0000000000000000000007 /* MenuBarSettingsTests.swift */; };
+		9B0000000000000000000002 /* InfoButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0000000000000000000001 /* InfoButton.swift */; };
+		9B0000000000000000000004 /* WelcomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0000000000000000000003 /* WelcomeView.swift */; };
+		9B0000000000000000000006 /* WelcomeWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0000000000000000000005 /* WelcomeWindow.swift */; };
+		9B0000000000000000000008 /* WelcomeFlowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0000000000000000000007 /* WelcomeFlowTests.swift */; };
 		99000000000000000000000C /* NotificationsSettingsPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99000000000000000000000B /* NotificationsSettingsPage.swift */; };
 		99000000000000000000000E /* AboutSettingsPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99000000000000000000000D /* AboutSettingsPage.swift */; };
 		110000000000000000000153 /* CategoryPalette.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000152 /* CategoryPalette.swift */; };
@@ -162,6 +166,10 @@
 		9A0000000000000000000003 /* CategorySettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Settings/CategorySettingsView.swift; sourceTree = "<group>"; };
 		9A0000000000000000000005 /* AlertsSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Settings/AlertsSettingsView.swift; sourceTree = "<group>"; };
 		9A0000000000000000000007 /* MenuBarSettingsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarSettingsTests.swift; sourceTree = "<group>"; };
+		9B0000000000000000000001 /* InfoButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Instrument/InfoButton.swift; sourceTree = "<group>"; };
+		9B0000000000000000000003 /* WelcomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Welcome/WelcomeView.swift; sourceTree = "<group>"; };
+		9B0000000000000000000005 /* WelcomeWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WelcomeWindow.swift; sourceTree = "<group>"; };
+		9B0000000000000000000007 /* WelcomeFlowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WelcomeFlowTests.swift; sourceTree = "<group>"; };
 		99000000000000000000000B /* NotificationsSettingsPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Settings/NotificationsSettingsPage.swift; sourceTree = "<group>"; };
 		99000000000000000000000D /* AboutSettingsPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Settings/AboutSettingsPage.swift; sourceTree = "<group>"; };
 		110000000000000000000152 /* CategoryPalette.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Design/CategoryPalette.swift; sourceTree = "<group>"; };
@@ -330,6 +338,7 @@
 				110000000000000000000116 /* NotificationManager.swift */,
 				110000000000000000000120 /* AlertCoordinator.swift */,
 				11000000000000000000001E /* PreferencesWindowController.swift */,
+				9B0000000000000000000005 /* WelcomeWindow.swift */,
 				110000000000000000000198 /* MetricPanel.swift */,
 				11000000000000000000019A /* PanelController.swift */,
 			);
@@ -370,6 +379,8 @@
 				99000000000000000000000D /* AboutSettingsPage.swift */,
 				110000000000000000000152 /* CategoryPalette.swift */,
 				110000000000000000000190 /* InstrumentTokens.swift */,
+				9B0000000000000000000001 /* InfoButton.swift */,
+				9B0000000000000000000003 /* WelcomeView.swift */,
 				110000000000000000000194 /* Motion.swift */,
 				110000000000000000000196 /* LiveNumber.swift */,
 				11000000000000000000019C /* LiveChart.swift */,
@@ -490,6 +501,7 @@
 				980000000000000000000005 /* WidgetPreviewTests.swift */,
 				940000000000000000000003 /* OverviewViewTests.swift */,
 				9A0000000000000000000007 /* MenuBarSettingsTests.swift */,
+				9B0000000000000000000007 /* WelcomeFlowTests.swift */,
 			);
 			path = iStatsTests;
 			sourceTree = "<group>";
@@ -619,6 +631,9 @@
 				9A0000000000000000000002 /* MenuBarSettingsView.swift in Sources */,
 				9A0000000000000000000004 /* CategorySettingsView.swift in Sources */,
 				9A0000000000000000000006 /* AlertsSettingsView.swift in Sources */,
+				9B0000000000000000000002 /* InfoButton.swift in Sources */,
+				9B0000000000000000000004 /* WelcomeView.swift in Sources */,
+				9B0000000000000000000006 /* WelcomeWindow.swift in Sources */,
 				99000000000000000000000C /* NotificationsSettingsPage.swift in Sources */,
 				99000000000000000000000E /* AboutSettingsPage.swift in Sources */,
 				110000000000000000000153 /* CategoryPalette.swift in Sources */,
@@ -737,6 +752,7 @@
 				980000000000000000000006 /* WidgetPreviewTests.swift in Sources */,
 				940000000000000000000004 /* OverviewViewTests.swift in Sources */,
 				9A0000000000000000000008 /* MenuBarSettingsTests.swift in Sources */,
+				9B0000000000000000000008 /* WelcomeFlowTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

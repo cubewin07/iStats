@@ -238,6 +238,7 @@ public struct CPUPanel: View {
 
         return Section(
             "Cores",
+            glossaryKey: hasTopology ? .peCores : nil,
             trailing: {
                 // Hover detail lives in the accessory so the section title stays fixed.
                 if let info = hoveredCoreInfo {
@@ -388,6 +389,7 @@ public struct CPUPanel: View {
 
         return Section(
             "Load Average",
+            glossaryKey: .loadAverage,
             trailing: {
                 if coreCount > 0 {
                     Text("Capacity: \(coreCount)")

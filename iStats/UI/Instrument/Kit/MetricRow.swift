@@ -11,6 +11,7 @@ public struct MetricRow: View {
     public var sparklineHistory: [Double]?
     public var sparklineColor: Color?
     public var statusLevel: StatusLevel?
+    public var glossaryKey: MetricTerm?
     public var isCopyable: Bool
     public var showHairline: Bool
 
@@ -26,6 +27,7 @@ public struct MetricRow: View {
         sparklineHistory: [Double]? = nil,
         sparklineColor: Color? = nil,
         statusLevel: StatusLevel? = nil,
+        glossaryKey: MetricTerm? = nil,
         isCopyable: Bool = false,
         showHairline: Bool = false
     ) {
@@ -36,11 +38,25 @@ public struct MetricRow: View {
         self.sparklineHistory = sparklineHistory
         self.sparklineColor = sparklineColor
         self.statusLevel = statusLevel
+        self.glossaryKey = glossaryKey
         self.isCopyable = isCopyable
         self.showHairline = showHairline
     }
 
     public var body: some View {
+        rowContent
+            .if(glossaryKey == nil) { view in
+                view
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel(label)
+                    .accessibilityValue("\(valueText)\(unit != nil ? " " + unit! : "")")
+            }
+            .if(glossaryKey != nil) { view in
+                view.accessibilityElement(children: .contain)
+            }
+    }
+
+    private var rowContent: some View {
         HStack(spacing: Instrument.Space.m) {
             // Optional status dot (only when >= elevated, per Principle 3)
             if let level = statusLevel, !level.isQuiet {
@@ -55,9 +71,15 @@ public struct MetricRow: View {
                 }
             }
 
-            Text(label)
-                .font(Instrument.Typography.body)
-                .foregroundColor(.secondary)
+            HStack(spacing: Instrument.Space.xs) {
+                Text(label)
+                    .font(Instrument.Typography.body)
+                    .foregroundColor(.secondary)
+
+                if let glossaryKey {
+                    InfoButton(term: glossaryKey)
+                }
+            }
 
             Spacer()
 
@@ -117,9 +139,6 @@ public struct MetricRow: View {
                 }
             }
         }
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(label)
-        .accessibilityValue("\(valueText)\(unit != nil ? " " + unit! : "")")
     }
 
     private func microSparkline(history: [Double], color: Color) -> some View {

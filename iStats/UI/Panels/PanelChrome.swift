@@ -203,6 +203,7 @@ public struct PanelHeaderStrip: View {
     public let onClose: () -> Void
     public let onTogglePause: (() -> Void)?
     public let onOpenSettings: () -> Void
+    public let onShowGlossary: (() -> Void)?
     public let onQuit: () -> Void
 
     @State private var hoveredDestination: PanelDestination? = nil
@@ -224,6 +225,7 @@ public struct PanelHeaderStrip: View {
         onClose: @escaping () -> Void,
         onTogglePause: (() -> Void)? = nil,
         onOpenSettings: @escaping () -> Void,
+        onShowGlossary: (() -> Void)? = nil,
         onQuit: @escaping () -> Void
     ) {
         self.destination = destination
@@ -236,6 +238,7 @@ public struct PanelHeaderStrip: View {
         self.onClose = onClose
         self.onTogglePause = onTogglePause
         self.onOpenSettings = onOpenSettings
+        self.onShowGlossary = onShowGlossary
         self.onQuit = onQuit
     }
 
@@ -410,6 +413,12 @@ public struct PanelHeaderStrip: View {
             }
 
             Divider()
+
+            if let showGlossary = onShowGlossary {
+                Button(action: showGlossary) {
+                    Label("Metric Glossary  ?", systemImage: "questionmark.circle")
+                }
+            }
 
             Button(action: onOpenSettings) {
                 Label("Settings…  ⌘,", systemImage: "gearshape")

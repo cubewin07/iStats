@@ -411,7 +411,7 @@ public struct DiskPanel: View {
         io: DiskIO?,
         std: Units.ByteUnitStandard
     ) -> some View {
-        Section("Throughput") {
+        Section("Throughput", glossaryKey: .iops) {
             if let io {
                 VStack(spacing: 0) {
                     MetricRow(

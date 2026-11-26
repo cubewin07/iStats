@@ -283,8 +283,8 @@ public struct MemoryPanel: View {
         }
 
         let legendColumns = [
-            GridItem(.flexible(minimum: 0), spacing: Instrument.Space.m),
-            GridItem(.flexible(minimum: 0), spacing: Instrument.Space.m)
+            GridItem(.flexible(minimum: 0), spacing: Instrument.Space.s),
+            GridItem(.flexible(minimum: 0), spacing: Instrument.Space.s)
         ]
 
         return Section(
@@ -317,7 +317,7 @@ public struct MemoryPanel: View {
                 // 2-column tabular legend: swatch · label · bytes · %
                 LazyVGrid(columns: legendColumns, alignment: .leading, spacing: 5) {
                     ForEach(legendItems) { item in
-                        HStack(spacing: Instrument.Space.xs) {
+                        HStack(spacing: Instrument.Space.xxs) {
                             Circle()
                                 .fill(item.color)
                                 .overlay(
@@ -330,7 +330,13 @@ public struct MemoryPanel: View {
                                 .font(Instrument.Typography.caption)
                                 .foregroundStyle(.secondary)
                                 .lineLimit(1)
-                                .minimumScaleFactor(0.85)
+                                .minimumScaleFactor(0.75)
+
+                            if item.id == "wired" {
+                                InfoButton(term: .wired)
+                            } else if item.id == "compressed" {
+                                InfoButton(term: .compressed)
+                            }
 
                             Spacer(minLength: 2)
 
@@ -338,12 +344,12 @@ public struct MemoryPanel: View {
                                 .font(Instrument.Typography.caption.monospacedDigit())
                                 .foregroundStyle(.primary)
                                 .lineLimit(1)
-                                .minimumScaleFactor(0.85)
+                                .minimumScaleFactor(0.8)
 
                             Text("\(item.percent)%")
                                 .font(Instrument.Typography.micro)
                                 .foregroundStyle(.secondary)
-                                .frame(minWidth: 24, alignment: .trailing)
+                                .frame(minWidth: 22, alignment: .trailing)
                         }
                     }
                 }
@@ -352,8 +358,9 @@ public struct MemoryPanel: View {
                     .fill(Instrument.Surface.hairline)
                     .frame(height: 0.5)
 
-                HStack(alignment: .center, spacing: Instrument.Space.m) {
+                HStack(alignment: .center, spacing: Instrument.Space.s) {
                     pressurePill(active: sample.pressure)
+                    InfoButton(term: .memoryPressure)
                 }
             }
         }
@@ -425,6 +432,7 @@ public struct MemoryPanel: View {
 
         return Section(
             "Swap Allocation",
+            glossaryKey: .swap,
             trailing: {
                 Text(totalSwap > 0 ? "\(Int(round(swapFraction * 100)))%" : "Inactive")
                     .font(Instrument.Typography.caption.monospacedDigit())
@@ -443,6 +451,7 @@ public struct MemoryPanel: View {
                     MetricRow(
                         label: "Used",
                         valueText: Units.formatBytes(sample.swapUsed, standard: standard),
+                        glossaryKey: .swap,
                         showHairline: true
                     )
                     MetricRow(

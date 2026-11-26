@@ -50,8 +50,47 @@ public final class PreferencesStore: ObservableObject, @unchecked Sendable {
 
     // MARK: - Singleton
 
-    /// Shared singleton instance backed by standard UserDefaults.
-    public static let shared = PreferencesStore()
+    /// Shared singleton instance backed by standard UserDefaults (or a clean scratch suite when
+    /// `-iStatsUseScratchDefaults YES` is passed in `#if DEBUG`).
+    public static let shared: PreferencesStore = {
+        #if DEBUG
+        if shouldUseScratchDefaults() {
+            return PreferencesStore(userDefaults: makeScratchDefaults())
+        }
+        #endif
+        return PreferencesStore()
+    }()
+
+    #if DEBUG
+    public static let scratchDefaultsLaunchArgument = "-iStatsUseScratchDefaults"
+
+    /// Returns true when launch arguments request an isolated throwaway UserDefaults suite.
+    public static func shouldUseScratchDefaults(
+        arguments: [String] = ProcessInfo.processInfo.arguments
+    ) -> Bool {
+        if let idx = arguments.firstIndex(of: scratchDefaultsLaunchArgument),
+           idx + 1 < arguments.count {
+            let value = arguments[idx + 1].trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            return value == "yes" || value == "true" || value == "1"
+        }
+        for arg in arguments where arg.hasPrefix("\(scratchDefaultsLaunchArgument)=") {
+            let value = String(arg.dropFirst(scratchDefaultsLaunchArgument.count + 1))
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .lowercased()
+            return value == "yes" || value == "true" || value == "1"
+        }
+        return false
+    }
+
+    /// Creates a clean, isolated UserDefaults suite so debug onboarding runs never touch real settings.
+    public static func makeScratchDefaults(
+        suiteName: String = "com.istats.debug.scratch.\(ProcessInfo.processInfo.processIdentifier).\(UUID().uuidString)"
+    ) -> UserDefaults {
+        let defaults = UserDefaults(suiteName: suiteName) ?? UserDefaults()
+        defaults.removePersistentDomain(forName: suiteName)
+        return defaults
+    }
+    #endif
 
     // MARK: - Storage
 
@@ -518,6 +557,24 @@ public final class PreferencesStore: ObservableObject, @unchecked Sendable {
     /// Returns all enabled items for a specific category.
     public func items(for category: MetricCategory) -> [MenuBarItemConfig] {
         menuBarItems.filter { $0.category == category }
+    }
+
+    /// Applies the chosen onboarding preset and appearance, marking onboarding complete (Task 9.11).
+    public func applyOnboarding(
+        preset: MenuBarPreset,
+        appearance: MenuBarAppearance,
+        hasBattery: Bool = true,
+        hasFans: Bool = true
+    ) {
+        self.menuBarItems = preset.configs(hasBattery: hasBattery, hasFans: hasFans)
+        self.menuBarAppearance = appearance
+        self.hasCompletedOnboarding = true
+    }
+
+    /// Skips onboarding, applying the `.balanced` preset and marking onboarding complete (Task 9.11).
+    public func skipOnboarding(hasBattery: Bool = true, hasFans: Bool = true) {
+        self.menuBarItems = MenuBarPreset.balanced.configs(hasBattery: hasBattery, hasFans: hasFans)
+        self.hasCompletedOnboarding = true
     }
 
     /// Resets all preferences back to factory defaults.

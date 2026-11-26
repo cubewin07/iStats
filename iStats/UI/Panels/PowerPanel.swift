@@ -530,6 +530,7 @@ public struct PowerPanel: View {
                         MetricRow(
                             label: "Cycle Count",
                             valueText: sample.cycleCount.map { "\($0) / \(sample.designCycleCount ?? 1000)" } ?? "Unavailable",
+                            glossaryKey: .cycleCount,
                             showHairline: true
                         )
 
@@ -546,9 +547,12 @@ public struct PowerPanel: View {
                     let capacityFraction = min(1.0, max(0.0, Double(cur) / Double(des)))
                     VStack(alignment: .leading, spacing: 5) {
                         HStack {
-                            Text("Current vs Design Capacity")
-                                .font(Instrument.Typography.caption)
-                                .foregroundStyle(.secondary)
+                            HStack(spacing: Instrument.Space.xs) {
+                                Text("Current vs Design Capacity")
+                                    .font(Instrument.Typography.caption)
+                                    .foregroundStyle(.secondary)
+                                InfoButton(term: .maxCapacity)
+                            }
                             Spacer()
                             Text("\(cur) / \(des) mAh")
                                 .font(Instrument.Typography.caption.monospacedDigit().weight(.medium))

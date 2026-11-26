@@ -198,6 +198,7 @@ public struct GPUPanel: View {
 
         return Section(
             "Engine Activity",
+            glossaryKey: .gpuEngines,
             trailing: {
                 if let coreCount = sample.coreCount, coreCount > 0 {
                     Text("\(coreCount) cores")
@@ -295,9 +296,12 @@ public struct GPUPanel: View {
 
                     VStack(alignment: .leading, spacing: Instrument.Space.s) {
                         HStack {
-                            Text("VRAM Working Set")
-                                .font(Instrument.Typography.body)
-                                .foregroundStyle(.secondary)
+                            HStack(spacing: Instrument.Space.xs) {
+                                Text("VRAM Working Set")
+                                    .font(Instrument.Typography.body)
+                                    .foregroundStyle(.secondary)
+                                InfoButton(term: .vramWorkingSet)
+                            }
                             Spacer()
                             Text("\(formattedAlloc) / \(formattedMax)")
                                 .font(Instrument.Typography.value)
@@ -324,6 +328,7 @@ public struct GPUPanel: View {
                     MetricRow(
                         label: "Allocated Memory",
                         valueText: Units.formatBytes(memUsed, standard: preferences.byteUnitStandard),
+                        glossaryKey: .vramWorkingSet,
                         showHairline: hasTelemetry
                     )
                 }

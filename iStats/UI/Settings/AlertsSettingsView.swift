@@ -69,6 +69,16 @@ public struct AlertRuleEditorRow: View {
         }
     }
 
+    private var glossaryTerm: MetricTerm {
+        switch kind {
+        case .cpu: return .cpuUsage
+        case .memory: return .memoryPressure
+        case .temperature: return .thermalState
+        case .disk: return .diskSpace
+        case .batteryLow, .batteryFull: return .batteryCharge
+        }
+    }
+
     private var badgeSymbol: String {
         switch kind {
         case .cpu, .memory, .temperature, .disk:
@@ -203,8 +213,11 @@ public struct AlertRuleEditorRow: View {
                 SettingsBadge(category: category, symbol: badgeSymbol)
 
                 VStack(alignment: .leading, spacing: 1) {
-                    Text(title)
-                        .font(.body.weight(.medium))
+                    HStack(spacing: Instrument.Space.xs) {
+                        Text(title)
+                            .font(.body.weight(.medium))
+                        InfoButton(term: glossaryTerm)
+                    }
                     if let liveContextText {
                         Text(liveContextText)
                             .font(.caption)

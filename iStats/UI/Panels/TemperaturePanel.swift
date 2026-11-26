@@ -326,7 +326,7 @@ public struct TemperaturePanel: View {
         let topPadding = CGFloat(maxTier) * tierSpacing + 14.0
         let barCenterY = topPadding + 10.0
 
-        return Section("Thermal Spectrum") {
+        return Section("Thermal Spectrum", glossaryKey: .thermalState) {
             VStack(alignment: .leading, spacing: Instrument.Space.m) {
                 // Top: 8 pt continuous thermal ramp (30°–110°C) with 10° tick marks and SpectrumLayout sensor pins
                 VStack(alignment: .leading, spacing: Instrument.Space.xs) {
@@ -399,7 +399,8 @@ public struct TemperaturePanel: View {
                 if derived.rankedSources.isEmpty {
                     MetricRow(
                         label: "Thermal Pressure",
-                        valueText: sample.pressure?.displayName ?? "Nominal"
+                        valueText: sample.pressure?.displayName ?? "Nominal",
+                        glossaryKey: .thermalState
                     )
                 } else {
                     VStack(spacing: 0) {

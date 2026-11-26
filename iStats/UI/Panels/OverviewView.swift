@@ -37,6 +37,7 @@ public struct OverviewView: View {
     @FocusState private var focusedCategory: MetricCategory?
     @State private var measuredBodyHeight: CGFloat? = nil
     @State private var scrollVisibleHeight: CGFloat = 0
+    @State private var isShowingGlossary: Bool = false
 
     private static let columns: [GridItem] = [
         GridItem(.flexible(), spacing: Instrument.Space.m),
@@ -115,6 +116,9 @@ public struct OverviewView: View {
                     onOpenSettings: {
                         PanelChromeActions.openSettings(for: .overview, closeTransientIfUnpinned: !isPinned)
                     },
+                    onShowGlossary: {
+                        isShowingGlossary = true
+                    },
                     onQuit: {
                         PanelChromeActions.quitApp()
                     }
@@ -176,6 +180,14 @@ public struct OverviewView: View {
             }
             guard let cmd = notification.object as? PanelCommand else { return }
             handleCommand(cmd)
+        }
+        .sheet(isPresented: $isShowingGlossary) {
+            GlossarySheetView(
+                destination: .overview,
+                enabledCategories: preferences.enabledCategories,
+                hasBattery: hasBattery,
+                onDismiss: { isShowingGlossary = false }
+            )
         }
     }
 
@@ -318,7 +330,9 @@ public struct OverviewView: View {
             PanelChromeActions.quitApp()
         case .close:
             closePanel()
-        case .previousPage, .nextPage, .showGlossary:
+        case .showGlossary:
+            isShowingGlossary = true
+        case .previousPage, .nextPage:
             break
         }
     }
