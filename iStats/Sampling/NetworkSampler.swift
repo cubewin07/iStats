@@ -4,49 +4,76 @@ import SystemConfiguration
 import CoreWLAN
 import iStatsCore
 
-/// Raw byte counter snapshot for a single network interface.
+/// Raw byte and packet counter snapshot for a single network interface.
 public struct RawInterfaceCounters: Sendable, Equatable {
     public let name: String
     public let bytesIn: UInt64
     public let bytesOut: UInt64
+    public let packetsIn: UInt64
+    public let packetsOut: UInt64
+    public let errorsIn: UInt64
+    public let errorsOut: UInt64
+    public let dropsIn: UInt64
     public let isLoopback: Bool
     public let isUp: Bool
+    public let isRunning: Bool
 
     public init(
         name: String,
         bytesIn: UInt64,
         bytesOut: UInt64,
+        packetsIn: UInt64 = 0,
+        packetsOut: UInt64 = 0,
+        errorsIn: UInt64 = 0,
+        errorsOut: UInt64 = 0,
+        dropsIn: UInt64 = 0,
         isLoopback: Bool = false,
-        isUp: Bool = true
+        isUp: Bool = true,
+        isRunning: Bool = true
     ) {
         self.name = name
         self.bytesIn = bytesIn
         self.bytesOut = bytesOut
+        self.packetsIn = packetsIn
+        self.packetsOut = packetsOut
+        self.errorsIn = errorsIn
+        self.errorsOut = errorsOut
+        self.dropsIn = dropsIn
         self.isLoopback = isLoopback
         self.isUp = isUp
+        self.isRunning = isRunning
     }
 }
 
-/// Active network connectivity snapshot (primary interface, routing, IP addresses, and Wi-Fi link).
+/// Active network connectivity snapshot (primary interface, routing, IP addresses, Wi-Fi link, and reachability probe).
 public struct RawNetworkConnectivity: Sendable, Equatable {
     public let primaryInterface: String?
     public let routerIPv4: String?
     public let primaryDNS: String?
     public let interfaceIPs: [String: String]
     public let wifiTelemetry: WiFiLinkTelemetry?
+    public let isPathSatisfied: Bool?
+    public let isConstrained: Bool
+    public let probeSnapshot: NetworkProbeSnapshot?
 
     public init(
         primaryInterface: String? = nil,
         routerIPv4: String? = nil,
         primaryDNS: String? = nil,
         interfaceIPs: [String: String] = [:],
-        wifiTelemetry: WiFiLinkTelemetry? = nil
+        wifiTelemetry: WiFiLinkTelemetry? = nil,
+        isPathSatisfied: Bool? = nil,
+        isConstrained: Bool = false,
+        probeSnapshot: NetworkProbeSnapshot? = nil
     ) {
         self.primaryInterface = primaryInterface
         self.routerIPv4 = routerIPv4
         self.primaryDNS = primaryDNS
         self.interfaceIPs = interfaceIPs
         self.wifiTelemetry = wifiTelemetry
+        self.isPathSatisfied = isPathSatisfied
+        self.isConstrained = isConstrained
+        self.probeSnapshot = probeSnapshot
     }
 }
 
@@ -67,7 +94,14 @@ public extension NetworkInfoProvider {
 
 /// Darwin `sysctl(NET_RT_IFLIST2)` and `getifaddrs` implementation of `NetworkInfoProvider`.
 public struct HostNetworkInfoProvider: NetworkInfoProvider {
-    public init() {}
+    private let connectivityMonitor: NetworkConnectivityMonitor
+
+    public init(connectivityMonitor: NetworkConnectivityMonitor = .shared) {
+        self.connectivityMonitor = connectivityMonitor
+        connectivityMonitor.addOnPathChanged(key: "HostNetworkInfoProvider.invalidateWiFiCache") {
+            Self.invalidateWiFiCache()
+        }
+    }
 
     public func interfaceCounters() throws -> [RawInterfaceCounters] {
         // Attempt 64-bit sysctl NET_RT_IFLIST2 first to prevent 32-bit counter wrap
@@ -119,16 +153,28 @@ public struct HostNetworkInfoProvider: NetworkInfoProvider {
                         let flags = UInt32(ifm2.ifm_flags)
                         let isLoopback = (flags & UInt32(IFF_LOOPBACK)) != 0
                         let isUp = (flags & UInt32(IFF_UP)) != 0
+                        let isRunning = (flags & UInt32(IFF_RUNNING)) != 0
                         let bytesIn = UInt64(ifm2.ifm_data.ifi_ibytes)
                         let bytesOut = UInt64(ifm2.ifm_data.ifi_obytes)
+                        let packetsIn = UInt64(ifm2.ifm_data.ifi_ipackets)
+                        let packetsOut = UInt64(ifm2.ifm_data.ifi_opackets)
+                        let errorsIn = UInt64(ifm2.ifm_data.ifi_ierrors)
+                        let errorsOut = UInt64(ifm2.ifm_data.ifi_oerrors)
+                        let dropsIn = UInt64(ifm2.ifm_data.ifi_iqdrops)
 
                         results.append(
                             RawInterfaceCounters(
                                 name: name,
                                 bytesIn: bytesIn,
                                 bytesOut: bytesOut,
+                                packetsIn: packetsIn,
+                                packetsOut: packetsOut,
+                                errorsIn: errorsIn,
+                                errorsOut: errorsOut,
+                                dropsIn: dropsIn,
                                 isLoopback: isLoopback,
-                                isUp: isUp
+                                isUp: isUp,
+                                isRunning: isRunning
                             )
                         )
                     }
@@ -158,6 +204,7 @@ public struct HostNetworkInfoProvider: NetworkInfoProvider {
             let flags = ifa.ifa_flags
             let isLoopback = (flags & UInt32(IFF_LOOPBACK)) != 0
             let isUp = (flags & UInt32(IFF_UP)) != 0
+            let isRunning = (flags & UInt32(IFF_RUNNING)) != 0
 
             if let addr = ifa.ifa_addr, addr.pointee.sa_family == UInt8(AF_LINK), let data = ifa.ifa_data {
                 let name = String(cString: ifa.ifa_name)
@@ -167,8 +214,14 @@ public struct HostNetworkInfoProvider: NetworkInfoProvider {
                         name: name,
                         bytesIn: UInt64(ifd.ifi_ibytes),
                         bytesOut: UInt64(ifd.ifi_obytes),
+                        packetsIn: UInt64(ifd.ifi_ipackets),
+                        packetsOut: UInt64(ifd.ifi_opackets),
+                        errorsIn: UInt64(ifd.ifi_ierrors),
+                        errorsOut: UInt64(ifd.ifi_oerrors),
+                        dropsIn: UInt64(ifd.ifi_iqdrops),
                         isLoopback: isLoopback,
-                        isUp: isUp
+                        isUp: isUp,
+                        isRunning: isRunning
                     )
                 )
             }
@@ -178,8 +231,17 @@ public struct HostNetworkInfoProvider: NetworkInfoProvider {
         return results
     }
 
-    /// Reads active network routing, local IP addresses, and Wi-Fi link parameters.
+    /// Reads active network routing, local IP addresses, Wi-Fi link parameters, and non-blocking reachability probe state.
     public func networkConnectivity() throws -> RawNetworkConnectivity {
+        try networkConnectivity(isTrafficStalled: false)
+    }
+
+    public func networkConnectivity(isTrafficStalled: Bool) throws -> RawNetworkConnectivity {
+        let monitorSnapshot = connectivityMonitor.snapshot(
+            triggerProbeIfDue: true,
+            isTrafficStalled: isTrafficStalled
+        )
+
         var primaryInterface: String? = nil
         var routerIPv4: String? = nil
         var primaryDNS: String? = nil
@@ -189,11 +251,19 @@ public struct HostNetworkInfoProvider: NetworkInfoProvider {
                 primaryInterface = ipv4["PrimaryInterface"] as? String
                 routerIPv4 = ipv4["Router"] as? String
             }
+            if primaryInterface == nil,
+               let ipv6 = SCDynamicStoreCopyValue(store, "State:/Network/Global/IPv6" as CFString) as? [String: Any] {
+                primaryInterface = ipv6["PrimaryInterface"] as? String
+            }
             if let dns = SCDynamicStoreCopyValue(store, "State:/Network/Global/DNS" as CFString) as? [String: Any] {
                 if let servers = dns["ServerAddresses"] as? [String], let first = servers.first {
                     primaryDNS = first
                 }
             }
+        }
+
+        if primaryInterface == nil, monitorSnapshot.isPathSatisfied == true {
+            primaryInterface = monitorSnapshot.activeInterfaceName
         }
 
         var interfaceIPs: [String: String] = [:]
@@ -216,14 +286,24 @@ public struct HostNetworkInfoProvider: NetworkInfoProvider {
             }
         }
 
-        let wifiTelemetry = Self.queryWiFiTelemetryThrottled()
+        // Invalidate Wi-Fi telemetry cache immediately if path became unsatisfied or primary interface disappeared.
+        let wifiTelemetry: WiFiLinkTelemetry?
+        if monitorSnapshot.isPathSatisfied == false {
+            Self.invalidateWiFiCache()
+            wifiTelemetry = nil
+        } else {
+            wifiTelemetry = Self.queryWiFiTelemetryThrottled(primaryInterface: primaryInterface)
+        }
 
         return RawNetworkConnectivity(
             primaryInterface: primaryInterface,
             routerIPv4: routerIPv4,
             primaryDNS: primaryDNS,
             interfaceIPs: interfaceIPs,
-            wifiTelemetry: wifiTelemetry
+            wifiTelemetry: wifiTelemetry,
+            isPathSatisfied: monitorSnapshot.isPathSatisfied,
+            isConstrained: monitorSnapshot.isConstrained,
+            probeSnapshot: monitorSnapshot.probe
         )
     }
 
@@ -247,19 +327,30 @@ public struct HostNetworkInfoProvider: NetworkInfoProvider {
 
     private static let wifiCacheLock = NSLock()
     nonisolated(unsafe) private static var lastWiFiQuery: Date?
+    nonisolated(unsafe) private static var lastWiFiPrimaryInterface: String?
     nonisolated(unsafe) private static var cachedWiFiTelemetry: WiFiLinkTelemetry?
 
-    private static func queryWiFiTelemetryThrottled() -> WiFiLinkTelemetry? {
+    private static func invalidateWiFiCache() {
+        wifiCacheLock.lock()
+        lastWiFiQuery = nil
+        cachedWiFiTelemetry = nil
+        wifiCacheLock.unlock()
+    }
+
+    private static func queryWiFiTelemetryThrottled(primaryInterface: String?) -> WiFiLinkTelemetry? {
         wifiCacheLock.lock()
         defer { wifiCacheLock.unlock() }
 
         let now = Date()
-        if let last = lastWiFiQuery, now.timeIntervalSince(last) < 10.0 {
+        if lastWiFiPrimaryInterface == primaryInterface,
+           let last = lastWiFiQuery,
+           now.timeIntervalSince(last) < 10.0 {
             return cachedWiFiTelemetry
         }
 
         let telemetry = queryWiFiTelemetryDirect()
         cachedWiFiTelemetry = telemetry
+        lastWiFiPrimaryInterface = primaryInterface
         lastWiFiQuery = now
         return telemetry
     }
@@ -304,15 +395,34 @@ public struct HostNetworkInfoProvider: NetworkInfoProvider {
     }
 }
 
-/// Interface historical state for rate calculation.
+/// Interface historical state for rate and packet-error delta calculation.
 public struct InterfaceState: Sendable, Equatable {
     public let bytesIn: UInt64
     public let bytesOut: UInt64
+    public let packetsIn: UInt64
+    public let packetsOut: UInt64
+    public let errorsIn: UInt64
+    public let errorsOut: UInt64
+    public let dropsIn: UInt64
     public let timestamp: Date
 
-    public init(bytesIn: UInt64, bytesOut: UInt64, timestamp: Date) {
+    public init(
+        bytesIn: UInt64,
+        bytesOut: UInt64,
+        packetsIn: UInt64 = 0,
+        packetsOut: UInt64 = 0,
+        errorsIn: UInt64 = 0,
+        errorsOut: UInt64 = 0,
+        dropsIn: UInt64 = 0,
+        timestamp: Date
+    ) {
         self.bytesIn = bytesIn
         self.bytesOut = bytesOut
+        self.packetsIn = packetsIn
+        self.packetsOut = packetsOut
+        self.errorsIn = errorsIn
+        self.errorsOut = errorsOut
+        self.dropsIn = dropsIn
         self.timestamp = timestamp
     }
 }
@@ -341,6 +451,9 @@ public final class NetworkSampler: Sampler, @unchecked Sendable {
 
     private var previousStates: [String: InterfaceState] = [:]
     private var sessionTotals: [String: InterfaceSessionTotal] = [:]
+    private var consecutivePrimaryRxIntervals: Int = 0
+    private var lastPrimaryInterface: String?
+    private var lastTrafficStalled: Bool = false
 
     public init(
         provider: any NetworkInfoProvider = HostNetworkInfoProvider(),
@@ -353,24 +466,46 @@ public final class NetworkSampler: Sampler, @unchecked Sendable {
     /// Samples network metrics. Runs off the main thread.
     public func sample() throws -> NetworkSample {
         let currentCounters = try provider.interfaceCounters()
-        let connectivity = (try? provider.networkConnectivity()) ?? RawNetworkConnectivity()
-        let currentTimestamp = Date()
 
         lock.lock()
+        let stalled = lastTrafficStalled
         let prev = previousStates
         let totals = sessionTotals
+        let priorRxStreak = consecutivePrimaryRxIntervals
+        let prevPrimary = lastPrimaryInterface
+        lock.unlock()
 
+        let connectivity: RawNetworkConnectivity
+        if let hostProvider = provider as? HostNetworkInfoProvider {
+            connectivity = (try? hostProvider.networkConnectivity(isTrafficStalled: stalled)) ?? RawNetworkConnectivity()
+        } else {
+            connectivity = (try? provider.networkConnectivity()) ?? RawNetworkConnectivity()
+        }
+        let currentTimestamp = Date()
+
+        let effectivePriorStreak = (prevPrimary == nil || prevPrimary == connectivity.primaryInterface) ? priorRxStreak : 0
         let (sample, newPrev, newTotals) = Self.calculateSample(
             previous: prev,
             current: currentCounters,
             currentTimestamp: currentTimestamp,
             sessionTotals: totals,
             includeLoopback: includeLoopback,
-            connectivity: connectivity
+            connectivity: connectivity,
+            priorPrimaryTrafficIntervals: effectivePriorStreak
         )
 
+        lock.lock()
         self.previousStates = newPrev
         self.sessionTotals = newTotals
+        let rxDelta = sample.connectionHealth?.primaryPacketsInDelta ?? 0
+        let txDelta = sample.connectionHealth?.primaryPacketsOutDelta ?? 0
+        if rxDelta > 0 && txDelta > 0 {
+            self.consecutivePrimaryRxIntervals = effectivePriorStreak + 1
+        } else {
+            self.consecutivePrimaryRxIntervals = 0
+        }
+        self.lastPrimaryInterface = sample.primaryInterface
+        self.lastTrafficStalled = (txDelta > 0 && rxDelta == 0)
         lock.unlock()
 
         return sample
@@ -383,7 +518,8 @@ public final class NetworkSampler: Sampler, @unchecked Sendable {
         currentTimestamp: Date,
         sessionTotals: [String: InterfaceSessionTotal]?,
         includeLoopback: Bool = false,
-        connectivity: RawNetworkConnectivity = RawNetworkConnectivity()
+        connectivity: RawNetworkConnectivity = RawNetworkConnectivity(),
+        priorPrimaryTrafficIntervals: Int = 0
     ) -> (sample: NetworkSample, newPrevious: [String: InterfaceState], newSessionTotals: [String: InterfaceSessionTotal]) {
         var newPrevious = previous ?? [:]
         var newSessionTotals = sessionTotals ?? [:]
@@ -393,6 +529,11 @@ public final class NetworkSampler: Sampler, @unchecked Sendable {
         let activeInterfaces = current
             .filter { includeLoopback || !$0.isLoopback }
             .sorted { $0.name < $1.name }
+
+        let primaryIface = connectivity.primaryInterface
+        var primaryPacketsInDelta: UInt64 = 0
+        var primaryPacketsOutDelta: UInt64 = 0
+        var primaryErrorDelta: UInt64 = 0
 
         for counter in activeInterfaces {
             let name = counter.name
@@ -417,6 +558,14 @@ public final class NetworkSampler: Sampler, @unchecked Sendable {
 
                 currentSessionIn = prevSessionIn + deltaIn
                 currentSessionOut = prevSessionOut + deltaOut
+
+                if name == primaryIface {
+                    primaryPacketsInDelta = RateMath.counterDelta(previous: prevState.packetsIn, current: counter.packetsIn)
+                    primaryPacketsOutDelta = RateMath.counterDelta(previous: prevState.packetsOut, current: counter.packetsOut)
+                    primaryErrorDelta = RateMath.counterDelta(previous: prevState.errorsIn, current: counter.errorsIn)
+                        + RateMath.counterDelta(previous: prevState.errorsOut, current: counter.errorsOut)
+                        + RateMath.counterDelta(previous: prevState.dropsIn, current: counter.dropsIn)
+                }
             } else {
                 // First sample or non-forward clock: rate is 0, session total starts at 0 (or retains previous)
                 rateIn = 0.0
@@ -425,7 +574,16 @@ public final class NetworkSampler: Sampler, @unchecked Sendable {
                 currentSessionOut = prevSessionOut
             }
 
-            newPrevious[name] = InterfaceState(bytesIn: currIn, bytesOut: currOut, timestamp: currentTimestamp)
+            newPrevious[name] = InterfaceState(
+                bytesIn: currIn,
+                bytesOut: currOut,
+                packetsIn: counter.packetsIn,
+                packetsOut: counter.packetsOut,
+                errorsIn: counter.errorsIn,
+                errorsOut: counter.errorsOut,
+                dropsIn: counter.dropsIn,
+                timestamp: currentTimestamp
+            )
             newSessionTotals[name] = InterfaceSessionTotal(bytesIn: currentSessionIn, bytesOut: currentSessionOut)
 
             let ip = connectivity.interfaceIPs[name]
@@ -442,9 +600,25 @@ public final class NetworkSampler: Sampler, @unchecked Sendable {
             )
         }
 
-        let primaryIface = connectivity.primaryInterface
         let primaryIP = primaryIface != nil ? connectivity.interfaceIPs[primaryIface!] : nil
         let primaryType = primaryIface != nil ? NetworkConnectionType.infer(from: primaryIface!) : nil
+        let resolvedPathSatisfied = connectivity.isPathSatisfied ?? (primaryIface != nil && primaryIP != nil)
+        let isPrimaryTrafficFlowing = (priorPrimaryTrafficIntervals >= 1)
+            && (primaryPacketsInDelta > 0 && primaryPacketsOutDelta > 0)
+
+        let connectionHealth = NetworkConnectionEvaluator.evaluate(
+            isPathSatisfied: resolvedPathSatisfied,
+            isConstrained: connectivity.isConstrained,
+            primaryInterface: primaryIface,
+            primaryType: primaryType,
+            localIPv4: primaryIP,
+            wifiDetails: connectivity.wifiTelemetry,
+            probe: connectivity.probeSnapshot,
+            primaryPacketsInDelta: primaryPacketsInDelta,
+            primaryPacketsOutDelta: primaryPacketsOutDelta,
+            interfaceErrorDelta: primaryErrorDelta,
+            isPrimaryTrafficFlowing: isPrimaryTrafficFlowing
+        )
 
         let sample = NetworkSample(
             interfaces: throughputs,
@@ -453,7 +627,8 @@ public final class NetworkSampler: Sampler, @unchecked Sendable {
             localIPv4: primaryIP,
             gatewayIPv4: connectivity.routerIPv4,
             primaryDNS: connectivity.primaryDNS,
-            wifiDetails: connectivity.wifiTelemetry
+            wifiDetails: connectivity.wifiTelemetry,
+            connectionHealth: connectionHealth
         )
         return (sample: sample, newPrevious: newPrevious, newSessionTotals: newSessionTotals)
     }

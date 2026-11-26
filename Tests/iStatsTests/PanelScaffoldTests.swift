@@ -1,0 +1,1613 @@
+import XCTest
+import SwiftUI
+import AppKit
+@testable import iStatsCore
+@testable import iStats
+
+@MainActor
+final class PanelScaffoldTests: XCTestCase {
+
+    private func makeContext() -> (UserDefaults, PreferencesStore, MetricsCoordinator, String) {
+        let suiteName = "test.istats.panel.scaffold.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        let prefs = PreferencesStore(userDefaults: defaults)
+        let coord = MetricsCoordinator(preferencesStore: prefs)
+        return (defaults, prefs, coord, suiteName)
+    }
+
+    private func cleanup(defaults: UserDefaults, suiteName: String) {
+        defaults.removePersistentDomain(forName: suiteName)
+    }
+
+    func testPanelFactoryRendersAll8Categories() {
+        let (defaults, prefs, coord, suiteName) = makeContext()
+        defer { cleanup(defaults: defaults, suiteName: suiteName) }
+
+        // Populate realistic sample telemetry into coordinator
+        coord.handleReading(.cpu(Sample(value: CPUSample(totalUsage: 42.0, perCore: [40.0, 44.0], user: 25.0, system: 17.0, idle: 58.0))))
+        coord.handleReading(.memory(Sample(value: MemorySample(total: 16 * 1024 * 1024 * 1024, used: 8 * 1024 * 1024 * 1024, free: 8 * 1024 * 1024 * 1024, wired: 2 * 1024 * 1024 * 1024, compressed: 1 * 1024 * 1024 * 1024, cached: 2 * 1024 * 1024 * 1024, swapUsed: 0, pressure: .normal))))
+        coord.handleReading(.gpu(Sample(value: GPUSample(utilization: 38.0, memoryUsed: 1024, tempCelsius: 52.0, powerWatts: 8.0))))
+        coord.handleReading(.thermal(Sample(value: ThermalSample(sensors: [SensorReading(name: "CPU Core", celsius: 55.0)], pressure: .nominal))))
+        coord.handleReading(.fan(Sample(value: FanSample(fans: [FanReading(name: "Left Fan", rpm: 1800, minRPM: 1200, maxRPM: 5500)]))))
+        coord.handleReading(.network(Sample(value: NetworkSample(interfaces: [InterfaceThroughput(interfaceName: "en0", bytesInPerSec: 5000000, bytesOutPerSec: 1200000, totalBytesIn: 10000000, totalBytesOut: 2000000)]))))
+        coord.handleReading(.disk(Sample(value: DiskSample(volumes: [VolumeCapacity(name: "Macintosh HD", mountPoint: "/", total: 500_000_000_000, used: 250_000_000_000, free: 250_000_000_000)], io: DiskIO(bytesReadPerSec: 5000000, bytesWrittenPerSec: 2000000, readOpsPerSec: 100, writeOpsPerSec: 50)))))
+        coord.handleReading(.power(Sample(value: PowerSample(hasBattery: true, charge: 92.0, state: .charging, timeRemaining: 3600))))
+
+        for category in MetricCategory.allCases {
+            let view = PanelFactory.makeCategoryPanelView(category: category, coordinator: coord, preferences: prefs)
+            let hosting = NSHostingView(rootView: AnyView(view))
+            hosting.frame = CGRect(x: 0, y: 0, width: Instrument.Size.panelWidth, height: 450)
+            hosting.layoutSubtreeIfNeeded()
+
+            let fit = hosting.fittingSize
+            XCTAssertEqual(fit.width, Instrument.Size.panelWidth, accuracy: 2.0, "Panel width for \(category) should match 352pt")
+            XCTAssertGreaterThan(fit.height, 100, "Panel fitting height for \(category) should be >= 100pt")
+        }
+    }
+
+    func testPageSwitcherIconsAndTooltip() {
+        for category in MetricCategory.allCases {
+            let supported = PopoverTab.supportedTabs(for: category, hasBattery: true)
+            XCTAssertFalse(supported.isEmpty)
+            XCTAssertTrue(supported.contains(.overview))
+            XCTAssertTrue(supported.contains(.history))
+
+            for tab in supported {
+                let title = tab.title(for: category)
+                XCTAssertFalse(title.isEmpty, "Tab \(tab) title for \(category) should not be empty")
+            }
+        }
+    }
+
+    func testStatusRibbonVisualThresholds() {
+        // Fine status has quiet behavior (nil ribbon message)
+        let fineRibbon = StatusRibbon(status: .fine, message: "All normal")
+        let fineHosting = NSHostingView(rootView: fineRibbon)
+        fineHosting.frame = CGRect(x: 0, y: 0, width: 320, height: 30)
+        fineHosting.layoutSubtreeIfNeeded()
+        XCTAssertGreaterThan(fineHosting.fittingSize.width, 50)
+
+        // Elevated status
+        let elevatedRibbon = StatusRibbon(status: .elevated, message: "Elevated load", actionTitle: "Resume") {}
+        let elevatedHosting = NSHostingView(rootView: elevatedRibbon)
+        elevatedHosting.frame = CGRect(x: 0, y: 0, width: 320, height: 30)
+        elevatedHosting.layoutSubtreeIfNeeded()
+        XCTAssertGreaterThan(elevatedHosting.fittingSize.height, 20)
+    }
+
+    func testPanelScaffoldUnavailableState() {
+        var selected = PopoverTab.overview
+        let binding = Binding(get: { selected }, set: { selected = $0 })
+
+        let scaffold = PanelScaffold(
+            chrome: PanelChrome(
+                category: .fan,
+                status: .fine,
+                availability: .unavailable(reason: "This Mac cools passively")
+            ),
+            glance: PanelGlance(value: 0, headline: "Passive cooling"),
+            pages: [.overview, .history],
+            selection: binding
+        ) { _ in
+            Text("Content")
+        }
+
+        let hosting = NSHostingView(rootView: scaffold)
+        hosting.frame = CGRect(x: 0, y: 0, width: Instrument.Size.panelWidth, height: 300)
+        hosting.layoutSubtreeIfNeeded()
+
+        let fit = hosting.fittingSize
+        XCTAssertEqual(fit.width, Instrument.Size.panelWidth, accuracy: 2.0)
+    }
+
+    func testPanelCommandNotificationBroadcasting() {
+        let expectation = expectation(description: "Command received")
+        nonisolated(unsafe) var receivedCommand: PanelCommand?
+
+        let cancellable = NotificationCenter.default.addObserver(
+            forName: .panelCommandReceived,
+            object: nil,
+            queue: .main
+        ) { notif in
+            receivedCommand = notif.object as? PanelCommand
+            expectation.fulfill()
+        }
+        defer { NotificationCenter.default.removeObserver(cancellable) }
+
+        NotificationCenter.default.post(name: .panelCommandReceived, object: PanelCommand.nextPage)
+        wait(for: [expectation], timeout: 1.0)
+        XCTAssertEqual(receivedCommand, .nextPage)
+    }
+
+    func testMultiCategoryPinningAndScopedUnpinning() {
+        let (defaults, prefs, _, suiteName) = makeContext()
+        defer {
+            PanelController.shared.unpinAll()
+            PanelController.shared.close(immediately: true)
+            cleanup(defaults: defaults, suiteName: suiteName)
+        }
+
+        PanelController.shared.configure(preferences: prefs)
+        let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        defer { NSStatusBar.system.removeStatusItem(statusItem) }
+        guard let button = statusItem.button else {
+            XCTFail("Expected status bar button")
+            return
+        }
+
+        // 1. Show CPU transient panel and pin it
+        PanelController.shared.show(category: .cpu, relativeTo: button) {
+            Text("CPU")
+        }
+        XCTAssertTrue(PanelController.shared.isTransientPanelOpen(for: .cpu))
+        XCTAssertFalse(PanelController.shared.isPinned(for: .cpu))
+
+        PanelController.shared.togglePin(for: .cpu)
+        XCTAssertTrue(PanelController.shared.isPinned(for: .cpu))
+        XCTAssertFalse(PanelController.shared.isTransientPanelOpen(for: .cpu))
+
+        // 2. Open Memory transient panel while CPU remains pinned
+        PanelController.shared.show(category: .memory, relativeTo: button) {
+            Text("Memory")
+        }
+        XCTAssertTrue(PanelController.shared.isPinned(for: .cpu), "Pinned CPU HUD must stay pinned when Memory transient panel opens")
+        XCTAssertTrue(PanelController.shared.isTransientPanelOpen(for: .memory))
+
+        // 3. Unpinning CPU specifically must not unpin or close Memory transient panel
+        PanelController.shared.togglePin(for: .cpu)
+        XCTAssertFalse(PanelController.shared.isPinned(for: .cpu))
+        XCTAssertTrue(PanelController.shared.isTransientPanelOpen(for: .memory))
+    }
+
+    func testMemoryPanelCompositionSumsToTotalViaSegmentLayout() {
+        // Real fixture: 16 GB unified memory
+        let total: UInt64 = 16 * 1024 * 1024 * 1024
+        let app: UInt64 = 4 * 1024 * 1024 * 1024
+        let wired: UInt64 = 3 * 1024 * 1024 * 1024
+        let compressed: UInt64 = 2 * 1024 * 1024 * 1024
+        let cached: UInt64 = 2 * 1024 * 1024 * 1024
+        let free: UInt64 = 5 * 1024 * 1024 * 1024
+
+        let sample = MemorySample(
+            total: total,
+            used: app + wired + compressed,
+            free: free,
+            wired: wired,
+            compressed: compressed,
+            cached: cached,
+            swapUsed: 512 * 1024 * 1024,
+            pressure: .normal,
+            appMemory: app
+        )
+
+        let values = [
+            Double(sample.appMemory ?? 0),
+            Double(sample.wired),
+            Double(sample.compressed),
+            Double(sample.cached),
+            Double(sample.free)
+        ]
+
+        let totalWidth: Double = 320.0
+        let gap: Double = 1.0
+        let widths = SegmentLayout.widths(
+            values: values,
+            totalWidth: totalWidth,
+            minVisible: 4.0,
+            gap: gap
+        )
+
+        let totalAllocated = widths.reduce(0.0, +) + (Double(widths.count - 1) * gap)
+        XCTAssertEqual(totalAllocated, totalWidth, accuracy: 0.001, "Allocated segment widths plus gaps must equal total container width")
+    }
+
+    func testMemoryPanelRendersCleanly() {
+        let (defaults, prefs, coord, suiteName) = makeContext()
+        defer { cleanup(defaults: defaults, suiteName: suiteName) }
+
+        coord.handleReading(.memory(Sample(value: MemorySample(
+            total: 16 * 1024 * 1024 * 1024,
+            used: 10 * 1024 * 1024 * 1024,
+            free: 6 * 1024 * 1024 * 1024,
+            wired: 3 * 1024 * 1024 * 1024,
+            compressed: 1 * 1024 * 1024 * 1024,
+            cached: 2 * 1024 * 1024 * 1024,
+            swapUsed: 100 * 1024 * 1024,
+            pressure: .warning,
+            appMemory: 6 * 1024 * 1024 * 1024
+        ))))
+
+        let view = MemoryPanel(coordinator: coord, preferences: prefs)
+        let hosting = NSHostingView(rootView: view)
+        hosting.frame = CGRect(x: 0, y: 0, width: Instrument.Size.panelWidth, height: 450)
+        hosting.layoutSubtreeIfNeeded()
+
+        let fit = hosting.fittingSize
+        XCTAssertEqual(fit.width, Instrument.Size.panelWidth, accuracy: 2.0)
+        XCTAssertGreaterThan(fit.height, 150)
+    }
+
+    func testMemoryPanelGlanceUnitMatchesByteUnitStandard() {
+        let (defaults, prefs, coord, suiteName) = makeContext()
+        defer { cleanup(defaults: defaults, suiteName: suiteName) }
+
+        coord.handleReading(.memory(Sample(value: MemorySample(
+            total: 16 * 1024 * 1024 * 1024,
+            used: 10 * 1024 * 1024 * 1024,
+            free: 6 * 1024 * 1024 * 1024,
+            wired: 3 * 1024 * 1024 * 1024,
+            compressed: 1 * 1024 * 1024 * 1024,
+            cached: 2 * 1024 * 1024 * 1024,
+            swapUsed: 0,
+            pressure: .normal,
+            appMemory: 6 * 1024 * 1024 * 1024
+        ))))
+
+        var capturedSummary: String?
+        prefs.byteUnitStandard = .iec
+        let probedIEC = MemoryPanel(coordinator: coord, preferences: prefs)
+            .environment(\.panelScaffoldProbeEnabled, true)
+            .onPreferenceChange(PanelScaffoldProbeKey.self) { snapshot in
+                if let summary = snapshot.glanceSummary {
+                    capturedSummary = summary
+                }
+            }
+        let iecHost = NSHostingView(rootView: probedIEC)
+        iecHost.frame = CGRect(x: 0, y: 0, width: Instrument.Size.panelWidth, height: 450)
+        iecHost.layoutSubtreeIfNeeded()
+        XCTAssertTrue(capturedSummary?.contains("10.0 GiB") == true, "Expected '10.0 GiB' in IEC mode, got: \(capturedSummary ?? "nil")")
+        XCTAssertTrue(capturedSummary?.contains("of 16 GiB") == true, "Expected 'of 16 GiB' in IEC mode, got: \(capturedSummary ?? "nil")")
+
+        capturedSummary = nil
+        prefs.byteUnitStandard = .si
+        let probedSI = MemoryPanel(coordinator: coord, preferences: prefs)
+            .environment(\.panelScaffoldProbeEnabled, true)
+            .onPreferenceChange(PanelScaffoldProbeKey.self) { snapshot in
+                if let summary = snapshot.glanceSummary {
+                    capturedSummary = summary
+                }
+            }
+        let siHost = NSHostingView(rootView: probedSI)
+        siHost.frame = CGRect(x: 0, y: 0, width: Instrument.Size.panelWidth, height: 450)
+        siHost.layoutSubtreeIfNeeded()
+        XCTAssertTrue(capturedSummary?.contains("10.7 GB") == true, "Expected '10.7 GB' in SI mode, got: \(capturedSummary ?? "nil")")
+    }
+
+    func testGPUPanelRendersFullEnginesCleanly() {
+        let (defaults, prefs, coord, suiteName) = makeContext()
+        defer { cleanup(defaults: defaults, suiteName: suiteName) }
+
+        coord.handleReading(.gpu(Sample(value: GPUSample(
+            utilization: 62.0,
+            memoryUsed: 4 * 1024 * 1024 * 1024,
+            tempCelsius: 58.0,
+            powerWatts: 14.5,
+            coreCount: 16,
+            deviceName: "Apple M3 Pro",
+            allocatedMemory: 4 * 1024 * 1024 * 1024,
+            recommendedMaxMemory: 18 * 1024 * 1024 * 1024,
+            rendererUtilization: 55.0,
+            tilerUtilization: 30.0,
+            isUnifiedMemory: true,
+            displayCount: 1,
+            displayDescriptions: ["Built-in Liquid Retina XDR"],
+            recoveryCount: 0,
+            supportsRaytracing: true,
+            metalFeatureSet: "Metal 3"
+        ))))
+
+        let view = GPUPanel(coordinator: coord, preferences: prefs)
+        let hosting = NSHostingView(rootView: view)
+        hosting.frame = CGRect(x: 0, y: 0, width: Instrument.Size.panelWidth, height: 450)
+        hosting.layoutSubtreeIfNeeded()
+
+        let fit = hosting.fittingSize
+        XCTAssertEqual(fit.width, Instrument.Size.panelWidth, accuracy: 2.0)
+        XCTAssertGreaterThan(fit.height, 150)
+    }
+
+    func testGPUPanelDeviceOnlyFallbackAndRecoveryWarning() {
+        let (defaults, prefs, coord, suiteName) = makeContext()
+        defer { cleanup(defaults: defaults, suiteName: suiteName) }
+
+        coord.handleReading(.gpu(Sample(value: GPUSample(
+            utilization: 88.0,
+            memoryUsed: 2 * 1024 * 1024 * 1024,
+            tempCelsius: 65.0,
+            powerWatts: 20.0,
+            coreCount: 8,
+            deviceName: "Apple M1",
+            rendererUtilization: nil,
+            tilerUtilization: nil,
+            recoveryCount: 2
+        ))))
+
+        // Verify fallback title
+        XCTAssertEqual(PopoverTab.detail.title(for: .gpu, hasDetailedGPUEngines: false), "Device")
+        XCTAssertEqual(PopoverTab.detail.title(for: .gpu, hasDetailedGPUEngines: true), "Engines")
+
+        let view = GPUPanel(coordinator: coord, preferences: prefs)
+        let hosting = NSHostingView(rootView: view)
+        hosting.frame = CGRect(x: 0, y: 0, width: Instrument.Size.panelWidth, height: 450)
+        hosting.layoutSubtreeIfNeeded()
+
+        let fit = hosting.fittingSize
+        XCTAssertEqual(fit.width, Instrument.Size.panelWidth, accuracy: 2.0)
+        XCTAssertGreaterThan(fit.height, 150)
+    }
+
+    func testTemperaturePanelRendersCleanly() {
+        let (defaults, prefs, coord, suiteName) = makeContext()
+        defer { cleanup(defaults: defaults, suiteName: suiteName) }
+
+        coord.handleReading(.thermal(Sample(value: ThermalSample(
+            sensors: [
+                SensorReading(name: "CPU Performance Core 1", celsius: 72.0),
+                SensorReading(name: "GPU Cluster 1", celsius: 65.0),
+                SensorReading(name: "Memory Proximity", celsius: 48.0),
+                SensorReading(name: "Storage NAND", celsius: 42.0),
+                SensorReading(name: "Battery Sensor 1", celsius: 32.0)
+            ],
+            pressure: .nominal
+        ))))
+
+        let view = TemperaturePanel(coordinator: coord, preferences: prefs)
+        let hosting = NSHostingView(rootView: view)
+        hosting.frame = CGRect(x: 0, y: 0, width: Instrument.Size.panelWidth, height: 450)
+        hosting.layoutSubtreeIfNeeded()
+
+        let fit = hosting.fittingSize
+        XCTAssertEqual(fit.width, Instrument.Size.panelWidth, accuracy: 2.0)
+        XCTAssertGreaterThan(fit.height, 150)
+    }
+
+    func testTemperaturePanelThermalPressureRibbon() {
+        let (defaults, prefs, coord, suiteName) = makeContext()
+        defer { cleanup(defaults: defaults, suiteName: suiteName) }
+
+        coord.handleReading(.thermal(Sample(value: ThermalSample(
+            sensors: [
+                SensorReading(name: "CPU Die", celsius: 98.0),
+                SensorReading(name: "GPU Die", celsius: 92.0)
+            ],
+            pressure: .serious
+        ))))
+
+        let view = TemperaturePanel(coordinator: coord, preferences: prefs)
+        let hosting = NSHostingView(rootView: view)
+        hosting.frame = CGRect(x: 0, y: 0, width: Instrument.Size.panelWidth, height: 450)
+        hosting.layoutSubtreeIfNeeded()
+
+        let fit = hosting.fittingSize
+        XCTAssertEqual(fit.width, Instrument.Size.panelWidth, accuracy: 2.0)
+        XCTAssertGreaterThan(fit.height, 150)
+    }
+
+    func testFanPanelActiveFansRendersCleanly() {
+        let (defaults, prefs, coord, suiteName) = makeContext()
+        defer { cleanup(defaults: defaults, suiteName: suiteName) }
+
+        coord.handleReading(.fan(Sample(value: FanSample(fans: [
+            FanReading(name: "Left Fan", rpm: 1450, minRPM: 1200, maxRPM: 5800),
+            FanReading(name: "Right Fan", rpm: 1520, minRPM: 1200, maxRPM: 6000)
+        ]))))
+
+        let view = FanPanel(coordinator: coord, preferences: prefs)
+        let hosting = NSHostingView(rootView: view)
+        hosting.frame = CGRect(x: 0, y: 0, width: Instrument.Size.panelWidth, height: 450)
+        hosting.layoutSubtreeIfNeeded()
+
+        let fit = hosting.fittingSize
+        XCTAssertEqual(fit.width, Instrument.Size.panelWidth, accuracy: 2.0)
+        XCTAssertGreaterThan(fit.height, 150)
+    }
+
+    func testFanPanelFanlessMacRendersEmptyStateWithAction() {
+        let (defaults, prefs, coord, suiteName) = makeContext()
+        defer { cleanup(defaults: defaults, suiteName: suiteName) }
+
+        coord.handleReading(.fan(Sample(value: FanSample(fans: []))))
+
+        let view = FanPanel(coordinator: coord, preferences: prefs)
+        let hosting = NSHostingView(rootView: view)
+        hosting.frame = CGRect(x: 0, y: 0, width: Instrument.Size.panelWidth, height: 350)
+        hosting.layoutSubtreeIfNeeded()
+
+        let fit = hosting.fittingSize
+        XCTAssertEqual(fit.width, Instrument.Size.panelWidth, accuracy: 2.0)
+        XCTAssertGreaterThan(fit.height, 100)
+    }
+
+    func testNetworkPanelWiFiRendersCleanly() {
+        let (defaults, prefs, coord, suiteName) = makeContext()
+        defer { cleanup(defaults: defaults, suiteName: suiteName) }
+
+        let sample = NetworkSample(
+            interfaces: [
+                InterfaceThroughput(
+                    interfaceName: "en0",
+                    bytesInPerSec: 1_250_000,
+                    bytesOutPerSec: 250_000,
+                    totalBytesIn: 10_000_000,
+                    totalBytesOut: 2_000_000,
+                    ipv4Address: "192.168.1.50",
+                    type: .wifi
+                )
+            ],
+            primaryInterface: "en0",
+            primaryType: .wifi,
+            localIPv4: "192.168.1.50",
+            gatewayIPv4: "192.168.1.1",
+            primaryDNS: "1.1.1.1",
+            wifiDetails: WiFiLinkTelemetry(
+                ssid: "HomeNetwork-5G",
+                rssi: -55,
+                noise: -92,
+                txRate: 866.0,
+                channel: 36,
+                band: "5 GHz"
+            )
+        )
+        coord.handleReading(.network(Sample(value: sample)))
+
+        let view = NetworkPanel(coordinator: coord, preferences: prefs)
+        let hosting = NSHostingView(rootView: view)
+        hosting.frame = CGRect(x: 0, y: 0, width: Instrument.Size.panelWidth, height: 450)
+        hosting.layoutSubtreeIfNeeded()
+
+        let fit = hosting.fittingSize
+        XCTAssertEqual(fit.width, Instrument.Size.panelWidth, accuracy: 2.0)
+        XCTAssertGreaterThan(fit.height, 150)
+    }
+
+    func testNetworkPanelEthernetAndOfflineRendersCleanly() {
+        let (defaults, prefs, coord, suiteName) = makeContext()
+        defer { cleanup(defaults: defaults, suiteName: suiteName) }
+
+        // Test Ethernet
+        let ethSample = NetworkSample(
+            interfaces: [
+                InterfaceThroughput(
+                    interfaceName: "en1",
+                    bytesInPerSec: 50_000_000,
+                    bytesOutPerSec: 10_000_000,
+                    totalBytesIn: 500_000_000,
+                    totalBytesOut: 100_000_000,
+                    ipv4Address: "10.0.0.12",
+                    type: .ethernet
+                )
+            ],
+            primaryInterface: "en1",
+            primaryType: .ethernet,
+            localIPv4: "10.0.0.12"
+        )
+        coord.handleReading(.network(Sample(value: ethSample)))
+
+        let ethView = NetworkPanel(coordinator: coord, preferences: prefs)
+        let ethHosting = NSHostingView(rootView: ethView)
+        ethHosting.frame = CGRect(x: 0, y: 0, width: Instrument.Size.panelWidth, height: 450)
+        ethHosting.layoutSubtreeIfNeeded()
+        XCTAssertEqual(ethHosting.fittingSize.width, Instrument.Size.panelWidth, accuracy: 2.0)
+
+        // Test Offline
+        let offlineSample = NetworkSample(interfaces: [])
+        coord.handleReading(.network(Sample(value: offlineSample)))
+
+        let offlineView = NetworkPanel(coordinator: coord, preferences: prefs)
+        let offlineHosting = NSHostingView(rootView: offlineView)
+        offlineHosting.frame = CGRect(x: 0, y: 0, width: Instrument.Size.panelWidth, height: 450)
+        offlineHosting.layoutSubtreeIfNeeded()
+        XCTAssertEqual(offlineHosting.fittingSize.width, Instrument.Size.panelWidth, accuracy: 2.0)
+    }
+
+    func testDiskPanelRendersCleanly() {
+        let (defaults, prefs, coord, suiteName) = makeContext()
+        defer { cleanup(defaults: defaults, suiteName: suiteName) }
+
+        let sample = DiskSample(
+            volumes: [
+                VolumeCapacity(name: "Macintosh HD", mountPoint: "/", total: 500_000_000_000, used: 250_000_000_000, free: 250_000_000_000),
+                VolumeCapacity(name: "External Backup", mountPoint: "/Volumes/External Backup", total: 1_000_000_000_000, used: 400_000_000_000, free: 600_000_000_000)
+            ],
+            io: DiskIO(bytesReadPerSec: 25_000_000, bytesWrittenPerSec: 5_000_000, readOpsPerSec: 350, writeOpsPerSec: 90)
+        )
+        coord.handleReading(.disk(Sample(value: sample)))
+
+        let view = DiskPanel(coordinator: coord, preferences: prefs)
+        let hosting = NSHostingView(rootView: view)
+        hosting.frame = CGRect(x: 0, y: 0, width: Instrument.Size.panelWidth, height: 450)
+        hosting.layoutSubtreeIfNeeded()
+
+        let fit = hosting.fittingSize
+        XCTAssertEqual(fit.width, Instrument.Size.panelWidth, accuracy: 2.0)
+        XCTAssertGreaterThan(fit.height, 150)
+    }
+
+    func testDiskPanelLowSpaceRendersWarning() {
+        let (defaults, prefs, coord, suiteName) = makeContext()
+        defer { cleanup(defaults: defaults, suiteName: suiteName) }
+
+        let sample = DiskSample(
+            volumes: [
+                VolumeCapacity(name: "Macintosh HD", mountPoint: "/", total: 500_000_000_000, used: 480_000_000_000, free: 20_000_000_000)
+            ],
+            io: nil
+        )
+        coord.handleReading(.disk(Sample(value: sample)))
+
+        let view = DiskPanel(coordinator: coord, preferences: prefs)
+        let hosting = NSHostingView(rootView: view)
+        hosting.frame = CGRect(x: 0, y: 0, width: Instrument.Size.panelWidth, height: 400)
+        hosting.layoutSubtreeIfNeeded()
+
+        let fit = hosting.fittingSize
+        XCTAssertEqual(fit.width, Instrument.Size.panelWidth, accuracy: 2.0)
+        XCTAssertGreaterThan(fit.height, 150)
+    }
+
+    func testPowerPanelBatteryMacRendersCleanly() {
+        let (defaults, prefs, coord, suiteName) = makeContext()
+        defer { cleanup(defaults: defaults, suiteName: suiteName) }
+
+        let sample = PowerSample(
+            hasBattery: true,
+            charge: 75.0,
+            state: .charging,
+            timeRemaining: 2400,
+            cycleCount: 120,
+            condition: "Normal",
+            designCapacity: 5000,
+            currentMaxCapacity: 4900,
+            powerDrawWatts: 20.0,
+            adapterWatts: 67.0,
+            voltageVolts: 12.0,
+            amperageMilliAmps: 2500.0,
+            designCycleCount: 1000,
+            adapterName: "Apple 67W Charger"
+        )
+        coord.handleReading(.power(Sample(value: sample)))
+
+        let view = PowerPanel(coordinator: coord, preferences: prefs)
+        let hosting = NSHostingView(rootView: view)
+        hosting.frame = CGRect(x: 0, y: 0, width: Instrument.Size.panelWidth, height: 450)
+        hosting.layoutSubtreeIfNeeded()
+
+        let fit = hosting.fittingSize
+        XCTAssertEqual(fit.width, Instrument.Size.panelWidth, accuracy: 2.0)
+        XCTAssertGreaterThan(fit.height, 150)
+    }
+
+    func testPowerPanelDesktopMacRendersCleanly() {
+        let (defaults, prefs, coord, suiteName) = makeContext()
+        defer { cleanup(defaults: defaults, suiteName: suiteName) }
+
+        let sample = PowerSample(
+            hasBattery: false,
+            powerDrawWatts: 45.0,
+            adapterWatts: 140.0,
+            adapterName: "Internal PSU"
+        )
+        coord.handleReading(.power(Sample(value: sample)))
+
+        let view = PowerPanel(coordinator: coord, preferences: prefs)
+        let hosting = NSHostingView(rootView: view)
+        hosting.frame = CGRect(x: 0, y: 0, width: Instrument.Size.panelWidth, height: 450)
+        hosting.layoutSubtreeIfNeeded()
+
+        let fit = hosting.fittingSize
+        XCTAssertEqual(fit.width, Instrument.Size.panelWidth, accuracy: 2.0)
+        XCTAssertGreaterThan(fit.height, 100)
+    }
+
+    func testHistoryPageRendersAcrossAll8Categories() {
+        let (defaults, prefs, coord, suiteName) = makeContext()
+        defer { cleanup(defaults: defaults, suiteName: suiteName) }
+
+        // Populate 15 samples per category to exceed empty state threshold
+        for i in 0..<15 {
+            let usage = 20.0 + Double(i) * 2.0
+            coord.handleReading(.cpu(Sample(value: CPUSample(totalUsage: usage, perCore: [usage, usage], user: usage * 0.6, system: usage * 0.4, idle: 100 - usage))))
+            coord.handleReading(.memory(Sample(value: MemorySample(total: 16 * 1024 * 1024 * 1024, used: 8 * 1024 * 1024 * 1024, free: 8 * 1024 * 1024 * 1024, wired: 2 * 1024 * 1024 * 1024, compressed: 1 * 1024 * 1024 * 1024, cached: 2 * 1024 * 1024 * 1024, swapUsed: 0, pressure: .normal))))
+            coord.handleReading(.gpu(Sample(value: GPUSample(utilization: usage, memoryUsed: 1024, tempCelsius: 52.0, powerWatts: 8.0))))
+            coord.handleReading(.thermal(Sample(value: ThermalSample(sensors: [SensorReading(name: "CPU Core", celsius: 50.0 + Double(i))], pressure: .nominal))))
+            coord.handleReading(.fan(Sample(value: FanSample(fans: [FanReading(name: "Left Fan", rpm: 1800 + i * 10, minRPM: 1200, maxRPM: 5500)]))))
+            coord.handleReading(.network(Sample(value: NetworkSample(interfaces: [InterfaceThroughput(interfaceName: "en0", bytesInPerSec: 5000000 + Double(i * 1000), bytesOutPerSec: 1200000, totalBytesIn: 10000000, totalBytesOut: 2000000)]))))
+            coord.handleReading(.disk(Sample(value: DiskSample(volumes: [VolumeCapacity(name: "Macintosh HD", mountPoint: "/", total: 500_000_000_000, used: 250_000_000_000, free: 250_000_000_000)], io: DiskIO(bytesReadPerSec: 5000000 + Double(i * 1000), bytesWrittenPerSec: 2000000, readOpsPerSec: 100, writeOpsPerSec: 50)))))
+            coord.handleReading(.power(Sample(value: PowerSample(hasBattery: true, charge: 90.0, state: .charging, timeRemaining: 3600, powerDrawWatts: 25.0 + Double(i)))))
+        }
+
+        for category in MetricCategory.allCases {
+            let view = HistoryPage(category: category, coordinator: coord, preferences: prefs)
+            let hosting = NSHostingView(rootView: view)
+            hosting.frame = CGRect(x: 0, y: 0, width: Instrument.Size.panelWidth, height: 300)
+            hosting.layoutSubtreeIfNeeded()
+
+            let fit = hosting.fittingSize
+            XCTAssertGreaterThan(fit.height, 50, "HistoryPage for \(category) should render with height > 50pt")
+        }
+    }
+
+    func testHistoryRangePersistenceAndSwitching() {
+        let (defaults, prefs, _, suiteName) = makeContext()
+        defer { cleanup(defaults: defaults, suiteName: suiteName) }
+
+        XCTAssertEqual(prefs.historyRange(for: .cpu), .oneMinute)
+        prefs.setHistoryRange(.fiveMinutes, for: .cpu)
+        XCTAssertEqual(prefs.historyRange(for: .cpu), .fiveMinutes)
+        prefs.setHistoryRange(.fifteenMinutes, for: .network)
+        XCTAssertEqual(prefs.historyRange(for: .network), .fifteenMinutes)
+        XCTAssertEqual(prefs.historyRange(for: .cpu), .fiveMinutes)
+    }
+
+    func testHistoryPageEmptyStateBelow10Samples() {
+        let (defaults, prefs, coord, suiteName) = makeContext()
+        defer { cleanup(defaults: defaults, suiteName: suiteName) }
+
+        // Only 3 samples
+        for _ in 0..<3 {
+            coord.handleReading(.cpu(Sample(value: CPUSample(totalUsage: 25.0, perCore: [25.0], user: 15.0, system: 10.0, idle: 75.0))))
+        }
+
+        let view = HistoryPage(category: .cpu, coordinator: coord, preferences: prefs)
+        let hosting = NSHostingView(rootView: view)
+        hosting.frame = CGRect(x: 0, y: 0, width: Instrument.Size.panelWidth, height: 300)
+        hosting.layoutSubtreeIfNeeded()
+
+        let fit = hosting.fittingSize
+        XCTAssertGreaterThan(fit.height, 50)
+    }
+
+    func testPanelScaffoldSingleScrollContainerBuildsBodyOnceAndClampsAllTabs() {
+        for tab in [PopoverTab.overview, .detail, .history] {
+            var buildCount = 0
+            let binding = Binding.constant(tab)
+
+            let scaffold = PanelScaffold(
+                chrome: PanelChrome(category: .thermal, status: .fine),
+                glance: PanelGlance(value: 62, unit: "°C", headline: "Elevated"),
+                pages: [.overview, .detail, .history],
+                selection: binding
+            ) { _ in
+                let _ = { buildCount += 1 }()
+                return VStack(spacing: 8) {
+                    ForEach(0..<30, id: \.self) { idx in
+                        Text("Sensor \(idx)")
+                            .frame(height: 24)
+                    }
+                }
+            }
+
+            let controller = NSHostingController(rootView: scaffold)
+            let size = controller.sizeThatFits(in: CGSize(width: Instrument.Size.panelWidth, height: Instrument.Size.maxHeight))
+            XCTAssertEqual(size.width, Instrument.Size.panelWidth, accuracy: 2.0)
+            XCTAssertLessThanOrEqual(size.height, Instrument.Size.maxHeight + 0.5, "Tab \(tab) must clamp to maxHeight via ScrollView (B3/B4)")
+            XCTAssertEqual(buildCount, 1, "Tab \(tab) body must be built once, not twice as with ViewThatFits (B4)")
+        }
+    }
+
+    func testPanelScaffoldEmitsContentHeightKeyAndRemovesCrossViewChartNamespace() {
+        var selected = PopoverTab.overview
+        let binding = Binding(get: { selected }, set: { selected = $0 })
+        var reportedHeights: [CGFloat] = []
+
+        let scaffold = PanelScaffold(
+            chrome: PanelChrome(category: .cpu, status: .fine),
+            glance: PanelGlance(value: 35, unit: "%", headline: "Normal"),
+            pages: [.overview, .detail, .history],
+            selection: binding
+        ) { _ in
+            VStack(spacing: 6) {
+                ForEach(0..<6, id: \.self) { idx in
+                    Text("Row \(idx)")
+                        .frame(height: 24)
+                }
+            }
+        }
+        .onPreferenceChange(PanelContentHeightKey.self) { height in
+            if height > 0 {
+                reportedHeights.append(height)
+            }
+        }
+
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: Instrument.Size.panelWidth, height: 400),
+            styleMask: [.borderless],
+            backing: .buffered,
+            defer: false
+        )
+        let hosting = NSHostingView(rootView: scaffold)
+        window.contentView = hosting
+        window.orderFront(nil)
+        defer { window.orderOut(nil) }
+
+        window.layoutIfNeeded()
+        window.displayIfNeeded()
+        RunLoop.main.run(until: Date().addingTimeInterval(0.08))
+
+        XCTAssertFalse(reportedHeights.isEmpty, "PanelScaffold must emit PanelContentHeightKey > 0")
+        if let latest = reportedHeights.last {
+            XCTAssertGreaterThanOrEqual(latest, 160.0)
+            XCTAssertLessThanOrEqual(latest, Instrument.Size.maxHeight)
+        }
+    }
+
+    // MARK: - Task 8.5.4: ChartScrubState, Glance Header Scrub Override & Insight Caption
+
+    func testChartScrubStateFormattingAndEquatable() {
+        XCTAssertEqual(ChartScrubState.splitFormattedValue("42.3%").value, "42.3")
+        XCTAssertEqual(ChartScrubState.splitFormattedValue("42.3%").unit, "%")
+        XCTAssertEqual(ChartScrubState.splitFormattedValue("62% used").value, "62")
+        XCTAssertEqual(ChartScrubState.splitFormattedValue("62% used").unit, "% used")
+        XCTAssertEqual(ChartScrubState.splitFormattedValue("55.0 °C").value, "55.0")
+        XCTAssertEqual(ChartScrubState.splitFormattedValue("55.0 °C").unit, "°C")
+        XCTAssertEqual(ChartScrubState.splitFormattedValue("1,800 RPM").value, "1,800")
+        XCTAssertEqual(ChartScrubState.splitFormattedValue("1,800 RPM").unit, "RPM")
+        XCTAssertEqual(ChartScrubState.splitFormattedValue("4.60 MiB/s").value, "4.60")
+        XCTAssertEqual(ChartScrubState.splitFormattedValue("4.60 MiB/s").unit, "MiB/s")
+        XCTAssertEqual(ChartScrubState.splitFormattedValue("20.0 W").value, "20.0")
+        XCTAssertEqual(ChartScrubState.splitFormattedValue("20.0 W").unit, "W")
+        XCTAssertEqual(ChartScrubState.splitFormattedValue("-55 dBm").value, "-55")
+        XCTAssertEqual(ChartScrubState.splitFormattedValue("-55 dBm").unit, "dBm")
+        XCTAssertEqual(ChartScrubState.splitFormattedValue("N/A").value, "N/A")
+        XCTAssertEqual(ChartScrubState.splitFormattedValue("N/A").unit, "")
+
+        XCTAssertEqual(ChartScrubState.formatRelativeTime(0), "now")
+        XCTAssertEqual(ChartScrubState.formatRelativeTime(12), "12s ago")
+        XCTAssertEqual(ChartScrubState.formatRelativeTime(135), "2m 15s ago")
+        XCTAssertEqual(ChartScrubState.formatRelativeTime(180), "3m ago")
+        XCTAssertEqual(ChartScrubState.formatRelativeTime(3600), "1h ago")
+
+        var comps = DateComponents()
+        comps.calendar = Calendar(identifier: .gregorian)
+        comps.timeZone = TimeZone(secondsFromGMT: 0)
+        comps.year = 2026
+        comps.month = 11
+        comps.day = 13
+        comps.hour = 14
+        comps.minute = 2
+        comps.second = 31
+        let sampleTimestamp = comps.date!.timeIntervalSince1970
+        let latestTimestamp = sampleTimestamp + 12.0
+
+        XCTAssertEqual(
+            ChartScrubState.formatClockTime(timestamp: sampleTimestamp, timeZone: TimeZone(secondsFromGMT: 0)!),
+            "14:02:31"
+        )
+
+        let singleState = ChartScrubState.make(
+            primaryValue: 78.4,
+            timestamp: sampleTimestamp,
+            latestTimestamp: latestTimestamp,
+            valueFormatter: { String(format: "%.1f%%", $0) },
+            timeZone: TimeZone(secondsFromGMT: 0)!
+        )
+        XCTAssertEqual(singleState.formattedPrimary, "78.4")
+        XCTAssertEqual(singleState.primaryUnit, "%")
+        XCTAssertNil(singleState.secondaryReadout)
+        XCTAssertEqual(singleState.relativeTimeText, "12s ago")
+        XCTAssertEqual(singleState.clockTimeText, "14:02:31")
+        XCTAssertEqual(singleState.headlineText, "12s ago · 14:02:31")
+
+        let dualStateA = ChartScrubState.make(
+            primaryValue: 4.5 * 1_048_576,
+            secondaryValue: 1.2 * 1_048_576,
+            primaryLabel: "↓",
+            secondaryLabel: "↑",
+            secondaryColor: CategoryPalette.Series.networkUpload,
+            timestamp: sampleTimestamp,
+            latestTimestamp: latestTimestamp,
+            valueFormatter: { Units.formatNetworkRate($0, unit: .bytesPerSecond, standard: .iec) },
+            timeZone: TimeZone(secondsFromGMT: 0)!
+        )
+        let dualStateB = dualStateA
+        XCTAssertEqual(dualStateA, dualStateB)
+        XCTAssertEqual(dualStateA.formattedPrimary, "4.50")
+        XCTAssertEqual(dualStateA.primaryUnit, "MiB/s")
+        XCTAssertEqual(dualStateA.primaryLabel, "↓")
+        XCTAssertEqual(dualStateA.secondaryReadout?.text, "1.20")
+        XCTAssertEqual(dualStateA.secondaryReadout?.unit, "MiB/s")
+        XCTAssertEqual(dualStateA.secondaryReadout?.label, "↑")
+        XCTAssertEqual(dualStateA.headlineText, "12s ago · 14:02:31")
+    }
+
+    func testChartScrubActionEnvironmentRoutingAndGlanceOverrideRelease() {
+        var capturedAction: ChartScrubAction?
+
+        struct ScrubProbeView: View {
+            @Environment(\.chartScrubAction) private var chartScrubAction
+            let onCapture: (ChartScrubAction?) -> Void
+
+            var body: some View {
+                Text("Probe")
+                    .frame(height: 30)
+                    .onAppear {
+                        onCapture(chartScrubAction)
+                    }
+            }
+        }
+
+        var latestProbe = PanelScaffoldProbeSnapshot()
+        let binding = Binding.constant(PopoverTab.overview)
+        let scaffold = PanelScaffold(
+            chrome: PanelChrome(category: .cpu, status: .fine),
+            glance: PanelGlance(
+                value: 42,
+                format: "%.0f",
+                unit: "%",
+                headline: "Moderate load · 10 cores",
+                insight: "↗ Peak 92% · 3m ago",
+                chartMode: .single(values: [30, 42, 55], color: .blue)
+            ),
+            pages: [.overview, .detail, .history],
+            selection: binding
+        ) { _ in
+            ScrubProbeView { action in
+                capturedAction = action
+            }
+        }
+        .environment(\.panelScaffoldProbeEnabled, true)
+        .onPreferenceChange(PanelScaffoldProbeKey.self) { latestProbe = $0 }
+
+        _ = NSApplication.shared
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: Instrument.Size.panelWidth, height: 420),
+            styleMask: [.borderless],
+            backing: .buffered,
+            defer: false
+        )
+        let hosting = NSHostingView(rootView: scaffold)
+        hosting.frame = NSRect(x: 0, y: 0, width: Instrument.Size.panelWidth, height: 420)
+        window.contentView = hosting
+        window.makeKeyAndOrderFront(nil)
+        defer { window.orderOut(nil) }
+
+        func flush() {
+            hosting.layoutSubtreeIfNeeded()
+            window.layoutIfNeeded()
+            window.displayIfNeeded()
+            RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+        }
+
+        flush()
+        XCTAssertNotNil(capturedAction, "PanelScaffold must inject ChartScrubAction into SwiftUI environment")
+
+        let initialValue = latestProbe.glanceSummary ?? ""
+        XCTAssertTrue(initialValue.contains("42 %"), "Live Glance value should show 42 %, got: \(initialValue)")
+        XCTAssertTrue(initialValue.contains("Moderate load · 10 cores"), "Live Glance headline should show live headline, got: \(initialValue)")
+
+        // Trigger scrub update via environment action (as hero LiveChart or HistoryPage does)
+        let scrub = ChartScrubState(
+            formattedPrimary: "78.5",
+            primaryUnit: "%",
+            secondaryReadout: nil,
+            relativeTimeText: "12s ago",
+            clockTimeText: "14:02:31"
+        )
+        capturedAction?(scrub)
+        flush()
+
+        let scrubbedValue = latestProbe.glanceSummary ?? ""
+        XCTAssertTrue(scrubbedValue.contains("78.5 %"), "Scrubbed Glance must display scrubbed value 78.5 %, got: \(scrubbedValue)")
+        XCTAssertTrue(scrubbedValue.contains("12s ago · 14:02:31"), "Scrubbed Glance headline must show '<relative> · <clock>', got: \(scrubbedValue)")
+        XCTAssertFalse(scrubbedValue.contains("Moderate load · 10 cores"))
+
+        // Release scrub (nil) -> restores live telemetry
+        capturedAction?(nil)
+        flush()
+
+        let restoredValue = latestProbe.glanceSummary ?? ""
+        XCTAssertTrue(restoredValue.contains("42 %"), "Releasing scrub must restore live telemetry, got: \(restoredValue)")
+        XCTAssertTrue(restoredValue.contains("Moderate load · 10 cores"))
+    }
+
+    func testPanelScaffoldInsightCaptionPlacementBelowChartAndDualTickerScrub() throws {
+        @MainActor
+        final class HostModel: ObservableObject {
+            @Published var tab: PopoverTab = .overview
+            @Published var scrub: ChartScrubState? = nil
+            var latestProbe = PanelScaffoldProbeSnapshot()
+        }
+
+        struct HostView: View {
+            @ObservedObject var model: HostModel
+
+            var body: some View {
+                PanelScaffold(
+                    chrome: PanelChrome(category: .network, status: .fine),
+                    glance: PanelGlance(
+                        value: 4.2,
+                        format: "%.1f",
+                        unit: "MB/s",
+                        secondaryGlance: (value: 1.1, unit: "MB/s", color: CategoryPalette.Series.networkUpload),
+                        headline: "Wi-Fi · HomeNet",
+                        insight: "↗ Peak 18.4 MB/s · 2m ago",
+                        chartMode: .mirrored(
+                            top: [1_000_000, 4_200_000, 2_500_000],
+                            bottom: [500_000, 1_100_000, 800_000],
+                            topColor: CategoryPalette.tint(for: .network),
+                            bottomColor: CategoryPalette.Series.networkUpload
+                        ),
+                        chartHeight: 56
+                    ),
+                    pages: [.overview, .detail, .history],
+                    selection: $model.tab,
+                    scrubState: $model.scrub
+                ) { _ in
+                    Text("Body")
+                        .frame(height: 60)
+                }
+                .environment(\.panelScaffoldProbeEnabled, true)
+                .onPreferenceChange(PanelScaffoldProbeKey.self) { model.latestProbe = $0 }
+            }
+        }
+
+        let model = HostModel()
+        _ = NSApplication.shared
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: Instrument.Size.panelWidth, height: 420),
+            styleMask: [.borderless],
+            backing: .buffered,
+            defer: false
+        )
+        let hosting = NSHostingView(rootView: HostView(model: model))
+        hosting.frame = NSRect(x: 0, y: 0, width: Instrument.Size.panelWidth, height: 420)
+        window.contentView = hosting
+        window.makeKeyAndOrderFront(nil)
+        defer { window.orderOut(nil) }
+
+        func flush() {
+            hosting.layoutSubtreeIfNeeded()
+            window.layoutIfNeeded()
+            window.displayIfNeeded()
+            RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+        }
+
+        flush()
+
+        XCTAssertEqual(model.latestProbe.insightText, "↗ Peak 18.4 MB/s · 2m ago")
+        let glanceFrame = try XCTUnwrap(model.latestProbe.glanceFrame)
+        let chartFrame = try XCTUnwrap(model.latestProbe.chartFrame)
+        let insightFrame = try XCTUnwrap(model.latestProbe.insightFrame, "Insight caption row must render below the hero chart")
+
+        // Verify vertical placement in SwiftUI coordinate space (Y increases downward):
+        // Glance sits above Chart, and Insight sits directly below the hero Chart.
+        XCTAssertGreaterThan(chartFrame.minY, glanceFrame.maxY - 1.0)
+        XCTAssertGreaterThan(insightFrame.minY, glanceFrame.maxY, "Insight row must be positioned below Glance header, not top-right")
+        XCTAssertGreaterThanOrEqual(insightFrame.minY, chartFrame.maxY - 1.0, "Insight row must sit directly below the hero chart")
+
+        // Verify dual-ticker scrub readout
+        model.scrub = ChartScrubState(
+            formattedPrimary: "9.80",
+            primaryUnit: "MiB/s",
+            primaryLabel: "↓",
+            secondaryReadout: ChartScrubState.SecondaryReadout(
+                text: "2.40",
+                unit: "MiB/s",
+                color: CategoryPalette.Series.networkUpload,
+                label: "↑"
+            ),
+            relativeTimeText: "25s ago",
+            clockTimeText: "14:02:18"
+        )
+        flush()
+
+        let dualGlanceVal = model.latestProbe.glanceSummary ?? ""
+        XCTAssertTrue(dualGlanceVal.contains("9.80 MiB/s"), "Dual scrub primary must render in Glance, got: \(dualGlanceVal)")
+        XCTAssertTrue(dualGlanceVal.contains("2.40 MiB/s"), "Dual scrub secondary must render in Glance, got: \(dualGlanceVal)")
+        XCTAssertTrue(dualGlanceVal.contains("25s ago · 14:02:18"))
+
+        // Switching to .history collapses hero chart + insight caption row
+        model.tab = .history
+        model.scrub = nil
+        model.latestProbe = PanelScaffoldProbeSnapshot()
+        flush()
+
+        XCTAssertNil(model.latestProbe.insightText, "Hero insight row must collapse when on .history tab")
+        XCTAssertNil(model.latestProbe.insightFrame, "Hero insight row must collapse when on .history tab")
+    }
+
+    func testScrubControllerHoverActiveAndEndedBuildsAndClearsChartScrubState() throws {
+        let controller = ScrubController()
+        let base: TimeInterval = 1_700_000_000
+        let points = [
+            ChartPoint(timestamp: base, value: 20.0),
+            ChartPoint(timestamp: base + 10, value: 60.0),
+            ChartPoint(timestamp: base + 20, value: 80.0),
+            ChartPoint(timestamp: base + 30, value: 40.0)
+        ]
+        let timeline = ChartTimeline(edge: base + 30, sampleInterval: 1.0)
+
+        var resolvedTargets: [ScrubController.ResolvedTarget?] = []
+        var legacyCallbacks: [(Int?, Double?, Double?)] = []
+
+        // Hover at 10s into 30s window (x = 100 on 300pt width -> snaps to index 1, value 60.0, 20s ago)
+        controller.handleHover(
+            phase: .active(CGPoint(x: 100, y: 36)),
+            plotWidth: 300,
+            points: points,
+            secondaryPoints: [],
+            timeline: timeline,
+            windowDuration: 30,
+            isTimestamped: true,
+            valueFormatter: { String(format: "%.1f%%", $0) },
+            onScrub: { idx, val, ago in legacyCallbacks.append((idx, val, ago)) },
+            onScrubState: { target in resolvedTargets.append(target) }
+        )
+
+        XCTAssertEqual(resolvedTargets.count, 1)
+        let activeTarget = try XCTUnwrap(resolvedTargets.first ?? nil)
+        XCTAssertEqual(activeTarget.index, 1)
+        XCTAssertEqual(activeTarget.primaryValue, 60.0, accuracy: 0.01)
+        XCTAssertEqual(activeTarget.secondsAgo, 20.0, accuracy: 0.01)
+
+        // Interpolated bead Y at midpoint (base + 15s) between 60.0 and 80.0 (cubic Catmull-Rom spline)
+        let midInterp = try XCTUnwrap(ChartTimeline.interpolateValue(at: base + 15, points: points))
+        XCTAssertEqual(midInterp, 73.75, accuracy: 0.01)
+
+        let scrubState = ChartScrubState.make(
+            primaryValue: activeTarget.primaryValue,
+            timestamp: activeTarget.timestamp,
+            latestTimestamp: timeline.edge,
+            valueFormatter: { String(format: "%.1f%%", $0) },
+            timeZone: TimeZone(secondsFromGMT: 0)!
+        )
+        XCTAssertEqual(scrubState.formattedPrimary, "60.0")
+        XCTAssertEqual(scrubState.primaryUnit, "%")
+        XCTAssertEqual(scrubState.relativeTimeText, "20s ago")
+        XCTAssertTrue(controller.shouldDispatch(scrubState))
+        XCTAssertFalse(controller.shouldDispatch(scrubState), "Duplicate scrub state must not re-dispatch")
+
+        XCTAssertEqual(legacyCallbacks.count, 1)
+        XCTAssertEqual(legacyCallbacks[0].0, 1)
+
+        // End hover -> clears hover and dispatches nil
+        controller.handleHover(
+            phase: .ended,
+            plotWidth: 300,
+            points: points,
+            secondaryPoints: [],
+            timeline: timeline,
+            windowDuration: 30,
+            isTimestamped: true,
+            valueFormatter: nil,
+            onScrub: { idx, val, ago in legacyCallbacks.append((idx, val, ago)) },
+            onScrubState: { target in resolvedTargets.append(target) }
+        )
+
+        XCTAssertNil(controller.hoveredIndex)
+        XCTAssertNil(controller.hoverLocation)
+        XCTAssertEqual(resolvedTargets.count, 2)
+        XCTAssertNil(resolvedTargets[1])
+        XCTAssertTrue(controller.shouldDispatch(nil))
+        XCTAssertFalse(controller.shouldDispatch(nil))
+    }
+
+    func testScrubControllerSuppressesRedundantObjectWillChangeOnSameIndex() {
+        let controller = ScrubController()
+        var changeCount = 0
+        let cancellable = controller.objectWillChange.sink { _ in
+            changeCount += 1
+        }
+        defer { cancellable.cancel() }
+
+        let base: TimeInterval = 2_000.0
+        let points = [
+            ChartPoint(timestamp: base - 20, value: 10),
+            ChartPoint(timestamp: base - 10, value: 50),
+            ChartPoint(timestamp: base, value: 30)
+        ]
+        let timeline = ChartTimeline(edge: base, sampleInterval: 1.0)
+
+        // Multiple pixel moves within the same middle sample (x = 198, 200, 202)
+        for x in [CGFloat(198), CGFloat(200), CGFloat(202)] {
+            controller.handleHover(
+                phase: .active(CGPoint(x: x, y: 20)),
+                plotWidth: 300,
+                points: points,
+                secondaryPoints: [],
+                timeline: timeline,
+                windowDuration: 30,
+                isTimestamped: true,
+                valueFormatter: nil,
+                onScrub: nil
+            )
+        }
+        XCTAssertEqual(controller.hoveredIndex, 1)
+        XCTAssertEqual(changeCount, 1, "Moving mouse within the same snapped sample must only publish once")
+    }
+
+    func testChartModelStepShortCircuitsWhenPausedWithIdenticalInputs() {
+        let model = ChartModel(sampleInterval: 1.0)
+        let base: TimeInterval = 5_000.0
+        let points = [
+            ChartPoint(timestamp: base - 2.0, value: 10),
+            ChartPoint(timestamp: base - 1.0, value: 20),
+            ChartPoint(timestamp: base, value: 30)
+        ]
+        let mode = LiveChartMode.single(points: points, color: .blue, fixedMax: 100.0)
+
+        let first = model.step(
+            now: base,
+            mode: mode,
+            category: .cpu,
+            sampleInterval: 1.0,
+            explicitWindow: 60.0,
+            isScrubbing: true,
+            motionPolicy: .full
+        )
+        let edgeAfterFirst = model.timeline.edge
+        let second = model.step(
+            now: base,
+            mode: mode,
+            category: .cpu,
+            sampleInterval: 1.0,
+            explicitWindow: 60.0,
+            isScrubbing: true,
+            motionPolicy: .full
+        )
+        XCTAssertEqual(model.timeline.edge, edgeAfterFirst)
+        XCTAssertEqual(first.primaryPoints, second.primaryPoints)
+    }
+
+    // MARK: - Task 8.5.6b: Header v2, Text PageSwitcher & Inline Status Chip
+
+    func testHeaderV2BadgeAndCategoryTitlesFitAllCategories() {
+        for category in MetricCategory.allCases {
+            for pinned in [false, true] {
+                var latestProbe = PanelScaffoldProbeSnapshot()
+                let scaffold = PanelScaffold(
+                    chrome: PanelChrome(
+                        category: category,
+                        status: .fine,
+                        isPinned: pinned
+                    ),
+                    glance: PanelGlance(value: 42, unit: "%", headline: "Nominal"),
+                    pages: PopoverTab.supportedTabs(for: category, hasBattery: true),
+                    selection: .constant(.overview)
+                ) { _ in
+                    Text("Body").frame(height: 40)
+                }
+                .environment(\.panelScaffoldProbeEnabled, true)
+                .onPreferenceChange(PanelScaffoldProbeKey.self) { latestProbe = $0 }
+
+                let controller = NSHostingController(rootView: scaffold)
+                let size = controller.sizeThatFits(in: CGSize(width: Instrument.Size.panelWidth, height: Instrument.Size.maxHeight))
+                XCTAssertEqual(size.width, Instrument.Size.panelWidth, accuracy: 2.0, "Category \(category) (pinned: \(pinned)) must fit 352pt panel width")
+
+                let window = NSWindow(
+                    contentRect: NSRect(x: 0, y: 0, width: Instrument.Size.panelWidth, height: size.height),
+                    styleMask: [.borderless],
+                    backing: .buffered,
+                    defer: false
+                )
+                let hosting = NSHostingView(rootView: scaffold)
+                hosting.frame = NSRect(x: 0, y: 0, width: Instrument.Size.panelWidth, height: size.height)
+                window.contentView = hosting
+                window.orderFront(nil)
+                window.layoutIfNeeded()
+                window.displayIfNeeded()
+                RunLoop.main.run(until: Date().addingTimeInterval(0.03))
+                window.orderOut(nil)
+
+                XCTAssertEqual(latestProbe.badgeTitle, category.displayName, "Header v3 uses sentence-case category displayName")
+                XCTAssertEqual(latestProbe.headerStripButtonCount, 9, "Overview + all 8 categories enabled")
+                if let headerStrip = latestProbe.headerStripFrame {
+                    XCTAssertEqual(headerStrip.height, Instrument.Size.headerStripHeight, accuracy: 1.0, "Header strip must remain single-line 28pt")
+                    XCTAssertLessThanOrEqual(headerStrip.width, Instrument.Size.contentWidth + 0.5, "Header strip must fit 320pt content width")
+                }
+                if let footer = latestProbe.footerFrame {
+                    XCTAssertGreaterThanOrEqual(footer.height, Instrument.Size.footerHeight, "Footer bar must be present (>= 24pt)")
+                }
+            }
+        }
+    }
+
+    func testTextPageSwitcherLabelsMotionPoliciesContrastAndShortcuts() {
+        XCTAssertEqual(PageSwitcher.label(for: .overview), "Now")
+        XCTAssertEqual(PageSwitcher.label(for: .detail), "Details")
+        XCTAssertEqual(PageSwitcher.label(for: .history), "History")
+
+        XCTAssertEqual(PageSwitcher.accessibilityLabel(for: .overview, category: .cpu), "Now, Overview")
+        XCTAssertEqual(PageSwitcher.accessibilityLabel(for: .detail, category: .cpu), "Details, Cores")
+        XCTAssertEqual(PageSwitcher.accessibilityLabel(for: .history, category: .cpu), "History")
+
+        for policy in [MotionPolicy.full, .reduced, .frozen] {
+            for scheme in [ColorScheme.light, .dark] {
+                let switcher = PageSwitcher(
+                    pages: [.overview, .detail, .history],
+                    selection: .constant(.detail),
+                    category: .cpu
+                )
+                .motionPolicy(policy)
+                .environment(\.colorScheme, scheme)
+
+                let hosting = NSHostingView(rootView: switcher)
+                hosting.frame = CGRect(x: 0, y: 0, width: 220, height: 32)
+                hosting.layoutSubtreeIfNeeded()
+                XCTAssertGreaterThan(hosting.fittingSize.width, 90)
+                XCTAssertLessThanOrEqual(hosting.fittingSize.height, 30)
+            }
+        }
+
+        // Verify arrow commands update PanelScaffold page selection and Cmd+1..9 / Ctrl+Tab route destinations
+        @MainActor
+        final class SelectionHost: ObservableObject {
+            @Published var tab: PopoverTab = .overview
+            var selectedDestinations: [PanelDestination] = []
+        }
+        let hostModel = SelectionHost()
+        let scaffold = PanelScaffold(
+            chrome: PanelChrome(
+                category: .cpu,
+                status: .fine,
+                onSelectDestination: { dest in
+                    hostModel.selectedDestinations.append(dest)
+                }
+            ),
+            glance: PanelGlance(value: 25, unit: "%", headline: "Normal"),
+            pages: [.overview, .detail, .history],
+            selection: Binding(get: { hostModel.tab }, set: { hostModel.tab = $0 })
+        ) { _ in
+            Text("Body").frame(height: 40)
+        }
+
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: Instrument.Size.panelWidth, height: 300),
+            styleMask: [.borderless],
+            backing: .buffered,
+            defer: false
+        )
+        let hosting = NSHostingView(rootView: scaffold)
+        window.contentView = hosting
+        window.orderFront(nil)
+        defer { window.orderOut(nil) }
+        RunLoop.main.run(until: Date().addingTimeInterval(0.03))
+
+        NotificationCenter.default.post(name: .panelCommandReceived, object: PanelCommand.nextPage, userInfo: ["destination": PanelDestination.category(.cpu)])
+        RunLoop.main.run(until: Date().addingTimeInterval(0.03))
+        XCTAssertEqual(hostModel.tab, .detail)
+
+        NotificationCenter.default.post(name: .panelCommandReceived, object: PanelCommand.nextPage, userInfo: ["destination": PanelDestination.category(.cpu)])
+        RunLoop.main.run(until: Date().addingTimeInterval(0.03))
+        XCTAssertEqual(hostModel.tab, .history)
+
+        NotificationCenter.default.post(name: .panelCommandReceived, object: PanelCommand.previousPage, userInfo: ["category": MetricCategory.cpu])
+        RunLoop.main.run(until: Date().addingTimeInterval(0.03))
+        XCTAssertEqual(hostModel.tab, .detail)
+
+        NotificationCenter.default.post(name: .panelCommandReceived, object: PanelCommand.selectDestination(0), userInfo: ["destination": PanelDestination.category(.cpu)])
+        NotificationCenter.default.post(name: .panelCommandReceived, object: PanelCommand.nextDestination, userInfo: ["destination": PanelDestination.category(.cpu)])
+        NotificationCenter.default.post(name: .panelCommandReceived, object: PanelCommand.previousDestination, userInfo: ["destination": PanelDestination.category(.cpu)])
+        RunLoop.main.run(until: Date().addingTimeInterval(0.03))
+        XCTAssertEqual(hostModel.selectedDestinations, [.overview, .category(.memory), .overview])
+    }
+
+    func testInlineStatusChipVsActionableStatusRibbon() throws {
+        XCTAssertEqual(InlineStatusChip.displayText(for: .elevated), "● Elevated")
+        XCTAssertEqual(InlineStatusChip.displayText(for: .warning), "▲ Warning")
+        XCTAssertEqual(InlineStatusChip.displayText(for: .critical), "◆ Critical")
+
+        // Render InlineStatusChip across statuses and color schemes
+        for status in [StatusLevel.elevated, .warning, .critical] {
+            for scheme in [ColorScheme.light, .dark] {
+                let chip = InlineStatusChip(status: status, detail: "Sample detail")
+                    .environment(\.colorScheme, scheme)
+                let hosting = NSHostingView(rootView: chip)
+                hosting.frame = CGRect(x: 0, y: 0, width: 120, height: 30)
+                hosting.layoutSubtreeIfNeeded()
+                XCTAssertGreaterThan(hosting.fittingSize.width, 40)
+                XCTAssertGreaterThan(hosting.fittingSize.height, 14)
+            }
+        }
+
+        func probeScaffold(
+            category: MetricCategory = .thermal,
+            status: StatusLevel,
+            ribbon: String? = nil,
+            ribbonActionTitle: String? = nil,
+            ribbonAction: (() -> Void)? = nil,
+            isPaused: Bool = false,
+            isLoading: Bool = false,
+            availability: Availability? = nil
+        ) -> (shouldShowChip: Bool, shouldShowRibbon: Bool, probe: PanelScaffoldProbeSnapshot) {
+            var latestProbe = PanelScaffoldProbeSnapshot()
+            let scaffold = PanelScaffold(
+                chrome: PanelChrome(
+                    category: category,
+                    status: status,
+                    ribbon: ribbon,
+                    ribbonActionTitle: ribbonActionTitle,
+                    ribbonAction: ribbonAction,
+                    availability: availability,
+                    isLoading: isLoading,
+                    isPaused: isPaused
+                ),
+                glance: PanelGlance(value: 84, unit: "°C", headline: "Hot"),
+                pages: [.overview, .detail, .history],
+                selection: .constant(.overview)
+            ) { _ in
+                Text("Body").frame(height: 40)
+            }
+
+            let view = scaffold
+                .environment(\.panelScaffoldProbeEnabled, true)
+                .onPreferenceChange(PanelScaffoldProbeKey.self) { latestProbe = $0 }
+
+            let window = NSWindow(
+                contentRect: NSRect(x: 0, y: 0, width: Instrument.Size.panelWidth, height: 360),
+                styleMask: [.borderless],
+                backing: .buffered,
+                defer: false
+            )
+            let hosting = NSHostingView(rootView: view)
+            hosting.frame = NSRect(x: 0, y: 0, width: Instrument.Size.panelWidth, height: 360)
+            window.contentView = hosting
+            window.orderFront(nil)
+            window.layoutIfNeeded()
+            window.displayIfNeeded()
+            RunLoop.main.run(until: Date().addingTimeInterval(0.04))
+            window.orderOut(nil)
+
+            return (scaffold.shouldShowInlineStatusChip, scaffold.shouldShowActionableRibbon, latestProbe)
+        }
+
+        // 1. Fine status: no inline chip, no ribbon
+        let fineResult = probeScaffold(status: .fine, ribbon: nil)
+        XCTAssertFalse(fineResult.shouldShowChip)
+        XCTAssertFalse(fineResult.shouldShowRibbon)
+        XCTAssertNil(fineResult.probe.inlineStatusText)
+        XCTAssertEqual(fineResult.probe.hasActionRibbon, false)
+
+        // 2. Elevated with passive message: inline chip shown on trailing side of Glance, NO full-width StatusRibbon
+        let elevatedRes = probeScaffold(status: .elevated, ribbon: "Thermal pressure elevated")
+        XCTAssertTrue(elevatedRes.shouldShowChip)
+        XCTAssertFalse(elevatedRes.shouldShowRibbon, "Elevated passive message does not show full-width StatusRibbon")
+        XCTAssertEqual(elevatedRes.probe.inlineStatusText, "● Elevated")
+        XCTAssertEqual(elevatedRes.probe.hasActionRibbon, false)
+        let glanceFrame = try XCTUnwrap(elevatedRes.probe.glanceFrame)
+        let chipFrame = try XCTUnwrap(elevatedRes.probe.inlineStatusFrame)
+        XCTAssertGreaterThan(chipFrame.minX, glanceFrame.midX, "Inline status chip must sit on trailing side of Glance numeral row")
+        XCTAssertEqual(elevatedRes.probe.glanceSummary?.contains(InlineStatusChip.title(for: .elevated)), true)
+
+        // 3. Warning & Critical with message: inline chip AND full-width StatusRibbon carrying a real category action
+        for (level, expectedText) in [
+            (StatusLevel.warning, "▲ Warning"),
+            (StatusLevel.critical, "◆ Critical")
+        ] {
+            let res = probeScaffold(category: .thermal, status: level, ribbon: "Thermal pressure \(level.rawValue)")
+            XCTAssertTrue(res.shouldShowChip)
+            XCTAssertTrue(res.shouldShowRibbon, "Warning/critical messages always show StatusRibbon with a real action")
+            XCTAssertEqual(res.probe.inlineStatusText, expectedText)
+            XCTAssertEqual(res.probe.hasActionRibbon, true)
+            XCTAssertEqual(res.probe.ribbonActionTitle, "Open Activity Monitor")
+        }
+
+        // Category-specific real ribbon actions at .warning
+        XCTAssertEqual(probeScaffold(category: .power, status: .warning, ribbon: "Low battery").probe.ribbonActionTitle, "Battery Settings…")
+        XCTAssertEqual(probeScaffold(category: .disk, status: .warning, ribbon: "Disk almost full").probe.ribbonActionTitle, "Manage Storage…")
+        XCTAssertEqual(probeScaffold(category: .network, status: .warning, ribbon: "No internet").probe.ribbonActionTitle, "Wi-Fi Settings…")
+
+        // 4. Paused state: full-width StatusRibbon IS shown
+        let pausedResult = probeScaffold(status: .fine, isPaused: true)
+        XCTAssertTrue(pausedResult.shouldShowRibbon)
+        XCTAssertEqual(pausedResult.probe.hasActionRibbon, true)
+        XCTAssertEqual(pausedResult.probe.ribbonActionTitle, "Resume")
+
+        // 5. Explicit action button on ribbon: full-width StatusRibbon IS shown
+        let actionResult = probeScaffold(
+            status: .warning,
+            ribbon: "Helper upgrade needed",
+            ribbonActionTitle: "Install",
+            ribbonAction: {}
+        )
+        XCTAssertTrue(actionResult.shouldShowChip)
+        XCTAssertTrue(actionResult.shouldShowRibbon)
+        XCTAssertEqual(actionResult.probe.hasActionRibbon, true)
+        XCTAssertEqual(actionResult.probe.ribbonActionTitle, "Install")
+
+        // 6. Loading / Unavailable suppress inline status chip and warning ribbon
+        let loadingResult = probeScaffold(status: .critical, ribbon: "Hot", isLoading: true)
+        XCTAssertFalse(loadingResult.shouldShowChip)
+        XCTAssertFalse(loadingResult.shouldShowRibbon)
+        XCTAssertNil(loadingResult.probe.inlineStatusText)
+
+        let unavailableResult = probeScaffold(status: .warning, ribbon: "Hot", availability: .unavailable(reason: "No sensor"))
+        XCTAssertFalse(unavailableResult.shouldShowChip)
+        XCTAssertFalse(unavailableResult.shouldShowRibbon)
+        XCTAssertNil(unavailableResult.probe.inlineStatusText)
+    }
+
+    func testHeaderStripAll9ButtonsFitWithin320ContentWidth() {
+        for pinned in [false, true] {
+            let strip = PanelHeaderStrip(
+                destination: .category(.cpu),
+                enabledCategories: Set(MetricCategory.allCases),
+                hasBattery: true,
+                isPinned: pinned,
+                isPaused: false,
+                onSelectDestination: { _ in },
+                onTogglePin: {},
+                onClose: {},
+                onTogglePause: {},
+                onOpenSettings: {},
+                onQuit: {}
+            )
+            let hosting = NSHostingView(rootView: strip)
+            let fit = hosting.fittingSize
+            XCTAssertLessThanOrEqual(
+                fit.width,
+                Instrument.Size.contentWidth,
+                "Overview + all 8 categories + trailing controls (pinned: \(pinned)) must fit within 320pt (got \(fit.width))"
+            )
+            XCTAssertEqual(fit.height, Instrument.Size.headerStripHeight, accuracy: 1.0)
+        }
+    }
+
+    func testChromeUsesHasBatteryIdentityAndSettingsDeepLinkNotification() {
+        let desktopPower = PanelChrome(category: .power, hasBattery: false)
+        XCTAssertEqual(desktopPower.identitySymbol, "powerplug")
+        XCTAssertEqual(desktopPower.displayTitle, "Power")
+
+        let laptopPower = PanelChrome(category: .power, hasBattery: true)
+        XCTAssertEqual(laptopPower.identitySymbol, "battery.100percent")
+        XCTAssertEqual(laptopPower.displayTitle, "Battery")
+
+        // Verify Settings deep-link notification contract (coordinated with Task 9.9):
+        // showPreferences() is invoked first, then iStats.openSettingsSection is posted with section userInfo.
+        final class EventRecorder: @unchecked Sendable {
+            var events: [String] = []
+        }
+        let recorder = EventRecorder()
+        let token = NotificationCenter.default.addObserver(
+            forName: .openSettingsSection,
+            object: nil,
+            queue: nil
+        ) { note in
+            if let section = note.userInfo?[PanelSettingsLink.sectionKey] as? String {
+                recorder.events.append("notify:\(section)")
+            }
+        }
+        defer { NotificationCenter.default.removeObserver(token) }
+
+        PanelChromeActions.openSettings(
+            for: .category(.network),
+            closeTransientIfUnpinned: false,
+            showPreferences: { recorder.events.append("showPreferences") }
+        )
+        PanelChromeActions.openSettings(
+            for: .overview,
+            closeTransientIfUnpinned: false,
+            showPreferences: { recorder.events.append("showPreferences") }
+        )
+
+        XCTAssertEqual(recorder.events, [
+            "showPreferences",
+            "notify:network",
+            "showPreferences",
+            "notify:general"
+        ])
+    }
+
+    func testOverviewPlaceholderRendersWithinPanelBounds() {
+        let (defaults, prefs, coord, suiteName) = makeContext()
+        defer { cleanup(defaults: defaults, suiteName: suiteName) }
+
+        let view = PanelFactory.makePanelView(destination: .overview, coordinator: coord, preferences: prefs)
+        let hosting = NSHostingView(rootView: AnyView(view))
+        hosting.frame = CGRect(x: 0, y: 0, width: Instrument.Size.panelWidth, height: 320)
+        hosting.layoutSubtreeIfNeeded()
+
+        let fit = hosting.fittingSize
+        XCTAssertEqual(fit.width, Instrument.Size.panelWidth, accuracy: 2.0)
+        XCTAssertGreaterThanOrEqual(fit.height, 140)
+        XCTAssertLessThanOrEqual(fit.height, Instrument.Size.maxHeight)
+    }
+
+    func testPanelScaffoldPreservesAncestorMotionPolicyAndInjectedLowPowerMode() {
+        struct PolicyReader: View {
+            @Environment(\.motionPolicy) var policy
+            let onRead: (MotionPolicy) -> Void
+            var body: some View {
+                Color.clear
+                    .frame(height: 20)
+                    .onAppear { onRead(policy) }
+                    .onChange(of: policy) { onRead($0) }
+            }
+        }
+
+        @MainActor
+        func observedPolicy(
+            ancestorPolicy: MotionPolicy?,
+            isLowPowerModeActive: Bool
+        ) -> MotionPolicy? {
+            var observed: MotionPolicy?
+            let scaffold = PanelScaffold(
+                chrome: PanelChrome(
+                    category: .cpu,
+                    isLowPowerModeActive: isLowPowerModeActive
+                ),
+                glance: PanelGlance(value: 25, unit: "%", headline: "Calm"),
+                selection: .constant(.overview)
+            ) { _ in
+                PolicyReader { observed = $0 }
+            }
+
+            let root: AnyView = ancestorPolicy.map { AnyView(scaffold.motionPolicy($0)) } ?? AnyView(scaffold)
+            let window = NSWindow(
+                contentRect: NSRect(x: 0, y: 0, width: Instrument.Size.panelWidth, height: 280),
+                styleMask: [.borderless],
+                backing: .buffered,
+                defer: false
+            )
+            let hosting = NSHostingView(rootView: root)
+            hosting.frame = NSRect(x: 0, y: 0, width: Instrument.Size.panelWidth, height: 280)
+            window.contentView = hosting
+            window.orderFront(nil)
+            window.layoutIfNeeded()
+            RunLoop.main.run(until: Date().addingTimeInterval(0.03))
+            window.orderOut(nil)
+            return observed
+        }
+
+        // Explicit ancestor .motionPolicy(.reduced) must not be clobbered by PanelScaffold
+        XCTAssertEqual(observedPolicy(ancestorPolicy: .reduced, isLowPowerModeActive: false), .reduced)
+        XCTAssertEqual(observedPolicy(ancestorPolicy: .frozen, isLowPowerModeActive: false), .frozen)
+
+        // Without ancestor override, injected isLowPowerModeActive resolves to .frozen
+        XCTAssertEqual(observedPolicy(ancestorPolicy: nil, isLowPowerModeActive: true), .frozen)
+    }
+
+    func testPanelsAnchorTimedHistoryToSampleTimestampWhenPausedOver60Seconds() {
+        let suiteName = "test.istats.panels.timestamp.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        let prefs = PreferencesStore(userDefaults: defaults)
+        let coord = MetricsCoordinator(preferencesStore: prefs)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        // Feed 10 samples ending 120 seconds ago (simulating >60s paused sampling)
+        let endTs = Date().addingTimeInterval(-120.0)
+        for i in 0..<10 {
+            let ts = endTs.addingTimeInterval(Double(i - 9))
+            let cpu = CPUSample(totalUsage: Double(20 + i), perCore: [20, 25], user: Double(12 + i), system: 8, idle: Double(80 - i))
+            let mem = MemorySample(total: 16_000_000_000, used: 8_000_000_000, free: 8_000_000_000, wired: 2_000_000_000, compressed: 1_000_000_000, cached: 1_000_000_000, swapUsed: 0, pressure: .normal)
+            let fan = FanSample(fans: [FanReading(name: "Left", rpm: 2200 + i * 20, minRPM: 1200, maxRPM: 5000)])
+            let net = NetworkSample(interfaces: [
+                InterfaceThroughput(interfaceName: "en0", bytesInPerSec: Double(1000 + i * 50), bytesOutPerSec: 500, totalBytesIn: 10_000, totalBytesOut: 5_000, ipv4Address: "192.168.1.2", type: .wifi)
+            ], primaryInterface: "en0", primaryType: .wifi, localIPv4: "192.168.1.2")
+
+            coord.handleReadings([
+                .cpu(Sample(value: cpu, timestamp: ts)),
+                .memory(Sample(value: mem, timestamp: ts)),
+                .fan(Sample(value: fan, timestamp: ts)),
+                .network(Sample(value: net, timestamp: ts))
+            ])
+        }
+
+        let cpuPanel = CPUPanel(coordinator: coord, preferences: prefs)
+        let cpuGlance = cpuPanel.deriveGlance(
+            sample: coord.latestCPU?.value,
+            referenceDate: coord.latestCPU?.timestamp ?? Date(),
+            refreshInterval: prefs.refreshInterval
+        )
+        XCTAssertEqual(cpuGlance.chartMode?.primaryValues.count, 10)
+
+        let memPanel = MemoryPanel(coordinator: coord, preferences: prefs)
+        let memGlance = memPanel.deriveGlance(
+            sample: coord.latestMemory?.value,
+            standard: prefs.byteUnitStandard,
+            referenceDate: coord.latestMemory?.timestamp ?? Date(),
+            refreshInterval: prefs.refreshInterval
+        )
+        XCTAssertEqual(memGlance.chartMode?.primaryValues.count, 10)
+
+        let fanPanel = FanPanel(coordinator: coord, preferences: prefs)
+        let fanGlance = fanPanel.deriveGlance(latest: coord.latestFan)
+        XCTAssertEqual(fanGlance.chartMode?.primaryValues.count, 10)
+
+        let netPanel = NetworkPanel(coordinator: coord, preferences: prefs)
+        let netGlance = netPanel.deriveGlance(latest: coord.latestNetwork)
+        XCTAssertEqual(netGlance.chartMode?.primaryValues.count, 10)
+    }
+}

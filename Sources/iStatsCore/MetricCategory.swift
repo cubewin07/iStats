@@ -16,17 +16,17 @@ public enum MetricCategory: String, CaseIterable, Sendable, Codable, Identifiabl
 
     public var id: String { rawValue }
 
-    /// Human-readable name for display in the UI.
-    public var displayName: String {
-        switch self {
-        case .cpu: return "CPU"
-        case .memory: return "Memory"
-        case .thermal: return "Temperature"
-        case .fan: return "Fans"
-        case .gpu: return "GPU"
-        case .network: return "Network"
-        case .disk: return "Disk"
-        case .power: return "Battery & Power"
-        }
-    }
+    /// Human-readable name (laptop wording; see `displayName(hasBattery:)`).
+    public var displayName: String { identity.displayName() }
+
+    public func displayName(hasBattery: Bool) -> String { identity.displayName(hasBattery: hasBattery) }
+
+    /// Identity SF Symbol; forwards to `CategoryIdentity`.
+    public func symbolName(hasBattery: Bool = true) -> String { identity.symbol(hasBattery: hasBattery) }
+
+    public var symbolName: String { identity.symbol() }
+
+    public func shortLabel(hasBattery: Bool = true) -> String { identity.shortLabel(hasBattery: hasBattery) }
+
+    public var shortLabel: String { identity.shortLabel() }
 }

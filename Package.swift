@@ -18,7 +18,7 @@ let package = Package(
             name: "iStats",
             dependencies: ["iStatsCore"],
             path: "iStats",
-            exclude: ["App/iStatsApp.swift", "Resources"]
+            exclude: ["App/iStatsApp.swift", "Resources", "Assets.xcassets"]
         ),
         .testTarget(
             name: "iStatsCoreTests",

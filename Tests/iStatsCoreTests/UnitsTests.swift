@@ -132,6 +132,23 @@ final class UnitsTests: XCTestCase {
         XCTAssertEqual(Units.formatUptime(.nan), "0m")
     }
 
+    func testRateComponents() {
+        let zero = Units.rateComponents(0, unit: .bytesPerSecond, standard: .iec)
+        XCTAssertEqual(zero.value, 0.0)
+        XCTAssertEqual(zero.unit, "B/s")
+        XCTAssertEqual(zero.format, "%.0f")
+
+        let mb = Units.rateComponents(1024 * 1024 * 1.6, unit: .bytesPerSecond, standard: .iec)
+        XCTAssertEqual(round(mb.value * 10) / 10, 1.6)
+        XCTAssertEqual(mb.unit, "MiB/s")
+        XCTAssertEqual(mb.format, "%.1f")
+
+        let large = Units.rateComponents(1024 * 1024 * 125, unit: .bytesPerSecond, standard: .iec)
+        XCTAssertEqual(round(large.value), 125.0)
+        XCTAssertEqual(large.unit, "MiB/s")
+        XCTAssertEqual(large.format, "%.0f")
+    }
+
     func testFormatHistoryDuration() {
         XCTAssertEqual(Units.formatHistoryDuration(sampleCount: 60, interval: 2.0), "2 min")
         XCTAssertEqual(Units.formatHistoryDuration(sampleCount: 60, interval: 1.0), "1 min")

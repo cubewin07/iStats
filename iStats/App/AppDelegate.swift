@@ -26,6 +26,16 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         // Start metric alert threshold monitor
         AlertCoordinator.shared.start()
 
+        // Ensure the single Settings window controller observes deep-link notifications from launch.
+        _ = PreferencesWindowController.shared
+
+        // Ensure the Welcome window observes "Show Welcome Again" notifications from launch,
+        // and present it automatically only when onboarding has not been completed yet.
+        _ = WelcomeWindow.shared
+        if NSClassFromString("XCTestCase") == nil {
+            WelcomeWindow.shared.showIfNeeded()
+        }
+
         // Install the menu bar item and detail popover.
         menuBarController = MenuBarController()
         if NSClassFromString("XCTestCase") == nil {
