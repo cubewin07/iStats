@@ -72,7 +72,7 @@ public final class ProcessSampler: @unchecked Sendable {
                     let nameLen = proc_name(pid, &nameBuf, UInt32(nameBuf.count))
                     var resolvedName = ""
                     if nameLen > 0 {
-                        resolvedName = String(cString: nameBuf).trimmingCharacters(in: .whitespacesAndNewlines)
+                        resolvedName = String(decoding: nameBuf.prefix(Int(nameLen)).map { UInt8(bitPattern: $0) }, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
                     }
 
                     // If proc_name was empty or truncated at MAXCOMLEN (15 characters),
@@ -81,7 +81,7 @@ public final class ProcessSampler: @unchecked Sendable {
                         var pathBuf = [CChar](repeating: 0, count: 4096)
                         let pathLen = proc_pidpath(pid, &pathBuf, UInt32(pathBuf.count))
                         if pathLen > 0 {
-                            let fullPath = String(cString: pathBuf)
+                            let fullPath = String(decoding: pathBuf.prefix(Int(pathLen)).map { UInt8(bitPattern: $0) }, as: UTF8.self)
                             let baseName = (fullPath as NSString).lastPathComponent
                             if !baseName.isEmpty {
                                 resolvedName = baseName

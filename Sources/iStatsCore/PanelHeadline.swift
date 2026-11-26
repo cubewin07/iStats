@@ -196,47 +196,4 @@ public enum PanelHeadline {
 
         return parts.joined(separator: " · ")
     }
-
-    // MARK: - Power
-    public static func power(sample: PowerSample?) -> String {
-        guard let s = sample else { return "Power telemetry unavailable" }
-        var parts: [String] = []
-
-        switch s.variant {
-        case .charging:
-            parts.append("Charging")
-            if let secs = s.timeRemaining, secs > 0 {
-                let mins = Int(secs / 60)
-                parts.append("\(mins / 60)h \(mins % 60)m to full")
-            }
-        case .onHold:
-            parts.append("Charging on hold")
-        case .powerDeficit:
-            parts.append("Power deficit")
-        case .charged:
-            parts.append("Fully charged")
-        case .acDesktop:
-            parts.append("On AC power")
-        case .discharging:
-            parts.append("On battery")
-            if let secs = s.timeRemaining, secs > 0 {
-                let mins = Int(secs / 60)
-                parts.append("\(mins / 60)h \(mins % 60)m left")
-            }
-        case .lowBattery:
-            parts.append("Low battery")
-            if let secs = s.timeRemaining, secs > 0 {
-                let mins = Int(secs / 60)
-                parts.append("\(mins / 60)h \(mins % 60)m left")
-            }
-        case .unavailable:
-            parts.append("Power unmetered")
-        }
-
-        if let watts = s.powerDrawWatts, watts > 0 {
-            parts.append(String(format: "%.1f W", watts))
-        }
-
-        return parts.joined(separator: " · ")
-    }
 }

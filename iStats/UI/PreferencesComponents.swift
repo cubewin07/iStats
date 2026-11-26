@@ -2,127 +2,6 @@ import SwiftUI
 import AppKit
 import iStatsCore
 
-// MARK: - AppKit Translucent Sidebar Visual Effect
-
-public struct SidebarVisualEffectView: NSViewRepresentable {
-    public let material: NSVisualEffectView.Material
-    public let blendingMode: NSVisualEffectView.BlendingMode
-
-    public init(
-        material: NSVisualEffectView.Material = .sidebar,
-        blendingMode: NSVisualEffectView.BlendingMode = .behindWindow
-    ) {
-        self.material = material
-        self.blendingMode = blendingMode
-    }
-
-    public func makeNSView(context: Context) -> NSVisualEffectView {
-        let view = NSVisualEffectView()
-        view.material = material
-        view.blendingMode = blendingMode
-        view.state = .followsWindowActiveState
-        return view
-    }
-
-    public func updateNSView(_ nsView: NSVisualEffectView, context: Context) {
-        nsView.material = material
-        nsView.blendingMode = blendingMode
-    }
-}
-
-// MARK: - Modern Settings Card & Row Components
-
-/// A sleek grouped card container matching macOS System Settings styling.
-public struct SettingsCard<Content: View>: View {
-    public let title: String?
-    public let subtitle: String?
-    @ViewBuilder public let content: () -> Content
-
-    public init(
-        title: String? = nil,
-        subtitle: String? = nil,
-        @ViewBuilder content: @escaping () -> Content
-    ) {
-        self.title = title
-        self.subtitle = subtitle
-        self.content = content
-    }
-
-    public var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            if let title = title {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(title)
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(.primary)
-                    if let subtitle = subtitle {
-                        Text(subtitle)
-                            .font(.system(size: 11))
-                            .foregroundColor(.secondary)
-                    }
-                }
-                .padding(.horizontal, 4)
-            }
-
-            VStack(alignment: .leading, spacing: 0) {
-                content()
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color(nsColor: .controlBackgroundColor))
-            .clipShape(RoundedRectangle(cornerRadius: 10))
-            .overlay(
-                RoundedRectangle(cornerRadius: 10)
-                    .strokeBorder(Color.primary.opacity(0.08), lineWidth: 0.75)
-            )
-        }
-    }
-}
-
-/// A standardized setting row with icon/badge, title, description, and control trailing view.
-public struct SettingsRow<Leading: View, Trailing: View>: View {
-    public let leading: Leading
-    public let title: String
-    public let subtitle: String?
-    public let trailing: Trailing
-
-    public init(
-        @ViewBuilder leading: () -> Leading,
-        title: String,
-        subtitle: String? = nil,
-        @ViewBuilder trailing: () -> Trailing
-    ) {
-        self.leading = leading()
-        self.title = title
-        self.subtitle = subtitle
-        self.trailing = trailing()
-    }
-
-    public var body: some View {
-        HStack(spacing: 12) {
-            leading
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(.system(size: 12.5, weight: .medium))
-                    .foregroundColor(.primary)
-
-                if let subtitle = subtitle, !subtitle.isEmpty {
-                    Text(subtitle)
-                        .font(.system(size: 11))
-                        .foregroundColor(.secondary)
-                        .lineLimit(2)
-                }
-            }
-
-            Spacer()
-
-            trailing
-        }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
-    }
-}
-
 /// A macOS-style tinted squircle icon badge.
 public struct SettingsBadge: View {
     public let icon: String
@@ -157,16 +36,6 @@ public struct SettingsBadge: View {
     }
 }
 
-// MARK: - Category Tint & Icon Helpers
-
-public func preferenceCategoryColor(for category: MetricCategory) -> Color {
-    CategoryPalette.color(for: category)
-}
-
-public func preferenceCategoryIcon(for category: MetricCategory) -> String {
-    category.symbolName
-}
-
 /// A compact badge indicating the hardware subcomponent source for a widget (e.g. Temperature source).
 public struct MetricSourceBadge: View {
     public let source: MetricSource
@@ -177,7 +46,7 @@ public struct MetricSourceBadge: View {
 
     public var body: some View {
         Text(source.shortLabel)
-            .font(.system(size: 9, weight: .bold, design: .monospaced))
+            .font(Instrument.Typography.micro)
             .foregroundColor(.secondary)
             .padding(.horizontal, 5)
             .padding(.vertical, 1.5)

@@ -131,21 +131,4 @@ final class PanelHeadlineTests: XCTestCase {
         XCTAssertTrue(headline.contains("/s"))
         XCTAssertTrue(headline.contains("free"))
     }
-
-    func testPowerHeadlineFormatting() {
-        XCTAssertEqual(PanelHeadline.power(sample: nil), "Power telemetry unavailable")
-
-        let sample = PowerSample(
-            hasBattery: true,
-            charge: 65.0,
-            state: .discharging,
-            timeRemaining: 15000, // 250 minutes = 4h 10m
-            powerDrawWatts: 14.8
-        )
-
-        let headline = PanelHeadline.power(sample: sample)
-        XCTAssertTrue(headline.contains("On battery"))
-        XCTAssertTrue(headline.contains("4h 10m left"))
-        XCTAssertTrue(headline.contains("14.8 W"))
-    }
 }
