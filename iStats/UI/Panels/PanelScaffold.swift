@@ -55,6 +55,7 @@ public struct PanelScaffold<Content: View>: View {
     @State private var activeScrubSourceID: UUID? = nil
     @State private var measuredBodyHeight: CGFloat? = nil
     @State private var scrollVisibleHeight: CGFloat = 0
+    @State private var isShowingGlossary: Bool = false
     @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
     @Environment(\.explicitMotionPolicy) private var explicitMotionPolicy
     @Environment(\.isManagedByPanelController) private var isManagedByPanelController
@@ -198,6 +199,9 @@ public struct PanelScaffold<Content: View>: View {
                     onTogglePause: chrome.onTogglePause,
                     onOpenSettings: {
                         openSettings()
+                    },
+                    onShowGlossary: {
+                        showGlossary()
                     },
                     onQuit: {
                         quitApp()
@@ -389,6 +393,14 @@ public struct PanelScaffold<Content: View>: View {
             if let cmd = notification.object as? PanelCommand {
                 handleCommand(cmd)
             }
+        }
+        .sheet(isPresented: $isShowingGlossary) {
+            GlossarySheetView(
+                destination: destination,
+                enabledCategories: chrome.enabledCategories,
+                hasBattery: chrome.hasBattery,
+                onDismiss: { isShowingGlossary = false }
+            )
         }
     }
 
@@ -825,6 +837,11 @@ public struct PanelScaffold<Content: View>: View {
         }
     }
 
+    private func showGlossary() {
+        chrome.onShowGlossary?()
+        isShowingGlossary = true
+    }
+
     private var pageSwitchAnimation: Animation? {
         let policy = explicitMotionPolicy ?? MotionPolicy.resolve(
             reduceMotion: accessibilityReduceMotion,
@@ -880,7 +897,7 @@ public struct PanelScaffold<Content: View>: View {
         case .quit:
             quitApp()
         case .showGlossary:
-            chrome.onShowGlossary?()
+            showGlossary()
         case .close:
             closePanel()
         }

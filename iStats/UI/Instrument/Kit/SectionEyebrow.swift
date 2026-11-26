@@ -1,25 +1,33 @@
 import SwiftUI
+import iStatsCore
 
-/// Section eyebrow title with optional trailing accessory (ADR 0009 / Task 8.5).
+/// Section eyebrow title with optional glossary `InfoButton` and trailing accessory (ADR 0009 / Task 8.5 / Task 9.11).
 /// Replaces legacy `Divider()` + `sectionTitle`.
 public struct SectionEyebrow<Trailing: View>: View {
     public let title: String
+    public let glossaryKey: MetricTerm?
     public let trailing: Trailing
 
     public init(
         _ title: String,
+        glossaryKey: MetricTerm? = nil,
         @ViewBuilder trailing: () -> Trailing
     ) {
         self.title = title
+        self.glossaryKey = glossaryKey
         self.trailing = trailing()
     }
 
     public var body: some View {
-        HStack {
+        HStack(spacing: Instrument.Space.xs) {
             Text(title.uppercased())
                 .font(Instrument.Typography.eyebrow)
                 .tracking(0.6)
                 .foregroundColor(.secondary)
+
+            if let glossaryKey {
+                InfoButton(term: glossaryKey)
+            }
 
             Spacer()
 
@@ -31,8 +39,9 @@ public struct SectionEyebrow<Trailing: View>: View {
 }
 
 extension SectionEyebrow where Trailing == EmptyView {
-    public init(_ title: String) {
+    public init(_ title: String, glossaryKey: MetricTerm? = nil) {
         self.title = title
+        self.glossaryKey = glossaryKey
         self.trailing = EmptyView()
     }
 }

@@ -1,4 +1,5 @@
 import SwiftUI
+import iStatsCore
 
 /// Borderless glass card container for panel content sections (ADR 0009 / Task 8.5.7 Kit v2).
 /// Specifications:
@@ -9,6 +10,7 @@ import SwiftUI
 /// - Invariant: Never nested. No strokes or borders (except Increased Contrast accessibility border).
 public struct Section<Content: View, Trailing: View>: View {
     public let title: String?
+    public let glossaryKey: MetricTerm?
     public let trailing: Trailing
     public let content: Content
 
@@ -19,20 +21,24 @@ public struct Section<Content: View, Trailing: View>: View {
 
     public init(
         _ title: String? = nil,
+        glossaryKey: MetricTerm? = nil,
         @ViewBuilder trailing: () -> Trailing,
         @ViewBuilder content: () -> Content
     ) {
         self.title = title
+        self.glossaryKey = glossaryKey
         self.trailing = trailing()
         self.content = content()
     }
 
     public init(
         eyebrow: String?,
+        glossaryKey: MetricTerm? = nil,
         @ViewBuilder trailing: () -> Trailing,
         @ViewBuilder content: () -> Content
     ) {
         self.title = eyebrow
+        self.glossaryKey = glossaryKey
         self.trailing = trailing()
         self.content = content()
     }
@@ -46,10 +52,16 @@ public struct Section<Content: View, Trailing: View>: View {
             if showsHeader {
                 HStack(alignment: .firstTextBaseline, spacing: Instrument.Space.m) {
                     if let title {
-                        Text(title)
-                            .font(Instrument.Typography.captionStrong)
-                            .foregroundStyle(.secondary)
-                            .accessibilityAddTraits(.isHeader)
+                        HStack(alignment: .center, spacing: Instrument.Space.xs) {
+                            Text(title)
+                                .font(Instrument.Typography.captionStrong)
+                                .foregroundStyle(.secondary)
+                                .accessibilityAddTraits(.isHeader)
+
+                            if let glossaryKey {
+                                InfoButton(term: glossaryKey)
+                            }
+                        }
                     }
 
                     Spacer(minLength: Instrument.Space.m)
@@ -91,24 +103,29 @@ public struct Section<Content: View, Trailing: View>: View {
 extension Section where Trailing == EmptyView {
     public init(@ViewBuilder content: () -> Content) {
         self.title = nil
+        self.glossaryKey = nil
         self.trailing = EmptyView()
         self.content = content()
     }
 
     public init(
         _ title: String,
+        glossaryKey: MetricTerm? = nil,
         @ViewBuilder content: () -> Content
     ) {
         self.title = title
+        self.glossaryKey = glossaryKey
         self.trailing = EmptyView()
         self.content = content()
     }
 
     public init(
         eyebrow: String?,
+        glossaryKey: MetricTerm? = nil,
         @ViewBuilder content: () -> Content
     ) {
         self.title = eyebrow
+        self.glossaryKey = glossaryKey
         self.trailing = EmptyView()
         self.content = content()
     }

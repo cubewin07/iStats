@@ -183,17 +183,13 @@ public final class PanelController: NSObject, ObservableObject {
                 panel.animateOpenTransform()
             }
         } else {
-            // B1: If show() interrupted an in-flight fade-out, restore alpha back to 1.0 and front the panel
+            // B1: If show() interrupted an in-flight fade-out, cancel any pending alpha animation and restore alpha to 1.0.
             panel.makeKeyAndOrderFront(nil)
-            if !shouldAnimateTransitions || NSWorkspace.shared.accessibilityDisplayShouldReduceMotion || NSAnimationContext.current.duration == 0 {
-                panel.alphaValue = 1.0
-            } else {
-                NSAnimationContext.runAnimationGroup { context in
-                    context.duration = 0.16
-                    context.timingFunction = CAMediaTimingFunction(name: .easeOut)
-                    panel.animator().alphaValue = 1.0
-                }
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = 0
+                panel.animator().alphaValue = 1.0
             }
+            panel.alphaValue = 1.0
         }
         isTransientVisible = true
         syncNetworkForegroundProbing()
@@ -665,7 +661,11 @@ public final class PanelController: NSObject, ObservableObject {
             MainActor.assumeIsolated {
                 guard let self = self, let activePanel = self.transientPanel, !activePanel.isPinned else { return }
 
-                if let eventWindow = event.window, eventWindow != activePanel {
+                if let eventWindow = event.window,
+                   eventWindow != activePanel,
+                   eventWindow.parent != activePanel,
+                   activePanel.childWindows?.contains(eventWindow) != true,
+                   activePanel.attachedSheet != eventWindow {
                     let clickLocation = eventWindow.convertPoint(toScreen: event.locationInWindow)
                     if !activePanel.frame.contains(clickLocation) && !self.isClickOnStatusItem(clickLocation) {
                         self.close()

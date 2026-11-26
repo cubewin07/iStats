@@ -562,15 +562,15 @@ public struct NetworkPanel: View {
 
     @ViewBuilder
     private func wifiTelemetrySection(wifi: WiFiLinkTelemetry) -> some View {
-        let rows: [(label: String, value: String, copyable: Bool)] = [
+        let rows: [(label: String, value: String, copyable: Bool, glossaryKey: MetricTerm?)] = [
             wifi.signalPercent.map { pct in
                 let qual = wifi.qualityRating ?? "Good"
-                return ("Signal Quality", "\(pct)% (\(qual))", false)
+                return ("Signal Quality", "\(pct)% (\(qual))", false, nil)
             },
-            wifi.rssi.map { ("RSSI", "\($0) dBm", false) },
-            wifi.noise.map { ("Noise Floor", "\($0) dBm", false) },
-            wifi.snr.map { ("SNR", "\($0) dB", false) },
-            wifi.txRate.map { ("Transmit Rate", String(format: "%.0f Mbps", $0), false) }
+            wifi.rssi.map { ("RSSI", "\($0) dBm", false, .rssi) },
+            wifi.noise.map { ("Noise Floor", "\($0) dBm", false, nil) },
+            wifi.snr.map { ("SNR", "\($0) dB", false, .snr) },
+            wifi.txRate.map { ("Transmit Rate", String(format: "%.0f Mbps", $0), false, nil) }
         ].compactMap { $0 }
 
         if !rows.isEmpty {
@@ -580,6 +580,7 @@ public struct NetworkPanel: View {
                         MetricRow(
                             label: row.label,
                             valueText: row.value,
+                            glossaryKey: row.glossaryKey,
                             isCopyable: row.copyable,
                             showHairline: idx < rows.count - 1
                         )

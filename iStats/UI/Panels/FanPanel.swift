@@ -173,7 +173,7 @@ public struct FanPanel: View {
         if isFanless {
             fanlessModule
         } else if let s = sample, !s.fans.isEmpty {
-            Section(FanPanelCopy.nowSectionTitle) {
+            Section(FanPanelCopy.nowSectionTitle, glossaryKey: .fanRpmRange) {
                 VStack(spacing: Instrument.Space.m) {
                     ForEach(Array(s.fans.enumerated()), id: \.offset) { index, fan in
                         VStack(alignment: .leading, spacing: Instrument.Space.xs) {
@@ -320,6 +320,7 @@ public struct FanPanel: View {
             MetricRow(
                 label: "Min RPM",
                 valueText: fan.minRPM.map { Units.formatRPM($0) } ?? "Unavailable",
+                glossaryKey: .fanRpmRange,
                 isCopyable: false,
                 showHairline: true
             )
